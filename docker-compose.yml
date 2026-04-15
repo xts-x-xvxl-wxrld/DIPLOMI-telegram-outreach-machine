@@ -1,0 +1,46 @@
+services:
+  api:
+    build: .
+    command: uvicorn backend.api.app:create_app --factory --host 0.0.0.0 --port 8000
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "8000:8000"
+
+  worker:
+    build: .
+    command: python -m backend.workers.runner
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - telegram_sessions:/sessions
+
+  bot:
+    build: .
+    command: python -m bot.main
+    env_file: .env
+    depends_on:
+      - api
+
+  redis:
+    image: redis:alpine
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: telegram_outreach
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres_data:
+  telegram_sessions:
+

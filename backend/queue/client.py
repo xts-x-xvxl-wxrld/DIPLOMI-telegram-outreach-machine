@@ -1,0 +1,166 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
+from uuid import UUID
+
+from backend.core.settings import get_settings
+from backend.queue.payloads import AnalysisPayload, CollectionPayload, DiscoveryPayload, ExpansionPayload
+
+WORKER_DISPATCH = "backend.workers.jobs.dispatch_job"
+
+
+class QueueUnavailable(RuntimeError):
+    pass
+
+
+@dataclass(frozen=True)
+class QueuedJob:
+    id: str
+    type: str
+    status: str = "queued"
+
+
+def enqueue_discovery(
+    brief_id: UUID,
+    *,
+    requested_by: str,
+    limit: int,
+    auto_expand: bool = True,
+) -> QueuedJob:
+    payload = DiscoveryPayload(
+        brief_id=brief_id,
+        requested_by=requested_by,
+        limit=limit,
+        auto_expand=auto_expand,
+    )
+    return enqueue_job("discovery.run", payload.model_dump(mode="json"), queue_name="default")
+
+
+def enqueue_expansion(
+    brief_id: UUID,
+    community_ids: list[UUID],
+    *,
+    depth: int,
+    requested_by: str,
+) -> QueuedJob:
+    payload = ExpansionPayload(
+        brief_id=brief_id,
+        community_ids=community_ids,
+        depth=depth,
+        requested_by=requested_by,
+    )
+    return enqueue_job("expansion.run", payload.model_dump(mode="json"), queue_name="default")
+
+
+def enqueue_collection(
+    community_id: UUID,
+    *,
+    reason: str,
+    requested_by: str | None = None,
+    window_days: int = 90,
+) -> QueuedJob:
+    payload = CollectionPayload(
+        community_id=community_id,
+        reason=reason,  # type: ignore[arg-type]
+        requested_by=requested_by,
+        window_days=window_days,
+    )
+    queue_name = "high" if reason in {"manual", "initial"} else "scheduled"
+    job_id = f"collection:{community_id}:{datetime.utcnow():%Y%m%d%H}"
+    return enqueue_job(
+        "collection.run",
+        payload.model_dump(mode="json"),
+        queue_name=queue_name,
+        job_id=job_id,
+    )
+
+
+def enqueue_analysis(collection_run_id: UUID, *, requested_by: str | None = None) -> QueuedJob:
+    payload = AnalysisPayload(collection_run_id=collection_run_id, requested_by=requested_by)
+    return enqueue_job(
+        "analysis.run",
+        payload.model_dump(mode="json"),
+        queue_name="analysis",
+        job_id=f"analysis:{collection_run_id}",
+    )
+
+
+def enqueue_job(
+    job_type: str,
+    payload: dict[str, Any],
+    *,
+    queue_name: str,
+    job_id: str | None = None,
+) -> QueuedJob:
+    Queue, Retry, redis_conn = _queue_dependencies()
+    queue = Queue(queue_name, connection=redis_conn)
+    job = queue.enqueue(
+        WORKER_DISPATCH,
+        job_type,
+        payload,
+        job_id=job_id,
+        retry=_retry_for(job_type, Retry),
+        result_ttl=86400,
+        failure_ttl=604800,
+        meta={"job_type": job_type, **payload},
+    )
+    return QueuedJob(id=job.id, type=job_type, status="queued")
+
+
+def fetch_job_status(job_id: str, *, redis_url: str | None = None) -> dict[str, Any] | None:
+    _Queue, _Retry, redis_conn = _queue_dependencies(redis_url)
+    try:
+        from rq.job import Job
+    except ImportError as exc:
+        raise QueueUnavailable("RQ is not installed") from exc
+
+    try:
+        job = Job.fetch(job_id, connection=redis_conn)
+    except Exception:
+        return None
+
+    return {
+        "id": job.id,
+        "type": job.meta.get("job_type"),
+        "status": job.get_status(refresh=True),
+        "meta": job.meta or {},
+        "error": job.exc_info,
+        "created_at": job.created_at,
+        "started_at": job.started_at,
+        "ended_at": job.ended_at,
+    }
+
+
+def ping_redis(redis_url: str | None = None) -> None:
+    try:
+        from redis import Redis
+    except ImportError as exc:
+        raise QueueUnavailable("redis is not installed") from exc
+
+    Redis.from_url(redis_url or get_settings().redis_url).ping()
+
+
+def _queue_dependencies(redis_url: str | None = None):
+    try:
+        from redis import Redis
+        from rq import Queue, Retry
+    except ImportError as exc:
+        raise QueueUnavailable("redis and rq must be installed before queue operations run") from exc
+
+    redis_conn = Redis.from_url(redis_url or get_settings().redis_url)
+    return Queue, Retry, redis_conn
+
+
+def _retry_for(job_type: str, Retry):
+    if job_type == "discovery.run":
+        return Retry(max=3, interval=[60, 300, 900])
+    if job_type == "expansion.run":
+        return Retry(max=3, interval=[300, 900, 3600])
+    if job_type == "collection.run":
+        return Retry(max=2, interval=[600, 1800])
+    if job_type == "analysis.run":
+        return Retry(max=3, interval=[60, 300, 1800])
+    return Retry(max=1, interval=[60])
+
