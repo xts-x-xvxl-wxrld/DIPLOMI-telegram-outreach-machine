@@ -6,7 +6,8 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 COPY pyproject.toml ./
+COPY backend ./backend
+COPY bot ./bot
 RUN pip install --no-cache-dir -e .
 
 COPY . .
-

@@ -243,6 +243,13 @@ import cap explicit with the default value from `.env.example`. Telegram develop
 credentials still need operator-provided `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` before Telethon
 resolution and collection jobs can run end to end.
 
+## [2026-04-16] ops | Fixed CI package installation
+
+Made setuptools package discovery explicit for the flat repository layout so CI can run
+`python -m pip install -e ".[dev]"` without accidentally trying to package wiki or migration
+directories. Updated the Dockerfile to copy installable packages before the editable install and
+recorded the focused CI packaging plan.
+
 ## [2026-04-15] code | Added member access and account onboarding
 
 Added a safe `GET /api/communities/{community_id}/members` API over persisted visible members,

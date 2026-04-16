@@ -19,6 +19,7 @@
 
 - [Git CI Convenience](plan/git-ci.md) - repo-local command for staging and committing changes
 - [VPS GitHub Pipeline](plan/vps-github-pipeline.md) - safe branch-to-GitHub-to-VPS deployment workflow
+- [CI Packaging Install](plan/ci-packaging-install.md) - explicit package discovery for CI and Docker installs
 - [Backend Contracts](plan/backend-contracts.md) - account manager, queue, and API contract plan
 - [Brief Discovery Slice](plan/brief-discovery-slice.md) - legacy/optional brief-first discovery plan
 - [Manual Seed CSV Import](plan/manual-seed-csv-import.md) - bot CSV upload for named manual seed groups
