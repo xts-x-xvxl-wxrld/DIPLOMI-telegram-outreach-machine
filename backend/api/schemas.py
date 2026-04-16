@@ -11,6 +11,8 @@ from backend.db.enums import CommunityStatus
 
 
 class JobRef(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     type: str
     status: str
@@ -54,7 +56,7 @@ class BriefDetailResponse(BaseModel):
 
 class DiscoveryJobRequest(BaseModel):
     limit: int = Field(default=50, ge=1, le=200)
-    auto_expand: bool = True
+    auto_expand: bool = False
 
 
 class ExpansionJobRequest(BaseModel):
@@ -62,7 +64,45 @@ class ExpansionJobRequest(BaseModel):
     depth: int = Field(default=1, ge=1, le=3)
 
 
+class SeedGroupExpansionJobRequest(BaseModel):
+    brief_id: UUID | None = None
+    depth: int = Field(default=1, ge=1, le=3)
+
+
+class SeedGroupResolveJobRequest(BaseModel):
+    limit: int = Field(default=100, ge=1, le=1000)
+    retry_failed: bool = False
+
+
 class JobResponse(BaseModel):
+    job: JobRef
+
+
+class TelegramEntityIntakeRequest(BaseModel):
+    handle: str = Field(min_length=1, max_length=256)
+    requested_by: str | None = None
+
+
+class TelegramEntityIntakeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    raw_value: str
+    normalized_key: str
+    username: str
+    telegram_url: str
+    status: str
+    entity_type: str | None = None
+    community_id: UUID | None = None
+    user_id: UUID | None = None
+    requested_by: str | None = None
+    error_message: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class TelegramEntityIntakeResponse(BaseModel):
+    intake: TelegramEntityIntakeOut
     job: JobRef
 
 
@@ -89,6 +129,88 @@ class CommunityOut(BaseModel):
 
 class CommunityListResponse(BaseModel):
     items: list[CommunityOut]
+    limit: int
+    offset: int
+    total: int
+
+
+class SeedImportRequest(BaseModel):
+    csv_text: str = Field(min_length=1, max_length=500_000)
+    file_name: str | None = None
+    requested_by: str | None = None
+
+
+class SeedImportErrorOut(BaseModel):
+    row_number: int
+    message: str
+
+
+class SeedImportGroupSummaryOut(BaseModel):
+    id: UUID
+    name: str
+    imported: int
+    updated: int
+
+
+class SeedImportResponse(BaseModel):
+    imported: int
+    updated: int
+    errors: list[SeedImportErrorOut]
+    groups: list[SeedImportGroupSummaryOut]
+
+
+class SeedGroupListItem(BaseModel):
+    id: UUID
+    name: str
+    description: str | None = None
+    created_by: str | None = None
+    created_at: datetime
+    seed_count: int
+    resolved_count: int
+    unresolved_count: int = 0
+    failed_count: int = 0
+
+
+class SeedGroupListResponse(BaseModel):
+    items: list[SeedGroupListItem]
+    total: int
+
+
+class SeedGroupDetailResponse(BaseModel):
+    group: SeedGroupListItem
+
+
+class SeedChannelOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    seed_group_id: UUID
+    raw_value: str
+    username: str | None = None
+    telegram_url: str | None = None
+    title: str | None = None
+    notes: str | None = None
+    status: str
+    community_id: UUID | None = None
+    created_at: datetime
+
+
+class SeedChannelListResponse(BaseModel):
+    items: list[SeedChannelOut]
+    total: int
+
+
+class SeedGroupCandidateItem(BaseModel):
+    community: CommunityOut
+    seed_group_id: UUID
+    source_seed_count: int
+    evidence_count: int
+    evidence_types: list[str]
+    candidate_score: int
+
+
+class SeedGroupCandidateListResponse(BaseModel):
+    items: list[SeedGroupCandidateItem]
     limit: int
     offset: int
     total: int
@@ -139,6 +261,24 @@ class CollectionRunOut(BaseModel):
 
 class CollectionRunListResponse(BaseModel):
     items: list[CollectionRunOut]
+
+
+class CommunityMemberOut(BaseModel):
+    tg_user_id: int
+    username: str | None = None
+    first_name: str | None = None
+    membership_status: str
+    activity_status: str
+    first_seen_at: datetime
+    last_updated_at: datetime
+    last_active_at: datetime | None = None
+
+
+class CommunityMemberListResponse(BaseModel):
+    items: list[CommunityMemberOut]
+    limit: int
+    offset: int
+    total: int
 
 
 class AnalysisSummaryOut(BaseModel):

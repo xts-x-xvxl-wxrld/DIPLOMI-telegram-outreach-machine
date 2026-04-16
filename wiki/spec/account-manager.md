@@ -159,6 +159,79 @@ The account manager emits alert events or logs for:
 
 The bot may expose these alerts through API debug/status endpoints.
 
+## Local Account Onboarding
+
+Telegram user accounts are onboarded manually by the operator. The MVP provides
+`scripts/onboard_telegram_account.py` as a safe local workflow:
+
+1. Read `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `SESSIONS_DIR`, and `DATABASE_URL`.
+2. Prompt for or accept a phone number.
+3. Create or validate a Telethon `.session` file under `SESSIONS_DIR`.
+4. Upsert the matching `telegram_accounts` row with `status = 'available'`.
+
+The script stores only the operational account phone and session path in `telegram_accounts`.
+It must not collect Telegram community member phone numbers.
+
+Session file rules:
+
+- Store relative session file names in `telegram_accounts.session_file_path`.
+- Reject path separators and traversal in operator-provided session names.
+- Keep session files inside `SESSIONS_DIR`.
+
+## Account Safety And Health
+
+Telegram user accounts used by Telethon should be treated as scarce operational identities, not
+throwaway credentials. Telegram's official API docs state that API client libraries are monitored
+for abuse, `FLOOD_WAIT` means the client must wait before repeating an action, and API access must
+not be used for spam, flooding, fake subscriber/view activity, or unauthorized data aggregation.
+
+Baseline operating rules:
+
+- Use dedicated Telegram accounts, never the operator's main personal account.
+- Keep the accounts read-only for this app: no outreach DMs, posting, comments, promotional joins,
+  vote manipulation, or subscriber/view inflation.
+- Enable a strong Telegram 2FA password and recovery email before onboarding.
+- Keep each Telethon `.session` file private. Treat it like an account password.
+- Use stable infrastructure. Avoid repeatedly logging the same account in from many hosts, IPs, or
+  regenerated session files.
+- Start new accounts slowly with a tiny seed batch before larger resolution or collection runs.
+- Do not join many groups quickly. Prefer public username/link resolution and collection from
+  communities where access is already allowed.
+- Never collect phone numbers, never assign person-level scores, and never use collected data to
+  train, fine-tune, or build machine-learning models.
+
+Healthy account behavior:
+
+- One leased job per account at a time.
+- Conservative collection windows and member limits.
+- Let `rate_limited` accounts rest until `flood_wait_until`.
+- Investigate repeated `last_error` values before retrying more work.
+- Keep at least one spare `available` account when running recurring collection.
+
+Risk indicators:
+
+- Frequent `FloodWaitError` or long `flood_wait_until` values.
+- Repeated auth/session errors such as revoked, deauthorized, duplicated, or invalid auth keys.
+- Sudden private/inaccessible results across many unrelated communities.
+- Telegram `@SpamBot` reports that the account is limited.
+
+Manual recovery:
+
+- `rate_limited`: do not replace the session or keep retrying. Wait until the recorded time.
+- `banned` or deauthorized: log in manually with official Telegram clients, check `@SpamBot`, and
+  resolve the account before returning it to `available`.
+- compromised session suspicion: revoke the session in Telegram settings, delete the local session
+  file, mark the database row unusable, and onboard a fresh session only after the account is safe.
+
+Recommended pool size for the beginning:
+
+- Start with two dedicated accounts: one active account and one warm spare.
+- Add both through `scripts/onboard_telegram_account.py` so both have sessions and rows in
+  `telegram_accounts`.
+- Keep worker concurrency low enough that the pool normally has at least one account not `in_use`.
+- Scale only after observing several successful seed-resolution and collection cycles without
+  `rate_limited` or account-level auth errors.
+
 ## Safety Rules
 
 - Never lease banned accounts automatically.

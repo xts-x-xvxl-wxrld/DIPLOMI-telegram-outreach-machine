@@ -6,7 +6,16 @@ from typing import Any
 from uuid import UUID
 
 from backend.core.settings import get_settings
-from backend.queue.payloads import AnalysisPayload, CollectionPayload, DiscoveryPayload, ExpansionPayload
+from backend.queue.payloads import (
+    AnalysisPayload,
+    BriefProcessPayload,
+    CollectionPayload,
+    DiscoveryPayload,
+    ExpansionPayload,
+    SeedExpandPayload,
+    SeedResolvePayload,
+    TelegramEntityResolvePayload,
+)
 
 WORKER_DISPATCH = "backend.workers.jobs.dispatch_job"
 
@@ -27,7 +36,7 @@ def enqueue_discovery(
     *,
     requested_by: str,
     limit: int,
-    auto_expand: bool = True,
+    auto_expand: bool = False,
 ) -> QueuedJob:
     payload = DiscoveryPayload(
         brief_id=brief_id,
@@ -38,8 +47,22 @@ def enqueue_discovery(
     return enqueue_job("discovery.run", payload.model_dump(mode="json"), queue_name="default")
 
 
-def enqueue_expansion(
+def enqueue_brief_process(
     brief_id: UUID,
+    *,
+    requested_by: str,
+    auto_start_discovery: bool = True,
+) -> QueuedJob:
+    payload = BriefProcessPayload(
+        brief_id=brief_id,
+        requested_by=requested_by,
+        auto_start_discovery=auto_start_discovery,
+    )
+    return enqueue_job("brief.process", payload.model_dump(mode="json"), queue_name="default")
+
+
+def enqueue_expansion(
+    brief_id: UUID | None,
     community_ids: list[UUID],
     *,
     depth: int,
@@ -52,6 +75,51 @@ def enqueue_expansion(
         requested_by=requested_by,
     )
     return enqueue_job("expansion.run", payload.model_dump(mode="json"), queue_name="default")
+
+
+def enqueue_seed_resolve(
+    seed_group_id: UUID,
+    *,
+    requested_by: str,
+    limit: int = 100,
+    retry_failed: bool = False,
+) -> QueuedJob:
+    payload = SeedResolvePayload(
+        seed_group_id=seed_group_id,
+        requested_by=requested_by,
+        limit=limit,
+        retry_failed=retry_failed,
+    )
+    return enqueue_job("seed.resolve", payload.model_dump(mode="json"), queue_name="default")
+
+
+def enqueue_seed_expansion(
+    seed_group_id: UUID,
+    brief_id: UUID | None,
+    *,
+    depth: int,
+    requested_by: str,
+) -> QueuedJob:
+    payload = SeedExpandPayload(
+        seed_group_id=seed_group_id,
+        brief_id=brief_id,
+        depth=depth,
+        requested_by=requested_by,
+    )
+    return enqueue_job("seed.expand", payload.model_dump(mode="json"), queue_name="default")
+
+
+def enqueue_telegram_entity_resolve(
+    intake_id: UUID,
+    *,
+    requested_by: str,
+) -> QueuedJob:
+    payload = TelegramEntityResolvePayload(intake_id=intake_id, requested_by=requested_by)
+    return enqueue_job(
+        "telegram_entity.resolve",
+        payload.model_dump(mode="json"),
+        queue_name="default",
+    )
 
 
 def enqueue_collection(
@@ -154,8 +222,12 @@ def _queue_dependencies(redis_url: str | None = None):
 
 
 def _retry_for(job_type: str, Retry):
+    if job_type == "brief.process":
+        return Retry(max=3, interval=[60, 300, 900])
     if job_type == "discovery.run":
         return Retry(max=3, interval=[60, 300, 900])
+    if job_type in {"seed.resolve", "seed.expand", "telegram_entity.resolve"}:
+        return Retry(max=3, interval=[300, 900, 3600])
     if job_type == "expansion.run":
         return Retry(max=3, interval=[300, 900, 3600])
     if job_type == "collection.run":
@@ -163,4 +235,3 @@ def _retry_for(job_type: str, Retry):
     if job_type == "analysis.run":
         return Retry(max=3, interval=[60, 300, 1800])
     return Retry(max=1, interval=[60])
-

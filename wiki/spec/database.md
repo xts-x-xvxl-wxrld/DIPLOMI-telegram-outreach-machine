@@ -19,7 +19,8 @@ Alembic migrations are the implementation source of truth. This spec defines int
 ## Tables
 
 ### `audience_briefs`
-Stores operator-entered audience descriptions and the structured search brief derived from them.
+Stores optional/future operator-entered audience descriptions and the structured search brief
+derived from them. Audience briefs are no longer the primary MVP discovery input; seed groups are.
 
 ```sql
 id                  uuid PRIMARY KEY
@@ -48,8 +49,7 @@ member_count        int
 language            text
 is_group            boolean                 -- true = group/chat, false = channel
 is_broadcast        boolean
-tgstat_id           text                    -- TGStat internal id if discovered via TGStat
-source              text                    -- 'tgstat' | 'expansion' | 'manual'
+source              text                    -- 'manual' | 'expansion' | 'web_search' | 'telegram_search'
 match_reason        text                    -- plain-language explanation of why it matched
 brief_id            uuid REFERENCES audience_briefs(id)
 status              text NOT NULL DEFAULT 'candidate'
@@ -60,6 +60,128 @@ reviewed_at         timestamptz
 first_seen_at       timestamptz NOT NULL DEFAULT now()
 last_snapshot_at    timestamptz
 ```
+
+---
+
+### `seed_groups`
+Operator-curated groups of manually supplied Telegram seed links.
+
+Seed groups are the active MVP intent object. A seed group means "find more communities like these
+examples." Candidate review should preserve this context through `seed_channels.community_id` for
+manual seeds and `community_discovery_edges` for expansion results.
+
+```sql
+id                  uuid PRIMARY KEY
+name                text NOT NULL           -- operator-facing group name
+normalized_name     text UNIQUE NOT NULL    -- case-folded/deduped name
+description         text
+created_by          text                    -- operator or bot source
+created_at          timestamptz NOT NULL DEFAULT now()
+```
+
+---
+
+### `seed_channels`
+CSV-imported seed links. Rows may be unresolved until a Telethon resolver maps them to a
+`communities` row.
+
+```sql
+id                  uuid PRIMARY KEY
+seed_group_id       uuid REFERENCES seed_groups(id)
+raw_value           text NOT NULL           -- original CSV value
+normalized_key      text NOT NULL           -- e.g. username:example_channel
+username            text                    -- public Telegram username when parsed
+telegram_url        text                    -- normalized https://t.me/<username> URL
+title               text                    -- optional operator CSV label
+notes               text                    -- optional operator CSV notes
+status              text NOT NULL DEFAULT 'pending'
+                    -- 'pending' | 'resolved' | 'invalid' | 'inaccessible' | 'not_community' | 'failed'
+community_id        uuid REFERENCES communities(id)
+created_at          timestamptz NOT NULL DEFAULT now()
+
+UNIQUE (seed_group_id, normalized_key)
+```
+
+Manual seed import writes here first because `communities.tg_id` is required and may be unknown
+until Telethon resolves the seed.
+
+Seed field contract:
+- `raw_value` preserves the trimmed CSV seed value.
+- `normalized_key` is `username:<casefolded_username>` and is unique within a seed group.
+- `username` is parsed from a public Telegram username or link and keeps the operator-supplied
+  casing.
+- `telegram_url` is the canonical public link, `https://t.me/<username>`.
+- `title` and `notes` are operator metadata from CSV import.
+- `community_id` is set only after a resolver links the seed to `communities`.
+
+Seed statuses:
+- `pending` - imported and waiting for resolver work.
+- `resolved` - linked to a `communities` row; `community_id` must be set.
+- `invalid` - unsupported or malformed seed value discovered after import.
+- `inaccessible` - public-looking target could not be accessed through Telegram.
+- `not_community` - target resolves to a user, bot, or other non-community entity.
+- `failed` - transient resolver failure; retry may succeed later.
+
+---
+
+### `community_discovery_edges`
+Batch expansion provenance edges from resolved manual seeds to discovered communities.
+
+These rows are the seed-first explanation layer for graph-discovered candidates. They support
+candidate ordering by evidence type, evidence count, and number of distinct source seeds in the same
+seed group.
+
+```sql
+id                    uuid PRIMARY KEY
+seed_group_id         uuid REFERENCES seed_groups(id)
+seed_channel_id       uuid REFERENCES seed_channels(id)
+source_community_id   uuid REFERENCES communities(id)
+target_community_id   uuid NOT NULL REFERENCES communities(id)
+evidence_type         text NOT NULL       -- linked_discussion | forward_source | mention | telegram_link | adapter-defined
+evidence_value        text                -- username, t.me link, forwarded post id, or other compact evidence
+created_at            timestamptz NOT NULL DEFAULT now()
+
+UNIQUE (
+  seed_group_id,
+  seed_channel_id,
+  source_community_id,
+  target_community_id,
+  evidence_type,
+  evidence_value
+)
+```
+
+The uniqueness constraint deduplicates exact provenance evidence. Application code also checks for
+duplicates before insert so rows with nullable evidence values do not multiply.
+
+---
+
+### `telegram_entity_intakes`
+Operator-submitted public Telegram usernames or links sent directly to the bot for classification.
+This table is the audit trail for ad hoc handle intake.
+
+```sql
+id                  uuid PRIMARY KEY
+raw_value           text NOT NULL           -- original operator text
+normalized_key      text UNIQUE NOT NULL    -- e.g. username:example
+username            text NOT NULL
+telegram_url        text NOT NULL
+status              text NOT NULL DEFAULT 'pending'
+                    -- 'pending' | 'resolved' | 'invalid' | 'inaccessible' | 'failed'
+entity_type         text                    -- 'channel' | 'group' | 'user' | 'bot'
+community_id        uuid REFERENCES communities(id)
+user_id             uuid REFERENCES users(id)
+requested_by        text
+error_message       text
+created_at          timestamptz NOT NULL DEFAULT now()
+updated_at          timestamptz NOT NULL DEFAULT now()
+```
+
+Resolution rules:
+- Channels and groups are saved to `communities` with `source = 'manual'`.
+- Users and bots are saved to `users`.
+- Phone numbers are never requested or stored.
+- No person-level scores are produced.
 
 ---
 
@@ -257,6 +379,14 @@ CREATE INDEX ON community_members (user_id);
 CREATE INDEX ON analysis_summaries (community_id, analyzed_at DESC);
 CREATE INDEX ON telegram_accounts (status);
 CREATE INDEX ON telegram_accounts (lease_expires_at);
+CREATE INDEX ON community_discovery_edges (seed_group_id);
+CREATE INDEX ON community_discovery_edges (seed_channel_id);
+CREATE INDEX ON community_discovery_edges (source_community_id);
+CREATE INDEX ON community_discovery_edges (target_community_id);
+CREATE INDEX ON telegram_entity_intakes (status);
+CREATE INDEX ON telegram_entity_intakes (entity_type);
+CREATE INDEX ON telegram_entity_intakes (community_id);
+CREATE INDEX ON telegram_entity_intakes (user_id);
 ```
 
 ---

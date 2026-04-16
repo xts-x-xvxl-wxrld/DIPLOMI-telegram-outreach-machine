@@ -10,7 +10,15 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db.base import Base
-from backend.db.enums import AccountStatus, ActivityStatus, AnalysisStatus, CollectionRunStatus, CommunityStatus
+from backend.db.enums import (
+    AccountStatus,
+    ActivityStatus,
+    AnalysisStatus,
+    CollectionRunStatus,
+    CommunityStatus,
+    SeedChannelStatus,
+    TelegramEntityIntakeStatus,
+)
 
 
 def uuid_pk() -> Mapped[uuid.UUID]:
@@ -54,7 +62,6 @@ class Community(Base):
     language: Mapped[str | None] = mapped_column(Text)
     is_group: Mapped[bool | None] = mapped_column(Boolean)
     is_broadcast: Mapped[bool | None] = mapped_column(Boolean)
-    tgstat_id: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str | None] = mapped_column(Text)
     match_reason: Mapped[str | None] = mapped_column(Text)
     brief_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("audience_briefs.id"))
@@ -74,6 +81,139 @@ class Community(Base):
     last_snapshot_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     brief: Mapped[AudienceBrief | None] = relationship(back_populates="communities")
+
+
+class SeedGroup(Base):
+    __tablename__ = "seed_groups"
+    __table_args__ = (
+        UniqueConstraint("normalized_name"),
+        Index("ix_seed_groups_normalized_name", "normalized_name"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    normalized_name: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    channels: Mapped[list["SeedChannel"]] = relationship(back_populates="seed_group")
+
+
+class SeedChannel(Base):
+    __tablename__ = "seed_channels"
+    __table_args__ = (
+        UniqueConstraint("seed_group_id", "normalized_key"),
+        Index("ix_seed_channels_seed_group_id", "seed_group_id"),
+        Index("ix_seed_channels_status", "status"),
+        Index("ix_seed_channels_community_id", "community_id"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    seed_group_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("seed_groups.id"), nullable=False)
+    raw_value: Mapped[str] = mapped_column(Text, nullable=False)
+    normalized_key: Mapped[str] = mapped_column(Text, nullable=False)
+    username: Mapped[str | None] = mapped_column(Text)
+    telegram_url: Mapped[str | None] = mapped_column(Text)
+    title: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(
+        Text,
+        default=SeedChannelStatus.PENDING.value,
+        server_default=SeedChannelStatus.PENDING.value,
+        nullable=False,
+    )
+    community_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("communities.id"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    seed_group: Mapped[SeedGroup] = relationship(back_populates="channels")
+    community: Mapped[Community | None] = relationship()
+
+
+class CommunityDiscoveryEdge(Base):
+    __tablename__ = "community_discovery_edges"
+    __table_args__ = (
+        UniqueConstraint(
+            "seed_group_id",
+            "seed_channel_id",
+            "source_community_id",
+            "target_community_id",
+            "evidence_type",
+            "evidence_value",
+            name="uq_community_discovery_edges_identity",
+        ),
+        Index("ix_community_discovery_edges_seed_group_id", "seed_group_id"),
+        Index("ix_community_discovery_edges_seed_channel_id", "seed_channel_id"),
+        Index("ix_community_discovery_edges_source_community_id", "source_community_id"),
+        Index("ix_community_discovery_edges_target_community_id", "target_community_id"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    seed_group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("seed_groups.id"))
+    seed_channel_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("seed_channels.id"))
+    source_community_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("communities.id"))
+    target_community_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("communities.id"), nullable=False)
+    evidence_type: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_value: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    seed_group: Mapped[SeedGroup | None] = relationship()
+    seed_channel: Mapped[SeedChannel | None] = relationship()
+    source_community: Mapped[Community | None] = relationship(foreign_keys=[source_community_id])
+    target_community: Mapped[Community] = relationship(foreign_keys=[target_community_id])
+
+
+class TelegramEntityIntake(Base):
+    __tablename__ = "telegram_entity_intakes"
+    __table_args__ = (
+        UniqueConstraint("normalized_key"),
+        Index("ix_telegram_entity_intakes_status", "status"),
+        Index("ix_telegram_entity_intakes_entity_type", "entity_type"),
+        Index("ix_telegram_entity_intakes_community_id", "community_id"),
+        Index("ix_telegram_entity_intakes_user_id", "user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    raw_value: Mapped[str] = mapped_column(Text, nullable=False)
+    normalized_key: Mapped[str] = mapped_column(Text, nullable=False)
+    username: Mapped[str] = mapped_column(Text, nullable=False)
+    telegram_url: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(
+        Text,
+        default=TelegramEntityIntakeStatus.PENDING.value,
+        server_default=TelegramEntityIntakeStatus.PENDING.value,
+        nullable=False,
+    )
+    entity_type: Mapped[str | None] = mapped_column(Text)
+    community_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("communities.id"))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    requested_by: Mapped[str | None] = mapped_column(Text)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    community: Mapped[Community | None] = relationship()
+    user: Mapped["User | None"] = relationship()
 
 
 class CommunitySnapshot(Base):

@@ -14,10 +14,14 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="redis://redis:6379/0", validation_alias="REDIS_URL")
     bot_api_token: str = Field(default="", validation_alias="BOT_API_TOKEN")
     openai_api_key: str = Field(default="", validation_alias="OPENAI_API_KEY")
-    tgstat_api_token: str = Field(default="", validation_alias="TGSTAT_API_TOKEN")
+    openai_brief_model: str = Field(default="gpt-4o-mini", validation_alias="OPENAI_BRIEF_MODEL")
     telegram_api_id: str = Field(default="", validation_alias="TELEGRAM_API_ID")
     telegram_api_hash: str = Field(default="", validation_alias="TELEGRAM_API_HASH")
     sessions_dir: str = Field(default="/sessions", validation_alias="SESSIONS_DIR")
+    telegram_member_import_limit: int = Field(
+        default=10000,
+        validation_alias="TELEGRAM_MEMBER_IMPORT_LIMIT",
+    )
     collection_interval_minutes: int = Field(
         default=60,
         validation_alias="COLLECTION_INTERVAL_MINUTES",
@@ -35,4 +39,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

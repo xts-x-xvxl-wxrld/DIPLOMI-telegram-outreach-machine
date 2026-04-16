@@ -12,9 +12,34 @@ class CommunityStatus(StrEnum):
 
 
 class CommunitySource(StrEnum):
-    TGSTAT = "tgstat"
-    EXPANSION = "expansion"
     MANUAL = "manual"
+    EXPANSION = "expansion"
+    WEB_SEARCH = "web_search"
+    TELEGRAM_SEARCH = "telegram_search"
+
+
+class SeedChannelStatus(StrEnum):
+    PENDING = "pending"
+    RESOLVED = "resolved"
+    INVALID = "invalid"
+    INACCESSIBLE = "inaccessible"
+    NOT_COMMUNITY = "not_community"
+    FAILED = "failed"
+
+
+class TelegramEntityIntakeStatus(StrEnum):
+    PENDING = "pending"
+    RESOLVED = "resolved"
+    INVALID = "invalid"
+    INACCESSIBLE = "inaccessible"
+    FAILED = "failed"
+
+
+class TelegramEntityType(StrEnum):
+    CHANNEL = "channel"
+    GROUP = "group"
+    USER = "user"
+    BOT = "bot"
 
 
 class CollectionRunStatus(StrEnum):
@@ -43,4 +68,3 @@ class ActivityStatus(StrEnum):
     INACTIVE = "inactive"
     PASSIVE = "passive"
     ACTIVE = "active"
-

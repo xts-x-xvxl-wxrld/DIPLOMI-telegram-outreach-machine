@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, or_, select
 
 from backend.api.deps import DbSession, require_bot_token
 from backend.api.schemas import (
@@ -13,14 +13,23 @@ from backend.api.schemas import (
     CollectionRunListResponse,
     CommunityDetailResponse,
     CommunityListResponse,
+    CommunityMemberListResponse,
+    CommunityMemberOut,
     JobResponse,
     PatchCommunityRequest,
     PatchCommunityResponse,
     ReviewCommunityRequest,
     ReviewCommunityResponse,
 )
-from backend.db.enums import CommunityStatus
-from backend.db.models import AnalysisSummary, CollectionRun, Community, CommunitySnapshot
+from backend.db.enums import ActivityStatus, CommunityStatus
+from backend.db.models import (
+    AnalysisSummary,
+    CollectionRun,
+    Community,
+    CommunityMember,
+    CommunitySnapshot,
+    User,
+)
 from backend.queue.client import QueueUnavailable, enqueue_analysis, enqueue_collection
 
 router = APIRouter(dependencies=[Depends(require_bot_token)])
@@ -160,6 +169,58 @@ async def list_collection_runs(community_id: UUID, db: DbSession) -> CollectionR
     return CollectionRunListResponse(items=list(rows))
 
 
+@router.get("/communities/{community_id}/members", response_model=CommunityMemberListResponse)
+async def list_community_members(
+    community_id: UUID,
+    db: DbSession,
+    username_present: bool | None = None,
+    has_public_username: bool | None = None,
+    activity_status: str | None = None,
+    limit: int = Query(default=20, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+) -> CommunityMemberListResponse:
+    community = await db.get(Community, community_id)
+    if community is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Community not found"})
+
+    username_filter = _resolve_username_filter(
+        username_present=username_present,
+        has_public_username=has_public_username,
+    )
+    if activity_status is not None and activity_status not in {status.value for status in ActivityStatus}:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "invalid_activity_status",
+                "message": "activity_status must be inactive, passive, or active",
+            },
+        )
+
+    query = _community_members_query(
+        community_id=community_id,
+        username_present=username_filter,
+        activity_status=activity_status,
+    )
+    total = await db.scalar(
+        select(func.count()).select_from(
+            query.order_by(None).limit(None).offset(None).subquery()
+        )
+    )
+    rows = (
+        await db.execute(
+            query.order_by(desc(CommunityMember.last_updated_at), User.tg_user_id)
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+    return CommunityMemberListResponse(
+        items=[_member_row_to_out(member, user) for member, user in rows],
+        limit=limit,
+        offset=offset,
+        total=total or 0,
+    )
+
+
 @router.post("/collection-runs/{collection_run_id}/analysis-jobs", response_model=JobResponse, status_code=202)
 async def start_analysis(collection_run_id: UUID, db: DbSession) -> JobResponse:
     collection_run = await db.get(CollectionRun, collection_run_id)
@@ -188,3 +249,55 @@ def _model_dict(model: object | None) -> dict | None:
     if model is None:
         return None
     return {column.name: getattr(model, column.name) for column in model.__table__.columns}  # type: ignore[attr-defined]
+
+
+def _resolve_username_filter(
+    *,
+    username_present: bool | None,
+    has_public_username: bool | None,
+) -> bool | None:
+    if username_present is not None and has_public_username is not None:
+        if username_present != has_public_username:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "conflicting_username_filters",
+                    "message": "username_present and has_public_username must match when both are supplied",
+                },
+            )
+    if username_present is not None:
+        return username_present
+    return has_public_username
+
+
+def _community_members_query(
+    *,
+    community_id: UUID,
+    username_present: bool | None,
+    activity_status: str | None,
+):
+    query = (
+        select(CommunityMember, User)
+        .join(User, User.id == CommunityMember.user_id)
+        .where(CommunityMember.community_id == community_id)
+    )
+    if username_present is True:
+        query = query.where(User.username.is_not(None), User.username != "")
+    elif username_present is False:
+        query = query.where(or_(User.username.is_(None), User.username == ""))
+    if activity_status is not None:
+        query = query.where(CommunityMember.activity_status == activity_status)
+    return query
+
+
+def _member_row_to_out(member: CommunityMember, user: User) -> CommunityMemberOut:
+    return CommunityMemberOut(
+        tg_user_id=user.tg_user_id,
+        username=user.username,
+        first_name=user.first_name,
+        membership_status="member",
+        activity_status=member.activity_status,
+        first_seen_at=member.first_seen_at,
+        last_updated_at=member.last_updated_at,
+        last_active_at=member.last_active_at,
+    )

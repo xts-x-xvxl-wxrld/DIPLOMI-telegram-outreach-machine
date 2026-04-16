@@ -16,7 +16,12 @@ from backend.api.schemas import (
     JobResponse,
 )
 from backend.db.models import AudienceBrief, Community
-from backend.queue.client import QueueUnavailable, enqueue_discovery, enqueue_expansion
+from backend.queue.client import (
+    QueueUnavailable,
+    enqueue_brief_process,
+    enqueue_discovery,
+    enqueue_expansion,
+)
 
 router = APIRouter(dependencies=[Depends(require_bot_token)])
 
@@ -35,12 +40,14 @@ async def create_brief(payload: CreateBriefRequest, db: DbSession) -> CreateBrie
     db.add(brief)
     await db.flush()
 
-    job = None
-    if payload.auto_start_discovery:
-        try:
-            job = enqueue_discovery(brief.id, requested_by="operator", limit=50)
-        except QueueUnavailable as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
+    try:
+        job = enqueue_brief_process(
+            brief.id,
+            requested_by="operator",
+            auto_start_discovery=payload.auto_start_discovery,
+        )
+    except QueueUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     await db.commit()
     await db.refresh(brief)

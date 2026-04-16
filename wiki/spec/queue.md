@@ -18,7 +18,7 @@ The API enqueues jobs. Workers consume jobs, write durable state to Postgres, an
 | Queue | Job types | Priority |
 |---|---|---|
 | `high` | manual collection, manual analysis, operator-requested retries | Highest |
-| `default` | discovery, expansion | Normal |
+| `default` | seed resolution, seed batch expansion, direct handle classification, optional brief processing, optional discovery, expansion | Normal |
 | `scheduled` | recurring collection | Lower |
 | `analysis` | analysis jobs | Normal, isolated from Telegram account usage |
 
@@ -26,9 +26,9 @@ Analysis has its own queue because it uses OpenAI API calls and does not need Te
 
 ## Job Types
 
-### `discovery.run`
+### `brief.process`
 
-Triggered by the API after an audience brief is created or when the operator manually starts discovery.
+Optional/future job triggered by the API after an audience brief is created.
 
 Payload:
 
@@ -36,14 +36,55 @@ Payload:
 {
   "brief_id": "uuid",
   "requested_by": "telegram_user_id_or_operator",
-  "limit": 50
+  "auto_start_discovery": true
+}
+```
+
+Reads:
+
+- `audience_briefs.raw_input`
+
+Writes:
+
+- `audience_briefs.keywords`
+- `audience_briefs.related_phrases`
+- `audience_briefs.language_hints`
+- `audience_briefs.geography_hints`
+- `audience_briefs.exclusion_terms`
+- `audience_briefs.community_types`
+
+May enqueue:
+
+- `discovery.run`, if `auto_start_discovery = true` in a future brief-driven workflow
+
+Rules:
+
+- OpenAI calls are allowed in this job.
+- The API must not call OpenAI directly.
+- Discovery must not start automatically if structured output validation fails.
+- The output is search guidance, not a relevance score.
+- Briefs are not the active MVP discovery input; seed groups are primary.
+
+### `discovery.run`
+
+Optional/future job triggered after `brief.process` completes or when the operator manually starts
+adapter-based discovery.
+
+Payload:
+
+```json
+{
+  "brief_id": "uuid",
+  "requested_by": "telegram_user_id_or_operator",
+  "limit": 50,
+  "auto_expand": false
 }
 ```
 
 Writes:
 
 - `communities` rows with `status = 'candidate'`
-- `source = 'tgstat'`
+- `source = 'web_search'`, `source = 'telegram_search'`, `source = 'manual'`, or `source = 'expansion'`
 - `brief_id`
 - `match_reason`
 
@@ -51,20 +92,73 @@ May enqueue:
 
 - `expansion.run` for promising seed communities, if enabled by API request or config.
 
-### `expansion.run`
+MVP default:
 
-Triggered after discovery or manually for selected communities.
+- `discovery.run` is not on the primary MVP path.
+- `auto_expand = false`.
+
+### `seed.resolve`
+
+Triggered when the operator wants imported manual seed rows resolved into real communities.
 
 Payload:
 
 ```json
 {
-  "brief_id": "uuid",
+  "seed_group_id": "uuid",
+  "requested_by": "telegram_user_id_or_operator",
+  "limit": 100,
+  "retry_failed": false
+}
+```
+
+Uses:
+
+- `account_manager.acquire_account(purpose="expansion")`
+
+Reads:
+
+- `seed_groups`
+- `seed_channels` with `status = 'pending'`
+- `seed_channels` with `status IN ('failed', 'inaccessible')` when `retry_failed = true`
+
+Writes:
+
+- `communities` rows for resolved public channels or groups
+- `seed_channels.status`
+- `seed_channels.community_id`
+
+May enqueue:
+
+- `collection.run` with `reason = "initial"` for each unique resolved seed community
+
+Rules:
+
+- No OpenAI calls.
+- No retired external index calls.
+- No expansion graph crawling.
+- No raw message collection.
+- Existing operator decisions on `communities.status` must be preserved.
+- Resolution may update community metadata, but it must not reset rejected, approved, monitoring, or dropped communities back to candidate.
+
+### `expansion.run`
+
+Optional/future generic expansion job triggered after discovery or manually for selected
+communities. Seed-first MVP expansion uses `seed.expand` instead.
+
+Payload:
+
+```json
+{
+  "brief_id": "uuid-or-null",
   "community_ids": ["uuid"],
   "depth": 1,
   "requested_by": "telegram_user_id_or_operator"
 }
 ```
+
+Generic expansion may use `brief_id = null` when communities are not attached to a processed
+audience brief.
 
 Uses:
 
@@ -78,6 +172,100 @@ Writes:
 May enqueue:
 
 - no automatic collection. Operator approval is required first.
+
+### `telegram_entity.resolve`
+
+Triggered when the operator sends one public Telegram username or link directly to the bot.
+
+Payload:
+
+```json
+{
+  "intake_id": "uuid",
+  "requested_by": "telegram_user_id_or_operator"
+}
+```
+
+Uses:
+
+- `account_manager.acquire_account(purpose="entity_intake")`
+
+Reads:
+
+- `telegram_entity_intakes`
+
+Writes:
+
+- `telegram_entity_intakes.status`
+- `telegram_entity_intakes.entity_type`
+- `telegram_entity_intakes.community_id` for channels/groups
+- `telegram_entity_intakes.user_id` for users/bots
+- `communities` for channels/groups
+- `users` for users/bots
+
+Rules:
+
+- No OpenAI calls.
+- Private invite links are rejected before enqueue.
+- Users and bots must not receive person-level scores or phone fields.
+- Communities remain candidates until operator review.
+
+### `seed.expand`
+
+Triggered when the operator wants graph expansion from an imported manual seed batch. This is the
+primary MVP discovery job after seed resolution.
+
+Payload:
+
+```json
+{
+  "seed_group_id": "uuid",
+  "brief_id": "uuid-or-null",
+  "depth": 1,
+  "requested_by": "telegram_user_id_or_operator"
+}
+```
+
+Uses:
+
+- `account_manager.acquire_account(purpose="expansion")`
+
+Reads:
+
+- `seed_groups`
+- `seed_channels` with `status = 'resolved'` and `community_id IS NOT NULL`
+- the linked resolved `communities` rows
+
+Writes:
+
+- additional `communities` rows with `source = 'expansion'`
+- updated metadata for inspected communities
+- batch-aware `match_reason` values that include the seed group name and graph evidence
+- `community_discovery_edges` provenance rows
+
+Graph evidence:
+
+- linked discussions
+- forwarded-from channels/groups
+- public Telegram links in text, captions, descriptions, and pinned messages
+- public `@username` mentions
+
+Candidate ordering:
+
+- deterministic, evidence-based, and community-level only
+- strengthened when the same candidate is found from multiple seeds in the same seed group
+- used for operator review sorting, not as a stored person-level or outreach score
+
+Rules:
+
+- No OpenAI calls.
+- No retired external index calls.
+- No raw message collection.
+- No expansion from unresolved seed rows.
+- Existing operator decisions on `communities.status` must be preserved.
+- The seed group is the expansion target; the worker must not treat `/expandseeds` as a generic
+  arbitrary-community expansion request after resolving the initial community IDs.
+- Expansion work must be capped per seed and per seed group to protect Telegram account health.
 
 ### `collection.run`
 
@@ -108,11 +296,13 @@ Writes:
 
 May enqueue:
 
-- `analysis.run` with `{ "collection_run_id": "uuid" }`
+- `analysis.run` with `{ "collection_run_id": "uuid" }` after message collection
 
 Important:
 
 Collection does not pass raw message batches through Redis. It writes a compact, capped `collection_runs.analysis_input` artifact and enqueues analysis by ID.
+For the bare seed-import slice, collection fetches metadata and visible members only, writes
+`analysis_status = 'skipped'`, and does not enqueue analysis.
 
 ### `analysis.run`
 
@@ -131,7 +321,8 @@ Reads:
 
 - `collection_runs.analysis_input`
 - `communities`
-- `audience_briefs`
+- `audience_briefs` when a brief context is attached
+- seed-group provenance when analysis later needs to explain how a community entered review
 
 Writes:
 
@@ -140,14 +331,28 @@ Writes:
 
 Rules:
 
-- OpenAI calls happen only in analysis jobs.
+- OpenAI calls happen only in `brief.process` and `analysis.run`.
 - Analysis creates community-level summaries and relevance scores only.
 - No person-level scoring or ranking.
 
 ## Job Chain
 
+Primary seed-first flow:
+
+```text
+CSV uploaded
+  -> seed rows imported
+  -> seed.resolve
+  -> collection.run for resolved seed communities
+  -> metadata, snapshots, users, and community_members persisted
+  -> optional operator review/monitoring later
+```
+
+Optional future brief-driven flow:
+
 ```text
 brief created
+  -> brief.process
   -> discovery.run
   -> optional expansion.run
   -> operator approves communities
@@ -292,7 +497,11 @@ Before enqueueing collection, the scheduler checks whether an active RQ job alre
 
 | Job | Retry count | Backoff | Notes |
 |---|---:|---|---|
-| `discovery.run` | 3 | 1m, 5m, 15m | TGStat/network failures. |
+| `brief.process` | 3 | 1m, 5m, 15m | OpenAI/network/structured-output failures. |
+| `discovery.run` | 3 | 1m, 5m, 15m | Web-search, Telegram search, or network failures. |
+| `seed.resolve` | 3 | 5m, 15m, 60m | Telegram account and network failures. |
+| `seed.expand` | 3 | 5m, 15m, 60m | Telegram account and network failures. |
+| `telegram_entity.resolve` | 3 | 5m, 15m, 60m | Telegram account and network failures. |
 | `expansion.run` | 3 | 5m, 15m, 60m | Telegram account and network failures. |
 | `collection.run` | 2 | 10m, 30m | Scheduler will also retry on future ticks. |
 | `analysis.run` | 3 | 1m, 5m, 30m | OpenAI/network failures. |
@@ -353,7 +562,11 @@ The API may read RQ job metadata for operator-facing debug output. Durable busin
 
 ## Worker Boundaries
 
-- Discovery may call TGStat, not Telethon.
+- Brief processing may call OpenAI, not Telegram search or Telethon.
+- Discovery may call configured source adapters, not OpenAI or raw message collection.
+- Seed resolution may call Telethon and uses the account manager.
+- Direct handle classification may call Telethon and uses the account manager.
+- Seed batch expansion may call Telethon and uses the account manager.
 - Expansion may call Telethon and uses the account manager.
 - Collection may call Telethon and uses the account manager.
 - Analysis may call OpenAI, not Telethon.

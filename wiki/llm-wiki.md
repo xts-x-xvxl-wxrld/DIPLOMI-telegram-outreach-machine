@@ -11,7 +11,7 @@ This wiki exists to solve a specific problem: LLM agents lose context between se
 
 The wiki covers this project only:
 
-> A Telegram community discovery and monitoring app. Operators enter a target audience in plain language. The system converts that into a search brief, uses TGStat to discover candidate channels and chats, uses Telethon and crawler logic to expand through seeds, collects public messages from approved communities, and summarizes community relevance. Centered on community intelligence — not direct outreach.
+> A Telegram community discovery and monitoring app. Operators enter a target audience in plain language. The system converts that into a search brief, uses manual seeds and configured discovery adapters to find candidate channels and chats, uses Telethon and crawler logic to expand through seeds, collects public messages from approved communities, and summarizes community relevance. Centered on community intelligence — not direct outreach.
 
 
 ## Directory Layout
@@ -24,7 +24,7 @@ wiki/
   log.md               ← append-only change record (agent appends after every session)
   spec/
     audience-brief.md  ← Audience Brief module spec
-    discovery.md       ← TGStat Discovery Worker spec
+    discovery.md       ← Discovery Worker spec
     expansion.md       ← Seed Expansion Worker (Telethon + crawler) spec
     collection.md      ← Collection Worker (Telethon / TeleCatch) spec
     analysis.md        ← Community Analysis Worker spec
@@ -110,7 +110,7 @@ The index is a flat catalog. The agent updates it whenever a spec or plan file i
 
 ## Spec files
 - [Audience Brief](spec/audience-brief.md) — keyword extraction and search brief generation
-- [Discovery](spec/discovery.md) — TGStat search, candidate community ingestion
+- [Discovery](spec/discovery.md) — source-adapter discovery and candidate community ingestion
 - [Expansion](spec/expansion.md) — Telethon seed inspection, graph expansion
 - [Collection](spec/collection.md) — public message collection from approved communities
 - [Analysis](spec/analysis.md) — community summarization and relevance scoring

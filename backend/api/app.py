@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from backend.api.routes import briefs, communities, health, jobs
+from backend.api.routes import briefs, communities, health, jobs, seeds, telegram_entities
 
 
 def create_app() -> FastAPI:
@@ -11,8 +11,9 @@ def create_app() -> FastAPI:
     app.include_router(briefs.router, prefix="/api", tags=["briefs"])
     app.include_router(communities.router, prefix="/api", tags=["communities"])
     app.include_router(jobs.router, prefix="/api", tags=["jobs"])
+    app.include_router(seeds.router, prefix="/api", tags=["seeds"])
+    app.include_router(telegram_entities.router, prefix="/api", tags=["telegram-entities"])
     return app
 
 
 app = create_app()
-

@@ -24,7 +24,8 @@ This project uses a wiki at `wiki/` as the source of truth for all specs, plans,
 
 ## Stack
 
-- **TGStat** — seed discovery (keyword/channel/post search)
-- **Telethon** — Telegram client, collection, seed inspection
+- **Manual seed import** — operator-curated seed batches for reliable initial discovery
+- **Public web search adapters** — optional t.me username discovery
+- **Telethon** — Telegram client, collection, seed inspection, and graph expansion
 - **TGCrawl** — channel-graph expansion reference
 - **TeleCatch** — collection UI/API reference
