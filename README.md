@@ -44,7 +44,7 @@ Local runtime secrets live in `.env`. Keep `.env` out of Git.
 Use separate checkouts for deployment and agent editing:
 
 ```text
-/srv/telegram-outreach/deploy       # reset-only production checkout
+/srv/telegram-outreach/deploy       # reset-only staging checkout
 /srv/telegram-outreach/agent-work   # branch-based coding-agent workspace
 ```
 
@@ -76,9 +76,9 @@ cd /srv/telegram-outreach/deploy
 bash scripts/vps-deploy.sh origin/main
 ```
 
-## GitHub Secrets for Auto Deploy
+## GitHub Secrets for Staging Auto Deploy
 
-Add these repository or environment secrets in GitHub:
+Add these secrets to the GitHub `staging` environment:
 
 | Secret | Purpose |
 |---|---|
@@ -96,8 +96,8 @@ ssh-keyscan -p 22 <vps-host>
 ```
 
 After these secrets are configured, pushes to `main` run CI first. A successful CI run then deploys
-that exact commit to the VPS. The deploy job uses strict SSH host-key checking and never receives app
-runtime secrets.
+that exact commit to the staging VPS. The deploy job uses strict SSH host-key checking and never
+receives app runtime secrets.
 
 ## Coding Agents on the VPS
 

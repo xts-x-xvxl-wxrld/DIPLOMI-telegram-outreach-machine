@@ -6,7 +6,7 @@ Prepare the repository for GitHub upload and establish a safe two-way workflow:
 
 - local and VPS coding agents can push branches to GitHub
 - CI validates branch consistency
-- production VPS deploys only from `main`
+- staging VPS deploys only from `main`
 - secrets and local runtime files stay out of Git and Docker images
 
 ## Decisions

@@ -312,3 +312,9 @@ Updated AGENTS.md, README, the deployment spec, and the VPS pipeline plan.
 
 Indented the VPS deploy heredoc terminator inside the workflow `run` block so GitHub Actions can
 parse `.github/workflows/deploy-vps.yml` on push and workflow-run events.
+
+## [2026-04-16] ops | Pointed VPS deploy workflow at staging
+
+Changed the GitHub Actions deploy environment from `production` to `staging` and updated the README,
+deployment spec, wiki index, and VPS pipeline plan to describe staging environment secrets and
+staging deploys.

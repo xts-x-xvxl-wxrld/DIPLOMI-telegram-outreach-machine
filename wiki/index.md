@@ -43,10 +43,10 @@
 - `bot/ui.py` - Telegram keyboard and callback-data helpers for inline operator actions
 - `scripts/make_seed_csv.py` - builds bot-ready seed CSV files from public Telegram usernames or links
 - `scripts/onboard_telegram_account.py` - local Telethon session creation and `telegram_accounts` registration
-- `scripts/vps-deploy.sh` - reset-only production deploy script for the VPS checkout
+- `scripts/vps-deploy.sh` - reset-only staging deploy script for the VPS checkout
 - `scripts/vps-agent-worktree.sh` - helper for branch-scoped VPS coding-agent worktrees
 - `.github/workflows/ci.yml` - branch and pull-request validation workflow
-- `.github/workflows/deploy-vps.yml` - production VPS deployment workflow
+- `.github/workflows/deploy-vps.yml` - staging VPS deployment workflow
 - `backend/api/routes/seeds.py` - manual seed import and seed-group API endpoints
 - `backend/api/routes/telegram_entities.py` - direct Telegram handle intake API endpoints
 - `backend/services/seed_import.py` - CSV parsing and seed-group upsert logic

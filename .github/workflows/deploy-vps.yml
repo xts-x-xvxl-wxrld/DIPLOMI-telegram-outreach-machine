@@ -17,14 +17,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: production-vps
+  group: staging-vps
   cancel-in-progress: false
 
 jobs:
   deploy:
     name: Reset deploy checkout and restart Compose
     runs-on: ubuntu-latest
-    environment: production
+    environment: staging
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&

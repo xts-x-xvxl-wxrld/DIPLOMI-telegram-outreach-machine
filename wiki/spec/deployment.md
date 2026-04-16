@@ -2,7 +2,7 @@
 
 ## Goal
 
-Deploy the app to a VPS without letting production runtime state, server-only secrets, or coding
+Deploy the app to a VPS without letting staging runtime state, server-only secrets, or coding
 agent work-in-progress create Git conflicts or inconsistent Docker builds.
 
 ## Repository Roles
@@ -11,7 +11,7 @@ Use separate checkouts on the VPS:
 
 | Checkout | Purpose | Allowed writes |
 |---|---|---|
-| `/srv/telegram-outreach/deploy` | production Docker Compose checkout | `.env` only |
+| `/srv/telegram-outreach/deploy` | staging Docker Compose checkout | `.env` only |
 | `/srv/telegram-outreach/agent-work` or worktrees | coding-agent edits | feature branches only |
 
 The deploy checkout is reset-only. No human or agent should edit application source there.
@@ -48,7 +48,7 @@ The Docker build is a consistency check only. Runtime secrets are not available 
 
 ## Deployment
 
-Deployment is triggered by successful CI completion on `main` or by manual workflow dispatch. The
+Staging deployment is triggered by successful CI completion on `main` or by manual workflow dispatch. The
 CI-triggered deploy uses the exact commit SHA that passed CI. The deployment process:
 
 1. Connects to the VPS over SSH with strict host-key checking.
@@ -71,7 +71,7 @@ mount directories.
 Application secrets live only in `.env` on the VPS and local developer machines. `.env` must never
 be committed or sent in Docker build context.
 
-GitHub deployment secrets are limited to SSH deployment metadata:
+GitHub `staging` environment secrets are limited to SSH deployment metadata:
 
 - `VPS_HOST`
 - `VPS_USER`
