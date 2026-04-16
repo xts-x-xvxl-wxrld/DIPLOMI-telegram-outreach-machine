@@ -307,3 +307,8 @@ Added a Git freshness protocol requiring agents to commit and push after every c
 codebase change slice, while checking `git status` first to avoid bundling unrelated dirty work or
 secrets.
 Updated AGENTS.md, README, the deployment spec, and the VPS pipeline plan.
+
+## [2026-04-16] fix | Fixed deploy workflow YAML
+
+Indented the VPS deploy heredoc terminator inside the workflow `run` block so GitHub Actions can
+parse `.github/workflows/deploy-vps.yml` on push and workflow-run events.
