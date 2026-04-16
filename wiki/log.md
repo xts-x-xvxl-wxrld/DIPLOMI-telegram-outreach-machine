@@ -318,3 +318,10 @@ parse `.github/workflows/deploy-vps.yml` on push and workflow-run events.
 Changed the GitHub Actions deploy environment from `production` to `staging` and updated the README,
 deployment spec, wiki index, and VPS pipeline plan to describe staging environment secrets and
 staging deploys.
+
+## [2026-04-16] fix | Added deploy secret diagnostics
+
+The staging deploy workflow failed in the `Install SSH key` step before any SSH connection attempt,
+which means a required staging environment secret was empty or unavailable. Replaced bare `test -n`
+checks with explicit GitHub Actions error annotations naming the missing secret without printing
+secret values.
