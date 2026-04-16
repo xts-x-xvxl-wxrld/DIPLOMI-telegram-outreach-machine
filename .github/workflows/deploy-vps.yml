@@ -97,8 +97,41 @@ jobs:
             "VPS_DEPLOY_PATH='$VPS_DEPLOY_PATH' DEPLOY_REF='$DEPLOY_REF' bash -s" <<'REMOTE'
           set -euo pipefail
 
+          echo "Deploy path: $VPS_DEPLOY_PATH"
+          if [ ! -d "$VPS_DEPLOY_PATH" ]; then
+            echo "::error::VPS_DEPLOY_PATH does not exist or is not a directory: $VPS_DEPLOY_PATH"
+            exit 1
+          fi
+
           cd "$VPS_DEPLOY_PATH"
-          test -f .env
+
+          if [ ! -d .git ]; then
+            echo "::error::Deploy path is not a Git checkout. Clone the repository into VPS_DEPLOY_PATH first."
+            exit 1
+          fi
+          if [ ! -f .env ]; then
+            echo "::error::Missing .env in VPS_DEPLOY_PATH. Copy .env.example to .env and fill VPS runtime secrets."
+            exit 1
+          fi
+          if ! command -v git >/dev/null 2>&1; then
+            echo "::error::git is not installed on the VPS."
+            exit 1
+          fi
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "::error::docker is not installed on the VPS or is not on PATH for VPS_USER."
+            exit 1
+          fi
+          if ! docker compose version >/dev/null 2>&1; then
+            echo "::error::docker compose is unavailable for VPS_USER. Install the Compose plugin and check Docker permissions."
+            exit 1
+          fi
+          if ! docker ps >/dev/null 2>&1; then
+            echo "::error::VPS_USER cannot run docker without sudo. Add the user to the docker group and start a new login session."
+            exit 1
+          fi
+
+          git remote -v
+          docker compose version
 
           git fetch --prune origin
           git reset --hard "$DEPLOY_REF"

@@ -325,3 +325,9 @@ The staging deploy workflow failed in the `Install SSH key` step before any SSH 
 which means a required staging environment secret was empty or unavailable. Replaced bare `test -n`
 checks with explicit GitHub Actions error annotations naming the missing secret without printing
 secret values.
+
+## [2026-04-16] fix | Added VPS deploy preflight diagnostics
+
+Added remote preflight checks to the staging deploy workflow for the deploy path, Git checkout,
+VPS `.env`, Git, Docker, Docker Compose, and Docker user permissions so remote setup failures report
+the missing server prerequisite directly.
