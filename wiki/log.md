@@ -337,3 +337,9 @@ the missing server prerequisite directly.
 Added an optional Telegram bridge that saves allowlisted plain-text bot messages to a JSONL inbox and
 provides a small Bot API send script for VPS bots and Codex sessions to reply through Telegram.
 Updated the bot spec, environment template, Docker bot volume, README, wiki index, and tests.
+
+## [2026-04-17] fix | Restricted staging Postgres exposure
+
+Changed Docker Compose so Postgres binds to `127.0.0.1:5432` instead of every public interface.
+Updated the deployment spec and VPS pipeline plan to keep database access limited to Docker
+networking and optional SSH tunnels.

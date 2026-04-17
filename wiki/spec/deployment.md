@@ -88,6 +88,12 @@ tokens.
 `.dockerignore` excludes Git metadata, GitHub workflow files, local env files, Python caches, logs,
 virtual environments, and local data directories from Docker build context.
 
+## Network Exposure
+
+The staging API may be published by Docker Compose, but Postgres must not be exposed on a public
+interface. Bind Postgres to `127.0.0.1:5432` only so operators can still use local SSH tunnels while
+internet clients cannot connect directly to the database container.
+
 ## Rollback
 
 Rollback is done by dispatching the deploy workflow against a known-good commit or by manually

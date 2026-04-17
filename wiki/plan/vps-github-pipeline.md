@@ -19,6 +19,7 @@ Prepare the repository for GitHub upload and establish a safe two-way workflow:
 - Add `.dockerignore` so ignored local files are not accidentally copied into image builds.
 - Require agents to commit and push after every completed wiki/codebase change slice.
 - Require agents to inspect `git status` before staging so unrelated dirty work is not bundled.
+- Bind staging Postgres to localhost only; public clients must not be able to reach port 5432.
 
 ## Acceptance Criteria
 
@@ -29,3 +30,5 @@ Prepare the repository for GitHub upload and establish a safe two-way workflow:
 - Server-side agent edits happen on `agent/*` branches outside the deploy checkout.
 - Completed agent change slices are committed and pushed promptly to keep GitHub fresh.
 - Wiki index, architecture, deployment spec, and log describe the workflow.
+- Postgres is reachable through Docker networking and optional SSH tunnels, not through a public
+  `0.0.0.0:5432` bind.
