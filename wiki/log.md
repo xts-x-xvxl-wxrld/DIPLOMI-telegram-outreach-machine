@@ -331,3 +331,9 @@ secret values.
 Added remote preflight checks to the staging deploy workflow for the deploy path, Git checkout,
 VPS `.env`, Git, Docker, Docker Compose, and Docker user permissions so remote setup failures report
 the missing server prerequisite directly.
+
+## [2026-04-17] code | Added Telegram bridge for VPS bots
+
+Added an optional Telegram bridge that saves allowlisted plain-text bot messages to a JSONL inbox and
+provides a small Bot API send script for VPS bots and Codex sessions to reply through Telegram.
+Updated the bot spec, environment template, Docker bot volume, README, wiki index, and tests.

@@ -12,6 +12,8 @@ class BotSettings:
     api_token: str
     request_timeout_seconds: float = 15.0
     allowed_user_ids: frozenset[int] = frozenset()
+    bridge_enabled: bool = False
+    bridge_inbox_path: str = "data/telegram_bridge_inbox.jsonl"
 
 
 def load_settings(env: Mapping[str, str] | None = None) -> BotSettings:
@@ -22,6 +24,11 @@ def load_settings(env: Mapping[str, str] | None = None) -> BotSettings:
         api_token=values.get("BOT_API_TOKEN", ""),
         request_timeout_seconds=float(values.get("BOT_API_TIMEOUT_SECONDS", "15")),
         allowed_user_ids=parse_allowed_user_ids(values.get("TELEGRAM_ALLOWED_USER_IDS", "")),
+        bridge_enabled=parse_bool(values.get("TELEGRAM_BRIDGE_ENABLED", "false")),
+        bridge_inbox_path=values.get(
+            "TELEGRAM_BRIDGE_INBOX_PATH",
+            "data/telegram_bridge_inbox.jsonl",
+        ),
     )
 
 
@@ -51,3 +58,12 @@ def parse_allowed_user_ids(raw_value: str) -> frozenset[int]:
             raise ValueError("TELEGRAM_ALLOWED_USER_IDS must contain positive Telegram user IDs")
         values.add(user_id)
     return frozenset(values)
+
+
+def parse_bool(raw_value: str) -> bool:
+    value = raw_value.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"", "0", "false", "no", "off"}:
+        return False
+    raise ValueError("Boolean settings must be true/false, yes/no, on/off, or 1/0")

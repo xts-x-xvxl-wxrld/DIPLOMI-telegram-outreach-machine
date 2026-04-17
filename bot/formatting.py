@@ -29,6 +29,7 @@ def format_start() -> str:
             "/entity <intake_id>",
             "/job <job_id>",
             "/accounts",
+            "/bridge",
             "/whoami",
             "",
             "Optional/future:",
@@ -492,6 +493,49 @@ def format_access_denied(user_id: int | None, username: str | None = None) -> st
     if user_id is not None:
         lines.append("Ask the operator to add this ID to TELEGRAM_ALLOWED_USER_IDS.")
     return "\n".join(lines)
+
+
+def format_bridge_status(
+    *,
+    enabled: bool,
+    inbox_path: str,
+    chat_id: int | None,
+    recent_count: int = 0,
+) -> str:
+    lines = [
+        "Telegram bridge",
+        f"Status: {'on' if enabled else 'off'}",
+    ]
+    if chat_id is not None:
+        lines.append(f"Chat ID: {chat_id}")
+    lines.append(f"Inbox: {inbox_path}")
+    if enabled:
+        lines.extend(
+            [
+                f"Recent saved messages: {recent_count}",
+                "",
+                "Plain text messages are saved for VPS bots and Codex sessions.",
+                "Set TELEGRAM_BRIDGE_CHAT_ID to this Chat ID so bots can reply.",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "",
+                "Set TELEGRAM_BRIDGE_ENABLED=true to save plain text bridge messages.",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def format_bridge_recorded(record: dict[str, object]) -> str:
+    return "\n".join(
+        [
+            "Bridge message saved.",
+            f"ID: {record.get('id', 'unknown')}",
+            "VPS bots can reply with scripts/telegram_bridge_send.py.",
+        ]
+    )
 
 
 def _candidate_community(item: dict[str, Any]) -> dict[str, Any]:

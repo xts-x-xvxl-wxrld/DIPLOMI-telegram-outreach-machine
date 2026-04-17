@@ -69,6 +69,22 @@ chmod 600 .env
 
 Fill the real values in `/srv/telegram-outreach/deploy/.env`.
 
+Enable the optional Telegram bridge when VPS bots or coding agents should exchange short messages
+with you through the bot:
+
+```bash
+TELEGRAM_BRIDGE_ENABLED=true
+TELEGRAM_BRIDGE_INBOX_PATH=data/telegram_bridge_inbox.jsonl
+TELEGRAM_BRIDGE_CHAT_ID=<chat-id-from-/bridge>
+```
+
+Send `/bridge` to the Telegram bot to see the chat ID and inbox path. Allowlisted plain text
+messages are appended to the JSONL inbox. VPS bots can reply with:
+
+```bash
+python scripts/telegram_bridge_send.py --sender worker-bot --text "collection finished"
+```
+
 Manual deploy:
 
 ```bash
