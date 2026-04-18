@@ -363,6 +363,117 @@ notes               text
 
 ---
 
+## Future Engagement Tables
+
+The engagement module is optional/future. These tables become part of the main schema only when the
+engagement implementation slice adds Alembic migrations.
+
+### `community_engagement_settings`
+
+Per-community engagement controls. Absence of a row means engagement is disabled.
+
+```sql
+id                         uuid PRIMARY KEY
+community_id               uuid NOT NULL REFERENCES communities(id)
+mode                       text NOT NULL DEFAULT 'suggest'
+                           -- disabled | observe | suggest | require_approval | auto_limited
+allow_join                 boolean NOT NULL DEFAULT false
+allow_post                 boolean NOT NULL DEFAULT false
+reply_only                 boolean NOT NULL DEFAULT true
+require_approval           boolean NOT NULL DEFAULT true
+max_posts_per_day          int NOT NULL DEFAULT 1
+min_minutes_between_posts  int NOT NULL DEFAULT 240
+quiet_hours_start          time
+quiet_hours_end            time
+created_at                 timestamptz NOT NULL DEFAULT now()
+updated_at                 timestamptz NOT NULL DEFAULT now()
+
+UNIQUE (community_id)
+```
+
+### `community_account_memberships`
+
+Tracks which managed Telegram account has joined which community.
+
+```sql
+id                   uuid PRIMARY KEY
+community_id          uuid NOT NULL REFERENCES communities(id)
+telegram_account_id   uuid NOT NULL REFERENCES telegram_accounts(id)
+status                text NOT NULL DEFAULT 'not_joined'
+                      -- not_joined | join_requested | joined | failed | left | banned
+joined_at             timestamptz
+last_checked_at       timestamptz
+last_error            text
+created_at            timestamptz NOT NULL DEFAULT now()
+updated_at            timestamptz NOT NULL DEFAULT now()
+
+UNIQUE (community_id, telegram_account_id)
+```
+
+### `engagement_topics`
+
+Operator-defined topics that can trigger a candidate public reply.
+
+```sql
+id                    uuid PRIMARY KEY
+name                  text NOT NULL
+description           text
+stance_guidance       text NOT NULL
+trigger_keywords      text[] NOT NULL DEFAULT '{}'
+negative_keywords     text[] NOT NULL DEFAULT '{}'
+example_good_replies  text[] NOT NULL DEFAULT '{}'
+example_bad_replies   text[] NOT NULL DEFAULT '{}'
+active                boolean NOT NULL DEFAULT true
+created_at            timestamptz NOT NULL DEFAULT now()
+updated_at            timestamptz NOT NULL DEFAULT now()
+```
+
+### `engagement_candidates`
+
+Detected topic moments and suggested replies awaiting operator review.
+
+```sql
+id                       uuid PRIMARY KEY
+community_id             uuid NOT NULL REFERENCES communities(id)
+topic_id                 uuid NOT NULL REFERENCES engagement_topics(id)
+source_tg_message_id     bigint
+source_excerpt           text
+detected_reason          text NOT NULL
+suggested_reply          text
+status                   text NOT NULL DEFAULT 'needs_review'
+                         -- needs_review | approved | rejected | sent | expired | failed
+reviewed_by              text
+reviewed_at              timestamptz
+expires_at               timestamptz NOT NULL
+created_at               timestamptz NOT NULL DEFAULT now()
+updated_at               timestamptz NOT NULL DEFAULT now()
+```
+
+### `engagement_actions`
+
+Audit log for joins, replies, sends, skips, and failures.
+
+```sql
+id                       uuid PRIMARY KEY
+candidate_id              uuid REFERENCES engagement_candidates(id)
+community_id              uuid NOT NULL REFERENCES communities(id)
+telegram_account_id       uuid NOT NULL REFERENCES telegram_accounts(id)
+action_type               text NOT NULL
+                         -- join | reply | post | skip
+status                    text NOT NULL DEFAULT 'queued'
+                         -- queued | sent | failed | skipped
+outbound_text             text
+reply_to_tg_message_id    bigint
+sent_tg_message_id        bigint
+scheduled_at              timestamptz
+sent_at                   timestamptz
+error_message             text
+created_at                timestamptz NOT NULL DEFAULT now()
+updated_at                timestamptz NOT NULL DEFAULT now()
+```
+
+---
+
 ## Indexes (minimum set)
 
 ```sql
@@ -387,6 +498,18 @@ CREATE INDEX ON telegram_entity_intakes (status);
 CREATE INDEX ON telegram_entity_intakes (entity_type);
 CREATE INDEX ON telegram_entity_intakes (community_id);
 CREATE INDEX ON telegram_entity_intakes (user_id);
+```
+
+Future engagement indexes:
+
+```sql
+CREATE INDEX ON community_engagement_settings (community_id);
+CREATE INDEX ON community_account_memberships (community_id, telegram_account_id);
+CREATE INDEX ON engagement_topics (active);
+CREATE INDEX ON engagement_candidates (status, created_at);
+CREATE INDEX ON engagement_candidates (community_id, topic_id, status);
+CREATE INDEX ON engagement_actions (community_id, created_at);
+CREATE INDEX ON engagement_actions (telegram_account_id, created_at);
 ```
 
 ---

@@ -363,3 +363,10 @@ agents to the Docker group.
 
 Removed production as a GitHub Actions deployment target for now. The deploy workflow now uses only
 the `staging` GitHub environment, while production remains documented as a reserved future VPS path.
+
+## [2026-04-18] spec | Added community engagement module
+
+Added an optional engagement module for operator-approved Telethon joins, topic detection, candidate
+reply drafting, review, sending, and audit logs. The spec keeps outbound behavior separate from
+collection and analysis, requires human approval in the MVP, forbids DMs and person-level scoring,
+and documents future database tables, queue jobs, API routes, and account-manager purposes.

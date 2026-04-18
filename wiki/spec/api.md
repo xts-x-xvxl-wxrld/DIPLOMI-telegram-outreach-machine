@@ -744,6 +744,95 @@ Response:
 }
 ```
 
+## Engagement
+
+Engagement endpoints are optional/future. They must remain operator-controlled and separate from
+collection and analysis.
+
+### `GET /api/communities/{community_id}/engagement-settings`
+
+Returns engagement settings for one community. If no settings exist, engagement is disabled.
+
+### `PUT /api/communities/{community_id}/engagement-settings`
+
+Creates or updates per-community engagement settings.
+
+Request:
+
+```json
+{
+  "mode": "suggest",
+  "allow_join": true,
+  "allow_post": false,
+  "reply_only": true,
+  "require_approval": true,
+  "max_posts_per_day": 1,
+  "min_minutes_between_posts": 240
+}
+```
+
+MVP rules:
+
+- `require_approval` must remain true.
+- `reply_only` must remain true.
+- Settings are disabled unless explicitly created or enabled.
+
+### `POST /api/communities/{community_id}/join-jobs`
+
+Queues `community.join`.
+
+### `GET /api/engagement/topics`
+
+Lists configured engagement topics.
+
+### `POST /api/engagement/topics`
+
+Creates an engagement topic.
+
+### `PATCH /api/engagement/topics/{topic_id}`
+
+Updates an engagement topic.
+
+### `POST /api/communities/{community_id}/engagement-detect-jobs`
+
+Queues `engagement.detect`.
+
+### `GET /api/engagement/candidates`
+
+Lists candidate replies for operator review.
+
+Query parameters:
+
+- `status` - default `needs_review`
+- `community_id`
+- `topic_id`
+- `limit`
+- `offset`
+
+### `POST /api/engagement/candidates/{candidate_id}/approve`
+
+Approves a candidate reply. The API records the reviewer and review timestamp. Sending still happens
+through `engagement.send`.
+
+### `POST /api/engagement/candidates/{candidate_id}/reject`
+
+Rejects a candidate reply.
+
+### `POST /api/engagement/candidates/{candidate_id}/send-jobs`
+
+Queues `engagement.send` for an approved candidate.
+
+### `GET /api/engagement/actions`
+
+Lists outbound action audit rows.
+
+Rules:
+
+- API handlers must not call Telethon directly.
+- API responses must not expose phone numbers.
+- API responses must not expose person-level scores.
+- Audit rows should remain available for operator review.
+
 ## Jobs and Debug
 
 ### `GET /api/jobs/{job_id}`

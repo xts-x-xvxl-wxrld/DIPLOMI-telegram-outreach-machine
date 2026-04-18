@@ -4,7 +4,8 @@
 
 The account manager coordinates a small pool of Telegram user accounts used by Telethon-based workers.
 
-It is a Python utility module, not a separate service. Expansion and collection workers call it directly before making Telegram API calls.
+It is a Python utility module, not a separate service. Expansion, collection, entity-intake, and
+future engagement workers call it directly before making Telegram API calls.
 
 ## Responsibilities
 
@@ -48,7 +49,7 @@ class AccountLease:
 def acquire_account(
     *,
     job_id: str,
-    purpose: Literal["expansion", "collection"],
+    purpose: Literal["expansion", "collection", "entity_intake", "engagement_join", "engagement_send"],
     lease_seconds: int = 900,
 ) -> AccountLease:
     ...
@@ -188,8 +189,10 @@ not be used for spam, flooding, fake subscriber/view activity, or unauthorized d
 Baseline operating rules:
 
 - Use dedicated Telegram accounts, never the operator's main personal account.
-- Keep the accounts read-only for this app: no outreach DMs, posting, comments, promotional joins,
-  vote manipulation, or subscriber/view inflation.
+- Keep accounts read-only for discovery, expansion, entity intake, and collection.
+- Engagement is the only planned exception to read-only use. It must be explicitly enabled through
+  the engagement module, stay public, require operator approval in the MVP, and write audit logs.
+- No outreach DMs, promotional mass joins, vote manipulation, or subscriber/view inflation.
 - Enable a strong Telegram 2FA password and recovery email before onboarding.
 - Keep each Telethon `.session` file private. Treat it like an account password.
 - Use stable infrastructure. Avoid repeatedly logging the same account in from many hosts, IPs, or
@@ -207,6 +210,7 @@ Healthy account behavior:
 - Let `rate_limited` accounts rest until `flood_wait_until`.
 - Investigate repeated `last_error` values before retrying more work.
 - Keep at least one spare `available` account when running recurring collection.
+- Keep engagement send limits much lower than collection/expansion throughput.
 
 Risk indicators:
 

@@ -21,6 +21,7 @@ The API enqueues jobs. Workers consume jobs, write durable state to Postgres, an
 | `default` | seed resolution, seed batch expansion, direct handle classification, optional brief processing, optional discovery, expansion | Normal |
 | `scheduled` | recurring collection | Lower |
 | `analysis` | analysis jobs | Normal, isolated from Telegram account usage |
+| `engagement` | optional topic detection and operator-approved sends | Conservative, isolated outbound behavior |
 
 Analysis has its own queue because it uses OpenAI API calls and does not need Telegram accounts.
 
@@ -335,6 +336,81 @@ Rules:
 - Analysis creates community-level summaries and relevance scores only.
 - No person-level scoring or ranking.
 
+### `community.join`
+
+Optional future job for the engagement module. It joins one operator-approved community with one
+managed Telegram account.
+
+Payload:
+
+```json
+{
+  "community_id": "uuid",
+  "telegram_account_id": "uuid-or-null",
+  "requested_by": "telegram_user_id_or_operator"
+}
+```
+
+Uses:
+
+- `account_manager.acquire_account(purpose="engagement_join")`
+
+Rules:
+
+- Engagement settings must allow joining.
+- Private invite links are out of scope for MVP.
+- Do not join multiple accounts unless the operator explicitly requests it.
+- Record membership state and account outcomes through the engagement and account-manager specs.
+
+### `engagement.detect`
+
+Optional future job for the engagement module. It detects an approved topic moment and creates a
+candidate reply for operator review.
+
+Payload:
+
+```json
+{
+  "community_id": "uuid",
+  "window_minutes": 60,
+  "requested_by": "telegram_user_id_or_operator|null"
+}
+```
+
+May call OpenAI because it is an engagement worker, not collection. It must not send messages.
+
+Rules:
+
+- Read compact collection artifacts or opt-in stored messages.
+- Do not include unnecessary Telegram user identity in prompts.
+- Do not create person-level scores.
+- Create `engagement_candidates` only when topic fit is strong enough.
+
+### `engagement.send`
+
+Optional future job for the engagement module. It sends one operator-approved public reply.
+
+Payload:
+
+```json
+{
+  "candidate_id": "uuid",
+  "approved_by": "telegram_user_id_or_operator"
+}
+```
+
+Uses:
+
+- `account_manager.acquire_account(purpose="engagement_send")`
+
+Rules:
+
+- Candidate must be approved.
+- Community settings must allow posting.
+- MVP sends replies only.
+- Enforce account and community send limits.
+- Write an `engagement_actions` audit row for sent, failed, and skipped outcomes.
+
 ## Job Chain
 
 Primary seed-first flow:
@@ -505,6 +581,9 @@ Before enqueueing collection, the scheduler checks whether an active RQ job alre
 | `expansion.run` | 3 | 5m, 15m, 60m | Telegram account and network failures. |
 | `collection.run` | 2 | 10m, 30m | Scheduler will also retry on future ticks. |
 | `analysis.run` | 3 | 1m, 5m, 30m | OpenAI/network failures. |
+| `community.join` | 2 | 10m, 60m | Telegram account and community access failures. |
+| `engagement.detect` | 2 | 5m, 15m | OpenAI/network failures; scheduler can retry on future ticks. |
+| `engagement.send` | 1 | 10m | Operator-approved outbound action; avoid repeated sends. |
 
 ## Special Failures
 
@@ -570,4 +649,7 @@ The API may read RQ job metadata for operator-facing debug output. Durable busin
 - Expansion may call Telethon and uses the account manager.
 - Collection may call Telethon and uses the account manager.
 - Analysis may call OpenAI, not Telethon.
+- Engagement detection may call OpenAI and must not call Telethon in the MVP.
+- Engagement join/send may call Telethon and use the account manager.
 - Collection performs fetching and persistence only; relevance decisions happen in analysis.
+- Outbound Telegram behavior belongs only to the engagement module.
