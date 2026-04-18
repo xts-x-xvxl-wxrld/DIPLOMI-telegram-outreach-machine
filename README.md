@@ -44,30 +44,46 @@ Local runtime secrets live in `.env`. Keep `.env` out of Git.
 Use separate checkouts for deployment and agent editing:
 
 ```text
-/srv/telegram-outreach/deploy       # reset-only staging checkout
-/srv/telegram-outreach/agent-work   # branch-based coding-agent workspace
+/srv/tg-outreach/staging            # reset-only staging checkout
+/srv/tg-outreach/production         # reset-only production checkout
+/srv/tg-outreach/agent-worktrees    # branch-based coding-agent worktrees
+/srv/tg-outreach/AGENT_CONTEXT.md   # redacted VPS map for agents
+/srv/tg-outreach/bin                # non-secret status/log/deploy helpers
 ```
 
-Production deployment always resets the deploy checkout to `origin/main`, builds the app images,
+Deployment always resets the target checkout to the selected ref or commit, builds the app images,
 runs Alembic migrations, and restarts Docker Compose. Coding agents must work on branches in a
-separate checkout or worktree, then push those branches to GitHub for CI and review.
+separate worktree, then push those branches to GitHub for CI and review.
 
 ## First VPS Setup
 
 On the VPS:
 
 ```bash
-sudo mkdir -p /srv/telegram-outreach
-sudo chown "$USER:$USER" /srv/telegram-outreach
-cd /srv/telegram-outreach
-git clone git@github.com:<owner>/<repo>.git deploy
-git clone git@github.com:<owner>/<repo>.git agent-work
-cd deploy
-cp .env.example .env
-chmod 600 .env
+sudo mkdir -p /srv/tg-outreach
+sudo chown deploy:tg-outreach-deploy /srv/tg-outreach
+sudo chmod 775 /srv/tg-outreach
+cd /srv/tg-outreach
+sudo -u deploy git clone git@github.com:<owner>/<repo>.git staging
+sudo -u deploy git clone git@github.com:<owner>/<repo>.git production
 ```
 
-Fill the real values in `/srv/telegram-outreach/deploy/.env`.
+Create environment files such as `/etc/tg-outreach/staging.env` and
+`/etc/tg-outreach/production.env`, then symlink them from each checkout as `.env`.
+
+Install the redacted VPS context and helper commands from a checkout:
+
+```bash
+cd /srv/tg-outreach/staging
+bash scripts/vps-install-agent-ops.sh
+```
+
+Agent-safe diagnostics:
+
+```bash
+/srv/tg-outreach/bin/tg-outreach-status staging
+/srv/tg-outreach/bin/tg-outreach-logs staging api
+```
 
 Enable the optional Telegram bridge when VPS bots or coding agents should exchange short messages
 with you through the bot:
@@ -88,13 +104,12 @@ python scripts/telegram_bridge_send.py --sender worker-bot --text "collection fi
 Manual deploy:
 
 ```bash
-cd /srv/telegram-outreach/deploy
-bash scripts/vps-deploy.sh origin/main
+sudo -u deploy /srv/tg-outreach/bin/tg-outreach-deploy staging origin/main
 ```
 
-## GitHub Secrets for Staging Auto Deploy
+## GitHub Secrets for Staging And Production Deploys
 
-Add these secrets to the GitHub `staging` environment:
+Add these secrets to the GitHub `staging` and `production` environments:
 
 | Secret | Purpose |
 |---|---|
@@ -103,7 +118,7 @@ Add these secrets to the GitHub `staging` environment:
 | `VPS_SSH_PORT` | SSH port, usually `22` |
 | `VPS_SSH_KEY` | Private deploy key for the VPS user |
 | `VPS_SSH_KNOWN_HOSTS` | Pinned SSH host key line for the VPS |
-| `VPS_DEPLOY_PATH` | Deploy checkout path, for example `/srv/telegram-outreach/deploy` |
+| `VPS_DEPLOY_PATH` | Deploy checkout path, for example `/srv/tg-outreach/staging` |
 
 Generate the known-hosts value from a trusted machine:
 
@@ -111,18 +126,25 @@ Generate the known-hosts value from a trusted machine:
 ssh-keyscan -p 22 <vps-host>
 ```
 
-After these secrets are configured, pushes to `main` run CI first. A successful CI run then deploys
-that exact commit to the staging VPS. The deploy job uses strict SSH host-key checking and never
-receives app runtime secrets.
+After these secrets are configured, pushes to `main` run CI first. A successful CI run deploys that
+exact commit to the staging VPS. Manual workflow dispatch can deploy either `staging` or
+`production`; production should use a protected GitHub environment approval. The deploy job uses
+strict SSH host-key checking and never receives app runtime secrets.
 
 ## Coding Agents on the VPS
 
-Agents should never edit `/srv/telegram-outreach/deploy`.
+Agents should never edit `/srv/tg-outreach/staging` or `/srv/tg-outreach/production`.
+
+Start by reading the redacted VPS map:
+
+```bash
+cat /srv/tg-outreach/AGENT_CONTEXT.md
+```
 
 Use the agent workspace:
 
 ```bash
-cd /srv/telegram-outreach/agent-work
+cd /srv/tg-outreach/agent-worktrees
 git fetch origin
 git checkout -B agent/my-change origin/main
 # edit, test, commit

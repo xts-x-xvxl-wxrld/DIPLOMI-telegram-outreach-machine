@@ -35,6 +35,7 @@
 - [Direct Telegram Entity Intake](plan/direct-telegram-entity-intake.md) - bot text intake for classifying one Telegram handle
 - [Bot Operator Access](plan/bot-operator-access.md) - allowlisted Telegram bot operators and `/whoami` onboarding
 - [Telegram Bridge](plan/telegram-bridge.md) - optional JSONL inbox and Bot API reply path for VPS bots and Codex sessions
+- [VPS Agent Ops Context](plan/vps-agent-ops.md) - redacted VPS map, helper commands, and staging/production deploy gates
 
 ## Implementation roots
 
@@ -47,9 +48,14 @@
 - `scripts/onboard_telegram_account.py` - local Telethon session creation and `telegram_accounts` registration
 - `scripts/telegram_bridge_send.py` - sends Bot API bridge replies from VPS bots or Codex sessions
 - `scripts/vps-deploy.sh` - reset-only staging deploy script for the VPS checkout
+- `scripts/vps-deploy-env.sh` - validated staging/production wrapper around the deploy checkout script
+- `scripts/vps-install-agent-ops.sh` - installs the redacted VPS context and helper commands under `/srv/tg-outreach`
+- `scripts/vps-logs.sh` - bounded Docker log helper for staging/production services
+- `scripts/vps-status.sh` - non-secret VPS status helper for Git, containers, health, and ports
 - `scripts/vps-agent-worktree.sh` - helper for branch-scoped VPS coding-agent worktrees
+- `ops/vps/AGENT_CONTEXT.md` - redacted VPS architecture map for coding agents
 - `.github/workflows/ci.yml` - branch and pull-request validation workflow
-- `.github/workflows/deploy-vps.yml` - staging VPS deployment workflow
+- `.github/workflows/deploy-vps.yml` - staging and production VPS deployment workflow
 - `backend/api/routes/seeds.py` - manual seed import and seed-group API endpoints
 - `backend/api/routes/telegram_entities.py` - direct Telegram handle intake API endpoints
 - `backend/services/seed_import.py` - CSV parsing and seed-group upsert logic

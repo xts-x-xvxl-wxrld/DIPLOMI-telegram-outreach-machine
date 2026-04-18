@@ -343,3 +343,11 @@ Updated the bot spec, environment template, Docker bot volume, README, wiki inde
 Changed Docker Compose so Postgres binds to `127.0.0.1:5432` instead of every public interface.
 Updated the deployment spec and VPS pipeline plan to keep database access limited to Docker
 networking and optional SSH tunnels.
+
+## [2026-04-18] ops | Added VPS agent context and environment deploy gates
+
+Added a redacted VPS agent context, status/log/deploy helper scripts, and an installer for
+`/srv/tg-outreach`. Generalized the GitHub deploy workflow so staging can auto-deploy after CI while
+staging and production can also be deployed manually through GitHub environments. Made Docker host
+port bindings configurable so staging and production can coexist on one VPS without exposing
+Postgres publicly.

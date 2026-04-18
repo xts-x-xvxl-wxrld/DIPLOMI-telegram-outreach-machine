@@ -45,3 +45,9 @@ done
 docker compose run --rm api alembic upgrade head
 docker compose up -d --remove-orphans
 docker compose ps
+
+api_port="$(docker compose port api 8000 2>/dev/null | tail -n 1 | awk -F: '{print $NF}')"
+if [ -n "$api_port" ]; then
+  curl -fsS "http://127.0.0.1:${api_port}/ready" || true
+  echo
+fi

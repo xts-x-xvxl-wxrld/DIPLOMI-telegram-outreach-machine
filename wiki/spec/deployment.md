@@ -11,10 +11,13 @@ Use separate checkouts on the VPS:
 
 | Checkout | Purpose | Allowed writes |
 |---|---|---|
-| `/srv/telegram-outreach/deploy` | staging Docker Compose checkout | `.env` only |
-| `/srv/telegram-outreach/agent-work` or worktrees | coding-agent edits | feature branches only |
+| `/srv/tg-outreach/staging` | reset-only staging Docker Compose checkout | `.env` symlink/runtime directories only |
+| `/srv/tg-outreach/production` | reset-only production Docker Compose checkout | `.env` symlink/runtime directories only |
+| `/srv/tg-outreach/agent-worktrees` | coding-agent edits | feature branches only |
+| `/srv/tg-outreach/AGENT_CONTEXT.md` | redacted VPS map for agents | operator/deploy maintenance only |
+| `/srv/tg-outreach/bin` | non-secret status/log/deploy helpers | operator/deploy maintenance only |
 
-The deploy checkout is reset-only. No human or agent should edit application source there.
+Deploy checkouts are reset-only. No human or agent should edit application source there.
 
 ## Git Flow
 
@@ -23,7 +26,7 @@ local dev or VPS agent branch
   -> push branch to GitHub
   -> CI: ruff, pytest, Docker build
   -> merge to main
-  -> deploy workflow resets VPS deploy checkout to origin/main
+  -> staging deploy workflow resets VPS staging checkout to the CI-tested commit
   -> Docker Compose rebuilds and restarts services
 ```
 
@@ -48,8 +51,21 @@ The Docker build is a consistency check only. Runtime secrets are not available 
 
 ## Deployment
 
-Staging deployment is triggered by successful CI completion on `main` or by manual workflow dispatch. The
-CI-triggered deploy uses the exact commit SHA that passed CI. The deployment process:
+Staging deployment is triggered by successful CI completion on `main` or by manual workflow
+dispatch. Production deployment is manual workflow dispatch only and should use GitHub protected
+environment approval.
+
+Both environments call the same checkout-local deploy script:
+
+```bash
+bash scripts/vps-deploy.sh <ref-or-commit>
+```
+
+The GitHub workflow selects the target GitHub environment (`staging` or `production`), reads that
+environment's SSH metadata secrets, connects to `VPS_DEPLOY_PATH`, and runs the script. The
+CI-triggered staging deploy uses the exact commit SHA that passed CI.
+
+The deployment process:
 
 1. Connects to the VPS over SSH with strict host-key checking.
 2. Changes into the deploy checkout.
@@ -66,12 +82,24 @@ CI-triggered deploy uses the exact commit SHA that passed CI. The deployment pro
 This makes the source tree deterministic while preserving server-only secrets and Docker volume
 mount directories.
 
+Manual deploys use the same script through the environment wrapper:
+
+```bash
+/srv/tg-outreach/bin/tg-outreach-deploy staging origin/main
+/srv/tg-outreach/bin/tg-outreach-deploy production <tag-or-commit>
+```
+
+Agents may inspect status and logs through `/srv/tg-outreach/bin/tg-outreach-status` and
+`/srv/tg-outreach/bin/tg-outreach-logs`. Direct deploy wrapper access is controlled by sudoers:
+ordinary agent users may be granted staging deploy permission, while production should be limited to
+GitHub protected environments or an explicit release group.
+
 ## Secrets
 
 Application secrets live only in `.env` on the VPS and local developer machines. `.env` must never
 be committed or sent in Docker build context.
 
-GitHub `staging` environment secrets are limited to SSH deployment metadata:
+GitHub `staging` and `production` environment secrets are limited to SSH deployment metadata:
 
 - `VPS_HOST`
 - `VPS_USER`
@@ -90,9 +118,17 @@ virtual environments, and local data directories from Docker build context.
 
 ## Network Exposure
 
-The staging API may be published by Docker Compose, but Postgres must not be exposed on a public
-interface. Bind Postgres to `127.0.0.1:5432` only so operators can still use local SSH tunnels while
-internet clients cannot connect directly to the database container.
+The API may be published by Docker Compose, but Postgres must not be exposed on a public interface.
+Bind Postgres to `127.0.0.1` only so operators can still use local SSH tunnels while internet
+clients cannot connect directly to the database container. Host bindings are configured with:
+
+- `API_HOST_BIND`
+- `API_HOST_PORT`
+- `POSTGRES_HOST_BIND`
+- `POSTGRES_HOST_PORT`
+
+Staging and production must use distinct `COMPOSE_PROJECT_NAME`, API host port, Postgres host port,
+and Docker volumes when they run on the same VPS.
 
 ## Rollback
 

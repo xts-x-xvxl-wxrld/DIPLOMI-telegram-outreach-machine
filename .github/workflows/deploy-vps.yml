@@ -3,6 +3,14 @@ name: Deploy VPS
 on:
   workflow_dispatch:
     inputs:
+      target_environment:
+        description: GitHub environment to deploy
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
       ref:
         description: Git ref, tag, or commit SHA to deploy
         required: false
@@ -17,14 +25,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: staging-vps
+  group: deploy-vps-${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'staging' }}
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Reset deploy checkout and restart Compose
+    name: Deploy VPS
     runs-on: ubuntu-latest
-    environment: staging
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'staging' }}
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
@@ -40,11 +48,11 @@ jobs:
 
           missing=0
           if [ -z "$VPS_SSH_KEY" ]; then
-            echo "::error::Missing required staging environment secret: VPS_SSH_KEY"
+            echo "::error::Missing required GitHub environment secret: VPS_SSH_KEY"
             missing=1
           fi
           if [ -z "$VPS_SSH_KNOWN_HOSTS" ]; then
-            echo "::error::Missing required staging environment secret: VPS_SSH_KNOWN_HOSTS"
+            echo "::error::Missing required GitHub environment secret: VPS_SSH_KNOWN_HOSTS"
             missing=1
           fi
           if [ "$missing" -ne 0 ]; then
@@ -65,26 +73,49 @@ jobs:
           VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT || '22' }}
           VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
           DEPLOY_REF: ${{ github.event.workflow_run.head_sha || inputs.ref || 'origin/main' }}
+          TARGET_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'staging' }}
         run: |
           set -euo pipefail
 
           missing=0
           if [ -z "$VPS_HOST" ]; then
-            echo "::error::Missing required staging environment secret: VPS_HOST"
+            echo "::error::Missing required GitHub environment secret: VPS_HOST"
             missing=1
           fi
           if [ -z "$VPS_USER" ]; then
-            echo "::error::Missing required staging environment secret: VPS_USER"
+            echo "::error::Missing required GitHub environment secret: VPS_USER"
             missing=1
           fi
           if [ -z "$VPS_DEPLOY_PATH" ]; then
-            echo "::error::Missing required staging environment secret: VPS_DEPLOY_PATH"
+            echo "::error::Missing required GitHub environment secret: VPS_DEPLOY_PATH"
             missing=1
           fi
           if [ -z "$DEPLOY_REF" ]; then
             echo "::error::Unable to determine DEPLOY_REF from workflow context"
             missing=1
           fi
+          case "$DEPLOY_REF" in
+            *[!A-Za-z0-9._/@-]*)
+              echo "::error::Ref contains unsupported characters: $DEPLOY_REF"
+              missing=1
+              ;;
+          esac
+          is_commit_sha() {
+            case "$1" in
+              ''|*[!0-9a-f]*) return 1 ;;
+              *) [ "${#1}" -ge 7 ] && [ "${#1}" -le 40 ] ;;
+            esac
+          }
+          case "$DEPLOY_REF" in
+            origin/main|main|refs/heads/main|refs/tags/v*|v*)
+              ;;
+            *)
+              if ! is_commit_sha "$DEPLOY_REF"; then
+                echo "::error::Ref is not allowed for GitHub deploys: $DEPLOY_REF"
+                missing=1
+              fi
+              ;;
+          esac
           if [ "$missing" -ne 0 ]; then
             exit 1
           fi
@@ -94,9 +125,10 @@ jobs:
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes \
             "$VPS_USER@$VPS_HOST" \
-            "VPS_DEPLOY_PATH='$VPS_DEPLOY_PATH' DEPLOY_REF='$DEPLOY_REF' bash -s" <<'REMOTE'
+            "VPS_DEPLOY_PATH='$VPS_DEPLOY_PATH' DEPLOY_REF='$DEPLOY_REF' TARGET_ENVIRONMENT='$TARGET_ENVIRONMENT' bash -s" <<'REMOTE'
           set -euo pipefail
 
+          echo "Target environment: $TARGET_ENVIRONMENT"
           echo "Deploy path: $VPS_DEPLOY_PATH"
           if [ ! -d "$VPS_DEPLOY_PATH" ]; then
             echo "::error::VPS_DEPLOY_PATH does not exist or is not a directory: $VPS_DEPLOY_PATH"
@@ -133,33 +165,5 @@ jobs:
           git remote -v
           docker compose version
 
-          git fetch --prune origin
-          git reset --hard "$DEPLOY_REF"
-          git clean -ffdx \
-            -e .env \
-            -e .env.local \
-            -e sessions/ \
-            -e telegram_sessions/ \
-            -e postgres_data/ \
-            -e redis_data/
-
-          docker compose build api worker bot
-          docker compose up -d postgres redis
-
-          for attempt in $(seq 1 30); do
-            if docker compose exec -T postgres pg_isready -U postgres -d telegram_outreach; then
-              break
-            fi
-
-            if [ "$attempt" -eq 30 ]; then
-              echo "Postgres did not become ready in time." >&2
-              exit 1
-            fi
-
-            sleep 2
-          done
-
-          docker compose run --rm api alembic upgrade head
-          docker compose up -d --remove-orphans
-          docker compose ps
+          bash scripts/vps-deploy.sh "$DEPLOY_REF"
           REMOTE
