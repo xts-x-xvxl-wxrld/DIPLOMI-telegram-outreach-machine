@@ -22,10 +22,13 @@ cat <<'TXT'
 
 Optional sudoers model:
 
+  %tg-outreach-dev ALL=(deploy) NOPASSWD: /srv/tg-outreach/bin/tg-outreach-status *
+  %tg-outreach-dev ALL=(deploy) NOPASSWD: /srv/tg-outreach/bin/tg-outreach-logs *
   %tg-outreach-dev ALL=(deploy) NOPASSWD: /srv/tg-outreach/bin/tg-outreach-deploy staging *
   %tg-outreach-release ALL=(deploy) NOPASSWD: /srv/tg-outreach/bin/tg-outreach-deploy production *
 
-Use the staging rule only if coding agents may direct-deploy staging.
+Use the status/log rules when coding agents should observe Docker state without joining the docker
+group. Use the staging deploy rule only if coding agents may direct-deploy staging.
 Use the production rule only for a small release group or skip it and use GitHub protected
 environments for production.
 TXT

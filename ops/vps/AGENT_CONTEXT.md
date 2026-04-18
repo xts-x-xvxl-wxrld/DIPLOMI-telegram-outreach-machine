@@ -48,6 +48,14 @@ volumes. Postgres should bind to localhost only.
 /srv/tg-outreach/bin/tg-outreach-logs staging worker 200
 ```
 
+If the current user cannot access Docker directly, use the sudoers-gated form after the operator has
+installed the narrow rules:
+
+```bash
+sudo -u deploy /srv/tg-outreach/bin/tg-outreach-status staging
+sudo -u deploy /srv/tg-outreach/bin/tg-outreach-logs staging api
+```
+
 If sudoers has been explicitly installed for deploy wrappers:
 
 ```bash

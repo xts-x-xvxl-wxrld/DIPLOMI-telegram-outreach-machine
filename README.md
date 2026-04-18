@@ -85,6 +85,14 @@ Agent-safe diagnostics:
 /srv/tg-outreach/bin/tg-outreach-logs staging api
 ```
 
+If agent users do not have Docker access, install narrow sudoers rules and run diagnostics as
+`deploy`:
+
+```bash
+sudo -u deploy /srv/tg-outreach/bin/tg-outreach-status staging
+sudo -u deploy /srv/tg-outreach/bin/tg-outreach-logs staging api
+```
+
 Enable the optional Telegram bridge when VPS bots or coding agents should exchange short messages
 with you through the bot:
 

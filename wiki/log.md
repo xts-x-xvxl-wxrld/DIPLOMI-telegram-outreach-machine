@@ -350,4 +350,5 @@ Added a redacted VPS agent context, status/log/deploy helper scripts, and an ins
 `/srv/tg-outreach`. Generalized the GitHub deploy workflow so staging can auto-deploy after CI while
 staging and production can also be deployed manually through GitHub environments. Made Docker host
 port bindings configurable so staging and production can coexist on one VPS without exposing
-Postgres publicly.
+Postgres publicly. Documented narrow sudoers rules for status/log visibility without adding coding
+agents to the Docker group.
