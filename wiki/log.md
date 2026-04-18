@@ -358,3 +358,8 @@ staging and production can also be deployed manually through GitHub environments
 port bindings configurable so staging and production can coexist on one VPS without exposing
 Postgres publicly. Documented narrow sudoers rules for status/log visibility without adding coding
 agents to the Docker group.
+
+## [2026-04-18] ops | Simplified GitHub deploy to staging only
+
+Removed production as a GitHub Actions deployment target for now. The deploy workflow now uses only
+the `staging` GitHub environment, while production remains documented as a reserved future VPS path.

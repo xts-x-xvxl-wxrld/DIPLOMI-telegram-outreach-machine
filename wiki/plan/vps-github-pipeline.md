@@ -7,7 +7,7 @@ Prepare the repository for GitHub upload and establish a safe two-way workflow:
 - local and VPS coding agents can push branches to GitHub
 - CI validates branch consistency
 - staging VPS deploys automatically from the CI-tested `main` commit
-- production VPS deploys manually through a protected GitHub environment
+- production deploys stay out of GitHub Actions until production is an active target
 - secrets and local runtime files stay out of Git and Docker images
 
 ## Decisions
@@ -24,15 +24,14 @@ Prepare the repository for GitHub upload and establish a safe two-way workflow:
 - Bind staging Postgres to localhost only; public clients must not be able to reach port 5432.
 - Use `/srv/tg-outreach/AGENT_CONTEXT.md` and `/srv/tg-outreach/bin` helpers as the non-secret VPS
   visibility layer for coding agents.
-- Keep direct production deploys gated behind GitHub protected environments or a deliberately
-  installed release group.
+- Keep production deploys unwired until production is on the horizon.
 
 ## Acceptance Criteria
 
 - `.env` remains ignored and untracked.
 - CI runs on all branch pushes and pull requests.
 - Staging deploy runs after successful CI on `main` or by manual dispatch.
-- Production deploy runs by manual dispatch against the `production` GitHub environment.
+- Production deploy is not available in GitHub Actions yet.
 - VPS deploy resets to the selected ref before rebuilding.
 - Server-side agent edits happen on `agent/*` branches outside the deploy checkout.
 - Completed agent change slices are committed and pushed promptly to keep GitHub fresh.

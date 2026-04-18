@@ -2,8 +2,9 @@
 
 ## Goal
 
-Give VPS coding agents enough shared operational context to understand staging, production, logs,
-health checks, and deployment paths without granting direct access to runtime secret files.
+Give VPS coding agents enough shared operational context to understand staging, reserved production
+paths, logs, health checks, and deployment paths without granting direct access to runtime secret
+files.
 
 ## Decisions
 
@@ -12,11 +13,10 @@ health checks, and deployment paths without granting direct access to runtime se
 - Install non-secret helper commands under `/srv/tg-outreach/bin`:
   - `tg-outreach-status` for Git, container, health, and port visibility.
   - `tg-outreach-logs` for bounded Docker log reads by environment/service.
-  - `tg-outreach-deploy` for validated staging/production deploy invocations.
+  - `tg-outreach-deploy` for validated staging deploy invocations.
 - Let GitHub Actions deploy staging automatically after CI on `main`.
-- Let GitHub Actions deploy staging or production manually through separate GitHub environments.
-- Keep production deployment gated by GitHub protected environments or a deliberately installed
-  release sudoers group; ordinary coding agents should not direct-deploy production.
+- Keep production deployment out of GitHub Actions for now; production paths are documented as a
+  reserved future target only.
 - Make Docker host bindings configurable through env vars so staging and production can coexist on
   the same VPS without colliding on host ports.
 
@@ -26,7 +26,7 @@ health checks, and deployment paths without granting direct access to runtime se
   commands.
 - Agents can inspect status and logs without reading `.env`.
 - Staging deploys can be invoked by GitHub Actions or authorized agents through a wrapper.
-- Production deploys can be invoked by GitHub Actions with the `production` environment or by an
-  explicit release group wrapper installation.
+- Production deploys are not exposed in GitHub Actions yet.
 - GitHub deployment logic calls the repo deploy script instead of duplicating the deployment recipe.
-- The deployment spec, README, wiki index, and log describe the staging/production model.
+- The deployment spec, README, wiki index, and log describe the staging model and reserved
+  production path.

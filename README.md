@@ -45,14 +45,14 @@ Use separate checkouts for deployment and agent editing:
 
 ```text
 /srv/tg-outreach/staging            # reset-only staging checkout
-/srv/tg-outreach/production         # reset-only production checkout
+/srv/tg-outreach/production         # reserved future production checkout
 /srv/tg-outreach/agent-worktrees    # branch-based coding-agent worktrees
 /srv/tg-outreach/AGENT_CONTEXT.md   # redacted VPS map for agents
 /srv/tg-outreach/bin                # non-secret status/log/deploy helpers
 ```
 
-Deployment always resets the target checkout to the selected ref or commit, builds the app images,
-runs Alembic migrations, and restarts Docker Compose. Coding agents must work on branches in a
+Staging deployment always resets the target checkout to the selected ref or commit, builds the app
+images, runs Alembic migrations, and restarts Docker Compose. Coding agents must work on branches in a
 separate worktree, then push those branches to GitHub for CI and review.
 
 ## First VPS Setup
@@ -65,11 +65,9 @@ sudo chown deploy:tg-outreach-deploy /srv/tg-outreach
 sudo chmod 775 /srv/tg-outreach
 cd /srv/tg-outreach
 sudo -u deploy git clone git@github.com:<owner>/<repo>.git staging
-sudo -u deploy git clone git@github.com:<owner>/<repo>.git production
 ```
 
-Create environment files such as `/etc/tg-outreach/staging.env` and
-`/etc/tg-outreach/production.env`, then symlink them from each checkout as `.env`.
+Create `/etc/tg-outreach/staging.env`, then symlink it from the staging checkout as `.env`.
 
 Install the redacted VPS context and helper commands from a checkout:
 
@@ -99,9 +97,9 @@ Manual deploy:
 sudo -u deploy /srv/tg-outreach/bin/tg-outreach-deploy staging origin/main
 ```
 
-## GitHub Secrets for Staging And Production Deploys
+## GitHub Secrets for Staging Deploy
 
-Add these secrets to the GitHub `staging` and `production` environments:
+Add these secrets to the GitHub `staging` environment:
 
 | Secret | Purpose |
 |---|---|
@@ -119,9 +117,8 @@ ssh-keyscan -p 22 <vps-host>
 ```
 
 After these secrets are configured, pushes to `main` run CI first. A successful CI run deploys that
-exact commit to the staging VPS. Manual workflow dispatch can deploy either `staging` or
-`production`; production should use a protected GitHub environment approval. The deploy job uses
-strict SSH host-key checking and never receives app runtime secrets.
+exact commit to the staging VPS. Manual workflow dispatch can also deploy staging. The deploy job
+uses strict SSH host-key checking and never receives app runtime secrets.
 
 ## Coding Agents on the VPS
 
@@ -148,5 +145,5 @@ Before staging, inspect `git status` and commit only the intended files for that
 `git ci "message"` only in a clean branch with no unrelated dirty work, because it stages with
 `git add -A`.
 
-Merge the branch into `main` only after CI passes. Production follows `main`; agent work stays
-isolated until merged.
+Merge the branch into `main` only after CI passes. Staging follows `main`; agent work stays isolated
+until merged.

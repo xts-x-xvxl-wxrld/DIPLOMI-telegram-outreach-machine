@@ -9,11 +9,11 @@ users, but it must not contain secrets.
 |---|---|
 | Shared VPS root | `/srv/tg-outreach` |
 | Staging deploy checkout | `/srv/tg-outreach/staging` |
-| Production deploy checkout | `/srv/tg-outreach/production` |
+| Production deploy checkout | `/srv/tg-outreach/production` reserved for future use |
 | Shared helper commands | `/srv/tg-outreach/bin` |
 | Agent worktrees | `/srv/tg-outreach/agent-worktrees` |
 | Staging env file | `/etc/tg-outreach/staging.env` |
-| Production env file | `/etc/tg-outreach/production.env` |
+| Production env file | `/etc/tg-outreach/production.env` reserved for future use |
 
 Agents must not read or print env files. Runtime secrets stay in `/etc/tg-outreach/*.env`.
 
@@ -35,9 +35,9 @@ Only users that intentionally need runtime secrets should be added to config gro
 | Environment | Checkout | Expected project name | Default API URL |
 |---|---|---|---|
 | `staging` | `/srv/tg-outreach/staging` | `staging-tg-outreach` | `http://127.0.0.1:8000` |
-| `production` | `/srv/tg-outreach/production` | `production-tg-outreach` | deployment-specific |
+| `production` | `/srv/tg-outreach/production` | reserved | not active |
 
-Staging and production must use separate `.env` files, Compose project names, host ports, and Docker
+Future production must use separate `.env` files, Compose project names, host ports, and Docker
 volumes. Postgres should bind to localhost only.
 
 ## Safe Commands
@@ -62,9 +62,8 @@ If sudoers has been explicitly installed for deploy wrappers:
 sudo -u deploy /srv/tg-outreach/bin/tg-outreach-deploy staging origin/main
 ```
 
-Production deploys should normally go through GitHub Actions with a protected `production`
-environment. Do not direct-deploy production from an ordinary coding-agent session unless the
-operator has explicitly granted release permissions.
+Production deploys are not wired yet. Do not direct-deploy production from an ordinary coding-agent
+session.
 
 ## Agent Workflow
 
@@ -78,12 +77,11 @@ operator has explicitly granted release permissions.
 
 ## GitHub Deployment Model
 
-The deploy workflow uses GitHub environments:
+The deploy workflow uses the GitHub `staging` environment:
 
 - `staging`: auto-deploys after CI succeeds on `main`; manual dispatch is also allowed.
-- `production`: manual dispatch only; should use GitHub environment protection.
 
-Each GitHub environment should define:
+The GitHub environment should define:
 
 | Secret | Meaning |
 |---|---|

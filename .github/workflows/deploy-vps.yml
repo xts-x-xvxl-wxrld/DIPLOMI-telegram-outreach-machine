@@ -3,16 +3,8 @@ name: Deploy VPS
 on:
   workflow_dispatch:
     inputs:
-      target_environment:
-        description: GitHub environment to deploy
-        required: true
-        default: staging
-        type: choice
-        options:
-          - staging
-          - production
       ref:
-        description: Git ref, tag, or commit SHA to deploy
+        description: Git ref, tag, or commit SHA to deploy to staging
         required: false
         default: origin/main
   workflow_run:
@@ -25,14 +17,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-vps-${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'staging' }}
+  group: staging-vps
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy VPS
+    name: Deploy Staging VPS
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'staging' }}
+    environment: staging
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
@@ -73,7 +65,6 @@ jobs:
           VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT || '22' }}
           VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
           DEPLOY_REF: ${{ github.event.workflow_run.head_sha || inputs.ref || 'origin/main' }}
-          TARGET_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'staging' }}
         run: |
           set -euo pipefail
 
@@ -125,10 +116,10 @@ jobs:
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes \
             "$VPS_USER@$VPS_HOST" \
-            "VPS_DEPLOY_PATH='$VPS_DEPLOY_PATH' DEPLOY_REF='$DEPLOY_REF' TARGET_ENVIRONMENT='$TARGET_ENVIRONMENT' bash -s" <<'REMOTE'
+            "VPS_DEPLOY_PATH='$VPS_DEPLOY_PATH' DEPLOY_REF='$DEPLOY_REF' bash -s" <<'REMOTE'
           set -euo pipefail
 
-          echo "Target environment: $TARGET_ENVIRONMENT"
+          echo "Target environment: staging"
           echo "Deploy path: $VPS_DEPLOY_PATH"
           if [ ! -d "$VPS_DEPLOY_PATH" ]; then
             echo "::error::VPS_DEPLOY_PATH does not exist or is not a directory: $VPS_DEPLOY_PATH"
