@@ -385,6 +385,7 @@ max_posts_per_day          int NOT NULL DEFAULT 1
 min_minutes_between_posts  int NOT NULL DEFAULT 240
 quiet_hours_start          time
 quiet_hours_end            time
+assigned_account_id        uuid REFERENCES telegram_accounts(id)
 created_at                 timestamptz NOT NULL DEFAULT now()
 updated_at                 timestamptz NOT NULL DEFAULT now()
 
@@ -440,8 +441,12 @@ source_tg_message_id     bigint
 source_excerpt           text
 detected_reason          text NOT NULL
 suggested_reply          text
+model                    text
+model_output             jsonb
+risk_notes               text[] NOT NULL DEFAULT '{}'
 status                   text NOT NULL DEFAULT 'needs_review'
                          -- needs_review | approved | rejected | sent | expired | failed
+final_reply              text
 reviewed_by              text
 reviewed_at              timestamptz
 expires_at               timestamptz NOT NULL
@@ -462,6 +467,7 @@ action_type               text NOT NULL
                          -- join | reply | post | skip
 status                    text NOT NULL DEFAULT 'queued'
                          -- queued | sent | failed | skipped
+idempotency_key           text UNIQUE
 outbound_text             text
 reply_to_tg_message_id    bigint
 sent_tg_message_id        bigint

@@ -370,3 +370,11 @@ Added an optional engagement module for operator-approved Telethon joins, topic 
 reply drafting, review, sending, and audit logs. The spec keeps outbound behavior separate from
 collection and analysis, requires human approval in the MVP, forbids DMs and person-level scoring,
 and documents future database tables, queue jobs, API routes, and account-manager purposes.
+
+## [2026-04-18] spec | Expanded engagement implementation contracts
+
+Expanded the engagement spec from a module outline into a concrete implementation contract. Added
+status values, state transitions, service interfaces, worker preflights, Telethon adapter contracts,
+API DTOs, idempotency rules, rate-limit rules, error mapping, scheduler behavior, observability, and
+minimum test expectations. Updated the database spec draft fields and marked the wiki contract slice
+complete in the engagement plan.

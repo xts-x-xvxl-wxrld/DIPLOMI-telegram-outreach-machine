@@ -45,7 +45,7 @@ API routes, bot controls, and audit logs.
 
 ## Slice 1: Wiki And Contracts
 
-Status: planned.
+Status: completed.
 
 Tasks:
 
@@ -59,6 +59,8 @@ Acceptance:
 - Future agents can see engagement as a separate module.
 - Existing collection and analysis boundaries still forbid outbound behavior.
 - Account safety rules explain that engagement is an explicit exception to read-only account use.
+- The engagement spec defines status values, state transitions, DTOs, worker contracts,
+  idempotency, rate limits, adapter interfaces, and testing expectations.
 
 ## Slice 2: Schema Foundation
 
