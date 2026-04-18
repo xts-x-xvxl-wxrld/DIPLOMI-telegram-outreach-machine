@@ -33,7 +33,17 @@ else
 fi
 
 echo
-if [ -e "$deploy_path/.env" ]; then
+if [ -L "$deploy_path/.env" ]; then
+  env_target="$(readlink "$deploy_path/.env" || true)"
+  if [ -r "$deploy_path/.env" ]; then
+    echo ".env: symlink present and target readable by current user"
+  else
+    echo ".env: symlink present but target not readable by current user"
+  fi
+  if [ -n "$env_target" ]; then
+    echo ".env target: $env_target"
+  fi
+elif [ -e "$deploy_path/.env" ]; then
   if [ -r "$deploy_path/.env" ]; then
     echo ".env: present and readable by current user"
   else
@@ -45,7 +55,7 @@ fi
 
 echo
 echo "Containers:"
-docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | {
+docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | {
   read -r header || true
   printf '%s\n' "$header"
   grep "^${project_prefix}-" || true
