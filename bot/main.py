@@ -5,14 +5,11 @@ import io
 from typing import Any
 
 from bot.api_client import BotApiClient, BotApiError
-from bot.bridge import append_bridge_message, read_bridge_messages
 from bot.config import BotSettings, load_settings, validate_runtime_settings
 from bot.formatting import (
     format_access_denied,
     format_accounts,
     format_api_error,
-    format_bridge_recorded,
-    format_bridge_status,
     format_briefs_unavailable,
     format_candidate_card,
     format_candidates,
@@ -83,20 +80,6 @@ async def whoami_command(update: Any, context: Any) -> None:
         return
 
     await _reply(update, format_whoami(user_id, username=_telegram_username(user)))
-
-
-async def bridge_command(update: Any, context: Any) -> None:
-    settings: BotSettings = context.application.bot_data["settings"]
-    recent_messages = read_bridge_messages(settings.bridge_inbox_path, limit=5)
-    await _reply(
-        update,
-        format_bridge_status(
-            enabled=settings.bridge_enabled,
-            inbox_path=settings.bridge_inbox_path,
-            chat_id=_telegram_chat_id(update),
-            recent_count=len(recent_messages),
-        ),
-    )
 
 
 async def briefs_command(update: Any, context: Any) -> None:
@@ -312,7 +295,6 @@ async def telegram_entity_text(update: Any, context: Any) -> None:
 
     raw_text = update.message.text.strip()
     if not _looks_like_telegram_reference(raw_text):
-        await _record_bridge_text(update, context, raw_text)
         return
 
     client = _api_client(context)
@@ -627,7 +609,6 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("whoami", whoami_command))
-    application.add_handler(CommandHandler("bridge", bridge_command))
     application.add_handler(CommandHandler("brief", brief_command))
     application.add_handler(CommandHandler("briefs", briefs_command))
     application.add_handler(CommandHandler("entity", entity_command))
@@ -737,24 +718,6 @@ def _telegram_user_id(update: Any) -> int | None:
         return None
 
 
-def _telegram_chat_id(update: Any) -> int | None:
-    chat = getattr(update, "effective_chat", None)
-    raw_chat_id = getattr(chat, "id", None)
-    if raw_chat_id is None:
-        message = getattr(update, "message", None)
-        raw_chat_id = getattr(message, "chat_id", None)
-    if raw_chat_id is None:
-        query = getattr(update, "callback_query", None)
-        query_message = getattr(query, "message", None)
-        raw_chat_id = getattr(query_message, "chat_id", None)
-    if raw_chat_id is None:
-        return None
-    try:
-        return int(raw_chat_id)
-    except (TypeError, ValueError):
-        return None
-
-
 def _telegram_username(user: Any | None) -> str | None:
     username = getattr(user, "username", None)
     return username if isinstance(username, str) and username else None
@@ -771,22 +734,6 @@ async def _deny_access(update: Any) -> None:
         return
 
     await _reply(update, message)
-
-
-async def _record_bridge_text(update: Any, context: Any, text: str) -> None:
-    settings: BotSettings = context.application.bot_data["settings"]
-    if not settings.bridge_enabled:
-        return
-
-    user = _telegram_user(update)
-    record = append_bridge_message(
-        settings.bridge_inbox_path,
-        chat_id=_telegram_chat_id(update),
-        user_id=_telegram_user_id(update),
-        username=_telegram_username(user),
-        text=text,
-    )
-    await _reply(update, format_bridge_recorded(record))
 
 
 def _looks_like_telegram_reference(raw_value: str) -> bool:

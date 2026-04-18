@@ -28,7 +28,6 @@ directly to Redis, workers, Postgres, web-search providers, Telethon, or OpenAI.
 /exportmembers <community_id>
 /entity <intake_id>
 /whoami
-/bridge
 /approve <community_id>
 /reject <community_id>
 /job <job_id>
@@ -266,20 +265,6 @@ Returns the sender's numeric Telegram user ID and public username when available
 available even when `TELEGRAM_ALLOWED_USER_IDS` is configured and the sender is not yet allowed, so a
 new human researcher can message the bot and send the ID to the operator.
 
-### `/bridge`
-
-Returns the current Telegram chat ID, whether the optional bridge is enabled, the configured bridge
-inbox path, and how many recent messages are visible in the inbox.
-
-When `TELEGRAM_BRIDGE_ENABLED=true`, allowlisted non-command text that is not a public Telegram
-username or `t.me` link is appended as JSONL to `TELEGRAM_BRIDGE_INBOX_PATH`. This creates a simple
-operator-to-VPS message inbox that Codex sessions and helper bots can inspect from the server
-checkout. The bot still routes public Telegram usernames and links through direct entity intake.
-
-VPS bots and Codex sessions can reply to the operator through the Bot API by running
-`scripts/telegram_bridge_send.py`, which reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BRIDGE_CHAT_ID`
-from environment variables.
-
 ## Operator Access
 
 The bot may be restricted with `TELEGRAM_ALLOWED_USER_IDS`, a comma- or whitespace-separated list of
@@ -289,9 +274,9 @@ If the allowlist is empty, existing local/development behavior is preserved and 
 can reach the bot can use it.
 
 If the allowlist is set, only listed user IDs can use operator commands, reply keyboard actions,
-inline callback actions, CSV uploads, plain-text Telegram entity submission, or bridge messages.
-Unauthorized message senders receive their own Telegram user ID and instructions to ask the operator
-to add it. Unauthorized callback users receive the same information as a Telegram alert.
+inline callback actions, CSV uploads, or plain-text Telegram entity submission. Unauthorized message
+senders receive their own Telegram user ID and instructions to ask the operator to add it. Unauthorized
+callback users receive the same information as a Telegram alert.
 
 Telegram Premium status does not change this flow; Telegram still includes the same `from_user.id`
 for bot messages and callbacks.
@@ -312,8 +297,6 @@ The current MVP bot uses approve-as-monitoring to keep the first workflow short.
 
 - Messages should be concise and operational.
 - The top-level bot entry should expose a persistent Telegram reply keyboard for the main actions.
-- Bridge messages are operational coordination only; they must not expose secrets or raw collection
-  payloads.
 - Candidate cards must not expose raw message history.
 - Candidate cards should explain graph evidence, such as linked discussion, forwarded source,
   Telegram link, or repeated discovery from multiple seeds.

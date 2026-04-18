@@ -34,19 +34,16 @@
 - [Seed CSV Helper](plan/seed-csv-helper.md) - helper for turning Telegram usernames or links into bot-ready seed CSVs
 - [Direct Telegram Entity Intake](plan/direct-telegram-entity-intake.md) - bot text intake for classifying one Telegram handle
 - [Bot Operator Access](plan/bot-operator-access.md) - allowlisted Telegram bot operators and `/whoami` onboarding
-- [Telegram Bridge](plan/telegram-bridge.md) - optional JSONL inbox and Bot API reply path for VPS bots and Codex sessions
 - [VPS Agent Ops Context](plan/vps-agent-ops.md) - redacted VPS map, helper commands, and staging/production deploy gates
 
 ## Implementation roots
 
 - `bot/api_client.py` - bot HTTP client for backend API endpoints
-- `bot/bridge.py` - JSONL bridge inbox helpers for operator-to-VPS coordination messages
 - `bot/formatting.py` - concise Telegram message formatting helpers
 - `bot/main.py` - Telegram bot command and callback handlers for seed-group operations
 - `bot/ui.py` - Telegram keyboard and callback-data helpers for inline operator actions
 - `scripts/make_seed_csv.py` - builds bot-ready seed CSV files from public Telegram usernames or links
 - `scripts/onboard_telegram_account.py` - local Telethon session creation and `telegram_accounts` registration
-- `scripts/telegram_bridge_send.py` - sends Bot API bridge replies from VPS bots or Codex sessions
 - `scripts/vps-deploy.sh` - reset-only staging deploy script for the VPS checkout
 - `scripts/vps-deploy-env.sh` - validated staging/production wrapper around the deploy checkout script
 - `scripts/vps-install-agent-ops.sh` - installs the redacted VPS context and helper commands under `/srv/tg-outreach`

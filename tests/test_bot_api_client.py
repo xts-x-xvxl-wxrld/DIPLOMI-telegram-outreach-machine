@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from bot.api_client import BotApiClient, BotApiError
-from bot.config import load_settings, parse_allowed_user_ids, parse_bool, validate_runtime_settings
+from bot.config import load_settings, parse_allowed_user_ids, validate_runtime_settings
 
 
 def test_load_bot_settings_from_env_mapping() -> None:
@@ -17,8 +17,6 @@ def test_load_bot_settings_from_env_mapping() -> None:
             "BOT_API_TOKEN": "api-token",
             "BOT_API_TIMEOUT_SECONDS": "7.5",
             "TELEGRAM_ALLOWED_USER_IDS": "123, 456 789",
-            "TELEGRAM_BRIDGE_ENABLED": "yes",
-            "TELEGRAM_BRIDGE_INBOX_PATH": "data/custom_bridge.jsonl",
         }
     )
 
@@ -27,22 +25,12 @@ def test_load_bot_settings_from_env_mapping() -> None:
     assert settings.api_token == "api-token"
     assert settings.request_timeout_seconds == 7.5
     assert settings.allowed_user_ids == frozenset({123, 456, 789})
-    assert settings.bridge_enabled is True
-    assert settings.bridge_inbox_path == "data/custom_bridge.jsonl"
     validate_runtime_settings(settings)
 
 
 def test_parse_allowed_user_ids_rejects_non_numeric_values() -> None:
     with pytest.raises(ValueError, match="numeric Telegram user IDs"):
         parse_allowed_user_ids("123,not-a-number")
-
-
-def test_parse_bool_accepts_operator_env_values() -> None:
-    assert parse_bool("true")
-    assert parse_bool("1")
-    assert parse_bool("on")
-    assert not parse_bool("false")
-    assert not parse_bool("")
 
 
 @pytest.mark.asyncio

@@ -31,8 +31,6 @@ services:
       - 8.8.8.8
     depends_on:
       - api
-    volumes:
-      - ./data:/app/data
 
   redis:
     image: redis:alpine

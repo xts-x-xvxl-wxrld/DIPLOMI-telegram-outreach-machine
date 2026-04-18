@@ -3,8 +3,6 @@ from __future__ import annotations
 from bot.formatting import (
     format_access_denied,
     format_accounts,
-    format_bridge_recorded,
-    format_bridge_status,
     format_candidate_card,
     format_candidates,
     format_collection_job,
@@ -36,7 +34,6 @@ def test_format_start_lists_seed_first_controls() -> None:
     assert "/members <community_id>" in message
     assert "/exportmembers <community_id>" in message
     assert "/entity <intake_id>" in message
-    assert "/bridge" in message
     assert "Send @username" in message
     assert "outreach" not in message.lower()
     assert "/whoami" in message
@@ -56,27 +53,6 @@ def test_format_access_denied_includes_self_service_id() -> None:
     assert "This bot is restricted." in message
     assert "Your Telegram user ID: 12345" in message
     assert "Username: @researcher" in message
-
-
-def test_format_bridge_status_reports_chat_id_and_path() -> None:
-    message = format_bridge_status(
-        enabled=True,
-        inbox_path="data/telegram_bridge_inbox.jsonl",
-        chat_id=12345,
-        recent_count=2,
-    )
-
-    assert "Status: on" in message
-    assert "Chat ID: 12345" in message
-    assert "TELEGRAM_BRIDGE_CHAT_ID" in message
-
-
-def test_format_bridge_recorded_mentions_reply_script() -> None:
-    message = format_bridge_recorded({"id": "bridge-1"})
-
-    assert "Bridge message saved." in message
-    assert "bridge-1" in message
-    assert "telegram_bridge_send.py" in message
 
 
 def test_format_created_brief_keeps_brief_as_optional_path() -> None:

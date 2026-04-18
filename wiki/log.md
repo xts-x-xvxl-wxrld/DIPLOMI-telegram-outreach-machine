@@ -338,6 +338,12 @@ Added an optional Telegram bridge that saves allowlisted plain-text bot messages
 provides a small Bot API send script for VPS bots and Codex sessions to reply through Telegram.
 Updated the bot spec, environment template, Docker bot volume, README, wiki index, and tests.
 
+## [2026-04-18] fix | Removed Telegram bridge
+
+Removed the optional Telegram bridge because it added confusing coordination semantics without a
+clear operator benefit. The Telegram bot now returns to the seed-first control surface plus direct
+public handle intake, and VPS agent communication is kept out of the bot runtime.
+
 ## [2026-04-17] fix | Restricted staging Postgres exposure
 
 Changed Docker Compose so Postgres binds to `127.0.0.1:5432` instead of every public interface.
