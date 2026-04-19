@@ -16,6 +16,9 @@ from bot.formatting import (
     format_collection_job,
     format_community_detail,
     format_created_brief,
+    format_engagement_candidate_card,
+    format_engagement_candidate_review,
+    format_engagement_candidates,
     format_job_status,
     format_member_export,
     format_members,
@@ -36,6 +39,9 @@ from bot.ui import (
     ACTION_APPROVE_COMMUNITY,
     ACTION_COLLECT_COMMUNITY,
     ACTION_COMMUNITY_MEMBERS,
+    ACTION_ENGAGEMENT_APPROVE,
+    ACTION_ENGAGEMENT_CANDIDATES,
+    ACTION_ENGAGEMENT_REJECT,
     ACTION_JOB_STATUS,
     ACTION_OPEN_COMMUNITY,
     ACTION_OPEN_SEED_GROUP,
@@ -47,6 +53,8 @@ from bot.ui import (
     SEEDS_MENU_LABEL,
     candidate_actions_markup,
     community_actions_markup,
+    engagement_candidate_actions_markup,
+    engagement_candidate_pager_markup,
     job_actions_markup,
     main_menu_markup,
     member_pager_markup,
@@ -62,6 +70,7 @@ CANDIDATE_PAGE_SIZE = 5
 CHANNEL_PAGE_SIZE = 5
 MEMBER_PAGE_SIZE = 10
 MEMBER_EXPORT_PAGE_SIZE = 1000
+ENGAGEMENT_CANDIDATE_PAGE_SIZE = 5
 
 
 async def start_command(update: Any, context: Any) -> None:
@@ -255,6 +264,47 @@ async def exportmembers_command(update: Any, context: Any) -> None:
     )
 
 
+async def engagement_candidates_command(update: Any, context: Any) -> None:
+    try:
+        await _send_engagement_candidates(update, context, offset=0)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def approve_reply_command(update: Any, context: Any) -> None:
+    candidate_id = _first_arg(context)
+    if candidate_id is None:
+        await _reply(update, "Usage: /approve_reply <candidate_id>")
+        return
+
+    try:
+        await _review_engagement_candidate(
+            update,
+            context,
+            candidate_id,
+            action="approve",
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def reject_reply_command(update: Any, context: Any) -> None:
+    candidate_id = _first_arg(context)
+    if candidate_id is None:
+        await _reply(update, "Usage: /reject_reply <candidate_id>")
+        return
+
+    try:
+        await _review_engagement_candidate(
+            update,
+            context,
+            candidate_id,
+            action="reject",
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
 async def seed_csv_document(update: Any, context: Any) -> None:
     if update.message is None or update.message.document is None:
         return
@@ -359,6 +409,27 @@ async def callback_query(update: Any, context: Any) -> None:
             return
         if action == ACTION_JOB_STATUS and len(parts) == 1:
             await _send_job_status(update, context, parts[0])
+            return
+        if action == ACTION_ENGAGEMENT_CANDIDATES and parts:
+            await _send_engagement_candidates(update, context, offset=_parse_offset(parts[-1]))
+            return
+        if action == ACTION_ENGAGEMENT_APPROVE and len(parts) == 1:
+            await _review_engagement_candidate(
+                update,
+                context,
+                parts[0],
+                action="approve",
+                edit_callback=True,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_REJECT and len(parts) == 1:
+            await _review_engagement_candidate(
+                update,
+                context,
+                parts[0],
+                action="reject",
+                edit_callback=True,
+            )
             return
         if action in {ACTION_APPROVE_COMMUNITY, ACTION_REJECT_COMMUNITY} and len(parts) == 1:
             decision = "approve" if action == ACTION_APPROVE_COMMUNITY else "reject"
@@ -532,6 +603,52 @@ async def _send_community_members(
     )
 
 
+async def _send_engagement_candidates(update: Any, context: Any, *, offset: int) -> None:
+    client = _api_client(context)
+    data = await client.list_engagement_candidates(
+        limit=ENGAGEMENT_CANDIDATE_PAGE_SIZE,
+        offset=offset,
+    )
+    await _callback_reply(
+        update,
+        format_engagement_candidates(data, offset=offset),
+        reply_markup=engagement_candidate_pager_markup(
+            offset=offset,
+            total=data.get("total", 0),
+            page_size=ENGAGEMENT_CANDIDATE_PAGE_SIZE,
+        ),
+    )
+    for index, item in enumerate(data.get("items") or [], start=offset + 1):
+        candidate_id = str(item.get("id", "unknown"))
+        await _callback_reply(
+            update,
+            format_engagement_candidate_card(item, index=index),
+            reply_markup=engagement_candidate_actions_markup(candidate_id),
+        )
+
+
+async def _review_engagement_candidate(
+    update: Any,
+    context: Any,
+    candidate_id: str,
+    *,
+    action: str,
+    edit_callback: bool = False,
+) -> None:
+    client = _api_client(context)
+    reviewer = _reviewer_label(update)
+    if action == "approve":
+        data = await client.approve_engagement_candidate(candidate_id, reviewed_by=reviewer)
+    else:
+        data = await client.reject_engagement_candidate(candidate_id, reviewed_by=reviewer)
+
+    message = format_engagement_candidate_review(action, data)
+    if edit_callback:
+        await _edit_callback_message(update, message)
+        return
+    await _reply(update, message)
+
+
 async def _start_seed_group_resolution(update: Any, context: Any, seed_group_id: str) -> None:
     client = _api_client(context)
     data = await client.start_seed_group_resolution(seed_group_id)
@@ -625,6 +742,9 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("collect", collect_command))
     application.add_handler(CommandHandler("members", members_command))
     application.add_handler(CommandHandler("exportmembers", exportmembers_command))
+    application.add_handler(CommandHandler("engagement_candidates", engagement_candidates_command))
+    application.add_handler(CommandHandler("approve_reply", approve_reply_command))
+    application.add_handler(CommandHandler("reject_reply", reject_reply_command))
     application.add_handler(CallbackQueryHandler(callback_query))
     application.add_handler(MessageHandler(filters.Regex(f"^{SEEDS_MENU_LABEL}$"), seeds_command))
     application.add_handler(
@@ -721,6 +841,17 @@ def _telegram_user_id(update: Any) -> int | None:
 def _telegram_username(user: Any | None) -> str | None:
     username = getattr(user, "username", None)
     return username if isinstance(username, str) and username else None
+
+
+def _reviewer_label(update: Any) -> str:
+    user = _telegram_user(update)
+    user_id = _telegram_user_id(update)
+    if user_id is None:
+        return "telegram_bot"
+    username = _telegram_username(user)
+    if username:
+        return f"telegram:{user_id}:@{username}"
+    return f"telegram:{user_id}"
 
 
 async def _deny_access(update: Any) -> None:

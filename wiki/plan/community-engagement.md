@@ -207,7 +207,7 @@ Implemented notes:
 
 ## Slice 8: Review API And Bot Controls
 
-Status: planned.
+Status: completed.
 
 Add API routes:
 
@@ -231,6 +231,14 @@ Acceptance:
 - Approving records `reviewed_by` and `reviewed_at`.
 - Rejecting records `reviewed_by` and `reviewed_at`.
 - Bot cards show community, topic, source excerpt, and suggested reply.
+
+Implemented notes:
+
+- Added candidate list, approve, and reject service transitions with expiry and reply validation.
+- Added API DTOs/routes for pending candidate review without invoking Telethon or enqueueing sends.
+- Added bot client methods, `/engagement_candidates`, `/approve_reply`, `/reject_reply`, and inline
+  candidate approve/reject controls.
+- Added tests for API review transitions, bot HTTP contracts, card formatting, and callback data.
 
 ## Slice 9: Send Worker
 

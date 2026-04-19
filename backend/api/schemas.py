@@ -399,3 +399,41 @@ class EngagementTopicOut(BaseModel):
 
 class EngagementTopicListResponse(BaseModel):
     items: list[EngagementTopicOut]
+
+
+class EngagementCandidateApproveRequest(BaseModel):
+    final_reply: str | None = Field(default=None, max_length=800)
+    reviewed_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class EngagementCandidateRejectRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=500)
+    reviewed_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class EngagementCandidateOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    community_id: UUID
+    community_title: str | None = None
+    topic_id: UUID
+    topic_name: str
+    source_tg_message_id: int | None = None
+    source_excerpt: str | None = None
+    detected_reason: str
+    suggested_reply: str | None = None
+    final_reply: str | None = None
+    risk_notes: list[str]
+    status: str
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+    expires_at: datetime
+    created_at: datetime
+
+
+class EngagementCandidateListResponse(BaseModel):
+    items: list[EngagementCandidateOut]
+    limit: int
+    offset: int
+    total: int

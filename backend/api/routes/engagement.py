@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.api.deps import DbSession, require_bot_token
 from backend.api.schemas import (
+    EngagementCandidateApproveRequest,
+    EngagementCandidateListResponse,
+    EngagementCandidateOut,
+    EngagementCandidateRejectRequest,
     EngagementSettingsOut,
     EngagementSettingsUpdate,
     EngagementTopicCreate,
@@ -17,9 +21,12 @@ from backend.services.community_engagement import (
     EngagementConflict,
     EngagementNotFound,
     EngagementServiceError,
+    approve_candidate,
     create_topic,
     get_engagement_settings,
+    list_engagement_candidates,
     list_topics,
+    reject_candidate,
     update_topic,
     upsert_engagement_settings,
 )
@@ -100,6 +107,77 @@ async def patch_engagement_topic(
 
     await db.commit()
     return EngagementTopicOut.model_validate(topic)
+
+
+@router.get("/engagement/candidates", response_model=EngagementCandidateListResponse)
+async def get_engagement_candidates(
+    db: DbSession,
+    status: str | None = Query(default="needs_review"),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> EngagementCandidateListResponse:
+    try:
+        result = await list_engagement_candidates(
+            db,
+            status=status,
+            limit=limit,
+            offset=offset,
+        )
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+
+    return EngagementCandidateListResponse(
+        items=[EngagementCandidateOut.model_validate(item) for item in result.items],
+        limit=result.limit,
+        offset=result.offset,
+        total=result.total,
+    )
+
+
+@router.post(
+    "/engagement/candidates/{candidate_id}/approve",
+    response_model=EngagementCandidateOut,
+)
+async def post_engagement_candidate_approve(
+    candidate_id: UUID,
+    payload: EngagementCandidateApproveRequest,
+    db: DbSession,
+) -> EngagementCandidateOut:
+    try:
+        candidate = await approve_candidate(
+            db,
+            candidate_id=candidate_id,
+            approved_by=payload.reviewed_by or "operator",
+            final_reply=payload.final_reply,
+        )
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+
+    await db.commit()
+    return EngagementCandidateOut.model_validate(candidate)
+
+
+@router.post(
+    "/engagement/candidates/{candidate_id}/reject",
+    response_model=EngagementCandidateOut,
+)
+async def post_engagement_candidate_reject(
+    candidate_id: UUID,
+    payload: EngagementCandidateRejectRequest,
+    db: DbSession,
+) -> EngagementCandidateOut:
+    try:
+        candidate = await reject_candidate(
+            db,
+            candidate_id=candidate_id,
+            rejected_by=payload.reviewed_by or "operator",
+            reason=payload.reason,
+        )
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+
+    await db.commit()
+    return EngagementCandidateOut.model_validate(candidate)
 
 
 def _http_error(exc: EngagementServiceError) -> HTTPException:

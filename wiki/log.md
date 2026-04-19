@@ -427,3 +427,12 @@ Added candidate creation, phone redaction, reply safety validation, compact mode
 and active-candidate dedupe helpers. Wired worker dispatch and the engagement queue runner, added
 `OPENAI_ENGAGEMENT_MODEL`, and covered no-signal, draft-created, and duplicate-skip paths with
 tests. Marked the detection worker slice complete in the engagement plan.
+
+## [2026-04-19] code | Added engagement review API and bot controls
+
+Added candidate review service transitions and API routes for listing pending engagement replies,
+approving candidates, and rejecting candidates. Approvals now validate expiry and final reply text
+while recording reviewer metadata; rejections record reviewer metadata without sending or enqueueing
+Telegram work. Added bot commands and inline controls for reviewing engagement candidates, plus
+focused tests for API contracts, bot client calls, formatting, and callback data. Marked the review
+API and bot controls slice complete in the engagement plan.

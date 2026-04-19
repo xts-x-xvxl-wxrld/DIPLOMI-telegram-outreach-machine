@@ -8,6 +8,9 @@ from bot.formatting import (
     format_collection_job,
     format_community_detail,
     format_created_brief,
+    format_engagement_candidate_card,
+    format_engagement_candidate_review,
+    format_engagement_candidates,
     format_job_status,
     format_member_export,
     format_members,
@@ -33,6 +36,7 @@ def test_format_start_lists_seed_first_controls() -> None:
     assert "/collect <community_id>" in message
     assert "/members <community_id>" in message
     assert "/exportmembers <community_id>" in message
+    assert "/engagement_candidates" in message
     assert "/entity <intake_id>" in message
     assert "Send @username" in message
     assert "outreach" not in message.lower()
@@ -297,6 +301,51 @@ def test_format_member_export_reports_count() -> None:
     message = format_member_export({"items": [{}, {}], "total": 2}, community_title="Founder Circle")
 
     assert "Exported 2 visible members for Founder Circle." == message
+
+
+def test_format_engagement_candidates_reports_pending_page() -> None:
+    message = format_engagement_candidates({"items": [{"id": "candidate-1"}], "total": 3}, offset=0)
+
+    assert message == "Engagement replies needing review (1-1 of 3)"
+
+
+def test_format_engagement_candidate_card_keeps_review_context() -> None:
+    message = format_engagement_candidate_card(
+        {
+            "id": "candidate-1",
+            "community_title": "Founder Circle",
+            "topic_name": "Open-source CRM",
+            "status": "needs_review",
+            "source_excerpt": "The group is comparing CRM tools.",
+            "detected_reason": "The group is discussing alternatives.",
+            "suggested_reply": "Compare ownership, integrations, and exit paths first.",
+            "risk_notes": ["Keep it non-salesy."],
+        },
+        index=1,
+    )
+
+    assert "1. Founder Circle" in message
+    assert "Topic: Open-source CRM" in message
+    assert "Source: The group is comparing CRM tools." in message
+    assert "Suggested reply: Compare ownership" in message
+    assert "/approve_reply candidate-1" in message
+    assert "score" not in message.lower()
+
+
+def test_format_engagement_candidate_review_reports_audit_fields() -> None:
+    message = format_engagement_candidate_review(
+        "approve",
+        {
+            "id": "candidate-1",
+            "community_title": "Founder Circle",
+            "status": "approved",
+            "reviewed_by": "telegram:123",
+        },
+    )
+
+    assert "Decision: approve" in message
+    assert "Status: approved" in message
+    assert "Reviewed by: telegram:123" in message
 
 
 def test_format_community_detail_includes_snapshot_run_and_analysis() -> None:

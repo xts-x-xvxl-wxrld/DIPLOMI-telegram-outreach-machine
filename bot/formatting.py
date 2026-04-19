@@ -26,6 +26,9 @@ def format_start() -> str:
             "/collect <community_id>",
             "/members <community_id>",
             "/exportmembers <community_id>",
+            "/engagement_candidates",
+            "/approve_reply <candidate_id>",
+            "/reject_reply <candidate_id>",
             "/entity <intake_id>",
             "/job <job_id>",
             "/accounts",
@@ -389,6 +392,62 @@ def format_member_export(data: dict[str, Any], *, community_title: str | None = 
     label = community_title or "community"
     total = data.get("total", len(data.get("items") or []))
     return f"Exported {total} visible members for {label}."
+
+
+def format_engagement_candidates(data: dict[str, Any], *, offset: int = 0) -> str:
+    items = data.get("items") or []
+    total = data.get("total", len(items))
+    if not items:
+        return "No engagement replies need review right now."
+
+    return f"Engagement replies needing review ({offset + 1}-{offset + len(items)} of {total})"
+
+
+def format_engagement_candidate_card(item: dict[str, Any], *, index: int | None = None) -> str:
+    title = item.get("community_title") or "Community"
+    topic = item.get("topic_name") or "Topic"
+    candidate_id = item.get("id", "unknown")
+    source = _shorten(str(item.get("source_excerpt") or "No source excerpt recorded."), 500)
+    reason = _shorten(str(item.get("detected_reason") or "No reason recorded."), 260)
+    reply = str(item.get("suggested_reply") or item.get("final_reply") or "No draft reply recorded.")
+
+    heading = f"{index}. {title}" if index is not None else title
+    lines = [
+        heading,
+        f"Topic: {topic}",
+        f"Status: {item.get('status', 'unknown')}",
+        "",
+        f"Source: {source}",
+        f"Reason: {reason}",
+        "",
+        f"Suggested reply: {_shorten(reply, 800)}",
+    ]
+    risk_notes = item.get("risk_notes") or []
+    if risk_notes:
+        lines.append(f"Risk notes: {_shorten('; '.join(str(note) for note in risk_notes), 260)}")
+    lines.extend(
+        [
+            "",
+            f"Candidate ID: {candidate_id}",
+            f"Approve: /approve_reply {candidate_id}",
+            f"Reject: /reject_reply {candidate_id}",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def format_engagement_candidate_review(action: str, item: dict[str, Any]) -> str:
+    title = item.get("community_title") or "Community"
+    candidate_id = item.get("id", "unknown")
+    return "\n".join(
+        [
+            title,
+            f"Candidate ID: {candidate_id}",
+            f"Decision: {action}",
+            f"Status: {item.get('status', 'unknown')}",
+            f"Reviewed by: {item.get('reviewed_by') or 'operator'}",
+        ]
+    )
 
 
 def format_community_detail(

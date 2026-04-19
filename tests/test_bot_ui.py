@@ -5,9 +5,13 @@ import pytest
 from bot.ui import (
     ACTION_APPROVE_COMMUNITY,
     ACTION_COMMUNITY_MEMBERS,
+    ACTION_ENGAGEMENT_APPROVE,
+    ACTION_ENGAGEMENT_CANDIDATES,
     ACTION_SEED_CANDIDATES,
     candidate_actions_markup,
     community_actions_markup,
+    engagement_candidate_actions_markup,
+    engagement_candidate_pager_markup,
     encode_callback_data,
     member_pager_markup,
     parse_callback_data,
@@ -22,6 +26,15 @@ def test_encode_and_parse_callback_data_round_trip() -> None:
 
     assert action == ACTION_SEED_CANDIDATES
     assert parts == ["group-1", "10"]
+
+
+def test_parse_namespaced_engagement_callback_data_round_trip() -> None:
+    data = encode_callback_data(ACTION_ENGAGEMENT_APPROVE, "candidate-1")
+
+    action, parts = parse_callback_data(data)
+
+    assert action == ACTION_ENGAGEMENT_APPROVE
+    assert parts == ["candidate-1"]
 
 
 def test_encode_callback_data_rejects_oversized_payloads() -> None:
@@ -65,3 +78,19 @@ def test_member_pager_markup_pages_members() -> None:
 
     assert rows[0][0].text == "Community"
     assert rows[1][0].callback_data == f"{ACTION_COMMUNITY_MEMBERS}:community-1:10"
+
+
+def test_engagement_candidate_actions_markup_exposes_review_controls() -> None:
+    markup = engagement_candidate_actions_markup("candidate-1")
+    rows = markup.inline_keyboard
+
+    assert rows[0][0].callback_data == f"{ACTION_ENGAGEMENT_APPROVE}:candidate-1"
+    assert rows[0][1].text == "Reject"
+    assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:0"
+
+
+def test_engagement_candidate_pager_markup_pages_candidates() -> None:
+    markup = engagement_candidate_pager_markup(offset=0, total=12, page_size=5)
+    rows = markup.inline_keyboard
+
+    assert rows[0][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:5"

@@ -276,6 +276,80 @@ async def test_list_community_members_uses_safe_member_endpoint_filters() -> Non
 
 
 @pytest.mark.asyncio
+async def test_list_engagement_candidates_uses_review_endpoint() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path.endswith("/engagement/candidates")
+        assert request.url.params["status"] == "needs_review"
+        assert request.url.params["limit"] == "5"
+        assert request.url.params["offset"] == "10"
+        return httpx.Response(200, json={"items": [], "limit": 5, "offset": 10, "total": 0})
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    response = await client.list_engagement_candidates(offset=10)
+    await client.aclose()
+
+    assert response["offset"] == 10
+
+
+@pytest.mark.asyncio
+async def test_approve_engagement_candidate_posts_reviewer() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path.endswith("/engagement/candidates/candidate-1/approve")
+        assert json.loads(request.content) == {"reviewed_by": "telegram:123"}
+        return httpx.Response(
+            200,
+            json={"id": "candidate-1", "status": "approved", "reviewed_by": "telegram:123"},
+        )
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    response = await client.approve_engagement_candidate(
+        "candidate-1",
+        reviewed_by="telegram:123",
+    )
+    await client.aclose()
+
+    assert response["status"] == "approved"
+
+
+@pytest.mark.asyncio
+async def test_reject_engagement_candidate_posts_reviewer() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path.endswith("/engagement/candidates/candidate-1/reject")
+        assert json.loads(request.content) == {"reviewed_by": "telegram:123"}
+        return httpx.Response(
+            200,
+            json={"id": "candidate-1", "status": "rejected", "reviewed_by": "telegram:123"},
+        )
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    response = await client.reject_engagement_candidate(
+        "candidate-1",
+        reviewed_by="telegram:123",
+    )
+    await client.aclose()
+
+    assert response["status"] == "rejected"
+
+
+@pytest.mark.asyncio
 async def test_api_error_uses_fastapi_detail_message() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(404, json={"detail": {"message": "Job not found"}})

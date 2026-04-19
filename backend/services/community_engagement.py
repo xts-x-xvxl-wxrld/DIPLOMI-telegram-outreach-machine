@@ -9,6 +9,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from backend.db.enums import (
     AccountStatus,
@@ -68,6 +69,34 @@ class EngagementCandidateCreationResult:
     candidate: EngagementCandidate
     created: bool
     reason: str
+
+
+@dataclass(frozen=True)
+class EngagementCandidateView:
+    id: UUID
+    community_id: UUID
+    community_title: str | None
+    topic_id: UUID
+    topic_name: str
+    source_tg_message_id: int | None
+    source_excerpt: str | None
+    detected_reason: str
+    suggested_reply: str | None
+    final_reply: str | None
+    risk_notes: list[str]
+    status: str
+    reviewed_by: str | None
+    reviewed_at: datetime | None
+    expires_at: datetime
+    created_at: datetime
+
+
+@dataclass(frozen=True)
+class EngagementCandidateListResult:
+    items: list[EngagementCandidateView]
+    limit: int
+    offset: int
+    total: int
 
 
 async def get_engagement_settings(
@@ -230,6 +259,130 @@ async def list_active_topics(db: AsyncSession) -> list[EngagementTopic]:
 async def list_topics(db: AsyncSession) -> list[EngagementTopic]:
     rows = await db.scalars(select(EngagementTopic).order_by(EngagementTopic.name))
     return list(rows)
+
+
+async def list_engagement_candidates(
+    db: AsyncSession,
+    *,
+    status: str | None = EngagementCandidateStatus.NEEDS_REVIEW.value,
+    limit: int = 20,
+    offset: int = 0,
+) -> EngagementCandidateListResult:
+    if status is not None and status not in _candidate_status_values():
+        raise EngagementValidationError("invalid_candidate_status", "Unknown engagement candidate status")
+
+    safe_limit = max(min(limit, 100), 1)
+    safe_offset = max(offset, 0)
+    filters = []
+    if status is not None:
+        filters.append(EngagementCandidate.status == status)
+
+    total_query = select(func.count(EngagementCandidate.id))
+    candidate_query = (
+        select(EngagementCandidate)
+        .options(
+            joinedload(EngagementCandidate.community),
+            joinedload(EngagementCandidate.topic),
+        )
+        .order_by(EngagementCandidate.created_at.desc())
+        .limit(safe_limit)
+        .offset(safe_offset)
+    )
+    if filters:
+        total_query = total_query.where(*filters)
+        candidate_query = candidate_query.where(*filters)
+
+    total = int(await db.scalar(total_query) or 0)
+    rows = await db.scalars(candidate_query)
+    return EngagementCandidateListResult(
+        items=[_candidate_view(candidate) for candidate in rows],
+        limit=safe_limit,
+        offset=safe_offset,
+        total=total,
+    )
+
+
+async def approve_candidate(
+    db: AsyncSession,
+    *,
+    candidate_id: UUID,
+    approved_by: str,
+    final_reply: str | None = None,
+) -> EngagementCandidateView:
+    candidate = await _get_candidate_for_review(db, candidate_id)
+    if candidate.status not in {
+        EngagementCandidateStatus.NEEDS_REVIEW.value,
+        EngagementCandidateStatus.FAILED.value,
+    }:
+        raise EngagementConflict(
+            "candidate_not_approvable",
+            "Only candidates needing review or failed candidates can be approved",
+        )
+    if _candidate_is_expired(candidate, _utcnow()):
+        raise EngagementConflict("candidate_expired", "Expired candidates cannot be approved")
+
+    reply_source = final_reply if final_reply is not None else candidate.suggested_reply
+    reply = validate_suggested_reply(reply_source)
+    if reply is None:
+        raise EngagementValidationError(
+            "final_reply_required",
+            "A candidate needs suggested_reply or final_reply before approval",
+        )
+
+    now = _utcnow()
+    candidate.status = EngagementCandidateStatus.APPROVED.value
+    candidate.final_reply = reply
+    candidate.reviewed_by = _required_text(approved_by, field="approved_by")
+    candidate.reviewed_at = now
+    candidate.updated_at = now
+    await db.flush()
+    return _candidate_view(candidate)
+
+
+async def reject_candidate(
+    db: AsyncSession,
+    *,
+    candidate_id: UUID,
+    rejected_by: str,
+    reason: str | None = None,
+) -> EngagementCandidateView:
+    del reason
+    candidate = await _get_candidate_for_review(db, candidate_id)
+    if candidate.status != EngagementCandidateStatus.NEEDS_REVIEW.value:
+        raise EngagementConflict(
+            "candidate_not_rejectable",
+            "Only candidates needing review can be rejected",
+        )
+
+    now = _utcnow()
+    candidate.status = EngagementCandidateStatus.REJECTED.value
+    candidate.reviewed_by = _required_text(rejected_by, field="rejected_by")
+    candidate.reviewed_at = now
+    candidate.updated_at = now
+    await db.flush()
+    return _candidate_view(candidate)
+
+
+async def expire_stale_candidates(db: AsyncSession, *, now: datetime) -> int:
+    rows = await db.scalars(
+        select(EngagementCandidate).where(
+            EngagementCandidate.status.in_(
+                (
+                    EngagementCandidateStatus.NEEDS_REVIEW.value,
+                    EngagementCandidateStatus.APPROVED.value,
+                )
+            ),
+            EngagementCandidate.expires_at <= now,
+        )
+    )
+    count = 0
+    for candidate in rows:
+        candidate.status = EngagementCandidateStatus.EXPIRED.value
+        candidate.updated_at = now
+        count += 1
+    if count:
+        await db.flush()
+    return count
 
 
 async def mark_join_requested(
@@ -651,6 +804,64 @@ async def _find_active_candidate_duplicate(
             EngagementCandidate.source_excerpt == source_excerpt,
         )
     return await db.scalar(query.limit(1))
+
+
+async def _get_candidate_for_review(
+    db: AsyncSession,
+    candidate_id: UUID,
+) -> EngagementCandidate:
+    candidate = await db.scalar(
+        select(EngagementCandidate)
+        .options(
+            joinedload(EngagementCandidate.community),
+            joinedload(EngagementCandidate.topic),
+        )
+        .where(EngagementCandidate.id == candidate_id)
+        .limit(1)
+    )
+    if candidate is None:
+        raise EngagementNotFound("not_found", "Engagement candidate not found")
+    return candidate
+
+
+def _candidate_view(candidate: EngagementCandidate) -> EngagementCandidateView:
+    community = candidate.community
+    topic = candidate.topic
+    community_title = None
+    if community is not None:
+        community_title = community.title or community.username
+    return EngagementCandidateView(
+        id=candidate.id,
+        community_id=candidate.community_id,
+        community_title=community_title,
+        topic_id=candidate.topic_id,
+        topic_name=topic.name if topic is not None else "Unknown topic",
+        source_tg_message_id=candidate.source_tg_message_id,
+        source_excerpt=candidate.source_excerpt,
+        detected_reason=candidate.detected_reason,
+        suggested_reply=candidate.suggested_reply,
+        final_reply=candidate.final_reply,
+        risk_notes=list(candidate.risk_notes or []),
+        status=candidate.status,
+        reviewed_by=candidate.reviewed_by,
+        reviewed_at=candidate.reviewed_at,
+        expires_at=candidate.expires_at,
+        created_at=candidate.created_at,
+    )
+
+
+def _candidate_is_expired(candidate: EngagementCandidate, now: datetime) -> bool:
+    return _ensure_aware_utc(candidate.expires_at) <= _ensure_aware_utc(now)
+
+
+def _ensure_aware_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _candidate_status_values() -> set[str]:
+    return {status.value for status in EngagementCandidateStatus}
 
 
 def _compact_model_output(value: dict[str, Any] | None) -> dict[str, Any] | None:

@@ -11,18 +11,23 @@ from fastapi.testclient import TestClient
 from backend.api.app import create_app
 from backend.api.deps import settings_dep
 from backend.api.routes.engagement import (
+    get_engagement_candidates,
     get_community_engagement_settings,
     patch_engagement_topic,
+    post_engagement_candidate_approve,
+    post_engagement_candidate_reject,
     post_engagement_topic,
     put_community_engagement_settings,
 )
 from backend.api.schemas import (
+    EngagementCandidateApproveRequest,
+    EngagementCandidateRejectRequest,
     EngagementSettingsUpdate,
     EngagementTopicCreate,
     EngagementTopicUpdate,
 )
-from backend.db.enums import CommunityStatus, EngagementMode
-from backend.db.models import Community, CommunityEngagementSettings, EngagementTopic
+from backend.db.enums import CommunityStatus, EngagementCandidateStatus, EngagementMode
+from backend.db.models import Community, CommunityEngagementSettings, EngagementCandidate, EngagementTopic
 
 
 def test_engagement_routes_require_api_auth() -> None:
@@ -209,6 +214,84 @@ async def test_update_topic_rejects_unsafe_guidance() -> None:
     assert exc_info.value.detail["code"] == "unsafe_topic_guidance"
 
 
+@pytest.mark.asyncio
+async def test_list_engagement_candidates_returns_pending_review_cards() -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    topic = _topic(uuid4(), name="Open-source CRM")
+    candidate = _candidate(uuid4(), community, topic)
+    db = FakeDb(candidates=[candidate])
+
+    response = await get_engagement_candidates(db, status="needs_review", limit=5, offset=0)  # type: ignore[arg-type]
+
+    assert response.total == 1
+    assert response.items[0].community_title == "Founder Circle"
+    assert response.items[0].topic_name == "Open-source CRM"
+    assert response.items[0].source_excerpt == "The group is comparing CRM tools."
+
+
+@pytest.mark.asyncio
+async def test_approve_engagement_candidate_records_review_metadata() -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    topic = _topic(uuid4(), name="Open-source CRM")
+    candidate = _candidate(uuid4(), community, topic)
+    db = FakeDb(scalar_result=candidate)
+
+    response = await post_engagement_candidate_approve(
+        candidate.id,
+        EngagementCandidateApproveRequest(reviewed_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.status == EngagementCandidateStatus.APPROVED.value
+    assert response.reviewed_by == "telegram:123"
+    assert response.reviewed_at is not None
+    assert response.final_reply == candidate.suggested_reply
+    assert db.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_approve_engagement_candidate_rejects_expired_candidate() -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    topic = _topic(uuid4(), name="Open-source CRM")
+    candidate = _candidate(
+        uuid4(),
+        community,
+        topic,
+        expires_at=datetime(2000, 1, 1, tzinfo=timezone.utc),
+    )
+    db = FakeDb(scalar_result=candidate)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await post_engagement_candidate_approve(
+            candidate.id,
+            EngagementCandidateApproveRequest(reviewed_by="telegram:123"),
+            db,  # type: ignore[arg-type]
+        )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail["code"] == "candidate_expired"
+    assert db.commits == 0
+
+
+@pytest.mark.asyncio
+async def test_reject_engagement_candidate_records_review_metadata() -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    topic = _topic(uuid4(), name="Open-source CRM")
+    candidate = _candidate(uuid4(), community, topic)
+    db = FakeDb(scalar_result=candidate)
+
+    response = await post_engagement_candidate_reject(
+        candidate.id,
+        EngagementCandidateRejectRequest(reviewed_by="telegram:123", reason="Not useful"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.status == EngagementCandidateStatus.REJECTED.value
+    assert response.reviewed_by == "telegram:123"
+    assert response.reviewed_at is not None
+    assert db.commits == 1
+
+
 class FakeDb:
     def __init__(
         self,
@@ -216,11 +299,13 @@ class FakeDb:
         community: Community | None = None,
         settings: CommunityEngagementSettings | None = None,
         topic: EngagementTopic | None = None,
+        candidates: list[EngagementCandidate] | None = None,
         scalar_result: object | None = None,
     ) -> None:
         self.community = community
         self.settings = settings
         self.topic = topic
+        self.candidates = candidates
         self.scalar_result = scalar_result
         self.added: list[object] = []
         self.commits = 0
@@ -236,7 +321,13 @@ class FakeDb:
     async def scalar(self, statement: object) -> object | None:
         if self.scalar_result is not None:
             return self.scalar_result
+        if self.candidates is not None:
+            return len(self.candidates)
         return self.settings
+
+    async def scalars(self, statement: object) -> list[object]:
+        del statement
+        return list(self.candidates or [])
 
     def add(self, model: object) -> None:
         self.added.append(model)
@@ -246,3 +337,55 @@ class FakeDb:
 
     async def commit(self) -> None:
         self.commits += 1
+
+
+def _community(community_id: object, *, title: str) -> Community:
+    return Community(
+        id=community_id,
+        tg_id=100,
+        username="founder_circle",
+        title=title,
+        status=CommunityStatus.MONITORING.value,
+        store_messages=False,
+    )
+
+
+def _topic(topic_id: object, *, name: str) -> EngagementTopic:
+    return EngagementTopic(
+        id=topic_id,
+        name=name,
+        stance_guidance="Be useful.",
+        trigger_keywords=["crm"],
+        negative_keywords=[],
+        example_good_replies=[],
+        example_bad_replies=[],
+        active=True,
+        created_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
+    )
+
+
+def _candidate(
+    candidate_id: object,
+    community: Community,
+    topic: EngagementTopic,
+    *,
+    expires_at: datetime | None = None,
+) -> EngagementCandidate:
+    candidate = EngagementCandidate(
+        id=candidate_id,
+        community_id=community.id,
+        topic_id=topic.id,
+        source_tg_message_id=123,
+        source_excerpt="The group is comparing CRM tools.",
+        detected_reason="The group is comparing CRM alternatives.",
+        suggested_reply="Compare data ownership, integrations, and exit paths first.",
+        risk_notes=[],
+        status=EngagementCandidateStatus.NEEDS_REVIEW.value,
+        expires_at=expires_at or datetime(2999, 4, 20, tzinfo=timezone.utc),
+        created_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
+    )
+    candidate.community = community
+    candidate.topic = topic
+    return candidate

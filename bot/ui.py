@@ -18,6 +18,9 @@ ACTION_REJECT_COMMUNITY = "cr"
 ACTION_COLLECT_COMMUNITY = "cl"
 ACTION_COMMUNITY_MEMBERS = "mb"
 ACTION_JOB_STATUS = "jb"
+ACTION_ENGAGEMENT_CANDIDATES = "eng:cand:list"
+ACTION_ENGAGEMENT_APPROVE = "eng:cand:approve"
+ACTION_ENGAGEMENT_REJECT = "eng:cand:reject"
 
 
 @dataclass(frozen=True)
@@ -88,6 +91,8 @@ def seed_group_pager_markup(
     )
     if pager_row:
         rows.append(pager_row)
+    if not rows:
+        return None
     return _inline_markup(rows)
 
 
@@ -101,6 +106,36 @@ def candidate_actions_markup(community_id: str):
             [_button("Community", ACTION_OPEN_COMMUNITY, community_id)],
         ]
     )
+
+
+def engagement_candidate_actions_markup(candidate_id: str):
+    return _inline_markup(
+        [
+            [
+                _button("Approve", ACTION_ENGAGEMENT_APPROVE, candidate_id),
+                _button("Reject", ACTION_ENGAGEMENT_REJECT, candidate_id),
+            ],
+            [_button("More replies", ACTION_ENGAGEMENT_CANDIDATES, "0")],
+        ]
+    )
+
+
+def engagement_candidate_pager_markup(
+    *,
+    offset: int,
+    total: int,
+    page_size: int,
+):
+    buttons = []
+    previous_offset = max(offset - page_size, 0)
+    next_offset = offset + page_size
+    if offset > 0:
+        buttons.append(_button("Prev", ACTION_ENGAGEMENT_CANDIDATES, str(previous_offset)))
+    if next_offset < total:
+        buttons.append(_button("Next", ACTION_ENGAGEMENT_CANDIDATES, str(next_offset)))
+    if not buttons:
+        return None
+    return _inline_markup([buttons])
 
 
 def review_result_markup(community_id: str, job_id: str | None = None):
@@ -146,6 +181,8 @@ def job_actions_markup(job_id: str):
 
 def parse_callback_data(data: str) -> tuple[str, list[str]]:
     parts = data.split(":")
+    if len(parts) >= 3 and parts[0] == "eng" and parts[1] == "cand":
+        return ":".join(parts[:3]), parts[3:]
     return parts[0], parts[1:]
 
 

@@ -150,6 +150,51 @@ class BotApiClient:
             params=params,
         )
 
+    async def list_engagement_candidates(
+        self,
+        *,
+        status: str = "needs_review",
+        limit: int = 5,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            "/engagement/candidates",
+            params={"status": status, "limit": limit, "offset": offset},
+        )
+
+    async def approve_engagement_candidate(
+        self,
+        candidate_id: str,
+        *,
+        reviewed_by: str,
+        final_reply: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"reviewed_by": reviewed_by}
+        if final_reply is not None:
+            payload["final_reply"] = final_reply
+        return await self._request(
+            "POST",
+            f"/engagement/candidates/{candidate_id}/approve",
+            json=payload,
+        )
+
+    async def reject_engagement_candidate(
+        self,
+        candidate_id: str,
+        *,
+        reviewed_by: str,
+        reason: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"reviewed_by": reviewed_by}
+        if reason is not None:
+            payload["reason"] = reason
+        return await self._request(
+            "POST",
+            f"/engagement/candidates/{candidate_id}/reject",
+            json=payload,
+        )
+
     async def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         try:
             response = await self._client.request(method, path, **kwargs)
