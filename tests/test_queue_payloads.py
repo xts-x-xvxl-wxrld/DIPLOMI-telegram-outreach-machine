@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from backend.queue.client import (
@@ -7,7 +8,9 @@ from backend.queue.client import (
     enqueue_brief_process,
     enqueue_community_join,
     enqueue_engagement_detect,
+    enqueue_manual_engagement_detect,
     enqueue_engagement_send,
+    enqueue_job,
     enqueue_seed_expansion,
     enqueue_seed_resolve,
     enqueue_telegram_entity_resolve,
@@ -409,6 +412,80 @@ def test_enqueue_engagement_detect_uses_engagement_queue(monkeypatch) -> None:
     }
     assert captured["queue_name"] == "engagement"
     assert str(captured["job_id"]).startswith(f"engagement.detect:{community_id}:")
+
+
+def test_enqueue_manual_engagement_detect_uses_distinct_job_id_prefix(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_enqueue_job(
+        job_type: str,
+        payload: dict[str, object],
+        *,
+        queue_name: str,
+        job_id: str | None = None,
+    ) -> QueuedJob:
+        captured.update(
+            {
+                "job_type": job_type,
+                "payload": payload,
+                "queue_name": queue_name,
+                "job_id": job_id,
+            }
+        )
+        return QueuedJob(id="job-manual-detect", type=job_type)
+
+    monkeypatch.setattr("backend.queue.client.enqueue_job", fake_enqueue_job)
+    community_id = uuid4()
+
+    job = enqueue_manual_engagement_detect(
+        community_id,
+        window_minutes=45,
+        requested_by="operator",
+        now=datetime(2026, 4, 19, 13, 30, tzinfo=timezone.utc),
+    )
+
+    assert job == QueuedJob(id="job-manual-detect", type="engagement.detect")
+    assert captured == {
+        "job_type": "engagement.detect",
+        "payload": {
+            "community_id": str(community_id),
+            "window_minutes": 45,
+            "requested_by": "operator",
+        },
+        "queue_name": "engagement",
+        "job_id": f"engagement.detect.manual:{community_id}:2026041913",
+    }
+
+
+def test_enqueue_job_returns_duplicate_status_for_existing_job_id(monkeypatch) -> None:
+    class FakeRetry:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+    class FakeQueue:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def enqueue(self, *args: object, **kwargs: object) -> object:
+            raise RuntimeError("Job already exists")
+
+    monkeypatch.setattr(
+        "backend.queue.client._queue_dependencies",
+        lambda: (FakeQueue, FakeRetry, object()),
+    )
+
+    job = enqueue_job(
+        "engagement.detect",
+        {"community_id": str(uuid4()), "window_minutes": 60, "requested_by": None},
+        queue_name="engagement",
+        job_id="engagement.detect:community:2026041913",
+    )
+
+    assert job == QueuedJob(
+        id="engagement.detect:community:2026041913",
+        type="engagement.detect",
+        status="duplicate",
+    )
 
 
 def test_enqueue_engagement_send_uses_engagement_queue(monkeypatch) -> None:

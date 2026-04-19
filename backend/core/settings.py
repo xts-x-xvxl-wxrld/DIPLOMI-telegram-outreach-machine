@@ -30,6 +30,14 @@ class Settings(BaseSettings):
         default=60,
         validation_alias="COLLECTION_INTERVAL_MINUTES",
     )
+    engagement_detection_window_minutes: int = Field(
+        default=60,
+        validation_alias="ENGAGEMENT_DETECTION_WINDOW_MINUTES",
+    )
+    engagement_scheduler_interval_seconds: int = Field(
+        default=3600,
+        validation_alias="ENGAGEMENT_SCHEDULER_INTERVAL_SECONDS",
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

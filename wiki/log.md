@@ -446,3 +446,12 @@ and community/account send limits before using the membership account. It writes
 rate limits and stale reply targets, maps Telethon account errors through account-manager release
 outcomes, and fails closed for orphaned queued actions that cannot be confirmed. Added focused send
 worker tests and wired dispatcher support to the live worker.
+
+## [2026-04-19] code | Added engagement detection scheduler
+
+Added a lightweight engagement scheduler process that selects communities with enabled engagement
+settings, requires a recent completed collection run, skips active candidates, respects quiet hours,
+and enqueues only `engagement.detect` jobs with hourly deterministic job IDs. Added a manual
+detection helper with a distinct job ID prefix for future operator-forced runs, Docker Compose
+scheduler wiring, scheduler configuration, and focused tests for target filtering and quiet hours.
+Updated the engagement plan and architecture/index wiki entries.

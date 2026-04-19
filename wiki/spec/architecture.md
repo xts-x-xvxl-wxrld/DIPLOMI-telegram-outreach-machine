@@ -20,6 +20,7 @@ and analysis.
 |---------|-------|------|
 | `api` | FastAPI | REST API: receives bot commands, enqueues jobs, serves results |
 | `worker` | Python + RQ | Job runner: seed resolution, expansion, collection, analysis |
+| `scheduler` | Python | Lightweight recurring scheduler for optional engagement detection ticks |
 | `bot` | Python + python-telegram-bot | Operator UI: seed import, candidate review, debug logs |
 | `redis` | redis:alpine | Job queue + RQ result backend |
 | `postgres` | postgres:16 | Primary datastore |
@@ -63,13 +64,15 @@ Use these environment variable names:
 | Variable | Used by | Purpose |
 |---|---|---|
 | `DATABASE_URL` | api, worker | PostgreSQL connection string |
-| `REDIS_URL` | api, worker | Redis/RQ connection string |
+| `REDIS_URL` | api, worker, scheduler | Redis/RQ connection string |
 | `BOT_API_TOKEN` | api, bot | Internal bearer token for bot-to-API calls |
 | `OPENAI_API_KEY` | worker | OpenAI API access for optional brief processing and analysis jobs |
 | `TELEGRAM_API_ID` | worker | Telegram API ID for Telethon |
 | `TELEGRAM_API_HASH` | worker | Telegram API hash for Telethon |
 | `SESSIONS_DIR` | worker | Mounted Telethon session directory |
 | `COLLECTION_INTERVAL_MINUTES` | worker | Scheduler interval for monitored communities; default 60 |
+| `ENGAGEMENT_DETECTION_WINDOW_MINUTES` | scheduler | Recent collection window required before detection; default 60 |
+| `ENGAGEMENT_SCHEDULER_INTERVAL_SECONDS` | scheduler | Engagement scheduler sleep interval; default 3600 |
 
 Secrets must not be committed. `.env.example` may list variable names with empty values.
 
@@ -79,9 +82,10 @@ OpenAI calls are allowed only in worker jobs with explicit LLM responsibility:
 
 - `brief.process` - optional/future conversion of operator text into structured search context
 - `analysis.run` - produces community-level summaries and relevance notes
+- `engagement.detect` - optional operator-approved engagement drafting from compact community samples
 
 The seed-first discovery path does not require OpenAI. OpenAI calls are not allowed in API request
-handlers, seed resolution, discovery, expansion, or collection.
+handlers, seed resolution, discovery, expansion, collection, engagement scheduling, or sending.
 
 ## Developer Workflow
 

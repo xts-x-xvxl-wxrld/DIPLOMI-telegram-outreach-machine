@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -177,18 +177,36 @@ def enqueue_engagement_detect(
     *,
     window_minutes: int = 60,
     requested_by: str | None = None,
+    job_id_prefix: str = "engagement.detect",
+    now: datetime | None = None,
 ) -> QueuedJob:
     payload = EngagementDetectPayload(
         community_id=community_id,
         window_minutes=window_minutes,
         requested_by=requested_by,
     )
-    job_id = f"engagement.detect:{community_id}:{datetime.utcnow():%Y%m%d%H}"
+    job_id = _hourly_job_id(job_id_prefix, community_id, now=now)
     return enqueue_job(
         "engagement.detect",
         payload.model_dump(mode="json"),
         queue_name="engagement",
         job_id=job_id,
+    )
+
+
+def enqueue_manual_engagement_detect(
+    community_id: UUID,
+    *,
+    window_minutes: int = 60,
+    requested_by: str,
+    now: datetime | None = None,
+) -> QueuedJob:
+    return enqueue_engagement_detect(
+        community_id,
+        window_minutes=window_minutes,
+        requested_by=requested_by,
+        job_id_prefix="engagement.detect.manual",
+        now=now,
     )
 
 
@@ -211,16 +229,21 @@ def enqueue_job(
 ) -> QueuedJob:
     Queue, Retry, redis_conn = _queue_dependencies()
     queue = Queue(queue_name, connection=redis_conn)
-    job = queue.enqueue(
-        WORKER_DISPATCH,
-        job_type,
-        payload,
-        job_id=job_id,
-        retry=_retry_for(job_type, Retry),
-        result_ttl=86400,
-        failure_ttl=604800,
-        meta={"job_type": job_type, "status_message": "queued", **payload},
-    )
+    try:
+        job = queue.enqueue(
+            WORKER_DISPATCH,
+            job_type,
+            payload,
+            job_id=job_id,
+            retry=_retry_for(job_type, Retry),
+            result_ttl=86400,
+            failure_ttl=604800,
+            meta={"job_type": job_type, "status_message": "queued", **payload},
+        )
+    except Exception as exc:
+        if job_id is not None and _is_duplicate_job_error(exc):
+            return QueuedJob(id=job_id, type=job_type, status="duplicate")
+        raise
     return QueuedJob(id=job.id, type=job_type, status="queued")
 
 
@@ -288,3 +311,17 @@ def _retry_for(job_type: str, Retry):
     if job_type == "engagement.send":
         return Retry(max=1, interval=[600])
     return Retry(max=1, interval=[60])
+
+
+def _hourly_job_id(prefix: str, community_id: UUID, *, now: datetime | None = None) -> str:
+    current_time = now or datetime.now(timezone.utc)
+    if current_time.tzinfo is not None:
+        current_time = current_time.astimezone(timezone.utc)
+    return f"{prefix}:{community_id}:{current_time:%Y%m%d%H}"
+
+
+def _is_duplicate_job_error(exc: Exception) -> bool:
+    if exc.__class__.__name__ == "DuplicateJobError":
+        return True
+    message = str(exc).casefold()
+    return "job" in message and "already exist" in message

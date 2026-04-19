@@ -61,6 +61,7 @@
 - `backend/services/community_engagement.py` - engagement settings and topic validation/state service
 - `backend/workers/community_join.py` - `community.join` orchestration with membership and audit updates
 - `backend/workers/engagement_detect.py` - `engagement.detect` orchestration, sample prefiltering, model calls, and candidate creation
+- `backend/workers/engagement_scheduler.py` - low-frequency engagement detection scheduler target selection and enqueueing
 - `backend/workers/engagement_send.py` - `engagement.send` orchestration, idempotent action audit, rate-limit checks, and public reply sends
 - `backend/workers/telegram_engagement.py` - fakeable Telethon adapter for engagement joins and sends
 - `backend/services/seed_import.py` - CSV parsing and seed-group upsert logic

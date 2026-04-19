@@ -22,6 +22,14 @@ services:
     volumes:
       - telegram_sessions:/sessions
 
+  scheduler:
+    build: .
+    command: python -m backend.workers.engagement_scheduler
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+
   bot:
     build: .
     command: python -m bot.main

@@ -275,7 +275,7 @@ Implemented notes:
 
 ## Slice 10: Scheduler
 
-Status: planned.
+Status: completed.
 
 Add optional scheduled detection:
 
@@ -289,6 +289,17 @@ Acceptance:
 - Scheduler does not enqueue duplicate detection jobs.
 - Detection cadence is conservative.
 - No automatic sends are scheduled in MVP.
+
+Implemented notes:
+
+- Added `backend/workers/engagement_scheduler.py` as a lightweight recurring process.
+- Scheduler reads engagement settings in `observe`, `suggest`, and `require_approval` modes,
+  requires a completed collection run inside the configured detection window, skips active
+  candidates, and respects quiet hours.
+- Scheduled detection uses `engagement.detect:{community_id}:{yyyyMMddHH}` job IDs; manual
+  detection has a separate `engagement.detect.manual` helper prefix for future operator-forced
+  runs.
+- Added `scheduler` to Docker Compose and kept send jobs out of the scheduler entirely.
 
 ## Open Questions
 
