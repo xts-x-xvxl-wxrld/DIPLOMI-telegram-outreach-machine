@@ -56,7 +56,7 @@
 - `.github/workflows/ci.yml` - branch and pull-request validation workflow
 - `.github/workflows/deploy-vps.yml` - staging VPS deployment workflow
 - `backend/api/routes/seeds.py` - manual seed import and seed-group API endpoints
-- `backend/api/routes/engagement.py` - engagement settings and topic-management API endpoints
+- `backend/api/routes/engagement.py` - engagement settings, topics, candidate review, and job enqueue API endpoints
 - `backend/api/routes/telegram_entities.py` - direct Telegram handle intake API endpoints
 - `backend/services/community_engagement.py` - engagement settings and topic validation/state service
 - `backend/workers/community_join.py` - `community.join` orchestration with membership and audit updates

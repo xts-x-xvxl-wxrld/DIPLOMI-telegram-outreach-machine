@@ -14,20 +14,25 @@ from backend.api.routes.engagement import (
     get_engagement_candidates,
     get_community_engagement_settings,
     patch_engagement_topic,
+    post_community_engagement_detect_job,
     post_engagement_candidate_approve,
     post_engagement_candidate_reject,
+    post_engagement_candidate_send_job,
     post_engagement_topic,
     put_community_engagement_settings,
 )
 from backend.api.schemas import (
     EngagementCandidateApproveRequest,
     EngagementCandidateRejectRequest,
+    EngagementDetectJobRequest,
+    EngagementSendJobRequest,
     EngagementSettingsUpdate,
     EngagementTopicCreate,
     EngagementTopicUpdate,
 )
 from backend.db.enums import CommunityStatus, EngagementCandidateStatus, EngagementMode
 from backend.db.models import Community, CommunityEngagementSettings, EngagementCandidate, EngagementTopic
+from backend.queue.client import QueuedJob
 
 
 def test_engagement_routes_require_api_auth() -> None:
@@ -215,6 +220,57 @@ async def test_update_topic_rejects_unsafe_guidance() -> None:
 
 
 @pytest.mark.asyncio
+async def test_manual_engagement_detect_job_enqueues_engagement_worker(monkeypatch) -> None:
+    community_id = uuid4()
+    db = FakeDb(community=_community(community_id, title="Founder Circle"))
+    captured: dict[str, object] = {}
+
+    def fake_enqueue(
+        community_id_arg: object,
+        *,
+        window_minutes: int,
+        requested_by: str,
+    ) -> QueuedJob:
+        captured.update(
+            {
+                "community_id": community_id_arg,
+                "window_minutes": window_minutes,
+                "requested_by": requested_by,
+            }
+        )
+        return QueuedJob(id="detect-job", type="engagement.detect")
+
+    monkeypatch.setattr("backend.api.routes.engagement.enqueue_manual_engagement_detect", fake_enqueue)
+
+    response = await post_community_engagement_detect_job(
+        community_id,
+        EngagementDetectJobRequest(window_minutes=45, requested_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.job.id == "detect-job"
+    assert response.job.type == "engagement.detect"
+    assert captured == {
+        "community_id": community_id,
+        "window_minutes": 45,
+        "requested_by": "telegram:123",
+    }
+
+
+@pytest.mark.asyncio
+async def test_manual_engagement_detect_job_rejects_unknown_community() -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        await post_community_engagement_detect_job(
+            uuid4(),
+            EngagementDetectJobRequest(),
+            FakeDb(),  # type: ignore[arg-type]
+        )
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail["code"] == "not_found"
+
+
+@pytest.mark.asyncio
 async def test_list_engagement_candidates_returns_pending_review_cards() -> None:
     community = _community(uuid4(), title="Founder Circle")
     topic = _topic(uuid4(), name="Open-source CRM")
@@ -292,6 +348,51 @@ async def test_reject_engagement_candidate_records_review_metadata() -> None:
     assert db.commits == 1
 
 
+@pytest.mark.asyncio
+async def test_engagement_send_job_enqueues_for_approved_candidate(monkeypatch) -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    topic = _topic(uuid4(), name="Open-source CRM")
+    candidate = _candidate(uuid4(), community, topic)
+    candidate.status = EngagementCandidateStatus.APPROVED.value
+    candidate.reviewed_by = "telegram:123"
+    db = FakeDb(candidate=candidate)
+    captured: dict[str, object] = {}
+
+    def fake_enqueue(candidate_id_arg: object, *, approved_by: str) -> QueuedJob:
+        captured.update({"candidate_id": candidate_id_arg, "approved_by": approved_by})
+        return QueuedJob(id="send-job", type="engagement.send")
+
+    monkeypatch.setattr("backend.api.routes.engagement.enqueue_engagement_send", fake_enqueue)
+
+    response = await post_engagement_candidate_send_job(
+        candidate.id,
+        EngagementSendJobRequest(),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.job.id == "send-job"
+    assert response.job.type == "engagement.send"
+    assert captured == {"candidate_id": candidate.id, "approved_by": "telegram:123"}
+
+
+@pytest.mark.asyncio
+async def test_engagement_send_job_rejects_unapproved_candidate() -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    topic = _topic(uuid4(), name="Open-source CRM")
+    candidate = _candidate(uuid4(), community, topic)
+    db = FakeDb(candidate=candidate)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await post_engagement_candidate_send_job(
+            candidate.id,
+            EngagementSendJobRequest(approved_by="telegram:123"),
+            db,  # type: ignore[arg-type]
+        )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail["code"] == "candidate_not_approved"
+
+
 class FakeDb:
     def __init__(
         self,
@@ -299,12 +400,14 @@ class FakeDb:
         community: Community | None = None,
         settings: CommunityEngagementSettings | None = None,
         topic: EngagementTopic | None = None,
+        candidate: EngagementCandidate | None = None,
         candidates: list[EngagementCandidate] | None = None,
         scalar_result: object | None = None,
     ) -> None:
         self.community = community
         self.settings = settings
         self.topic = topic
+        self.candidate = candidate
         self.candidates = candidates
         self.scalar_result = scalar_result
         self.added: list[object] = []
@@ -316,6 +419,8 @@ class FakeDb:
             return self.community
         if model is EngagementTopic:
             return self.topic
+        if model is EngagementCandidate:
+            return self.candidate
         return None
 
     async def scalar(self, statement: object) -> object | None:

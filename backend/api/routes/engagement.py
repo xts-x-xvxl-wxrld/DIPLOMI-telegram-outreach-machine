@@ -10,12 +10,22 @@ from backend.api.schemas import (
     EngagementCandidateListResponse,
     EngagementCandidateOut,
     EngagementCandidateRejectRequest,
+    EngagementDetectJobRequest,
+    EngagementSendJobRequest,
     EngagementSettingsOut,
     EngagementSettingsUpdate,
     EngagementTopicCreate,
     EngagementTopicListResponse,
     EngagementTopicOut,
     EngagementTopicUpdate,
+    JobResponse,
+)
+from backend.db.enums import EngagementCandidateStatus
+from backend.db.models import Community, EngagementCandidate
+from backend.queue.client import (
+    QueueUnavailable,
+    enqueue_engagement_send,
+    enqueue_manual_engagement_detect,
 )
 from backend.services.community_engagement import (
     EngagementConflict,
@@ -109,6 +119,34 @@ async def patch_engagement_topic(
     return EngagementTopicOut.model_validate(topic)
 
 
+@router.post(
+    "/communities/{community_id}/engagement-detect-jobs",
+    response_model=JobResponse,
+    status_code=202,
+)
+async def post_community_engagement_detect_job(
+    community_id: UUID,
+    payload: EngagementDetectJobRequest,
+    db: DbSession,
+) -> JobResponse:
+    community = await db.get(Community, community_id)
+    if community is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "message": "Community not found"},
+        )
+
+    try:
+        job = enqueue_manual_engagement_detect(
+            community.id,
+            window_minutes=payload.window_minutes,
+            requested_by=payload.requested_by or "operator",
+        )
+    except QueueUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return JobResponse(job=job)
+
+
 @router.get("/engagement/candidates", response_model=EngagementCandidateListResponse)
 async def get_engagement_candidates(
     db: DbSession,
@@ -178,6 +216,41 @@ async def post_engagement_candidate_reject(
 
     await db.commit()
     return EngagementCandidateOut.model_validate(candidate)
+
+
+@router.post(
+    "/engagement/candidates/{candidate_id}/send-jobs",
+    response_model=JobResponse,
+    status_code=202,
+)
+async def post_engagement_candidate_send_job(
+    candidate_id: UUID,
+    payload: EngagementSendJobRequest,
+    db: DbSession,
+) -> JobResponse:
+    candidate = await db.get(EngagementCandidate, candidate_id)
+    if candidate is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "message": "Engagement candidate not found"},
+        )
+    if candidate.status != EngagementCandidateStatus.APPROVED.value:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "candidate_not_approved",
+                "message": "Only approved engagement candidates can be sent",
+            },
+        )
+
+    try:
+        job = enqueue_engagement_send(
+            candidate.id,
+            approved_by=payload.approved_by or candidate.reviewed_by or "operator",
+        )
+    except QueueUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return JobResponse(job=job)
 
 
 def _http_error(exc: EngagementServiceError) -> HTTPException:

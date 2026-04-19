@@ -301,6 +301,33 @@ Implemented notes:
   runs.
 - Added `scheduler` to Docker Compose and kept send jobs out of the scheduler entirely.
 
+## Slice 11: Manual Detection And Send Job API
+
+Status: completed.
+
+Add operator API endpoints:
+
+```http
+POST /api/communities/{community_id}/engagement-detect-jobs
+POST /api/engagement/candidates/{candidate_id}/send-jobs
+```
+
+Acceptance:
+
+- Manual detection uses the manual engagement detect queue helper and distinct manual job ID prefix.
+- Send jobs can be queued only for approved candidates.
+- API handlers enqueue jobs only; Telethon sending remains owned by `engagement.send`.
+- Queue unavailability maps to `503` and missing rows map to `404`.
+
+Implemented notes:
+
+- Added request DTOs for manual detection windows and send-job operator labels.
+- Added engagement API routes that verify the target community or candidate exists before enqueueing.
+- Added an approval-state guard before send-job enqueueing so unreviewed candidates cannot be queued
+  from the API.
+- Added focused API tests for manual detection enqueueing, missing communities, approved send
+  enqueueing, and unapproved send rejection.
+
 ## Open Questions
 
 - Should engagement settings be available only for `status = monitoring` communities, or also for

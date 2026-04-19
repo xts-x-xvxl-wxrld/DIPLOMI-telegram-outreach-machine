@@ -455,3 +455,11 @@ and enqueues only `engagement.detect` jobs with hourly deterministic job IDs. Ad
 detection helper with a distinct job ID prefix for future operator-forced runs, Docker Compose
 scheduler wiring, scheduler configuration, and focused tests for target filtering and quiet hours.
 Updated the engagement plan and architecture/index wiki entries.
+
+## [2026-04-19] code | Wired manual engagement job API endpoints
+
+Added API request DTOs and routes for manual `engagement.detect` jobs and approved-candidate
+`engagement.send` jobs. The manual detection endpoint verifies the community exists before using
+the manual detect queue helper, and the send-job endpoint verifies the candidate exists and is
+approved before enqueueing. Telethon work remains in the workers. Added focused API tests for
+enqueue payloads, missing communities, approved sends, and unapproved send rejection.

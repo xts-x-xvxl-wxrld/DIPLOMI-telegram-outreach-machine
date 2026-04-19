@@ -411,6 +411,15 @@ class EngagementCandidateRejectRequest(BaseModel):
     reviewed_by: str | None = Field(default=None, min_length=1, max_length=200)
 
 
+class EngagementDetectJobRequest(BaseModel):
+    window_minutes: int = Field(default=60, ge=1, le=1440)
+    requested_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class EngagementSendJobRequest(BaseModel):
+    approved_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
 class EngagementCandidateOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
