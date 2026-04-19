@@ -34,6 +34,24 @@ directly to Redis, workers, Postgres, web-search providers, Telethon, or OpenAI.
 /accounts
 ```
 
+Engagement commands are optional and operator-controlled:
+
+```text
+/engagement
+/engagement_topics
+/create_engagement_topic <name> | <guidance> | <comma_keywords>
+/toggle_engagement_topic <topic_id> <on|off>
+/engagement_settings <community_id>
+/set_engagement <community_id> <off|observe|suggest|ready>
+/join_community <community_id>
+/detect_engagement <community_id> [window_minutes]
+/engagement_candidates [status]
+/approve_reply <candidate_id>
+/reject_reply <candidate_id>
+/send_reply <candidate_id>
+/engagement_actions [community_id]
+```
+
 Optional/future commands:
 
 ```text
@@ -265,6 +283,93 @@ Returns the sender's numeric Telegram user ID and public username when available
 available even when `TELEGRAM_ALLOWED_USER_IDS` is configured and the sender is not yet allowed, so a
 new human researcher can message the bot and send the ID to the operator.
 
+## Engagement Controls
+
+Engagement is an optional bot surface for the module in `wiki/spec/engagement.md`. It must keep
+approval and sending separate.
+
+### `/engagement`
+
+Shows a compact engagement cockpit with counts for pending replies, approved replies, failed
+candidates, and active topics. It should offer inline buttons for topics, candidates, settings entry
+points when opened from a community, and recent actions.
+
+### `/engagement_topics`
+
+Calls `GET /api/engagement/topics` and lists configured topics with active state, trigger keyword
+preview, and concise guidance text.
+
+### `/create_engagement_topic <name> | <guidance> | <comma_keywords>`
+
+Creates a topic through `POST /api/engagement/topics`.
+
+The first bot implementation uses pipe-separated command text instead of a multi-step form.
+Validation remains owned by the API and engagement service.
+
+### `/toggle_engagement_topic <topic_id> <on|off>`
+
+Calls `PATCH /api/engagement/topics/{topic_id}` with only the `active` field.
+
+### `/engagement_settings <community_id>`
+
+Calls `GET /api/communities/{community_id}/engagement-settings`.
+
+The bot should show mode, join/post flags, reply-only and approval requirements, rate limits, quiet
+hours when configured, and assigned account ID when configured.
+
+### `/set_engagement <community_id> <off|observe|suggest|ready>`
+
+Applies a safe settings preset through `PUT /api/communities/{community_id}/engagement-settings`.
+
+Preset meanings:
+
+- `off` - disabled, no joins, no posts.
+- `observe` - detect-only posture, no joins or posts.
+- `suggest` - draft candidates for review, no joins or posts.
+- `ready` - allow joins and approved public replies while preserving `reply_only=true` and
+  `require_approval=true`.
+
+### `/join_community <community_id>`
+
+Queues `community.join` through `POST /api/communities/{community_id}/join-jobs`.
+
+The bot must show the queued job ID and a refresh button. The API and worker still own all preflight
+checks and Telethon behavior.
+
+### `/detect_engagement <community_id> [window_minutes]`
+
+Queues manual `engagement.detect` through
+`POST /api/communities/{community_id}/engagement-detect-jobs`.
+
+### `/engagement_candidates [status]`
+
+Lists engagement candidates. Default status is `needs_review`; supported operator filters include
+`approved`, `failed`, `sent`, and `rejected` when the API supports them.
+
+Candidate cards should show community title, topic, capped source excerpt, detected reason,
+suggested or final reply text, risk notes, and status. The bot must not show sender identity.
+
+### `/approve_reply <candidate_id>`
+
+Approves a candidate through `POST /api/engagement/candidates/{candidate_id}/approve`. The returned
+card may offer `Queue send`, but approval itself must not enqueue sending.
+
+### `/reject_reply <candidate_id>`
+
+Rejects a candidate through `POST /api/engagement/candidates/{candidate_id}/reject`.
+
+### `/send_reply <candidate_id>`
+
+Queues `engagement.send` through `POST /api/engagement/candidates/{candidate_id}/send-jobs`.
+
+Only approved candidates should expose this command or inline button. The API must still reject
+unapproved candidates.
+
+### `/engagement_actions [community_id]`
+
+Calls `GET /api/engagement/actions` and shows recent join/reply audit rows. Community filtering is
+optional in the command and should be passed to the API when provided.
+
 ## Operator Access
 
 The bot may be restricted with `TELEGRAM_ALLOWED_USER_IDS`, a comma- or whitespace-separated list of
@@ -303,3 +408,5 @@ The current MVP bot uses approve-as-monitoring to keep the first workflow short.
 - The bot must never show person-level scores.
 - Account phone numbers must be masked by the API before reaching the bot.
 - Bot copy should describe communities, not outreach targets.
+- Engagement controls must not combine approval and sending unless a later spec explicitly enables
+  that workflow.

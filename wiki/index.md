@@ -37,6 +37,7 @@
 - [Bot Operator Access](plan/bot-operator-access.md) - allowlisted Telegram bot operators and `/whoami` onboarding
 - [VPS Agent Ops Context](plan/vps-agent-ops.md) - redacted VPS map, helper commands, and staging deploy gates
 - [Community Engagement](plan/community-engagement.md) - human-in-the-loop Telethon joining and public reply workflow
+- [Engagement Operator Controls](plan/engagement-operator-controls.md) - Telegram bot control surface for settings, topics, joins, detection, candidate sends, and audit views
 
 ## Implementation roots
 

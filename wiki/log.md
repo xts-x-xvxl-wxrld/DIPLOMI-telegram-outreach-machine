@@ -6,6 +6,12 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-04-19] plan | Engagement operator controls
+
+Planned a Telegram-native engagement control surface covering settings presets, topic controls,
+manual join/detect jobs, candidate send queueing, and action audits. Noted backend API gaps for
+join-job enqueueing and engagement action listing before the bot can expose the complete workflow.
+
 ## [2026-04-15] decision | Architecture finalized
 
 Completed architecture brainstorm with operator. All key decisions recorded in spec/architecture.md.
