@@ -436,3 +436,13 @@ while recording reviewer metadata; rejections record reviewer metadata without s
 Telegram work. Added bot commands and inline controls for reviewing engagement candidates, plus
 focused tests for API contracts, bot client calls, formatting, and callback data. Marked the review
 API and bot controls slice complete in the engagement plan.
+
+## [2026-04-19] code | Added engagement send worker
+
+Implemented the `engagement.send` worker for approved public replies. The worker now verifies
+approval, expiry, posting settings, reply-only requirements, joined membership, final text safety,
+and community/account send limits before using the membership account. It writes idempotent
+`engagement_actions`, stores exact outbound text and sent Telegram message IDs, skips safely for
+rate limits and stale reply targets, maps Telethon account errors through account-manager release
+outcomes, and fails closed for orphaned queued actions that cannot be confirmed. Added focused send
+worker tests and wired dispatcher support to the live worker.

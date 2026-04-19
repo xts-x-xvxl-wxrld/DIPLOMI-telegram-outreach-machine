@@ -242,7 +242,7 @@ Implemented notes:
 
 ## Slice 9: Send Worker
 
-Status: planned.
+Status: completed.
 
 Implement `engagement.send`:
 
@@ -260,6 +260,18 @@ Acceptance:
 - Rate-limit checks prevent overposting.
 - Telethon errors map through account manager outcomes.
 - Sent Telegram message ID is stored when available.
+
+Implemented notes:
+
+- Added `backend/workers/engagement_send.py` for approved public reply sends.
+- Added final preflight checks for candidate approval, expiry, engagement settings, reply-only
+  requirements, joined account membership, validated final reply text, and send limits.
+- Added idempotent `engagement_actions` creation with `engagement.send:{candidate_id}` keys,
+  duplicate-send avoidance for already sent actions, and fail-closed behavior for orphaned queued
+  actions without Telegram confirmation.
+- Extended the Telethon engagement adapter with `send_public_reply` and send-specific error mapping.
+- Worker tests cover missing approval, success, rate-limit skips, sent-action idempotency, queued
+  action fail-closed behavior, FloodWait release mapping, and no-longer-replyable messages.
 
 ## Slice 10: Scheduler
 

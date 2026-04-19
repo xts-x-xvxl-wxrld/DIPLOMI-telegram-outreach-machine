@@ -458,6 +458,10 @@ def test_dispatch_recognizes_engagement_job_types(monkeypatch) -> None:
         "backend.workers.jobs.run_engagement_detect",
         lambda payload: {"status": "processed", "job_type": "engagement.detect", "payload": payload},
     )
+    monkeypatch.setattr(
+        "backend.workers.jobs.run_engagement_send",
+        lambda payload: {"status": "processed", "job_type": "engagement.send", "payload": payload},
+    )
     community_id = str(uuid4())
     candidate_id = str(uuid4())
 
@@ -486,7 +490,7 @@ def test_dispatch_recognizes_engagement_job_types(monkeypatch) -> None:
         "payload": {"community_id": community_id, "window_minutes": 60, "requested_by": None},
     }
     assert dispatch_job("engagement.send", {"candidate_id": candidate_id, "approved_by": "op"}) == {
-        "status": "stubbed",
+        "status": "processed",
         "job_type": "engagement.send",
         "payload": {"candidate_id": candidate_id, "approved_by": "op"},
     }

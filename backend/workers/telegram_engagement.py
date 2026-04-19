@@ -20,6 +20,14 @@ class EngagementAccountBanned(RuntimeError):
     pass
 
 
+class EngagementCommunityInaccessible(RuntimeError):
+    pass
+
+
+class EngagementMessageNotReplyable(RuntimeError):
+    pass
+
+
 class TelegramEngagementError(RuntimeError):
     pass
 
@@ -31,6 +39,12 @@ class JoinResult:
     error_message: str | None = None
 
 
+@dataclass(frozen=True)
+class SendResult:
+    sent_tg_message_id: int
+    sent_at: datetime
+
+
 class TelegramEngagementAdapter(Protocol):
     async def join_community(
         self,
@@ -38,6 +52,16 @@ class TelegramEngagementAdapter(Protocol):
         session_file_path: str,
         community: Community,
     ) -> JoinResult:
+        pass
+
+    async def send_public_reply(
+        self,
+        *,
+        session_file_path: str,
+        community: Community,
+        reply_to_tg_message_id: int,
+        text: str,
+    ) -> SendResult:
         pass
 
 
@@ -77,6 +101,45 @@ class TelethonTelegramEngagementAdapter:
             return _classify_telethon_join_exception(exc)
 
         return JoinResult(status="joined", joined_at=_utcnow())
+
+    async def send_public_reply(
+        self,
+        *,
+        session_file_path: str,
+        community: Community,
+        reply_to_tg_message_id: int,
+        text: str,
+    ) -> SendResult:
+        client = await self._get_client(session_file_path)
+        target = _community_target(community)
+        if target is None:
+            raise EngagementCommunityInaccessible("Community has no public username or Telegram ID")
+
+        try:
+            entity = await client.get_entity(target)
+        except ValueError as exc:
+            raise EngagementCommunityInaccessible(str(exc)) from exc
+        except Exception as exc:
+            _raise_classified_telethon_send_exception(exc)
+
+        try:
+            message = await client.send_message(
+                entity,
+                text,
+                reply_to=reply_to_tg_message_id,
+            )
+        except Exception as exc:
+            _raise_classified_telethon_send_exception(exc)
+
+        sent_id = getattr(message, "id", None)
+        if sent_id is None:
+            raise TelegramEngagementError("Telegram send returned no message id")
+        sent_at = getattr(message, "date", None)
+        if not isinstance(sent_at, datetime):
+            sent_at = _utcnow()
+        elif sent_at.tzinfo is None:
+            sent_at = sent_at.replace(tzinfo=timezone.utc)
+        return SendResult(sent_tg_message_id=int(sent_id), sent_at=sent_at)
 
     async def aclose(self) -> None:
         if self._client is not None:
@@ -121,6 +184,21 @@ def _classify_telethon_join_exception(exc: Exception) -> JoinResult:
     if any(marker in name for marker in ("private", "invalid", "notoccupied", "occupied")):
         return JoinResult(status="inaccessible", joined_at=None, error_message=str(exc))
     raise TelegramEngagementError(str(exc)) from exc
+
+
+def _raise_classified_telethon_send_exception(exc: Exception) -> None:
+    name = exc.__class__.__name__.lower()
+    message = str(exc)
+    seconds = getattr(exc, "seconds", None)
+    if "floodwait" in name or "flood_wait" in name:
+        raise EngagementAccountRateLimited(int(seconds or 0), message) from exc
+    if any(marker in name for marker in ("banned", "deactivated", "authkey", "sessionrevoked")):
+        raise EngagementAccountBanned(message) from exc
+    if any(marker in name for marker in ("private", "invalidchannel", "channelprivate", "notoccupied")):
+        raise EngagementCommunityInaccessible(message) from exc
+    if any(marker in name for marker in ("msgid", "messagenotmodified", "reply", "messageidinvalid")):
+        raise EngagementMessageNotReplyable(message) from exc
+    raise TelegramEngagementError(message) from exc
 
 
 def _community_target(community: Community) -> str | int | None:
