@@ -137,7 +137,7 @@ The bot should show:
 - latest snapshot summary
 - latest collection-run status
 - latest analysis summary when available
-- inline refresh and manual collection buttons
+- inline refresh, manual collection, member, and engagement-settings buttons
 
 ### `/collect <community_id>`
 

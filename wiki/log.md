@@ -506,3 +506,13 @@ requires at least one trigger keyword before calling the API, and leaves unsafe 
 to the backend service. `/toggle_engagement_topic <topic_id> <on|off>` and the matching inline
 callback patch topic active state through the bot API client only. Added focused fake-client handler
 tests for list, create, malformed parser input, command toggles, and callback toggles.
+
+## [2026-04-19] code | Added engagement settings jobs and audit bot surface
+
+Completed the remaining engagement operator bot controls for community settings, manual jobs, and
+audit review. `/engagement_settings` now renders disabled synthetic settings without creating rows,
+`/set_engagement` applies safe presets, and community detail cards expose an Engagement button.
+`/join_community` and `/detect_engagement` queue explicit backend jobs with refresh controls, while
+the matching inline callbacks route only through the bot API client. Added `/engagement_actions`
+with optional community filtering, capped outbound text cards, failed/skipped diagnostics, and
+filter-preserving inline paging. Added focused fake-client handler tests plus UI parser/pager coverage.

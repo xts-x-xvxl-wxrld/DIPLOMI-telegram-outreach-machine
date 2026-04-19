@@ -11,6 +11,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_JOIN,
+    ACTION_ENGAGEMENT_SETTINGS_OPEN,
     ACTION_SEED_CANDIDATES,
     ENGAGEMENT_MENU_LABEL,
     candidate_actions_markup,
@@ -55,6 +56,7 @@ def test_parse_all_engagement_callback_namespaces() -> None:
         "eng:home": (ACTION_ENGAGEMENT_HOME, []),
         "eng:topic:list:10": ("eng:topic:list", ["10"]),
         "eng:topic:toggle:topic-1:0": ("eng:topic:toggle", ["topic-1", "0"]),
+        "eng:set:open:community-1": (ACTION_ENGAGEMENT_SETTINGS_OPEN, ["community-1"]),
         "eng:set:preset:community-1:ready": ("eng:set:preset", ["community-1", "ready"]),
         "eng:join:community-1": (ACTION_ENGAGEMENT_JOIN, ["community-1"]),
         "eng:detect:community-1:60": (ACTION_ENGAGEMENT_DETECT, ["community-1", "60"]),
@@ -114,6 +116,7 @@ def test_community_actions_markup_exposes_members_view() -> None:
     rows = markup.inline_keyboard
 
     assert rows[1][0].callback_data == f"{ACTION_COMMUNITY_MEMBERS}:community-1:0"
+    assert rows[1][1].callback_data == f"{ACTION_ENGAGEMENT_SETTINGS_OPEN}:community-1"
 
 
 def test_member_pager_markup_pages_members() -> None:
@@ -189,3 +192,16 @@ def test_engagement_action_pager_markup_pages_actions() -> None:
 
     assert rows[0][0].callback_data == ACTION_ENGAGEMENT_HOME
     assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_ACTIONS}:5"
+
+
+def test_engagement_action_pager_markup_preserves_community_filter() -> None:
+    markup = engagement_action_pager_markup(
+        offset=5,
+        total=12,
+        page_size=5,
+        community_id="community-1",
+    )
+    rows = markup.inline_keyboard
+
+    assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_ACTIONS}:community-1:0"
+    assert rows[1][1].callback_data == f"{ACTION_ENGAGEMENT_ACTIONS}:community-1:10"

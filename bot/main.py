@@ -16,11 +16,14 @@ from bot.formatting import (
     format_collection_job,
     format_community_detail,
     format_created_brief,
+    format_engagement_action_card,
+    format_engagement_actions,
     format_engagement_candidate_card,
     format_engagement_candidate_review,
     format_engagement_candidates,
     format_engagement_home,
     format_engagement_job_response,
+    format_engagement_settings,
     format_engagement_topic_card,
     format_engagement_topics,
     format_job_status,
@@ -43,11 +46,18 @@ from bot.ui import (
     ACTION_APPROVE_COMMUNITY,
     ACTION_COLLECT_COMMUNITY,
     ACTION_COMMUNITY_MEMBERS,
+    ACTION_ENGAGEMENT_ACTIONS,
     ACTION_ENGAGEMENT_APPROVE,
     ACTION_ENGAGEMENT_CANDIDATES,
+    ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_HOME,
+    ACTION_ENGAGEMENT_JOIN,
     ACTION_ENGAGEMENT_REJECT,
     ACTION_ENGAGEMENT_SEND,
+    ACTION_ENGAGEMENT_SETTINGS_JOIN,
+    ACTION_ENGAGEMENT_SETTINGS_OPEN,
+    ACTION_ENGAGEMENT_SETTINGS_POST,
+    ACTION_ENGAGEMENT_SETTINGS_PRESET,
     ACTION_ENGAGEMENT_TOPIC_LIST,
     ACTION_ENGAGEMENT_TOPIC_TOGGLE,
     ACTION_JOB_STATUS,
@@ -62,12 +72,14 @@ from bot.ui import (
     SEEDS_MENU_LABEL,
     candidate_actions_markup,
     community_actions_markup,
+    engagement_action_pager_markup,
     engagement_candidate_actions_markup,
     engagement_candidate_filter_markup,
     engagement_candidate_pager_markup,
     engagement_candidate_send_markup,
     engagement_home_markup,
     engagement_job_markup,
+    engagement_settings_markup,
     engagement_topic_actions_markup,
     engagement_topic_pager_markup,
     job_actions_markup,
@@ -87,7 +99,9 @@ MEMBER_PAGE_SIZE = 10
 MEMBER_EXPORT_PAGE_SIZE = 1000
 ENGAGEMENT_CANDIDATE_PAGE_SIZE = 5
 ENGAGEMENT_TOPIC_PAGE_SIZE = 5
+ENGAGEMENT_ACTION_PAGE_SIZE = 5
 ENGAGEMENT_CANDIDATE_STATUSES = {"needs_review", "approved", "failed", "sent", "rejected"}
+ENGAGEMENT_SETTING_PRESETS = {"off", "observe", "suggest", "ready"}
 
 
 async def start_command(update: Any, context: Any) -> None:
@@ -292,6 +306,72 @@ async def engagement_candidates_command(update: Any, context: Any) -> None:
 async def engagement_command(update: Any, context: Any) -> None:
     try:
         await _send_engagement_home(update, context)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def engagement_settings_command(update: Any, context: Any) -> None:
+    community_id = _first_arg(context)
+    if community_id is None:
+        await _reply(update, "Usage: /engagement_settings <community_id>")
+        return
+
+    try:
+        await _send_engagement_settings(update, context, community_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def set_engagement_command(update: Any, context: Any) -> None:
+    if len(context.args) < 2:
+        await _reply(update, "Usage: /set_engagement <community_id> <off|observe|suggest|ready>")
+        return
+
+    community_id = str(context.args[0]).strip()
+    preset = str(context.args[1]).strip().casefold()
+    if not community_id or preset not in ENGAGEMENT_SETTING_PRESETS:
+        await _reply(update, "Usage: /set_engagement <community_id> <off|observe|suggest|ready>")
+        return
+
+    try:
+        await _apply_engagement_preset(update, context, community_id, preset=preset)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def join_community_command(update: Any, context: Any) -> None:
+    community_id = _first_arg(context)
+    if community_id is None:
+        await _reply(update, "Usage: /join_community <community_id>")
+        return
+
+    try:
+        await _start_engagement_join(update, context, community_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def detect_engagement_command(update: Any, context: Any) -> None:
+    community_id = _first_arg(context)
+    if community_id is None:
+        await _reply(update, "Usage: /detect_engagement <community_id> [window_minutes]")
+        return
+
+    window_minutes = _optional_window_minutes(context)
+    if window_minutes is None:
+        await _reply(update, "Usage: /detect_engagement <community_id> [window_minutes]")
+        return
+
+    try:
+        await _start_engagement_detection(update, context, community_id, window_minutes=window_minutes)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def engagement_actions_command(update: Any, context: Any) -> None:
+    community_id = _first_arg(context)
+    try:
+        await _send_engagement_actions(update, context, community_id=community_id, offset=0)
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
 
@@ -504,6 +584,59 @@ async def callback_query(update: Any, context: Any) -> None:
         if action == ACTION_ENGAGEMENT_CANDIDATES and parts:
             status, offset = _engagement_callback_status_and_offset(parts)
             await _send_engagement_candidates(update, context, status=status, offset=offset)
+            return
+        if action == ACTION_ENGAGEMENT_SETTINGS_OPEN and len(parts) == 1:
+            await _send_engagement_settings(update, context, parts[0])
+            return
+        if action == ACTION_ENGAGEMENT_SETTINGS_PRESET and len(parts) == 2:
+            preset = parts[1] if parts[1] in ENGAGEMENT_SETTING_PRESETS else "off"
+            await _apply_engagement_preset(
+                update,
+                context,
+                parts[0],
+                preset=preset,
+                edit_callback=True,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_SETTINGS_JOIN and len(parts) == 2:
+            await _toggle_engagement_setting(
+                update,
+                context,
+                parts[0],
+                field="allow_join",
+                value=parts[1] == "1",
+                edit_callback=True,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_SETTINGS_POST and len(parts) == 2:
+            await _toggle_engagement_setting(
+                update,
+                context,
+                parts[0],
+                field="allow_post",
+                value=parts[1] == "1",
+                edit_callback=True,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_JOIN and len(parts) == 1:
+            await _start_engagement_join(update, context, parts[0])
+            return
+        if action == ACTION_ENGAGEMENT_DETECT and len(parts) == 2:
+            await _start_engagement_detection(
+                update,
+                context,
+                parts[0],
+                window_minutes=max(_parse_offset(parts[1]), 1),
+            )
+            return
+        if action == ACTION_ENGAGEMENT_ACTIONS and parts:
+            community_id, offset = _engagement_actions_filter_and_offset(parts)
+            await _send_engagement_actions(
+                update,
+                context,
+                community_id=community_id,
+                offset=offset,
+            )
             return
         if action == ACTION_ENGAGEMENT_TOPIC_LIST and parts:
             await _send_engagement_topics(update, context, offset=_parse_offset(parts[0]))
@@ -779,6 +912,121 @@ async def _send_engagement_candidates(
         await _callback_reply(update, "Reply page controls", reply_markup=pager_markup)
 
 
+async def _send_engagement_settings(update: Any, context: Any, community_id: str) -> None:
+    client = _api_client(context)
+    data = await client.get_engagement_settings(community_id)
+    await _callback_reply(
+        update,
+        format_engagement_settings(data),
+        reply_markup=_engagement_settings_markup(community_id, data),
+    )
+
+
+async def _apply_engagement_preset(
+    update: Any,
+    context: Any,
+    community_id: str,
+    *,
+    preset: str,
+    edit_callback: bool = False,
+) -> None:
+    client = _api_client(context)
+    data = await client.update_engagement_settings(
+        community_id,
+        **_engagement_preset_payload(preset),
+    )
+    message = format_engagement_settings(data)
+    reply_markup = _engagement_settings_markup(community_id, data)
+    if edit_callback:
+        await _edit_callback_message(update, message, reply_markup=reply_markup)
+        return
+    await _reply(update, message, reply_markup=reply_markup)
+
+
+async def _toggle_engagement_setting(
+    update: Any,
+    context: Any,
+    community_id: str,
+    *,
+    field: str,
+    value: bool,
+    edit_callback: bool = False,
+) -> None:
+    client = _api_client(context)
+    current = await client.get_engagement_settings(community_id)
+    payload = _engagement_settings_payload_from_current(current, **{field: value})
+    data = await client.update_engagement_settings(community_id, **payload)
+    message = format_engagement_settings(data)
+    reply_markup = _engagement_settings_markup(community_id, data)
+    if edit_callback:
+        await _edit_callback_message(update, message, reply_markup=reply_markup)
+        return
+    await _reply(update, message, reply_markup=reply_markup)
+
+
+async def _start_engagement_join(update: Any, context: Any, community_id: str) -> None:
+    client = _api_client(context)
+    data = await client.start_community_join(community_id, requested_by=_reviewer_label(update))
+    job_id = str((data.get("job") or {}).get("id", "unknown"))
+    await _callback_reply(
+        update,
+        format_engagement_job_response(data, label="Community join", community_id=community_id),
+        reply_markup=engagement_job_markup(job_id, community_id=community_id),
+    )
+
+
+async def _start_engagement_detection(
+    update: Any,
+    context: Any,
+    community_id: str,
+    *,
+    window_minutes: int,
+) -> None:
+    client = _api_client(context)
+    data = await client.start_engagement_detection(
+        community_id,
+        window_minutes=window_minutes,
+        requested_by=_reviewer_label(update),
+    )
+    job_id = str((data.get("job") or {}).get("id", "unknown"))
+    await _callback_reply(
+        update,
+        format_engagement_job_response(
+            data,
+            label="Engagement detection",
+            community_id=community_id,
+        ),
+        reply_markup=engagement_job_markup(job_id, community_id=community_id),
+    )
+
+
+async def _send_engagement_actions(
+    update: Any,
+    context: Any,
+    *,
+    community_id: str | None,
+    offset: int,
+) -> None:
+    client = _api_client(context)
+    data = await client.list_engagement_actions(
+        community_id=community_id,
+        limit=ENGAGEMENT_ACTION_PAGE_SIZE,
+        offset=offset,
+    )
+    await _callback_reply(
+        update,
+        format_engagement_actions(data, offset=offset),
+        reply_markup=engagement_action_pager_markup(
+            offset=offset,
+            total=data.get("total", 0),
+            page_size=ENGAGEMENT_ACTION_PAGE_SIZE,
+            community_id=community_id,
+        ),
+    )
+    for index, item in enumerate(data.get("items") or [], start=offset + 1):
+        await _callback_reply(update, format_engagement_action_card(item, index=index))
+
+
 async def _send_engagement_topics(update: Any, context: Any, *, offset: int) -> None:
     client = _api_client(context)
     data = await client.list_engagement_topics()
@@ -963,6 +1211,11 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("members", members_command))
     application.add_handler(CommandHandler("exportmembers", exportmembers_command))
     application.add_handler(CommandHandler("engagement", engagement_command))
+    application.add_handler(CommandHandler("engagement_settings", engagement_settings_command))
+    application.add_handler(CommandHandler("set_engagement", set_engagement_command))
+    application.add_handler(CommandHandler("join_community", join_community_command))
+    application.add_handler(CommandHandler("detect_engagement", detect_engagement_command))
+    application.add_handler(CommandHandler("engagement_actions", engagement_actions_command))
     application.add_handler(CommandHandler("engagement_topics", engagement_topics_command))
     application.add_handler(CommandHandler("create_engagement_topic", create_engagement_topic_command))
     application.add_handler(CommandHandler("toggle_engagement_topic", toggle_engagement_topic_command))
@@ -1019,6 +1272,71 @@ def _engagement_callback_status_and_offset(parts: list[str]) -> tuple[str, int]:
         status = raw_status if raw_status in ENGAGEMENT_CANDIDATE_STATUSES else "needs_review"
         return status, _parse_offset(parts[1])
     return "needs_review", _parse_offset(parts[0])
+
+
+def _engagement_actions_filter_and_offset(parts: list[str]) -> tuple[str | None, int]:
+    if len(parts) >= 2:
+        return parts[0], _parse_offset(parts[1])
+    return None, _parse_offset(parts[0])
+
+
+def _engagement_settings_markup(community_id: str, data: dict[str, Any]) -> Any:
+    return engagement_settings_markup(
+        community_id,
+        allow_join=bool(data.get("allow_join")),
+        allow_post=bool(data.get("allow_post")),
+    )
+
+
+def _engagement_preset_payload(preset: str) -> dict[str, Any]:
+    base: dict[str, Any] = {
+        "reply_only": True,
+        "require_approval": True,
+        "max_posts_per_day": 1,
+        "min_minutes_between_posts": 240,
+    }
+    if preset == "ready":
+        return {
+            **base,
+            "mode": "require_approval",
+            "allow_join": True,
+            "allow_post": True,
+        }
+    if preset == "observe":
+        return {**base, "mode": "observe", "allow_join": False, "allow_post": False}
+    if preset == "suggest":
+        return {**base, "mode": "suggest", "allow_join": False, "allow_post": False}
+    return {**base, "mode": "disabled", "allow_join": False, "allow_post": False}
+
+
+def _engagement_settings_payload_from_current(
+    current: dict[str, Any],
+    **updates: Any,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "mode": current.get("mode") or "disabled",
+        "allow_join": bool(current.get("allow_join")),
+        "allow_post": bool(current.get("allow_post")),
+        "reply_only": True,
+        "require_approval": True,
+        "max_posts_per_day": int(current.get("max_posts_per_day") or 1),
+        "min_minutes_between_posts": int(current.get("min_minutes_between_posts") or 240),
+        "quiet_hours_start": current.get("quiet_hours_start"),
+        "quiet_hours_end": current.get("quiet_hours_end"),
+        "assigned_account_id": current.get("assigned_account_id"),
+    }
+    payload.update(updates)
+    return payload
+
+
+def _optional_window_minutes(context: Any) -> int | None:
+    if len(context.args) < 2:
+        return 60
+    try:
+        value = int(context.args[1])
+    except ValueError:
+        return None
+    return value if value > 0 else None
 
 
 def _parse_create_engagement_topic_args(context: Any) -> tuple[str, str, list[str]] | None:

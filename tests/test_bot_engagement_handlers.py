@@ -9,11 +9,16 @@ from bot.main import (
     API_CLIENT_KEY,
     callback_query,
     create_engagement_topic_command,
+    detect_engagement_command,
+    engagement_actions_command,
     engagement_candidates_command,
     engagement_command,
+    engagement_settings_command,
     engagement_topics_command,
+    join_community_command,
     send_reply_command,
     approve_reply_command,
+    set_engagement_command,
     toggle_engagement_topic_command,
 )
 
@@ -48,6 +53,53 @@ class _FakeApiClient:
         self.approve_calls: list[dict[str, Any]] = []
         self.create_topic_calls: list[dict[str, Any]] = []
         self.update_topic_calls: list[dict[str, Any]] = []
+        self.get_settings_calls: list[str] = []
+        self.update_settings_calls: list[dict[str, Any]] = []
+        self.join_calls: list[dict[str, Any]] = []
+        self.detect_calls: list[dict[str, Any]] = []
+        self.action_calls: list[dict[str, Any]] = []
+        self.settings = {
+            "community_id": "community-1",
+            "mode": "disabled",
+            "allow_join": False,
+            "allow_post": False,
+            "reply_only": True,
+            "require_approval": True,
+            "max_posts_per_day": 1,
+            "min_minutes_between_posts": 240,
+            "quiet_hours_start": None,
+            "quiet_hours_end": None,
+            "assigned_account_id": None,
+            "created_at": None,
+            "updated_at": None,
+        }
+        self.actions = [
+            {
+                "id": "action-1",
+                "community_id": "community-1",
+                "candidate_id": "candidate-approved",
+                "telegram_account_id": "account-1",
+                "action_type": "reply",
+                "status": "failed",
+                "outbound_text": "Compare ownership and integrations first.",
+                "reply_to_tg_message_id": 101,
+                "sent_tg_message_id": None,
+                "error_message": "Flood wait",
+                "created_at": "2026-04-19T10:00:00Z",
+                "sent_at": None,
+            },
+            {
+                "id": "action-2",
+                "community_id": "community-2",
+                "candidate_id": None,
+                "telegram_account_id": "account-1",
+                "action_type": "join",
+                "status": "sent",
+                "outbound_text": None,
+                "created_at": "2026-04-19T11:00:00Z",
+                "sent_at": "2026-04-19T11:01:00Z",
+            },
+        ]
         self.topics = [
             {
                 "id": "topic-1",
@@ -154,6 +206,62 @@ class _FakeApiClient:
         updated = {**topic, **updates}
         return updated
 
+    async def get_engagement_settings(self, community_id: str) -> dict[str, Any]:
+        self.get_settings_calls.append(community_id)
+        return {**self.settings, "community_id": community_id}
+
+    async def update_engagement_settings(self, community_id: str, **updates: Any) -> dict[str, Any]:
+        self.update_settings_calls.append({"community_id": community_id, "updates": updates})
+        self.settings = {**self.settings, **updates, "community_id": community_id}
+        return self.settings
+
+    async def start_community_join(
+        self,
+        community_id: str,
+        *,
+        requested_by: str | None = None,
+        **_: Any,
+    ) -> dict[str, Any]:
+        self.join_calls.append({"community_id": community_id, "requested_by": requested_by})
+        return {"job": {"id": "join-job", "type": "community.join", "status": "queued"}}
+
+    async def start_engagement_detection(
+        self,
+        community_id: str,
+        *,
+        window_minutes: int = 60,
+        requested_by: str | None = None,
+    ) -> dict[str, Any]:
+        self.detect_calls.append(
+            {
+                "community_id": community_id,
+                "window_minutes": window_minutes,
+                "requested_by": requested_by,
+            }
+        )
+        return {"job": {"id": "detect-job", "type": "engagement.detect", "status": "queued"}}
+
+    async def list_engagement_actions(
+        self,
+        *,
+        community_id: str | None = None,
+        limit: int = 5,
+        offset: int = 0,
+        **_: Any,
+    ) -> dict[str, Any]:
+        self.action_calls.append({"community_id": community_id, "limit": limit, "offset": offset})
+        items = [
+            action
+            for action in self.actions
+            if community_id is None or action["community_id"] == community_id
+        ]
+        return {
+            "items": items[offset : offset + limit],
+            "total": len(items),
+            "limit": limit,
+            "offset": offset,
+        }
+
     async def approve_engagement_candidate(
         self,
         candidate_id: str,
@@ -229,6 +337,146 @@ async def test_engagement_command_builds_home_counts_from_api_client() -> None:
         "approved",
         "failed",
     ]
+
+
+@pytest.mark.asyncio
+async def test_engagement_settings_command_shows_disabled_synthetic_settings() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await engagement_settings_command(update, _context(client, "community-1"))
+
+    assert client.get_settings_calls == ["community-1"]
+    assert "Mode: disabled" in update.message.replies[0]["text"]
+    assert "Join allowed: no" in update.message.replies[0]["text"]
+    callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
+    assert "eng:set:preset:community-1:ready" in callbacks
+    assert "eng:join:community-1" in callbacks
+    assert "eng:detect:community-1:60" in callbacks
+
+
+@pytest.mark.asyncio
+async def test_set_engagement_ready_preset_preserves_safe_fields() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await set_engagement_command(update, _context(client, "community-1", "ready"))
+
+    assert client.update_settings_calls == [
+        {
+            "community_id": "community-1",
+            "updates": {
+                "mode": "require_approval",
+                "allow_join": True,
+                "allow_post": True,
+                "reply_only": True,
+                "require_approval": True,
+                "max_posts_per_day": 1,
+                "min_minutes_between_posts": 240,
+            },
+        }
+    ]
+    assert "Mode: require_approval" in update.message.replies[0]["text"]
+    assert "Join allowed: yes" in update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_settings_preset_callback_edits_settings_card() -> None:
+    client = _FakeApiClient()
+    update = _callback_update("eng:set:preset:community-1:observe")
+
+    await callback_query(update, _context(client))
+
+    assert client.update_settings_calls[0]["updates"]["mode"] == "observe"
+    assert update.callback_query.answers == [{"text": None, "show_alert": False}]
+    assert "Mode: observe" in update.callback_query.edits[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_settings_join_toggle_callback_reads_then_patches_setting() -> None:
+    client = _FakeApiClient()
+    client.settings = {**client.settings, "mode": "suggest", "allow_post": False}
+    update = _callback_update("eng:set:join:community-1:1")
+
+    await callback_query(update, _context(client))
+
+    assert client.get_settings_calls == ["community-1"]
+    assert client.update_settings_calls[0]["updates"]["mode"] == "suggest"
+    assert client.update_settings_calls[0]["updates"]["allow_join"] is True
+    assert client.update_settings_calls[0]["updates"]["reply_only"] is True
+    assert "Join allowed: yes" in update.callback_query.edits[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_join_and_detect_commands_queue_explicit_jobs() -> None:
+    client = _FakeApiClient()
+    join_update = _message_update()
+    detect_update = _message_update()
+
+    await join_community_command(join_update, _context(client, "community-1"))
+    await detect_engagement_command(detect_update, _context(client, "community-1", "45"))
+
+    assert client.join_calls == [
+        {"community_id": "community-1", "requested_by": "telegram:123:@operator"}
+    ]
+    assert client.detect_calls == [
+        {
+            "community_id": "community-1",
+            "window_minutes": 45,
+            "requested_by": "telegram:123:@operator",
+        }
+    ]
+    assert "Community join queued." in join_update.message.replies[0]["text"]
+    assert "Engagement detection queued." in detect_update.message.replies[0]["text"]
+    assert "jb:join-job" in _callback_data_values(join_update.message.replies[0]["reply_markup"])
+    assert "jb:detect-job" in _callback_data_values(detect_update.message.replies[0]["reply_markup"])
+
+
+@pytest.mark.asyncio
+async def test_join_and_detect_callbacks_queue_jobs() -> None:
+    client = _FakeApiClient()
+    join_update = _callback_update("eng:join:community-1")
+    detect_update = _callback_update("eng:detect:community-1:60")
+
+    await callback_query(join_update, _context(client))
+    await callback_query(detect_update, _context(client))
+
+    assert client.join_calls[0]["requested_by"] == "telegram:123:@operator"
+    assert client.detect_calls[0]["window_minutes"] == 60
+    assert "Community join queued." in join_update.callback_query.message.replies[0]["text"]
+    assert "Engagement detection queued." in detect_update.callback_query.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_engagement_actions_command_filters_by_community_and_renders_audit() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await engagement_actions_command(update, _context(client, "community-1"))
+
+    assert client.action_calls == [{"community_id": "community-1", "limit": 5, "offset": 0}]
+    assert "Engagement audit (1-1 of 1)" in update.message.replies[0]["text"]
+    assert "reply | failed" in update.message.replies[1]["text"]
+    assert "Error: Flood wait" in update.message.replies[1]["text"]
+    assert "Outbound text: Compare ownership" in update.message.replies[1]["text"]
+    assert _callback_data_values(update.message.replies[0]["reply_markup"]) == ["eng:home"]
+
+
+@pytest.mark.asyncio
+async def test_engagement_actions_callback_pages_with_community_filter() -> None:
+    client = _FakeApiClient()
+    client.actions = [
+        {**client.actions[0], "id": f"action-{index}", "community_id": "community-1"}
+        for index in range(7)
+    ]
+    update = _callback_update("eng:actions:list:community-1:5")
+
+    await callback_query(update, _context(client))
+
+    assert client.action_calls == [{"community_id": "community-1", "limit": 5, "offset": 5}]
+    assert "Engagement audit (6-7 of 7)" in update.callback_query.message.replies[0]["text"]
+    callbacks = _callback_data_values(update.callback_query.message.replies[0]["reply_markup"])
+    assert "eng:actions:list:community-1:0" in callbacks
 
 
 @pytest.mark.asyncio

@@ -265,13 +265,16 @@ def engagement_action_pager_markup(
     offset: int,
     total: int,
     page_size: int,
+    community_id: str | None = None,
 ):
     rows = [[_button("Engagement", ACTION_ENGAGEMENT_HOME)]]
+    prefix_parts = [community_id] if community_id else []
     pager_row = _offset_pager_row(
         action=ACTION_ENGAGEMENT_ACTIONS,
         offset=offset,
         total=total,
         page_size=page_size,
+        prefix_parts=prefix_parts,
     )
     if pager_row:
         rows.append(pager_row)
@@ -303,7 +306,10 @@ def community_actions_markup(community_id: str):
     return _inline_markup(
         [
             [_button("Collect 90d", ACTION_COLLECT_COMMUNITY, community_id)],
-            [_button("Members", ACTION_COMMUNITY_MEMBERS, community_id, "0")],
+            [
+                _button("Members", ACTION_COMMUNITY_MEMBERS, community_id, "0"),
+                _button("Engagement", ACTION_ENGAGEMENT_SETTINGS_OPEN, community_id),
+            ],
             [_button("Refresh", ACTION_OPEN_COMMUNITY, community_id)],
         ]
     )

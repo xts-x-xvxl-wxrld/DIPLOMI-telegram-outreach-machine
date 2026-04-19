@@ -246,7 +246,7 @@ Completed notes:
 
 ## Slice 4: Community Settings And Manual Jobs
 
-Status: planned.
+Status: completed.
 
 Add community-level controls:
 
@@ -265,6 +265,23 @@ Acceptance:
 - Presets preserve required MVP safety fields.
 - Join and detect commands return job cards with refresh buttons.
 - Bot tests prove the bot talks only to API client methods.
+
+Completed notes:
+
+- `/engagement_settings <community_id>` now renders the API-provided settings view, including
+  missing-row disabled synthetic settings, and shows preset, join, post, queue-join, and detect
+  controls.
+- `/set_engagement <community_id> <off|observe|suggest|ready>` applies safe presets that preserve
+  `reply_only=true`, `require_approval=true`, `max_posts_per_day=1`, and
+  `min_minutes_between_posts=240`.
+- Community detail cards now include an `Engagement` button that opens the settings surface.
+- `/join_community <community_id>` and `eng:join:<community_id>` queue `community.join` through the
+  bot API client only.
+- `/detect_engagement <community_id> [window_minutes]` and
+  `eng:detect:<community_id>:<window_minutes>` queue manual `engagement.detect` through the bot API
+  client only.
+- Focused fake-client bot tests cover disabled synthetic display, presets, settings callbacks,
+  explicit join/detect commands, and join/detect callbacks.
 
 ## Slice 5: Topic Management
 
@@ -297,7 +314,7 @@ Completed notes:
 
 ## Slice 6: Audit Surface
 
-Status: planned.
+Status: completed.
 
 Add `/engagement_actions [community_id]` and inline audit paging.
 
@@ -318,6 +335,18 @@ Acceptance:
 - Outbound text is shown only in capped form.
 - Failed and skipped sends are visible enough for operator diagnosis.
 - The bot never offers edits to completed audit rows in this slice.
+
+Completed notes:
+
+- `/engagement_actions [community_id]` lists recent audit actions, optionally filtered by
+  community, using the bot API client only.
+- Action cards show action type, status, community ID, candidate ID, reply target message ID, sent
+  Telegram message ID, capped outbound text, error message, and created/sent timestamps when
+  present.
+- Inline audit paging uses `eng:actions:list:<offset>` for global views and preserves community
+  filters with `eng:actions:list:<community_id>:<offset>`.
+- Completed audit rows are read-only in this bot slice.
+- Focused fake-client bot tests cover community filtering and paged callback views.
 
 ## Slice 7: Documentation, Tests, And Release Commit
 
