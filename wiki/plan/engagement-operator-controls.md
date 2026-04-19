@@ -169,7 +169,7 @@ Acceptance:
 
 ## Slice 2: Bot Client And Formatting Foundation
 
-Status: planned.
+Status: completed.
 
 Extend `bot/api_client.py` with methods for:
 

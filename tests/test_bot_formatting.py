@@ -11,6 +11,13 @@ from bot.formatting import (
     format_engagement_candidate_card,
     format_engagement_candidate_review,
     format_engagement_candidates,
+    format_engagement_action_card,
+    format_engagement_actions,
+    format_engagement_home,
+    format_engagement_job_response,
+    format_engagement_settings,
+    format_engagement_topic_card,
+    format_engagement_topics,
     format_job_status,
     format_member_export,
     format_members,
@@ -306,7 +313,114 @@ def test_format_member_export_reports_count() -> None:
 def test_format_engagement_candidates_reports_pending_page() -> None:
     message = format_engagement_candidates({"items": [{"id": "candidate-1"}], "total": 3}, offset=0)
 
-    assert message == "Engagement replies needing review (1-1 of 3)"
+    assert message == "Engagement replies | needs_review (1-1 of 3)"
+
+
+def test_format_engagement_home_reports_operational_counts() -> None:
+    message = format_engagement_home(
+        {
+            "pending_reply_count": 2,
+            "approved_reply_count": 1,
+            "failed_candidate_count": 3,
+            "active_topic_count": 4,
+        }
+    )
+
+    assert "Needs review: 2" in message
+    assert "Approved, not sent: 1" in message
+    assert "/engagement_topics" in message
+    assert "score" not in message.lower()
+
+
+def test_format_engagement_settings_shows_safe_controls() -> None:
+    message = format_engagement_settings(
+        {
+            "community_id": "community-1",
+            "mode": "suggest",
+            "allow_join": False,
+            "allow_post": False,
+            "reply_only": True,
+            "require_approval": True,
+            "max_posts_per_day": 1,
+            "min_minutes_between_posts": 240,
+            "quiet_hours_start": "22:00:00",
+            "quiet_hours_end": "07:00:00",
+        }
+    )
+
+    assert "Mode: suggest" in message
+    assert "Join allowed: no" in message
+    assert "Reply only: yes" in message
+    assert "/set_engagement community-1" in message
+    assert "phone" not in message.lower()
+
+
+def test_format_engagement_topics_and_card_truncate_guidance() -> None:
+    message = format_engagement_topics(
+        {
+            "items": [{"id": "topic-1", "active": True}, {"id": "topic-2", "active": False}],
+            "total": 2,
+        }
+    )
+    card = format_engagement_topic_card(
+        {
+            "id": "topic-1",
+            "name": "Open CRM",
+            "description": "Discussion of CRM tools",
+            "stance_guidance": "Be factual. " * 80,
+            "trigger_keywords": ["crm", "sales pipeline"],
+            "negative_keywords": ["hiring"],
+            "active": True,
+        },
+        index=1,
+    )
+
+    assert message == "Engagement topics (1-2 of 2) | active 1"
+    assert "1. Open CRM" in card
+    assert "Triggers: crm, sales pipeline" in card
+    assert "Guidance: " in card
+    assert len(card) < 700
+
+
+def test_format_engagement_job_response_reports_refresh_command() -> None:
+    message = format_engagement_job_response(
+        {"job": {"id": "send-job", "type": "engagement.send", "status": "queued"}},
+        label="Reply send",
+        candidate_id="candidate-1",
+    )
+
+    assert "Reply send queued." in message
+    assert "send-job (engagement.send)" in message
+    assert "/job send-job" in message
+    assert "Candidate ID: candidate-1" in message
+
+
+def test_format_engagement_actions_and_card_keep_audit_safe() -> None:
+    message = format_engagement_actions({"items": [{"id": "action-1"}], "total": 4}, offset=2)
+    card = format_engagement_action_card(
+        {
+            "id": "action-1",
+            "candidate_id": "candidate-1",
+            "community_id": "community-1",
+            "telegram_account_id": "account-1",
+            "action_type": "reply",
+            "status": "failed",
+            "outbound_text": "Approved public reply " * 30,
+            "reply_to_tg_message_id": 123,
+            "sent_tg_message_id": None,
+            "error_message": "Flood wait " * 40,
+            "created_at": "2026-04-19T12:00:00Z",
+        },
+        index=1,
+    )
+
+    assert message == "Engagement audit (3-3 of 4)"
+    assert "1. reply | failed" in card
+    assert "Candidate ID: candidate-1" in card
+    assert "Reply to message: 123" in card
+    assert "Flood wait" in card
+    assert "phone" not in card.lower()
+    assert "sender" not in card.lower()
 
 
 def test_format_engagement_candidate_card_keeps_review_context() -> None:
@@ -346,6 +460,7 @@ def test_format_engagement_candidate_review_reports_audit_fields() -> None:
     assert "Decision: approve" in message
     assert "Status: approved" in message
     assert "Reviewed by: telegram:123" in message
+    assert "Queue send: /send_reply candidate-1" in message
 
 
 def test_format_community_detail_includes_snapshot_run_and_analysis() -> None:

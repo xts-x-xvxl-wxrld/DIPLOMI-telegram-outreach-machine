@@ -478,3 +478,12 @@ and action listing supports community, candidate, status, action type, limit, an
 without exposing account phone numbers or person-level data. Added focused API tests for join
 enqueue success, missing communities, queue failure, action audit shape, pagination filters, and
 candidate filters.
+
+## [2026-04-19] code | Built engagement bot foundation controls
+
+Extended the bot API client with engagement settings, topic management, join, manual detection,
+send-job, action audit, and filtered candidate methods. Added compact engagement formatters for the
+home summary, settings, topics, queued jobs, audit rows, and approved candidate send next steps.
+Expanded callback helpers for all planned `eng:*` namespaces, safe preset and paging markups, and
+an Engagement reply-keyboard entrypoint. Added focused bot client, formatting, and callback tests;
+the full Python suite now passes.

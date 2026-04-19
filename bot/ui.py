@@ -5,6 +5,7 @@ from typing import Sequence
 
 
 SEEDS_MENU_LABEL = "Seed Groups"
+ENGAGEMENT_MENU_LABEL = "Engagement"
 ACCOUNTS_MENU_LABEL = "Accounts"
 HELP_MENU_LABEL = "Help"
 
@@ -18,9 +19,22 @@ ACTION_REJECT_COMMUNITY = "cr"
 ACTION_COLLECT_COMMUNITY = "cl"
 ACTION_COMMUNITY_MEMBERS = "mb"
 ACTION_JOB_STATUS = "jb"
+ACTION_ENGAGEMENT_HOME = "eng:home"
 ACTION_ENGAGEMENT_CANDIDATES = "eng:cand:list"
 ACTION_ENGAGEMENT_APPROVE = "eng:cand:approve"
 ACTION_ENGAGEMENT_REJECT = "eng:cand:reject"
+ACTION_ENGAGEMENT_SEND = "eng:cand:send"
+ACTION_ENGAGEMENT_CANDIDATE_OPEN = "eng:cand:open"
+ACTION_ENGAGEMENT_TOPIC_LIST = "eng:topic:list"
+ACTION_ENGAGEMENT_TOPIC_OPEN = "eng:topic:open"
+ACTION_ENGAGEMENT_TOPIC_TOGGLE = "eng:topic:toggle"
+ACTION_ENGAGEMENT_SETTINGS_OPEN = "eng:set:open"
+ACTION_ENGAGEMENT_SETTINGS_PRESET = "eng:set:preset"
+ACTION_ENGAGEMENT_SETTINGS_JOIN = "eng:set:join"
+ACTION_ENGAGEMENT_SETTINGS_POST = "eng:set:post"
+ACTION_ENGAGEMENT_JOIN = "eng:join"
+ACTION_ENGAGEMENT_DETECT = "eng:detect"
+ACTION_ENGAGEMENT_ACTIONS = "eng:actions:list"
 
 
 @dataclass(frozen=True)
@@ -50,7 +64,8 @@ def main_menu_markup():
     KeyboardButton, ReplyKeyboardMarkup = _keyboard_types()
 
     keyboard = [
-        [KeyboardButton(SEEDS_MENU_LABEL), KeyboardButton(ACCOUNTS_MENU_LABEL)],
+        [KeyboardButton(SEEDS_MENU_LABEL), KeyboardButton(ENGAGEMENT_MENU_LABEL)],
+        [KeyboardButton(ACCOUNTS_MENU_LABEL)],
         [KeyboardButton(HELP_MENU_LABEL)],
     ]
     return ReplyKeyboardMarkup(
@@ -115,7 +130,16 @@ def engagement_candidate_actions_markup(candidate_id: str):
                 _button("Approve", ACTION_ENGAGEMENT_APPROVE, candidate_id),
                 _button("Reject", ACTION_ENGAGEMENT_REJECT, candidate_id),
             ],
-            [_button("More replies", ACTION_ENGAGEMENT_CANDIDATES, "0")],
+            [_button("More replies", ACTION_ENGAGEMENT_CANDIDATES, "needs_review", "0")],
+        ]
+    )
+
+
+def engagement_candidate_send_markup(candidate_id: str):
+    return _inline_markup(
+        [
+            [_button("Queue send", ACTION_ENGAGEMENT_SEND, candidate_id)],
+            [_button("Approved replies", ACTION_ENGAGEMENT_CANDIDATES, "approved", "0")],
         ]
     )
 
@@ -125,17 +149,147 @@ def engagement_candidate_pager_markup(
     offset: int,
     total: int,
     page_size: int,
+    status: str = "needs_review",
 ):
-    buttons = []
-    previous_offset = max(offset - page_size, 0)
-    next_offset = offset + page_size
-    if offset > 0:
-        buttons.append(_button("Prev", ACTION_ENGAGEMENT_CANDIDATES, str(previous_offset)))
-    if next_offset < total:
-        buttons.append(_button("Next", ACTION_ENGAGEMENT_CANDIDATES, str(next_offset)))
+    buttons = _offset_pager_row(
+        action=ACTION_ENGAGEMENT_CANDIDATES,
+        offset=offset,
+        total=total,
+        page_size=page_size,
+        prefix_parts=[status],
+    )
     if not buttons:
         return None
     return _inline_markup([buttons])
+
+
+def engagement_home_markup():
+    return _inline_markup(
+        [
+            [
+                _button("Topics", ACTION_ENGAGEMENT_TOPIC_LIST, "0"),
+                _button("Replies", ACTION_ENGAGEMENT_CANDIDATES, "needs_review", "0"),
+            ],
+            [_button("Audit", ACTION_ENGAGEMENT_ACTIONS, "0")],
+        ]
+    )
+
+
+def engagement_settings_markup(community_id: str, *, allow_join: bool, allow_post: bool):
+    return _inline_markup(
+        [
+            [
+                _button("Off", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "off"),
+                _button("Observe", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "observe"),
+            ],
+            [
+                _button("Suggest", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "suggest"),
+                _button("Ready", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "ready"),
+            ],
+            [
+                _button(
+                    "Join on" if not allow_join else "Join off",
+                    ACTION_ENGAGEMENT_SETTINGS_JOIN,
+                    community_id,
+                    "1" if not allow_join else "0",
+                ),
+                _button(
+                    "Post on" if not allow_post else "Post off",
+                    ACTION_ENGAGEMENT_SETTINGS_POST,
+                    community_id,
+                    "1" if not allow_post else "0",
+                ),
+            ],
+            [
+                _button("Queue join", ACTION_ENGAGEMENT_JOIN, community_id),
+                _button("Detect now", ACTION_ENGAGEMENT_DETECT, community_id, "60"),
+            ],
+        ]
+    )
+
+
+def engagement_topic_pager_markup(
+    *,
+    offset: int,
+    total: int,
+    page_size: int,
+):
+    rows = [[_button("Engagement", ACTION_ENGAGEMENT_HOME)]]
+    pager_row = _offset_pager_row(
+        action=ACTION_ENGAGEMENT_TOPIC_LIST,
+        offset=offset,
+        total=total,
+        page_size=page_size,
+    )
+    if pager_row:
+        rows.append(pager_row)
+    return _inline_markup(rows)
+
+
+def engagement_topic_actions_markup(topic_id: str, *, active: bool):
+    return _inline_markup(
+        [
+            [
+                _button(
+                    "Deactivate" if active else "Activate",
+                    ACTION_ENGAGEMENT_TOPIC_TOGGLE,
+                    topic_id,
+                    "0" if active else "1",
+                )
+            ],
+            [_button("Topics", ACTION_ENGAGEMENT_TOPIC_LIST, "0")],
+        ]
+    )
+
+
+def engagement_candidate_filter_markup(*, status: str = "needs_review"):
+    statuses = ["needs_review", "approved", "failed", "sent", "rejected"]
+    rows = []
+    row = []
+    for candidate_status in statuses:
+        label = candidate_status.replace("_", " ")
+        if candidate_status == status:
+            label = f"* {label}"
+        row.append(_button(label.title(), ACTION_ENGAGEMENT_CANDIDATES, candidate_status, "0"))
+        if len(row) == 2:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    rows.append([_button("Engagement", ACTION_ENGAGEMENT_HOME)])
+    return _inline_markup(rows)
+
+
+def engagement_action_pager_markup(
+    *,
+    offset: int,
+    total: int,
+    page_size: int,
+):
+    rows = [[_button("Engagement", ACTION_ENGAGEMENT_HOME)]]
+    pager_row = _offset_pager_row(
+        action=ACTION_ENGAGEMENT_ACTIONS,
+        offset=offset,
+        total=total,
+        page_size=page_size,
+    )
+    if pager_row:
+        rows.append(pager_row)
+    return _inline_markup(rows)
+
+
+def engagement_job_markup(
+    job_id: str,
+    *,
+    community_id: str | None = None,
+    candidate_id: str | None = None,
+):
+    rows = [[_button("Refresh Job", ACTION_JOB_STATUS, job_id)]]
+    if community_id:
+        rows.append([_button("Community", ACTION_OPEN_COMMUNITY, community_id)])
+    if candidate_id:
+        rows.append([_button("Reply", ACTION_ENGAGEMENT_CANDIDATE_OPEN, candidate_id)])
+    return _inline_markup(rows)
 
 
 def review_result_markup(community_id: str, job_id: str | None = None):
@@ -181,8 +335,11 @@ def job_actions_markup(job_id: str):
 
 def parse_callback_data(data: str) -> tuple[str, list[str]]:
     parts = data.split(":")
-    if len(parts) >= 3 and parts[0] == "eng" and parts[1] == "cand":
-        return ":".join(parts[:3]), parts[3:]
+    if parts[0] == "eng":
+        if len(parts) >= 3 and parts[1] in {"actions", "cand", "set", "topic"}:
+            return ":".join(parts[:3]), parts[3:]
+        if len(parts) >= 2:
+            return ":".join(parts[:2]), parts[2:]
     return parts[0], parts[1:]
 
 
@@ -220,6 +377,24 @@ def _pager_row(
         buttons.append(_button("Prev", action, item_id, str(previous_offset)))
     if next_offset < total:
         buttons.append(_button("Next", action, item_id, str(next_offset)))
+    return buttons
+
+
+def _offset_pager_row(
+    *,
+    action: str,
+    offset: int,
+    total: int,
+    page_size: int,
+    prefix_parts: Sequence[str] = (),
+):
+    buttons = []
+    previous_offset = max(offset - page_size, 0)
+    next_offset = offset + page_size
+    if offset > 0:
+        buttons.append(_button("Prev", action, *prefix_parts, str(previous_offset)))
+    if next_offset < total:
+        buttons.append(_button("Next", action, *prefix_parts, str(next_offset)))
     return buttons
 
 

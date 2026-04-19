@@ -280,8 +280,10 @@ async def test_list_engagement_candidates_uses_review_endpoint() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "GET"
         assert request.url.path.endswith("/engagement/candidates")
-        assert request.url.params["status"] == "needs_review"
-        assert request.url.params["limit"] == "5"
+        assert request.url.params["status"] == "approved"
+        assert request.url.params["community_id"] == "community-1"
+        assert request.url.params["topic_id"] == "topic-1"
+        assert request.url.params["limit"] == "10"
         assert request.url.params["offset"] == "10"
         return httpx.Response(200, json={"items": [], "limit": 5, "offset": 10, "total": 0})
 
@@ -291,7 +293,13 @@ async def test_list_engagement_candidates_uses_review_endpoint() -> None:
         transport=httpx.MockTransport(handler),
     )
 
-    response = await client.list_engagement_candidates(offset=10)
+    response = await client.list_engagement_candidates(
+        status="approved",
+        community_id="community-1",
+        topic_id="topic-1",
+        limit=10,
+        offset=10,
+    )
     await client.aclose()
 
     assert response["offset"] == 10
@@ -347,6 +355,171 @@ async def test_reject_engagement_candidate_posts_reviewer() -> None:
     await client.aclose()
 
     assert response["status"] == "rejected"
+
+
+@pytest.mark.asyncio
+async def test_send_engagement_candidate_posts_approved_by() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path.endswith("/engagement/candidates/candidate-1/send-jobs")
+        assert json.loads(request.content) == {"approved_by": "telegram:123"}
+        return httpx.Response(
+            202,
+            json={"job": {"id": "send-job", "type": "engagement.send", "status": "queued"}},
+        )
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    response = await client.send_engagement_candidate(
+        "candidate-1",
+        approved_by="telegram:123",
+    )
+    await client.aclose()
+
+    assert response["job"]["type"] == "engagement.send"
+
+
+@pytest.mark.asyncio
+async def test_get_and_update_engagement_settings_use_community_routes() -> None:
+    seen_methods: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        seen_methods.append(request.method)
+        assert request.url.path.endswith("/communities/community-1/engagement-settings")
+        if request.method == "GET":
+            return httpx.Response(200, json={"community_id": "community-1", "mode": "disabled"})
+        assert json.loads(request.content) == {
+            "mode": "require_approval",
+            "allow_join": True,
+            "allow_post": True,
+            "reply_only": True,
+            "require_approval": True,
+            "max_posts_per_day": 1,
+            "min_minutes_between_posts": 240,
+            "quiet_hours_start": None,
+            "quiet_hours_end": None,
+            "assigned_account_id": None,
+        }
+        return httpx.Response(
+            200,
+            json={"community_id": "community-1", "mode": "require_approval"},
+        )
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    settings = await client.get_engagement_settings("community-1")
+    updated = await client.update_engagement_settings(
+        "community-1",
+        mode="require_approval",
+        allow_join=True,
+        allow_post=True,
+    )
+    await client.aclose()
+
+    assert settings["mode"] == "disabled"
+    assert updated["mode"] == "require_approval"
+    assert seen_methods == ["GET", "PUT"]
+
+
+@pytest.mark.asyncio
+async def test_engagement_topic_methods_use_topic_routes() -> None:
+    seen: list[tuple[str, str, dict[str, object] | None]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content) if request.content else None
+        seen.append((request.method, request.url.path, payload))
+        if request.method == "GET":
+            return httpx.Response(200, json={"items": []})
+        return httpx.Response(
+            200 if request.method == "PATCH" else 201,
+            json={
+                "id": "topic-1",
+                "name": "Open CRM",
+                "stance_guidance": "Be useful.",
+                "trigger_keywords": ["crm"],
+                "active": True,
+            },
+        )
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    await client.list_engagement_topics()
+    await client.create_engagement_topic(
+        name="Open CRM",
+        stance_guidance="Be useful.",
+        trigger_keywords=["crm"],
+    )
+    await client.update_engagement_topic("topic-1", active=False)
+    await client.aclose()
+
+    assert seen[0] == ("GET", "/api/engagement/topics", None)
+    assert seen[1][0:2] == ("POST", "/api/engagement/topics")
+    assert seen[1][2]["trigger_keywords"] == ["crm"]
+    assert seen[2] == ("PATCH", "/api/engagement/topics/topic-1", {"active": False})
+
+
+@pytest.mark.asyncio
+async def test_join_detect_and_action_methods_use_engagement_routes() -> None:
+    seen: list[tuple[str, str, dict[str, object] | None, dict[str, str]]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content) if request.content else None
+        seen.append((request.method, request.url.path, payload, dict(request.url.params)))
+        return httpx.Response(
+            202 if request.method == "POST" else 200,
+            json={"job": {"id": "job-1", "type": "queued"}}
+            if request.method == "POST"
+            else {"items": [], "limit": 5, "offset": 10, "total": 0},
+        )
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    await client.start_community_join(
+        "community-1",
+        telegram_account_id="account-1",
+        requested_by="telegram:123",
+    )
+    await client.start_engagement_detection(
+        "community-1",
+        window_minutes=45,
+        requested_by="telegram:123",
+    )
+    response = await client.list_engagement_actions(
+        community_id="community-1",
+        candidate_id="candidate-1",
+        status="failed",
+        action_type="reply",
+        offset=10,
+    )
+    await client.aclose()
+
+    assert seen[0][1] == "/api/communities/community-1/join-jobs"
+    assert seen[0][2] == {
+        "telegram_account_id": "account-1",
+        "requested_by": "telegram:123",
+    }
+    assert seen[1][1] == "/api/communities/community-1/engagement-detect-jobs"
+    assert seen[1][2] == {"window_minutes": 45, "requested_by": "telegram:123"}
+    assert seen[2][1] == "/api/engagement/actions"
+    assert seen[2][3]["candidate_id"] == "candidate-1"
+    assert seen[2][3]["action_type"] == "reply"
+    assert response["offset"] == 10
 
 
 @pytest.mark.asyncio

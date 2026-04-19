@@ -394,13 +394,166 @@ def format_member_export(data: dict[str, Any], *, community_title: str | None = 
     return f"Exported {total} visible members for {label}."
 
 
-def format_engagement_candidates(data: dict[str, Any], *, offset: int = 0) -> str:
+def format_engagement_home(data: dict[str, Any]) -> str:
+    counts = data.get("counts") or data
+    pending_count = counts.get("pending_reply_count", counts.get("needs_review", 0))
+    approved_count = counts.get("approved_reply_count", counts.get("approved", 0))
+    failed_count = counts.get("failed_candidate_count", counts.get("failed", 0))
+    active_topic_count = counts.get("active_topic_count", counts.get("active_topics", 0))
+    return "\n".join(
+        [
+            "Engagement controls",
+            f"Needs review: {pending_count}",
+            f"Approved, not sent: {approved_count}",
+            f"Failed candidates: {failed_count}",
+            f"Active topics: {active_topic_count}",
+            "",
+            "Topics: /engagement_topics",
+            "Replies: /engagement_candidates",
+            "Audit: /engagement_actions",
+        ]
+    )
+
+
+def format_engagement_settings(data: dict[str, Any]) -> str:
+    community_id = data.get("community_id", "unknown")
+    lines = [
+        "Engagement settings",
+        f"Community ID: {community_id}",
+        f"Mode: {data.get('mode', 'disabled')}",
+        f"Join allowed: {_yes_no(data.get('allow_join'))}",
+        f"Post allowed: {_yes_no(data.get('allow_post'))}",
+        f"Reply only: {_yes_no(data.get('reply_only'))}",
+        f"Approval required: {_yes_no(data.get('require_approval'))}",
+        (
+            "Rate limit: "
+            f"{data.get('max_posts_per_day', 1)} per day, "
+            f"{data.get('min_minutes_between_posts', 240)} minutes apart"
+        ),
+    ]
+    if data.get("quiet_hours_start") or data.get("quiet_hours_end"):
+        lines.append(
+            "Quiet hours: "
+            f"{data.get('quiet_hours_start') or '?'}-"
+            f"{data.get('quiet_hours_end') or '?'}"
+        )
+    if data.get("assigned_account_id"):
+        lines.append(f"Assigned account ID: {data['assigned_account_id']}")
+    lines.extend(
+        [
+            "",
+            f"Preset: /set_engagement {community_id} <off|observe|suggest|ready>",
+            f"Join: /join_community {community_id}",
+            f"Detect: /detect_engagement {community_id}",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def format_engagement_topics(data: dict[str, Any], *, offset: int = 0) -> str:
     items = data.get("items") or []
     total = data.get("total", len(items))
     if not items:
-        return "No engagement replies need review right now."
+        return "No engagement topics configured yet."
+    active_count = sum(1 for item in items if item.get("active"))
+    return f"Engagement topics ({offset + 1}-{offset + len(items)} of {total}) | active {active_count}"
 
-    return f"Engagement replies needing review ({offset + 1}-{offset + len(items)} of {total})"
+
+def format_engagement_topic_card(item: dict[str, Any], *, index: int | None = None) -> str:
+    topic_id = item.get("id", "unknown")
+    name = item.get("name") or "Untitled topic"
+    heading = f"{index}. {name}" if index is not None else str(name)
+    keywords = item.get("trigger_keywords") or []
+    negative_keywords = item.get("negative_keywords") or []
+    lines = [
+        heading,
+        f"Status: {'active' if item.get('active') else 'inactive'}",
+        f"Topic ID: {topic_id}",
+    ]
+    if item.get("description"):
+        lines.append(f"Description: {_shorten(str(item['description']), 160)}")
+    if keywords:
+        lines.append(f"Triggers: {_shorten(', '.join(str(value) for value in keywords), 160)}")
+    if negative_keywords:
+        lines.append(
+            f"Negative keywords: {_shorten(', '.join(str(value) for value in negative_keywords), 160)}"
+        )
+    lines.extend(
+        [
+            f"Guidance: {_shorten(str(item.get('stance_guidance') or ''), 260)}",
+            f"Toggle: /toggle_engagement_topic {topic_id} {'off' if item.get('active') else 'on'}",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def format_engagement_job_response(
+    data: dict[str, Any],
+    *,
+    label: str,
+    community_id: str | None = None,
+    candidate_id: str | None = None,
+) -> str:
+    job = data.get("job") or {}
+    job_id = job.get("id", "unknown")
+    lines = [
+        f"{label} queued.",
+        f"Job: {job_id} ({job.get('type', 'unknown')})",
+        f"Status: {job.get('status', 'queued')}",
+        f"Check it with /job {job_id}",
+    ]
+    if community_id:
+        lines.append(f"Community: /community {community_id}")
+    if candidate_id:
+        lines.append(f"Candidate ID: {candidate_id}")
+    return "\n".join(lines)
+
+
+def format_engagement_actions(data: dict[str, Any], *, offset: int = 0) -> str:
+    items = data.get("items") or []
+    total = data.get("total", len(items))
+    if not items:
+        return "No engagement audit actions match this view."
+    return f"Engagement audit ({offset + 1}-{offset + len(items)} of {total})"
+
+
+def format_engagement_action_card(item: dict[str, Any], *, index: int | None = None) -> str:
+    title = f"{item.get('action_type', 'action')} | {item.get('status', 'unknown')}"
+    heading = f"{index}. {title}" if index is not None else title
+    lines = [
+        heading,
+        f"Action ID: {item.get('id', 'unknown')}",
+        f"Community ID: {item.get('community_id', 'unknown')}",
+    ]
+    if item.get("candidate_id"):
+        lines.append(f"Candidate ID: {item['candidate_id']}")
+    if item.get("reply_to_tg_message_id") is not None:
+        lines.append(f"Reply to message: {item['reply_to_tg_message_id']}")
+    if item.get("sent_tg_message_id") is not None:
+        lines.append(f"Sent message: {item['sent_tg_message_id']}")
+    if item.get("outbound_text"):
+        lines.append(f"Outbound text: {_shorten(str(item['outbound_text']), 240)}")
+    if item.get("error_message"):
+        lines.append(f"Error: {_shorten(str(item['error_message']), 240)}")
+    if item.get("created_at"):
+        lines.append(f"Created: {item['created_at']}")
+    if item.get("sent_at"):
+        lines.append(f"Sent: {item['sent_at']}")
+    return "\n".join(lines)
+
+
+def format_engagement_candidates(
+    data: dict[str, Any],
+    *,
+    offset: int = 0,
+    status: str = "needs_review",
+) -> str:
+    items = data.get("items") or []
+    total = data.get("total", len(items))
+    if not items:
+        return f"No engagement replies with status {status} right now."
+
+    return f"Engagement replies | {status} ({offset + 1}-{offset + len(items)} of {total})"
 
 
 def format_engagement_candidate_card(item: dict[str, Any], *, index: int | None = None) -> str:
@@ -439,15 +592,16 @@ def format_engagement_candidate_card(item: dict[str, Any], *, index: int | None 
 def format_engagement_candidate_review(action: str, item: dict[str, Any]) -> str:
     title = item.get("community_title") or "Community"
     candidate_id = item.get("id", "unknown")
-    return "\n".join(
-        [
-            title,
-            f"Candidate ID: {candidate_id}",
-            f"Decision: {action}",
-            f"Status: {item.get('status', 'unknown')}",
-            f"Reviewed by: {item.get('reviewed_by') or 'operator'}",
-        ]
-    )
+    lines = [
+        title,
+        f"Candidate ID: {candidate_id}",
+        f"Decision: {action}",
+        f"Status: {item.get('status', 'unknown')}",
+        f"Reviewed by: {item.get('reviewed_by') or 'operator'}",
+    ]
+    if item.get("status") == "approved":
+        lines.append(f"Queue send: /send_reply {candidate_id}")
+    return "\n".join(lines)
 
 
 def format_community_detail(
@@ -569,3 +723,7 @@ def _shorten(value: str, limit: int) -> str:
     if len(value) <= limit:
         return value
     return value[: limit - 3].rstrip() + "..."
+
+
+def _yes_no(value: Any) -> str:
+    return "yes" if bool(value) else "no"

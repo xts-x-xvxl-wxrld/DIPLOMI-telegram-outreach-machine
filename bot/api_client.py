@@ -154,13 +154,20 @@ class BotApiClient:
         self,
         *,
         status: str = "needs_review",
+        community_id: str | None = None,
+        topic_id: str | None = None,
         limit: int = 5,
         offset: int = 0,
     ) -> dict[str, Any]:
+        params: dict[str, object] = {"status": status, "limit": limit, "offset": offset}
+        if community_id is not None:
+            params["community_id"] = community_id
+        if topic_id is not None:
+            params["topic_id"] = topic_id
         return await self._request(
             "GET",
             "/engagement/candidates",
-            params={"status": status, "limit": limit, "offset": offset},
+            params=params,
         )
 
     async def approve_engagement_candidate(
@@ -194,6 +201,154 @@ class BotApiClient:
             f"/engagement/candidates/{candidate_id}/reject",
             json=payload,
         )
+
+    async def send_engagement_candidate(
+        self,
+        candidate_id: str,
+        *,
+        approved_by: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if approved_by is not None:
+            payload["approved_by"] = approved_by
+        return await self._request(
+            "POST",
+            f"/engagement/candidates/{candidate_id}/send-jobs",
+            json=payload,
+        )
+
+    async def get_engagement_settings(self, community_id: str) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            f"/communities/{community_id}/engagement-settings",
+        )
+
+    async def update_engagement_settings(
+        self,
+        community_id: str,
+        *,
+        mode: str,
+        allow_join: bool = False,
+        allow_post: bool = False,
+        reply_only: bool = True,
+        require_approval: bool = True,
+        max_posts_per_day: int = 1,
+        min_minutes_between_posts: int = 240,
+        quiet_hours_start: str | None = None,
+        quiet_hours_end: str | None = None,
+        assigned_account_id: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "mode": mode,
+            "allow_join": allow_join,
+            "allow_post": allow_post,
+            "reply_only": reply_only,
+            "require_approval": require_approval,
+            "max_posts_per_day": max_posts_per_day,
+            "min_minutes_between_posts": min_minutes_between_posts,
+            "quiet_hours_start": quiet_hours_start,
+            "quiet_hours_end": quiet_hours_end,
+            "assigned_account_id": assigned_account_id,
+        }
+        return await self._request(
+            "PUT",
+            f"/communities/{community_id}/engagement-settings",
+            json=payload,
+        )
+
+    async def list_engagement_topics(self) -> dict[str, Any]:
+        return await self._request("GET", "/engagement/topics")
+
+    async def create_engagement_topic(
+        self,
+        *,
+        name: str,
+        stance_guidance: str,
+        trigger_keywords: list[str],
+        description: str | None = None,
+        negative_keywords: list[str] | None = None,
+        example_good_replies: list[str] | None = None,
+        example_bad_replies: list[str] | None = None,
+        active: bool = True,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            "/engagement/topics",
+            json={
+                "name": name,
+                "description": description,
+                "stance_guidance": stance_guidance,
+                "trigger_keywords": trigger_keywords,
+                "negative_keywords": negative_keywords or [],
+                "example_good_replies": example_good_replies or [],
+                "example_bad_replies": example_bad_replies or [],
+                "active": active,
+            },
+        )
+
+    async def update_engagement_topic(
+        self,
+        topic_id: str,
+        **updates: Any,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "PATCH",
+            f"/engagement/topics/{topic_id}",
+            json=updates,
+        )
+
+    async def start_community_join(
+        self,
+        community_id: str,
+        *,
+        telegram_account_id: str | None = None,
+        requested_by: str | None = None,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            f"/communities/{community_id}/join-jobs",
+            json={
+                "telegram_account_id": telegram_account_id,
+                "requested_by": requested_by,
+            },
+        )
+
+    async def start_engagement_detection(
+        self,
+        community_id: str,
+        *,
+        window_minutes: int = 60,
+        requested_by: str | None = None,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            f"/communities/{community_id}/engagement-detect-jobs",
+            json={
+                "window_minutes": window_minutes,
+                "requested_by": requested_by,
+            },
+        )
+
+    async def list_engagement_actions(
+        self,
+        *,
+        community_id: str | None = None,
+        candidate_id: str | None = None,
+        status: str | None = None,
+        action_type: str | None = None,
+        limit: int = 5,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        params: dict[str, object] = {"limit": limit, "offset": offset}
+        if community_id is not None:
+            params["community_id"] = community_id
+        if candidate_id is not None:
+            params["candidate_id"] = candidate_id
+        if status is not None:
+            params["status"] = status
+        if action_type is not None:
+            params["action_type"] = action_type
+        return await self._request("GET", "/engagement/actions", params=params)
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         try:
