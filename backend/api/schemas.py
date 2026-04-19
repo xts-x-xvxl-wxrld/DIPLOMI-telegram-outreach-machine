@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, time
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from backend.db.enums import CommunityStatus
+from backend.db.enums import CommunityStatus, EngagementMode
 
 
 class JobRef(BaseModel):
@@ -326,3 +326,76 @@ class AccountDebugItem(BaseModel):
 class AccountDebugResponse(BaseModel):
     counts: dict[str, int]
     items: list[AccountDebugItem]
+
+
+class EngagementSettingsUpdate(BaseModel):
+    mode: EngagementMode = EngagementMode.SUGGEST
+    allow_join: bool = False
+    allow_post: bool = False
+    reply_only: bool = True
+    require_approval: bool = True
+    max_posts_per_day: int = Field(default=1, ge=0, le=3)
+    min_minutes_between_posts: int = Field(default=240, ge=1)
+    quiet_hours_start: time | None = None
+    quiet_hours_end: time | None = None
+    assigned_account_id: UUID | None = None
+
+
+class EngagementSettingsOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    community_id: UUID
+    mode: str
+    allow_join: bool
+    allow_post: bool
+    reply_only: bool
+    require_approval: bool
+    max_posts_per_day: int
+    min_minutes_between_posts: int
+    quiet_hours_start: time | None = None
+    quiet_hours_end: time | None = None
+    assigned_account_id: UUID | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class EngagementTopicCreate(BaseModel):
+    name: str = Field(min_length=1)
+    description: str | None = None
+    stance_guidance: str = Field(min_length=1)
+    trigger_keywords: list[str] = Field(default_factory=list)
+    negative_keywords: list[str] = Field(default_factory=list)
+    example_good_replies: list[str] = Field(default_factory=list)
+    example_bad_replies: list[str] = Field(default_factory=list)
+    active: bool = True
+
+
+class EngagementTopicUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1)
+    description: str | None = None
+    stance_guidance: str | None = Field(default=None, min_length=1)
+    trigger_keywords: list[str] | None = None
+    negative_keywords: list[str] | None = None
+    example_good_replies: list[str] | None = None
+    example_bad_replies: list[str] | None = None
+    active: bool | None = None
+
+
+class EngagementTopicOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    description: str | None = None
+    stance_guidance: str
+    trigger_keywords: list[str]
+    negative_keywords: list[str]
+    example_good_replies: list[str]
+    example_bad_replies: list[str]
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class EngagementTopicListResponse(BaseModel):
+    items: list[EngagementTopicOut]

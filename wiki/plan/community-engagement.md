@@ -135,7 +135,7 @@ Acceptance:
 
 ## Slice 5: API Settings And Topics
 
-Status: planned.
+Status: completed.
 
 Add API routes:
 

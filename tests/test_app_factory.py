@@ -15,3 +15,6 @@ def test_create_app_registers_core_routes() -> None:
     assert "/api/seed-groups/{seed_group_id}" in paths
     assert "/api/seed-groups/{seed_group_id}/candidates" in paths
     assert "/api/communities/{community_id}/members" in paths
+    assert "/api/communities/{community_id}/engagement-settings" in paths
+    assert "/api/engagement/topics" in paths
+    assert "/api/engagement/topics/{topic_id}" in paths

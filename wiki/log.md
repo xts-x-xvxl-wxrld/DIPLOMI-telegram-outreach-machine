@@ -399,3 +399,12 @@ Updated the account manager purpose contract to accept `entity_intake`, `engagem
 `engagement_send` in addition to existing expansion and collection leases. Added tests locking the
 supported purpose set, engagement-purpose validation, unknown-purpose rejection, and banned-account
 release mapping. Marked the account manager extension slice complete in the engagement plan.
+
+## [2026-04-19] code | Added engagement settings and topics API
+
+Added the engagement API router, response/request schemas, and a community engagement service for
+per-community settings and operator-defined topics. Settings now return a disabled synthetic view by
+default, enforce MVP approval and reply-only safety gates, and reject joining/posting for
+unapproved communities. Topic creation and updates normalize keywords, preserve guidance/example
+fields, reject active topics without triggers, and block unsafe guidance. Updated the wiki index and
+marked the API settings and topics slice complete.
