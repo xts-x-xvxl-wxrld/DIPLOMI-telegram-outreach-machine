@@ -92,7 +92,7 @@ Acceptance:
 
 ## Slice 3: Queue Contracts
 
-Status: planned.
+Status: completed.
 
 Add payloads and enqueue helpers for:
 

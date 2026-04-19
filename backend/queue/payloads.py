@@ -55,3 +55,20 @@ class CollectionPayload(BaseModel):
 class AnalysisPayload(BaseModel):
     collection_run_id: UUID
     requested_by: str | None = None
+
+
+class CommunityJoinPayload(BaseModel):
+    community_id: UUID
+    telegram_account_id: UUID | None = None
+    requested_by: str
+
+
+class EngagementDetectPayload(BaseModel):
+    community_id: UUID
+    window_minutes: int = Field(default=60, ge=1)
+    requested_by: str | None = None
+
+
+class EngagementSendPayload(BaseModel):
+    candidate_id: UUID
+    approved_by: str

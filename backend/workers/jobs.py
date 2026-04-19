@@ -21,6 +21,9 @@ def dispatch_job(job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         "expansion.run": run_expansion,
         "collection.run": run_collection,
         "analysis.run": run_analysis,
+        "community.join": run_community_join,
+        "engagement.detect": run_engagement_detect,
+        "engagement.send": run_engagement_send,
     }
     handler = handlers.get(job_type)
     if handler is None:
@@ -60,6 +63,18 @@ def run_collection(payload: dict[str, Any]) -> dict[str, Any]:
 
 def run_analysis(payload: dict[str, Any]) -> dict[str, Any]:
     return {"status": "stubbed", "job_type": "analysis.run", "payload": payload}
+
+
+def run_community_join(payload: dict[str, Any]) -> dict[str, Any]:
+    return {"status": "stubbed", "job_type": "community.join", "payload": payload}
+
+
+def run_engagement_detect(payload: dict[str, Any]) -> dict[str, Any]:
+    return {"status": "stubbed", "job_type": "engagement.detect", "payload": payload}
+
+
+def run_engagement_send(payload: dict[str, Any]) -> dict[str, Any]:
+    return {"status": "stubbed", "job_type": "engagement.send", "payload": payload}
 
 
 def set_job_status(job_type: str, status_message: str) -> None:

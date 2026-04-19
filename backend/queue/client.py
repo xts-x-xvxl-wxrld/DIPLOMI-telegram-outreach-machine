@@ -10,7 +10,10 @@ from backend.queue.payloads import (
     AnalysisPayload,
     BriefProcessPayload,
     CollectionPayload,
+    CommunityJoinPayload,
     DiscoveryPayload,
+    EngagementDetectPayload,
+    EngagementSendPayload,
     ExpansionPayload,
     SeedExpandPayload,
     SeedResolvePayload,
@@ -155,6 +158,50 @@ def enqueue_analysis(collection_run_id: UUID, *, requested_by: str | None = None
     )
 
 
+def enqueue_community_join(
+    community_id: UUID,
+    *,
+    requested_by: str,
+    telegram_account_id: UUID | None = None,
+) -> QueuedJob:
+    payload = CommunityJoinPayload(
+        community_id=community_id,
+        telegram_account_id=telegram_account_id,
+        requested_by=requested_by,
+    )
+    return enqueue_job("community.join", payload.model_dump(mode="json"), queue_name="default")
+
+
+def enqueue_engagement_detect(
+    community_id: UUID,
+    *,
+    window_minutes: int = 60,
+    requested_by: str | None = None,
+) -> QueuedJob:
+    payload = EngagementDetectPayload(
+        community_id=community_id,
+        window_minutes=window_minutes,
+        requested_by=requested_by,
+    )
+    job_id = f"engagement.detect:{community_id}:{datetime.utcnow():%Y%m%d%H}"
+    return enqueue_job(
+        "engagement.detect",
+        payload.model_dump(mode="json"),
+        queue_name="engagement",
+        job_id=job_id,
+    )
+
+
+def enqueue_engagement_send(candidate_id: UUID, *, approved_by: str) -> QueuedJob:
+    payload = EngagementSendPayload(candidate_id=candidate_id, approved_by=approved_by)
+    return enqueue_job(
+        "engagement.send",
+        payload.model_dump(mode="json"),
+        queue_name="engagement",
+        job_id=f"engagement.send:{candidate_id}",
+    )
+
+
 def enqueue_job(
     job_type: str,
     payload: dict[str, Any],
@@ -172,7 +219,7 @@ def enqueue_job(
         retry=_retry_for(job_type, Retry),
         result_ttl=86400,
         failure_ttl=604800,
-        meta={"job_type": job_type, **payload},
+        meta={"job_type": job_type, "status_message": "queued", **payload},
     )
     return QueuedJob(id=job.id, type=job_type, status="queued")
 
@@ -234,4 +281,10 @@ def _retry_for(job_type: str, Retry):
         return Retry(max=2, interval=[600, 1800])
     if job_type == "analysis.run":
         return Retry(max=3, interval=[60, 300, 1800])
+    if job_type == "community.join":
+        return Retry(max=2, interval=[600, 3600])
+    if job_type == "engagement.detect":
+        return Retry(max=2, interval=[300, 900])
+    if job_type == "engagement.send":
+        return Retry(max=1, interval=[600])
     return Retry(max=1, interval=[60])

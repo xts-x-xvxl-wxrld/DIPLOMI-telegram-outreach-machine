@@ -5,6 +5,9 @@ from uuid import uuid4
 from backend.queue.client import (
     QueuedJob,
     enqueue_brief_process,
+    enqueue_community_join,
+    enqueue_engagement_detect,
+    enqueue_engagement_send,
     enqueue_seed_expansion,
     enqueue_seed_resolve,
     enqueue_telegram_entity_resolve,
@@ -13,11 +16,15 @@ from backend.queue.payloads import (
     AnalysisPayload,
     BriefProcessPayload,
     CollectionPayload,
+    CommunityJoinPayload,
     DiscoveryPayload,
+    EngagementDetectPayload,
+    EngagementSendPayload,
     SeedExpandPayload,
     SeedResolvePayload,
     TelegramEntityResolvePayload,
 )
+from backend.workers.jobs import dispatch_job
 
 
 def test_brief_process_payload_matches_contract() -> None:
@@ -280,3 +287,198 @@ def test_analysis_payload_uses_collection_run_id_only() -> None:
     dumped = payload.model_dump(mode="json")
 
     assert set(dumped) == {"collection_run_id", "requested_by"}
+
+
+def test_community_join_payload_matches_contract() -> None:
+    community_id = uuid4()
+    telegram_account_id = uuid4()
+    payload = CommunityJoinPayload(
+        community_id=community_id,
+        telegram_account_id=telegram_account_id,
+        requested_by="operator",
+    )
+
+    dumped = payload.model_dump(mode="json")
+
+    assert dumped == {
+        "community_id": str(community_id),
+        "telegram_account_id": str(telegram_account_id),
+        "requested_by": "operator",
+    }
+
+
+def test_engagement_detect_payload_matches_contract_defaults() -> None:
+    community_id = uuid4()
+    payload = EngagementDetectPayload(community_id=community_id)
+
+    dumped = payload.model_dump(mode="json")
+
+    assert dumped == {
+        "community_id": str(community_id),
+        "window_minutes": 60,
+        "requested_by": None,
+    }
+
+
+def test_engagement_send_payload_matches_contract() -> None:
+    candidate_id = uuid4()
+    payload = EngagementSendPayload(candidate_id=candidate_id, approved_by="operator")
+
+    dumped = payload.model_dump(mode="json")
+
+    assert dumped == {
+        "candidate_id": str(candidate_id),
+        "approved_by": "operator",
+    }
+
+
+def test_enqueue_community_join_uses_default_queue(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_enqueue_job(
+        job_type: str,
+        payload: dict[str, object],
+        *,
+        queue_name: str,
+        job_id: str | None = None,
+    ) -> QueuedJob:
+        captured.update(
+            {
+                "job_type": job_type,
+                "payload": payload,
+                "queue_name": queue_name,
+                "job_id": job_id,
+            }
+        )
+        return QueuedJob(id="job-5", type=job_type)
+
+    monkeypatch.setattr("backend.queue.client.enqueue_job", fake_enqueue_job)
+    community_id = uuid4()
+    telegram_account_id = uuid4()
+
+    job = enqueue_community_join(
+        community_id,
+        requested_by="operator",
+        telegram_account_id=telegram_account_id,
+    )
+
+    assert job == QueuedJob(id="job-5", type="community.join")
+    assert captured == {
+        "job_type": "community.join",
+        "payload": {
+            "community_id": str(community_id),
+            "telegram_account_id": str(telegram_account_id),
+            "requested_by": "operator",
+        },
+        "queue_name": "default",
+        "job_id": None,
+    }
+
+
+def test_enqueue_engagement_detect_uses_engagement_queue(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_enqueue_job(
+        job_type: str,
+        payload: dict[str, object],
+        *,
+        queue_name: str,
+        job_id: str | None = None,
+    ) -> QueuedJob:
+        captured.update(
+            {
+                "job_type": job_type,
+                "payload": payload,
+                "queue_name": queue_name,
+                "job_id": job_id,
+            }
+        )
+        return QueuedJob(id="job-6", type=job_type)
+
+    monkeypatch.setattr("backend.queue.client.enqueue_job", fake_enqueue_job)
+    community_id = uuid4()
+
+    job = enqueue_engagement_detect(community_id, window_minutes=30, requested_by="operator")
+
+    assert job == QueuedJob(id="job-6", type="engagement.detect")
+    assert captured["job_type"] == "engagement.detect"
+    assert captured["payload"] == {
+        "community_id": str(community_id),
+        "window_minutes": 30,
+        "requested_by": "operator",
+    }
+    assert captured["queue_name"] == "engagement"
+    assert str(captured["job_id"]).startswith(f"engagement.detect:{community_id}:")
+
+
+def test_enqueue_engagement_send_uses_engagement_queue(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_enqueue_job(
+        job_type: str,
+        payload: dict[str, object],
+        *,
+        queue_name: str,
+        job_id: str | None = None,
+    ) -> QueuedJob:
+        captured.update(
+            {
+                "job_type": job_type,
+                "payload": payload,
+                "queue_name": queue_name,
+                "job_id": job_id,
+            }
+        )
+        return QueuedJob(id="job-7", type=job_type)
+
+    monkeypatch.setattr("backend.queue.client.enqueue_job", fake_enqueue_job)
+    candidate_id = uuid4()
+
+    job = enqueue_engagement_send(candidate_id, approved_by="operator")
+
+    assert job == QueuedJob(id="job-7", type="engagement.send")
+    assert captured == {
+        "job_type": "engagement.send",
+        "payload": {
+            "candidate_id": str(candidate_id),
+            "approved_by": "operator",
+        },
+        "queue_name": "engagement",
+        "job_id": f"engagement.send:{candidate_id}",
+    }
+
+
+def test_dispatch_recognizes_engagement_job_types(monkeypatch) -> None:
+    monkeypatch.setattr("backend.workers.jobs.set_job_status", lambda *_args: None)
+    community_id = str(uuid4())
+    candidate_id = str(uuid4())
+
+    assert dispatch_job(
+        "community.join",
+        {
+            "community_id": community_id,
+            "telegram_account_id": None,
+            "requested_by": "operator",
+        },
+    ) == {
+        "status": "stubbed",
+        "job_type": "community.join",
+        "payload": {
+            "community_id": community_id,
+            "telegram_account_id": None,
+            "requested_by": "operator",
+        },
+    }
+    assert dispatch_job(
+        "engagement.detect",
+        {"community_id": community_id, "window_minutes": 60, "requested_by": None},
+    ) == {
+        "status": "stubbed",
+        "job_type": "engagement.detect",
+        "payload": {"community_id": community_id, "window_minutes": 60, "requested_by": None},
+    }
+    assert dispatch_job("engagement.send", {"candidate_id": candidate_id, "approved_by": "op"}) == {
+        "status": "stubbed",
+        "job_type": "engagement.send",
+        "payload": {"candidate_id": candidate_id, "approved_by": "op"},
+    }

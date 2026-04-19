@@ -385,3 +385,10 @@ Added engagement status enums, SQLAlchemy models, and an Alembic migration for c
 settings, account memberships, topics, candidate replies, and outbound action audit logs. Added
 schema tests for enum values, defaults, uniqueness constraints, indexes, and PostgreSQL DDL
 compilation. Marked the schema foundation slice complete in the engagement plan.
+
+## [2026-04-19] code | Added engagement queue contracts
+
+Added queue payloads, enqueue helpers, retry policies, deterministic engagement job IDs, and worker
+dispatch stubs for `community.join`, `engagement.detect`, and `engagement.send`. Added queue
+contract tests for JSON serialization, queue placement, job IDs, and dispatcher recognition. Marked
+the queue contracts slice complete in the engagement plan.
