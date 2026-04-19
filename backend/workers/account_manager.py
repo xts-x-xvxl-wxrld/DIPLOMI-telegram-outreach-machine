@@ -88,6 +88,54 @@ async def acquire_account(
     )
 
 
+async def acquire_account_by_id(
+    session: AsyncSession,
+    *,
+    account_id: UUID,
+    job_id: str,
+    purpose: AccountPurpose,
+    lease_seconds: int = 900,
+    now: datetime | None = None,
+) -> AccountLease:
+    validate_account_purpose(purpose)
+
+    current_time = now or utcnow()
+    await recover_stale_leases(session, now=current_time)
+
+    account = await session.scalar(
+        select(TelegramAccount)
+        .where(
+            TelegramAccount.id == account_id,
+            or_(
+                TelegramAccount.status == AccountStatus.AVAILABLE.value,
+                and_(
+                    TelegramAccount.status == AccountStatus.RATE_LIMITED.value,
+                    TelegramAccount.flood_wait_until <= current_time,
+                ),
+            ),
+        )
+        .with_for_update(skip_locked=True)
+        .limit(1)
+    )
+    if account is None:
+        raise NoAccountAvailable("Requested Telegram account is not available")
+
+    lease_expires_at = current_time + timedelta(seconds=lease_seconds)
+    account.status = AccountStatus.IN_USE.value
+    account.lease_owner = job_id
+    account.lease_expires_at = lease_expires_at
+    account.last_used_at = current_time
+    await session.flush()
+
+    return AccountLease(
+        account_id=account.id,
+        phone=account.phone,
+        session_file_path=account.session_file_path,
+        lease_owner=job_id,
+        lease_expires_at=lease_expires_at,
+    )
+
+
 async def release_account(
     session: AsyncSession,
     *,

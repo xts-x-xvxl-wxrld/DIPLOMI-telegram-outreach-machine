@@ -59,6 +59,8 @@
 - `backend/api/routes/engagement.py` - engagement settings and topic-management API endpoints
 - `backend/api/routes/telegram_entities.py` - direct Telegram handle intake API endpoints
 - `backend/services/community_engagement.py` - engagement settings and topic validation/state service
+- `backend/workers/community_join.py` - `community.join` orchestration with membership and audit updates
+- `backend/workers/telegram_engagement.py` - fakeable Telethon adapter for engagement joins and future sends
 - `backend/services/seed_import.py` - CSV parsing and seed-group upsert logic
 - `backend/services/telegram_entity_intake.py` - direct Telegram handle intake persistence and classification rules
 - `backend/services/seed_resolution.py` - manual seed resolver persistence and fakeable adapter contract

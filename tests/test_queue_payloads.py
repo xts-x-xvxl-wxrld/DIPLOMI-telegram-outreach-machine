@@ -450,6 +450,10 @@ def test_enqueue_engagement_send_uses_engagement_queue(monkeypatch) -> None:
 
 def test_dispatch_recognizes_engagement_job_types(monkeypatch) -> None:
     monkeypatch.setattr("backend.workers.jobs.set_job_status", lambda *_args: None)
+    monkeypatch.setattr(
+        "backend.workers.jobs.run_community_join",
+        lambda payload: {"status": "processed", "job_type": "community.join", "payload": payload},
+    )
     community_id = str(uuid4())
     candidate_id = str(uuid4())
 
@@ -461,7 +465,7 @@ def test_dispatch_recognizes_engagement_job_types(monkeypatch) -> None:
             "requested_by": "operator",
         },
     ) == {
-        "status": "stubbed",
+        "status": "processed",
         "job_type": "community.join",
         "payload": {
             "community_id": community_id,

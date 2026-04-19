@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from backend.workers.brief_process import run_brief_process_job
+from backend.workers.community_join import run_community_join_job
 from backend.workers.community_collect import run_collection_job
 from backend.workers.seed_expand import run_seed_expand_job
 from backend.workers.seed_resolve import run_seed_resolve_job
@@ -66,7 +67,7 @@ def run_analysis(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_community_join(payload: dict[str, Any]) -> dict[str, Any]:
-    return {"status": "stubbed", "job_type": "community.join", "payload": payload}
+    return run_community_join_job(payload)
 
 
 def run_engagement_detect(payload: dict[str, Any]) -> dict[str, Any]:

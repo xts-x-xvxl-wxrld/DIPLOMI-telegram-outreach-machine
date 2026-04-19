@@ -156,7 +156,7 @@ Acceptance:
 
 ## Slice 6: Join Worker
 
-Status: planned.
+Status: completed.
 
 Implement `community.join`:
 

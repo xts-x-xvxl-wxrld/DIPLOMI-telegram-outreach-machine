@@ -9,8 +9,19 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.db.enums import AccountStatus, CommunityStatus, EngagementMode
-from backend.db.models import Community, CommunityEngagementSettings, EngagementTopic, TelegramAccount
+from backend.db.enums import (
+    AccountStatus,
+    CommunityAccountMembershipStatus,
+    CommunityStatus,
+    EngagementMode,
+)
+from backend.db.models import (
+    Community,
+    CommunityAccountMembership,
+    CommunityEngagementSettings,
+    EngagementTopic,
+    TelegramAccount,
+)
 
 
 class EngagementServiceError(ValueError):
@@ -211,6 +222,102 @@ async def list_topics(db: AsyncSession) -> list[EngagementTopic]:
     return list(rows)
 
 
+async def mark_join_requested(
+    db: AsyncSession,
+    *,
+    community_id: UUID,
+    telegram_account_id: UUID,
+) -> CommunityAccountMembership:
+    now = _utcnow()
+    membership = await _get_membership(
+        db,
+        community_id=community_id,
+        telegram_account_id=telegram_account_id,
+    )
+    if membership is None:
+        membership = CommunityAccountMembership(
+            id=uuid.uuid4(),
+            community_id=community_id,
+            telegram_account_id=telegram_account_id,
+            created_at=now,
+        )
+        db.add(membership)
+    elif membership.status == CommunityAccountMembershipStatus.BANNED.value:
+        raise EngagementValidationError(
+            "membership_banned",
+            "This account is banned from the community until an operator resets it",
+        )
+
+    membership.status = CommunityAccountMembershipStatus.JOIN_REQUESTED.value
+    membership.last_checked_at = now
+    membership.last_error = None
+    membership.updated_at = now
+    await db.flush()
+    return membership
+
+
+async def mark_join_result(
+    db: AsyncSession,
+    *,
+    community_id: UUID,
+    telegram_account_id: UUID,
+    status: str,
+    joined_at: datetime | None,
+    error_message: str | None,
+) -> CommunityAccountMembership:
+    allowed_statuses = {
+        CommunityAccountMembershipStatus.JOINED.value,
+        CommunityAccountMembershipStatus.FAILED.value,
+        CommunityAccountMembershipStatus.BANNED.value,
+    }
+    if status not in allowed_statuses:
+        raise EngagementValidationError(
+            "invalid_membership_status",
+            "Join result status must be joined, failed, or banned",
+        )
+
+    now = _utcnow()
+    membership = await _get_membership(
+        db,
+        community_id=community_id,
+        telegram_account_id=telegram_account_id,
+    )
+    if membership is None:
+        membership = CommunityAccountMembership(
+            id=uuid.uuid4(),
+            community_id=community_id,
+            telegram_account_id=telegram_account_id,
+            created_at=now,
+        )
+        db.add(membership)
+
+    membership.status = status
+    membership.joined_at = joined_at if status == CommunityAccountMembershipStatus.JOINED.value else None
+    if status == CommunityAccountMembershipStatus.JOINED.value and membership.joined_at is None:
+        membership.joined_at = now
+    membership.last_checked_at = now
+    membership.last_error = error_message
+    membership.updated_at = now
+    await db.flush()
+    return membership
+
+
+async def get_joined_membership_for_send(
+    db: AsyncSession,
+    *,
+    community_id: UUID,
+) -> CommunityAccountMembership | None:
+    return await db.scalar(
+        select(CommunityAccountMembership)
+        .where(
+            CommunityAccountMembership.community_id == community_id,
+            CommunityAccountMembership.status == CommunityAccountMembershipStatus.JOINED.value,
+        )
+        .order_by(CommunityAccountMembership.joined_at.asc().nullslast())
+        .limit(1)
+    )
+
+
 def normalize_keywords(values: list[str] | None) -> list[str]:
     normalized: list[str] = []
     seen: set[str] = set()
@@ -379,6 +486,22 @@ def _settings_view(settings: CommunityEngagementSettings) -> EngagementSettingsV
         assigned_account_id=settings.assigned_account_id,
         created_at=settings.created_at,
         updated_at=settings.updated_at,
+    )
+
+
+async def _get_membership(
+    db: AsyncSession,
+    *,
+    community_id: UUID,
+    telegram_account_id: UUID,
+) -> CommunityAccountMembership | None:
+    return await db.scalar(
+        select(CommunityAccountMembership)
+        .where(
+            CommunityAccountMembership.community_id == community_id,
+            CommunityAccountMembership.telegram_account_id == telegram_account_id,
+        )
+        .limit(1)
     )
 
 

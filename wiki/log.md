@@ -408,3 +408,12 @@ default, enforce MVP approval and reply-only safety gates, and reject joining/po
 unapproved communities. Topic creation and updates normalize keywords, preserve guidance/example
 fields, reject active topics without triggers, and block unsafe guidance. Updated the wiki index and
 marked the API settings and topics slice complete.
+
+## [2026-04-19] code | Added community join worker
+
+Implemented the `community.join` worker, engagement membership state helpers, account selection for
+requested/assigned/joined accounts, and a fakeable Telethon engagement adapter. Join attempts now
+write audit actions, update durable membership state, release account leases with success,
+rate-limited, banned, or error outcomes, and skip safely when joins are not enabled. Added worker
+tests for success, already joined, inaccessible communities, FloodWait, banned sessions, and
+disabled joins. Marked the join worker slice complete in the engagement plan.
