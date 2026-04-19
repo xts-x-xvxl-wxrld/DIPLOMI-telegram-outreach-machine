@@ -487,3 +487,12 @@ home summary, settings, topics, queued jobs, audit rows, and approved candidate 
 Expanded callback helpers for all planned `eng:*` namespaces, safe preset and paging markups, and
 an Engagement reply-keyboard entrypoint. Added focused bot client, formatting, and callback tests;
 the full Python suite now passes.
+
+## [2026-04-19] code | Added engagement cockpit and send flow
+
+Added `/engagement` as a bot cockpit that summarizes pending, approved, failed, and active-topic
+counts from API client calls. Made `/engagement_candidates [status]` status-aware, exposed
+`Queue send` only for approved candidates, added `/send_reply <candidate_id>` plus the matching
+inline send callback, and kept approval separate from send enqueueing. Added focused fake-client bot
+handler tests for the cockpit, approved send controls, approval next-step markup, and send job
+queueing.

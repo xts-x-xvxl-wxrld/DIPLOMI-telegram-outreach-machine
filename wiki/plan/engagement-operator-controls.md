@@ -207,7 +207,7 @@ Acceptance:
 
 ## Slice 3: Engagement Home And Candidate Send Flow
 
-Status: planned.
+Status: completed.
 
 Add `/engagement` as the operator cockpit.
 
@@ -233,6 +233,16 @@ Acceptance:
 - Unapproved candidates do not expose a send button.
 - Send job response includes job ID and refresh button.
 - Tests cover command handlers and inline callbacks with a fake bot API client.
+
+Completed notes:
+
+- `/engagement` now builds the cockpit from candidate status totals and active topic count.
+- `/engagement_candidates [status]` supports `needs_review`, `approved`, `failed`, `sent`, and
+  `rejected` views.
+- Approved candidates expose `Queue send`; pending and failed candidates expose review controls.
+- `/send_reply <candidate_id>` and `eng:cand:send:<candidate_id>` queue `engagement.send` through
+  the bot API client only.
+- Approval returns a send button without enqueueing send automatically.
 
 ## Slice 4: Community Settings And Manual Jobs
 

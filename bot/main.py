@@ -19,6 +19,8 @@ from bot.formatting import (
     format_engagement_candidate_card,
     format_engagement_candidate_review,
     format_engagement_candidates,
+    format_engagement_home,
+    format_engagement_job_response,
     format_job_status,
     format_member_export,
     format_members,
@@ -41,7 +43,9 @@ from bot.ui import (
     ACTION_COMMUNITY_MEMBERS,
     ACTION_ENGAGEMENT_APPROVE,
     ACTION_ENGAGEMENT_CANDIDATES,
+    ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_REJECT,
+    ACTION_ENGAGEMENT_SEND,
     ACTION_JOB_STATUS,
     ACTION_OPEN_COMMUNITY,
     ACTION_OPEN_SEED_GROUP,
@@ -55,7 +59,11 @@ from bot.ui import (
     candidate_actions_markup,
     community_actions_markup,
     engagement_candidate_actions_markup,
+    engagement_candidate_filter_markup,
     engagement_candidate_pager_markup,
+    engagement_candidate_send_markup,
+    engagement_home_markup,
+    engagement_job_markup,
     job_actions_markup,
     main_menu_markup,
     member_pager_markup,
@@ -72,6 +80,7 @@ CHANNEL_PAGE_SIZE = 5
 MEMBER_PAGE_SIZE = 10
 MEMBER_EXPORT_PAGE_SIZE = 1000
 ENGAGEMENT_CANDIDATE_PAGE_SIZE = 5
+ENGAGEMENT_CANDIDATE_STATUSES = {"needs_review", "approved", "failed", "sent", "rejected"}
 
 
 async def start_command(update: Any, context: Any) -> None:
@@ -266,8 +275,16 @@ async def exportmembers_command(update: Any, context: Any) -> None:
 
 
 async def engagement_candidates_command(update: Any, context: Any) -> None:
+    status = _engagement_candidate_status_arg(context)
     try:
-        await _send_engagement_candidates(update, context, offset=0)
+        await _send_engagement_candidates(update, context, status=status, offset=0)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def engagement_command(update: Any, context: Any) -> None:
+    try:
+        await _send_engagement_home(update, context)
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
 
@@ -302,6 +319,18 @@ async def reject_reply_command(update: Any, context: Any) -> None:
             candidate_id,
             action="reject",
         )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def send_reply_command(update: Any, context: Any) -> None:
+    candidate_id = _first_arg(context)
+    if candidate_id is None:
+        await _reply(update, "Usage: /send_reply <candidate_id>")
+        return
+
+    try:
+        await _send_engagement_reply(update, context, candidate_id)
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
 
@@ -411,8 +440,12 @@ async def callback_query(update: Any, context: Any) -> None:
         if action == ACTION_JOB_STATUS and len(parts) == 1:
             await _send_job_status(update, context, parts[0])
             return
+        if action == ACTION_ENGAGEMENT_HOME:
+            await _send_engagement_home(update, context)
+            return
         if action == ACTION_ENGAGEMENT_CANDIDATES and parts:
-            await _send_engagement_candidates(update, context, offset=_parse_offset(parts[-1]))
+            status, offset = _engagement_callback_status_and_offset(parts)
+            await _send_engagement_candidates(update, context, status=status, offset=offset)
             return
         if action == ACTION_ENGAGEMENT_APPROVE and len(parts) == 1:
             await _review_engagement_candidate(
@@ -431,6 +464,9 @@ async def callback_query(update: Any, context: Any) -> None:
                 action="reject",
                 edit_callback=True,
             )
+            return
+        if action == ACTION_ENGAGEMENT_SEND and len(parts) == 1:
+            await _send_engagement_reply(update, context, parts[0])
             return
         if action in {ACTION_APPROVE_COMMUNITY, ACTION_REJECT_COMMUNITY} and len(parts) == 1:
             decision = "approve" if action == ACTION_APPROVE_COMMUNITY else "reject"
@@ -604,28 +640,73 @@ async def _send_community_members(
     )
 
 
-async def _send_engagement_candidates(update: Any, context: Any, *, offset: int) -> None:
+async def _send_engagement_home(update: Any, context: Any) -> None:
+    client = _api_client(context)
+    pending = await client.list_engagement_candidates(
+        status="needs_review",
+        limit=1,
+        offset=0,
+    )
+    approved = await client.list_engagement_candidates(
+        status="approved",
+        limit=1,
+        offset=0,
+    )
+    failed = await client.list_engagement_candidates(
+        status="failed",
+        limit=1,
+        offset=0,
+    )
+    topics = await client.list_engagement_topics()
+    active_topic_count = sum(1 for topic in topics.get("items") or [] if topic.get("active"))
+    data = {
+        "pending_reply_count": pending.get("total", 0),
+        "approved_reply_count": approved.get("total", 0),
+        "failed_candidate_count": failed.get("total", 0),
+        "active_topic_count": active_topic_count,
+    }
+    await _callback_reply(update, format_engagement_home(data), reply_markup=engagement_home_markup())
+
+
+async def _send_engagement_candidates(
+    update: Any,
+    context: Any,
+    *,
+    status: str,
+    offset: int,
+) -> None:
     client = _api_client(context)
     data = await client.list_engagement_candidates(
+        status=status,
         limit=ENGAGEMENT_CANDIDATE_PAGE_SIZE,
         offset=offset,
     )
     await _callback_reply(
         update,
-        format_engagement_candidates(data, offset=offset),
-        reply_markup=engagement_candidate_pager_markup(
-            offset=offset,
-            total=data.get("total", 0),
-            page_size=ENGAGEMENT_CANDIDATE_PAGE_SIZE,
-        ),
+        format_engagement_candidates(data, offset=offset, status=status),
+        reply_markup=engagement_candidate_filter_markup(status=status),
     )
     for index, item in enumerate(data.get("items") or [], start=offset + 1):
         candidate_id = str(item.get("id", "unknown"))
+        candidate_status = str(item.get("status") or status)
+        reply_markup = None
+        if candidate_status == "approved":
+            reply_markup = engagement_candidate_send_markup(candidate_id)
+        elif candidate_status in {"needs_review", "failed"}:
+            reply_markup = engagement_candidate_actions_markup(candidate_id)
         await _callback_reply(
             update,
             format_engagement_candidate_card(item, index=index),
-            reply_markup=engagement_candidate_actions_markup(candidate_id),
+            reply_markup=reply_markup,
         )
+    pager_markup = engagement_candidate_pager_markup(
+        offset=offset,
+        total=data.get("total", 0),
+        page_size=ENGAGEMENT_CANDIDATE_PAGE_SIZE,
+        status=status,
+    )
+    if pager_markup is not None:
+        await _callback_reply(update, "Reply page controls", reply_markup=pager_markup)
 
 
 async def _review_engagement_candidate(
@@ -644,10 +725,31 @@ async def _review_engagement_candidate(
         data = await client.reject_engagement_candidate(candidate_id, reviewed_by=reviewer)
 
     message = format_engagement_candidate_review(action, data)
+    reply_markup = None
+    if data.get("status") == "approved":
+        reply_markup = engagement_candidate_send_markup(candidate_id)
     if edit_callback:
-        await _edit_callback_message(update, message)
+        await _edit_callback_message(update, message, reply_markup=reply_markup)
         return
-    await _reply(update, message)
+    await _reply(update, message, reply_markup=reply_markup)
+
+
+async def _send_engagement_reply(update: Any, context: Any, candidate_id: str) -> None:
+    client = _api_client(context)
+    data = await client.send_engagement_candidate(
+        candidate_id,
+        approved_by=_reviewer_label(update),
+    )
+    job_id = str((data.get("job") or {}).get("id", "unknown"))
+    await _callback_reply(
+        update,
+        format_engagement_job_response(
+            data,
+            label="Reply send",
+            candidate_id=candidate_id,
+        ),
+        reply_markup=engagement_job_markup(job_id, candidate_id=candidate_id),
+    )
 
 
 async def _start_seed_group_resolution(update: Any, context: Any, seed_group_id: str) -> None:
@@ -743,16 +845,18 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("collect", collect_command))
     application.add_handler(CommandHandler("members", members_command))
     application.add_handler(CommandHandler("exportmembers", exportmembers_command))
+    application.add_handler(CommandHandler("engagement", engagement_command))
     application.add_handler(CommandHandler("engagement_candidates", engagement_candidates_command))
     application.add_handler(CommandHandler("approve_reply", approve_reply_command))
     application.add_handler(CommandHandler("reject_reply", reject_reply_command))
+    application.add_handler(CommandHandler("send_reply", send_reply_command))
     application.add_handler(CallbackQueryHandler(callback_query))
     application.add_handler(MessageHandler(filters.Regex(f"^{SEEDS_MENU_LABEL}$"), seeds_command))
     application.add_handler(
         MessageHandler(filters.Regex(f"^{ACCOUNTS_MENU_LABEL}$"), accounts_command)
     )
     application.add_handler(
-        MessageHandler(filters.Regex(f"^{ENGAGEMENT_MENU_LABEL}$"), engagement_candidates_command)
+        MessageHandler(filters.Regex(f"^{ENGAGEMENT_MENU_LABEL}$"), engagement_command)
     )
     application.add_handler(MessageHandler(filters.Regex(f"^{HELP_MENU_LABEL}$"), help_command))
     application.add_handler(MessageHandler(filters.Document.FileExtension("csv"), seed_csv_document))
@@ -780,6 +884,21 @@ def _second_arg_as_offset(context: Any) -> int:
     if len(context.args) < 2:
         return 0
     return _parse_offset(context.args[1])
+
+
+def _engagement_candidate_status_arg(context: Any) -> str:
+    status = _first_arg(context) or "needs_review"
+    if status not in ENGAGEMENT_CANDIDATE_STATUSES:
+        return "needs_review"
+    return status
+
+
+def _engagement_callback_status_and_offset(parts: list[str]) -> tuple[str, int]:
+    if len(parts) >= 2:
+        raw_status = parts[0]
+        status = raw_status if raw_status in ENGAGEMENT_CANDIDATE_STATUSES else "needs_review"
+        return status, _parse_offset(parts[1])
+    return "needs_review", _parse_offset(parts[0])
 
 
 def _candidate_community(item: dict[str, Any]) -> dict[str, Any]:

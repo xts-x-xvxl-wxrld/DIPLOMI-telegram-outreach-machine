@@ -80,6 +80,7 @@
 - `tests/test_engagement_schema.py` - engagement schema enum/default/constraint/index tests
 - `tests/test_engagement_detect_worker.py` - engagement detection worker prefiltering, candidate creation, and dedupe tests
 - `tests/test_engagement_send_worker.py` - engagement send worker preflight, rate-limit, idempotency, and Telethon error-mapping tests
+- `tests/test_bot_engagement_handlers.py` - engagement cockpit, candidate status, approve-to-send, and send callback bot tests
 - `scripts/` - local developer workflow helpers
 - `backend/` - FastAPI app, SQLAlchemy models, queue helpers, worker stubs
 - `bot/` - Telegram bot package placeholder
