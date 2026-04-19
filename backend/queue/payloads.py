@@ -63,6 +63,11 @@ class CommunityJoinPayload(BaseModel):
     requested_by: str
 
 
+class EngagementTargetResolvePayload(BaseModel):
+    target_id: UUID
+    requested_by: str
+
+
 class EngagementDetectPayload(BaseModel):
     community_id: UUID
     window_minutes: int = Field(default=60, ge=1)

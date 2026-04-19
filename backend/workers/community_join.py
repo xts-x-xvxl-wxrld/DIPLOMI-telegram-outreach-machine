@@ -21,6 +21,7 @@ from backend.queue.payloads import CommunityJoinPayload
 from backend.services.community_engagement import (
     get_engagement_settings,
     get_joined_membership_for_send,
+    has_engagement_target_permission,
     mark_join_requested,
     mark_join_result,
 )
@@ -77,6 +78,12 @@ async def process_community_join(
             settings = await get_engagement_settings(session, validated_payload.community_id)
             if settings.mode == EngagementMode.DISABLED.value or not settings.allow_join:
                 return _skipped("join_not_allowed", validated_payload.community_id)
+            if not await has_engagement_target_permission(
+                session,
+                community_id=validated_payload.community_id,
+                permission="join",
+            ):
+                return _skipped("engagement_target_join_not_approved", validated_payload.community_id)
             if community.status not in {CommunityStatus.APPROVED.value, CommunityStatus.MONITORING.value}:
                 return _skipped("community_not_approved", validated_payload.community_id)
 

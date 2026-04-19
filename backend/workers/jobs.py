@@ -8,6 +8,7 @@ from backend.workers.community_join import run_community_join_job
 from backend.workers.community_collect import run_collection_job
 from backend.workers.engagement_detect import run_engagement_detect_job
 from backend.workers.engagement_send import run_engagement_send_job
+from backend.workers.engagement_target_resolve import run_engagement_target_resolve_job
 from backend.workers.seed_expand import run_seed_expand_job
 from backend.workers.seed_resolve import run_seed_resolve_job
 from backend.workers.telegram_entity_resolve import run_telegram_entity_resolve_job
@@ -25,6 +26,7 @@ def dispatch_job(job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         "collection.run": run_collection,
         "analysis.run": run_analysis,
         "community.join": run_community_join,
+        "engagement_target.resolve": run_engagement_target_resolve,
         "engagement.detect": run_engagement_detect,
         "engagement.send": run_engagement_send,
     }
@@ -70,6 +72,10 @@ def run_analysis(payload: dict[str, Any]) -> dict[str, Any]:
 
 def run_community_join(payload: dict[str, Any]) -> dict[str, Any]:
     return run_community_join_job(payload)
+
+
+def run_engagement_target_resolve(payload: dict[str, Any]) -> dict[str, Any]:
+    return run_engagement_target_resolve_job(payload)
 
 
 def run_engagement_detect(payload: dict[str, Any]) -> dict[str, Any]:

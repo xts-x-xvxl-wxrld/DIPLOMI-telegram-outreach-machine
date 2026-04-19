@@ -14,6 +14,7 @@ from backend.queue.payloads import (
     DiscoveryPayload,
     EngagementDetectPayload,
     EngagementSendPayload,
+    EngagementTargetResolvePayload,
     ExpansionPayload,
     SeedExpandPayload,
     SeedResolvePayload,
@@ -172,6 +173,20 @@ def enqueue_community_join(
     return enqueue_job("community.join", payload.model_dump(mode="json"), queue_name="default")
 
 
+def enqueue_engagement_target_resolve(
+    target_id: UUID,
+    *,
+    requested_by: str,
+) -> QueuedJob:
+    payload = EngagementTargetResolvePayload(target_id=target_id, requested_by=requested_by)
+    return enqueue_job(
+        "engagement_target.resolve",
+        payload.model_dump(mode="json"),
+        queue_name="engagement",
+        job_id=f"engagement_target.resolve:{target_id}",
+    )
+
+
 def enqueue_engagement_detect(
     community_id: UUID,
     *,
@@ -306,6 +321,8 @@ def _retry_for(job_type: str, Retry):
         return Retry(max=3, interval=[60, 300, 1800])
     if job_type == "community.join":
         return Retry(max=2, interval=[600, 3600])
+    if job_type == "engagement_target.resolve":
+        return Retry(max=3, interval=[300, 900, 3600])
     if job_type == "engagement.detect":
         return Retry(max=2, interval=[300, 900])
     if job_type == "engagement.send":

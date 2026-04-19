@@ -21,7 +21,7 @@ The API enqueues jobs. Workers consume jobs, write durable state to Postgres, an
 | `default` | seed resolution, seed batch expansion, direct handle classification, optional brief processing, optional discovery, expansion | Normal |
 | `scheduled` | recurring collection | Lower |
 | `analysis` | analysis jobs | Normal, isolated from Telegram account usage |
-| `engagement` | optional topic detection and operator-approved sends | Conservative, isolated outbound behavior |
+| `engagement` | engagement target resolution, optional topic detection, and operator-approved sends | Conservative, isolated outbound behavior |
 
 Analysis has its own queue because it uses OpenAI API calls and does not need Telegram accounts.
 
@@ -362,6 +362,42 @@ Rules:
 - Do not join multiple accounts unless the operator explicitly requests it.
 - Record membership state and account outcomes through the engagement and account-manager specs.
 
+### `engagement_target.resolve`
+
+Engagement-specific resolver for manually submitted targets. It may reuse the Telegram entity
+resolver adapter, but it writes `engagement_targets` state and must not write seed rows.
+
+Payload:
+
+```json
+{
+  "target_id": "uuid",
+  "requested_by": "telegram_user_id_or_operator"
+}
+```
+
+Uses:
+
+- `account_manager.acquire_account(purpose="engagement_target_resolve")`
+
+Reads:
+
+- `engagement_targets`
+
+Writes:
+
+- `engagement_targets.status`
+- `engagement_targets.community_id`
+- `engagement_targets.last_error`
+- `communities` for resolved channels/groups
+
+Rules:
+
+- No OpenAI calls.
+- No seed groups or seed channels are created.
+- Users and bots fail the target as non-community entities.
+- Resolved communities still require explicit target approval before join/detect/send.
+
 ### `engagement.detect`
 
 Optional future job for the engagement module. It detects an approved topic moment and creates a
@@ -582,6 +618,7 @@ Before enqueueing collection, the scheduler checks whether an active RQ job alre
 | `collection.run` | 2 | 10m, 30m | Scheduler will also retry on future ticks. |
 | `analysis.run` | 3 | 1m, 5m, 30m | OpenAI/network failures. |
 | `community.join` | 2 | 10m, 60m | Telegram account and community access failures. |
+| `engagement_target.resolve` | 3 | 5m, 15m, 60m | Telegram account and network failures. |
 | `engagement.detect` | 2 | 5m, 15m | OpenAI/network failures; scheduler can retry on future ticks. |
 | `engagement.send` | 1 | 10m | Operator-approved outbound action; avoid repeated sends. |
 
@@ -645,6 +682,7 @@ The API may read RQ job metadata for operator-facing debug output. Durable busin
 - Discovery may call configured source adapters, not OpenAI or raw message collection.
 - Seed resolution may call Telethon and uses the account manager.
 - Direct handle classification may call Telethon and uses the account manager.
+- Engagement target resolution may call Telethon and uses the account manager.
 - Seed batch expansion may call Telethon and uses the account manager.
 - Expansion may call Telethon and uses the account manager.
 - Collection may call Telethon and uses the account manager.

@@ -34,6 +34,8 @@ from backend.db.enums import (
     EngagementActionType,
     EngagementCandidateStatus,
     EngagementMode,
+    EngagementTargetRefType,
+    EngagementTargetStatus,
     SeedChannelStatus,
     TelegramEntityIntakeStatus,
 )
@@ -415,6 +417,44 @@ class CommunityEngagementSettings(Base):
 
     community: Mapped[Community] = relationship()
     assigned_account: Mapped[TelegramAccount | None] = relationship()
+
+
+class EngagementTarget(Base):
+    __tablename__ = "engagement_targets"
+    __table_args__ = (
+        UniqueConstraint("community_id"),
+        Index("ix_engagement_targets_community_id", "community_id"),
+        Index("ix_engagement_targets_status", "status"),
+        Index("ix_engagement_targets_submitted_ref", "submitted_ref"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    community_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("communities.id"))
+    submitted_ref: Mapped[str] = mapped_column(Text, nullable=False)
+    submitted_ref_type: Mapped[str] = mapped_column(
+        Text,
+        default=EngagementTargetRefType.TELEGRAM_USERNAME.value,
+        server_default=EngagementTargetRefType.TELEGRAM_USERNAME.value,
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(
+        Text,
+        default=EngagementTargetStatus.PENDING.value,
+        server_default=EngagementTargetStatus.PENDING.value,
+        nullable=False,
+    )
+    allow_join: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    allow_detect: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    allow_post: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+    added_by: Mapped[str] = mapped_column(Text, nullable=False)
+    approved_by: Mapped[str | None] = mapped_column(Text)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    community: Mapped[Community | None] = relationship()
 
 
 class CommunityAccountMembership(Base):

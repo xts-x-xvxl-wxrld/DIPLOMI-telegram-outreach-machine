@@ -11,6 +11,7 @@ from backend.db.enums import (
     EngagementActionStatus,
     EngagementCandidateStatus,
     EngagementMode,
+    EngagementTargetStatus,
 )
 from backend.db.models import (
     Community,
@@ -18,6 +19,7 @@ from backend.db.models import (
     CommunityEngagementSettings,
     EngagementAction,
     EngagementCandidate,
+    EngagementTarget,
     EngagementTopic,
 )
 from backend.workers.account_manager import AccountLease
@@ -79,6 +81,36 @@ async def test_engagement_send_skips_when_settings_are_missing_or_disabled() -> 
 
     assert result["status"] == "skipped"
     assert result["reason"] == "posting_not_allowed"
+    assert acquire_called is False
+    assert session.action is None
+
+
+@pytest.mark.asyncio
+async def test_engagement_send_skips_without_approved_engagement_target() -> None:
+    community = _community()
+    account_id = uuid4()
+    candidate = _candidate(community)
+    session = _send_session(
+        community=community,
+        candidate=candidate,
+        membership=_membership(community.id, account_id),
+        target=None,
+    )
+    acquire_called = False
+
+    async def fake_acquire(*args: object, **kwargs: object) -> AccountLease:
+        nonlocal acquire_called
+        acquire_called = True
+        raise AssertionError("account acquisition should not run")
+
+    result = await process_engagement_send(
+        {"candidate_id": str(candidate.id), "approved_by": "op"},
+        session_factory=lambda: session,
+        acquire_account_by_id_fn=fake_acquire,
+    )
+
+    assert result["status"] == "skipped"
+    assert result["reason"] == "engagement_target_post_not_approved"
     assert acquire_called is False
     assert session.action is None
 
@@ -336,12 +368,14 @@ class FakeSession:
         community: Community,
         settings: CommunityEngagementSettings | None,
         candidate: EngagementCandidate,
+        target: EngagementTarget | None | bool = True,
         membership: CommunityAccountMembership | None = None,
         action: EngagementAction | None = None,
     ) -> None:
         self.community = community
         self.settings = settings
         self.candidate = candidate
+        self.target = _target(community.id) if target is True else target
         self.membership = membership
         self.action = action
         self.added: list[object] = []
@@ -368,6 +402,8 @@ class FakeSession:
             return self.action
         if entity is CommunityEngagementSettings:
             return self.settings
+        if entity is EngagementTarget:
+            return self.target
         if entity is CommunityAccountMembership:
             return self.membership
         return None
@@ -435,12 +471,14 @@ def _send_session(
     membership: CommunityAccountMembership | None = None,
     action: EngagementAction | None = None,
     allow_post: bool = True,
+    target: EngagementTarget | None | bool = True,
 ) -> FakeSession:
     return FakeSession(
         community=community,
         candidate=candidate,
         membership=membership,
         action=action,
+        target=target,
         settings=CommunityEngagementSettings(
             id=uuid4(),
             community_id=community.id,
@@ -565,3 +603,17 @@ def _lease(account_id: object, *, job_id: str) -> AccountLease:
 
 def _now() -> datetime:
     return datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc)
+
+
+def _target(community_id: object) -> EngagementTarget:
+    return EngagementTarget(
+        id=uuid4(),
+        community_id=community_id,
+        submitted_ref=str(community_id),
+        submitted_ref_type="community_id",
+        status=EngagementTargetStatus.APPROVED.value,
+        allow_join=True,
+        allow_detect=True,
+        allow_post=True,
+        added_by="op",
+    )

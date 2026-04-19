@@ -209,6 +209,8 @@ These rules apply across all engagement code:
 - No send occurs when the community settings row is missing or disabled.
 - No send occurs when `allow_post = false`.
 - No join occurs when `allow_join = false`.
+- No join, detection, or send occurs unless an approved `engagement_targets` row grants the matching
+  `allow_join`, `allow_detect`, or `allow_post` permission.
 - No direct messages are supported by any payload, adapter, or API route.
 - Outbound text must be stored exactly as sent.
 - Each worker must be idempotent enough to tolerate RQ retry without duplicate sends.
@@ -578,6 +580,7 @@ Uses:
 Rules:
 
 - `allow_join` must be true.
+- An approved engagement target with `allow_join = true` must exist for the community.
 - The community must be approved for engagement.
 - Private invite links are out of scope for MVP.
 - Do not join multiple accounts unless requested by the operator.
@@ -587,13 +590,14 @@ Worker preflight:
 
 1. Load community.
 2. Load settings; skip if missing, disabled, or `allow_join = false`.
-3. Select or acquire an account according to the membership selection contract.
-4. Mark membership `join_requested`.
-5. Resolve the Telegram entity.
-6. Join or confirm already joined.
-7. Mark membership `joined` or `failed`.
-8. Write an `engagement_actions` audit row with `action_type = join`.
-9. Release account in `finally`.
+3. Verify an approved engagement target with `allow_join = true`.
+4. Select or acquire an account according to the membership selection contract.
+5. Mark membership `join_requested`.
+6. Resolve the Telegram entity.
+7. Join or confirm already joined.
+8. Mark membership `joined` or `failed`.
+9. Write an `engagement_actions` audit row with `action_type = join`.
+10. Release account in `finally`.
 
 Telethon adapter contract:
 
@@ -646,6 +650,7 @@ Writes:
 Rules:
 
 - Do not send messages.
+- An approved engagement target with `allow_detect = true` must exist for the community.
 - Do not score or rank people.
 - Prefer no candidate when topic fit is weak.
 - Deduplicate active candidates by community, topic, and source message.
@@ -656,12 +661,13 @@ Worker preflight:
 1. Load community.
 2. Load settings; skip if mode is `disabled` or settings are missing.
 3. Skip if mode is `observe` after writing optional debug logs only; no candidate is created in MVP.
-4. Load active topics.
-5. Load recent compact message samples.
-6. Apply keyword prefilter.
-7. Call OpenAI only for prefiltered topic/sample pairs.
-8. Validate structured output.
-9. Create candidate when `should_engage = true`.
+4. Verify an approved engagement target with `allow_detect = true`.
+5. Load active topics.
+6. Load recent compact message samples.
+7. Apply keyword prefilter.
+8. Call OpenAI only for prefiltered topic/sample pairs.
+9. Validate structured output.
+10. Create candidate when `should_engage = true`.
 
 Detection input contract:
 
@@ -742,6 +748,7 @@ Rules:
 
 - Candidate must be `approved`.
 - Community settings must allow posting.
+- An approved engagement target with `allow_post = true` must exist for the community.
 - `require_approval` must be satisfied.
 - The account must have joined the community.
 - Daily and spacing limits must pass for the account and community.
@@ -754,14 +761,15 @@ Worker preflight:
 2. Skip if candidate is not approved.
 3. Skip if candidate is expired.
 4. Load settings; skip if missing, disabled, or `allow_post = false`.
-5. Reject top-level send if `reply_only = true` and `source_tg_message_id` is missing.
-6. Load joined membership; skip if none exists.
-7. Check community and account send limits.
-8. Create or resume `engagement_actions` row with idempotency key.
-9. Acquire the membership account with `purpose = engagement_send`.
-10. Send reply through Telethon.
-11. Mark action sent and candidate sent.
-12. Release account in `finally`.
+5. Verify an approved engagement target with `allow_post = true`.
+6. Reject top-level send if `reply_only = true` and `source_tg_message_id` is missing.
+7. Load joined membership; skip if none exists.
+8. Check community and account send limits.
+9. Create or resume `engagement_actions` row with idempotency key.
+10. Acquire the membership account with `purpose = engagement_send`.
+11. Send reply through Telethon.
+12. Mark action sent and candidate sent.
+13. Release account in `finally`.
 
 Rate-limit contract:
 

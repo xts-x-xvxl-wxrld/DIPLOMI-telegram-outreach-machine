@@ -10,8 +10,9 @@ from backend.db.enums import (
     CommunityStatus,
     EngagementActionStatus,
     EngagementMode,
+    EngagementTargetStatus,
 )
-from backend.db.models import Community, CommunityAccountMembership, CommunityEngagementSettings
+from backend.db.models import Community, CommunityAccountMembership, CommunityEngagementSettings, EngagementTarget
 from backend.workers.account_manager import AccountLease
 from backend.workers.community_join import process_community_join
 from backend.workers.telegram_engagement import (
@@ -93,6 +94,29 @@ async def test_community_join_records_success_and_releases_account() -> None:
     assert adapter.closed is True
     assert releases[0]["outcome"] == "success"
     assert releases[0]["account_id"] == account_id
+
+
+@pytest.mark.asyncio
+async def test_community_join_skips_without_approved_engagement_target() -> None:
+    community_id = uuid4()
+    session = _joinable_session(community_id, target=None)
+    acquire_called = False
+
+    async def fake_acquire(*args: object, **kwargs: object) -> AccountLease:
+        nonlocal acquire_called
+        acquire_called = True
+        raise AssertionError("account acquisition should not run")
+
+    result = await process_community_join(
+        {"community_id": str(community_id), "telegram_account_id": None, "requested_by": "op"},
+        session_factory=lambda: session,
+        acquire_account_fn=fake_acquire,
+    )
+
+    assert result["status"] == "skipped"
+    assert result["reason"] == "engagement_target_join_not_approved"
+    assert acquire_called is False
+    assert session.action is None
 
 
 @pytest.mark.asyncio
@@ -222,10 +246,12 @@ class FakeSession:
         *,
         community: Community,
         settings: CommunityEngagementSettings,
+        target: EngagementTarget | None = None,
         membership: CommunityAccountMembership | None = None,
     ) -> None:
         self.community = community
         self.settings = settings
+        self.target = target
         self.membership = membership
         self.action = None
         self.added: list[object] = []
@@ -248,6 +274,8 @@ class FakeSession:
         entity = statement.column_descriptions[0]["entity"]  # type: ignore[attr-defined]
         if entity is CommunityEngagementSettings:
             return self.settings
+        if entity is EngagementTarget:
+            return self.target
         if entity is CommunityAccountMembership:
             return self.membership
         return None
@@ -296,7 +324,9 @@ def _joinable_session(
     community_id: object,
     *,
     membership: CommunityAccountMembership | None = None,
+    target: EngagementTarget | None | bool = True,
 ) -> FakeSession:
+    engagement_target = _target(community_id) if target is True else target
     return FakeSession(
         community=Community(
             id=community_id,
@@ -315,6 +345,7 @@ def _joinable_session(
             max_posts_per_day=1,
             min_minutes_between_posts=240,
         ),
+        target=engagement_target,
         membership=membership,
     )
 
@@ -341,4 +372,18 @@ def _lease(account_id: object, *, job_id: str) -> AccountLease:
         session_file_path="session",
         lease_owner=job_id,
         lease_expires_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
+    )
+
+
+def _target(community_id: object) -> EngagementTarget:
+    return EngagementTarget(
+        id=uuid4(),
+        community_id=community_id,
+        submitted_ref=str(community_id),
+        submitted_ref_type="community_id",
+        status=EngagementTargetStatus.APPROVED.value,
+        allow_join=True,
+        allow_detect=True,
+        allow_post=True,
+        added_by="op",
     )

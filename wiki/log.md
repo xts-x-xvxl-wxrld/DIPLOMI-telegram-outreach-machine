@@ -524,3 +524,13 @@ engagement target intake from regular seed add/import, adds admin-editable OpenA
 and rendered prompt previews, makes topic good/bad reply examples and per-scope style rules
 first-class controls, and requires editable candidate final replies before approval and send.
 Updated the engagement spec and wiki index to point to the new control-plane docs.
+
+## [2026-04-19] code | Added engagement target approval gate
+
+Added the `engagement_targets` table, SQLAlchemy model, API schemas, target CRUD/list endpoints,
+and a dedicated `engagement_target.resolve` queue job that reuses the Telegram entity resolver
+without touching seed rows. Join, detection, and send workers now require an approved engagement
+target with the matching `allow_join`, `allow_detect`, or `allow_post` permission before account,
+OpenAI, or outbound work proceeds. Added focused schema, API, queue, service, and worker tests for
+existing-community intake, public username intake, duplicate targets, target resolution, and
+fail-closed worker gates.

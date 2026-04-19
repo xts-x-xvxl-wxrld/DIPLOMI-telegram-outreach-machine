@@ -22,6 +22,7 @@ from backend.services.community_engagement import (
     EngagementValidationError,
     create_engagement_candidate,
     get_engagement_settings,
+    has_engagement_target_permission,
     list_active_topics,
     sanitize_candidate_excerpt,
 )
@@ -147,6 +148,12 @@ async def process_engagement_detect(
                 return _skipped("engagement_disabled", validated_payload.community_id)
             if engagement_settings.mode == EngagementMode.OBSERVE.value:
                 return _skipped("observe_mode", validated_payload.community_id)
+            if not await has_engagement_target_permission(
+                session,
+                community_id=validated_payload.community_id,
+                permission="detect",
+            ):
+                return _skipped("engagement_target_detect_not_approved", validated_payload.community_id)
 
             topics = await active_topics_fn(session)
             if not topics:

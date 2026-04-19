@@ -6,11 +6,17 @@ from uuid import uuid4
 
 import pytest
 
-from backend.db.enums import CommunityStatus, EngagementCandidateStatus, EngagementMode
+from backend.db.enums import (
+    CommunityStatus,
+    EngagementCandidateStatus,
+    EngagementMode,
+    EngagementTargetStatus,
+)
 from backend.db.models import (
     Community,
     CommunityEngagementSettings,
     EngagementCandidate,
+    EngagementTarget,
     EngagementTopic,
 )
 from backend.services.community_engagement import create_engagement_candidate
@@ -113,6 +119,44 @@ async def test_engagement_detect_creates_candidate_without_sender_identity() -> 
 
 
 @pytest.mark.asyncio
+async def test_engagement_detect_skips_without_approved_engagement_target() -> None:
+    community_id = uuid4()
+    topic = _topic(trigger_keywords=["crm"])
+    session = FakeSession(
+        community=_community(community_id),
+        settings=_settings(community_id),
+        target=None,
+    )
+
+    async def detector(_model_input: dict[str, object]) -> EngagementDetectionDecision:
+        raise AssertionError("detector should not run without approved engagement target")
+
+    result = await process_engagement_detect(
+        {"community_id": str(community_id), "window_minutes": 60, "requested_by": None},
+        session_factory=lambda: session,
+        detector=detector,
+        active_topics_fn=lambda _session: _async_result([topic]),
+        sample_loader=lambda *_args, **_kwargs: _async_result(
+            [
+                DetectionMessage(
+                    tg_message_id=123,
+                    text="We are comparing CRM options.",
+                    message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                )
+            ]
+        ),
+        context_loader=lambda *_args, **_kwargs: _async_result(
+            CommunityContext(latest_summary=None, dominant_themes=[])
+        ),
+        settings=SimpleNamespace(openai_engagement_model="test-model"),  # type: ignore[arg-type]
+    )
+
+    assert result["status"] == "skipped"
+    assert result["reason"] == "engagement_target_detect_not_approved"
+    assert session.candidates == []
+
+
+@pytest.mark.asyncio
 async def test_engagement_detect_skips_duplicate_active_candidate() -> None:
     community_id = uuid4()
     topic = _topic(trigger_keywords=["crm"])
@@ -176,10 +220,12 @@ class FakeSession:
         *,
         community: Community,
         settings: CommunityEngagementSettings,
+        target: EngagementTarget | None | bool = True,
         existing_candidate: EngagementCandidate | None = None,
     ) -> None:
         self.community = community
         self.settings = settings
+        self.target = _target(community.id) if target is True else target
         self.existing_candidate = existing_candidate
         self.candidates: list[EngagementCandidate] = []
         self.commits = 0
@@ -201,6 +247,8 @@ class FakeSession:
         entity = statement.column_descriptions[0]["entity"]  # type: ignore[attr-defined]
         if entity is CommunityEngagementSettings:
             return self.settings
+        if entity is EngagementTarget:
+            return self.target
         if entity is EngagementCandidate:
             return self.existing_candidate
         return None
@@ -263,4 +311,18 @@ def _topic(*, trigger_keywords: list[str]) -> EngagementTopic:
         active=True,
         created_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
         updated_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
+    )
+
+
+def _target(community_id: object) -> EngagementTarget:
+    return EngagementTarget(
+        id=uuid4(),
+        community_id=community_id,
+        submitted_ref=str(community_id),
+        submitted_ref_type="community_id",
+        status=EngagementTargetStatus.APPROVED.value,
+        allow_join=True,
+        allow_detect=True,
+        allow_post=True,
+        added_by="op",
     )

@@ -363,10 +363,42 @@ notes               text
 
 ---
 
-## Future Engagement Tables
+## Engagement Tables
 
-The engagement module is optional/future. These tables become part of the main schema only when the
-engagement implementation slice adds Alembic migrations.
+The engagement module is optional and operator-controlled. These tables are present once the
+engagement migrations are applied.
+
+### `engagement_targets`
+
+Manual allowlist for communities that may be used by the engagement module. Seed import, discovery,
+expansion, collection, and community review do not create these rows.
+
+```sql
+id                    uuid PRIMARY KEY
+community_id          uuid REFERENCES communities(id)
+submitted_ref         text NOT NULL
+submitted_ref_type    text NOT NULL DEFAULT 'telegram_username'
+                      -- community_id | telegram_username | telegram_link | invite_link
+status                text NOT NULL DEFAULT 'pending'
+                      -- pending | resolved | approved | rejected | failed | archived
+allow_join            boolean NOT NULL DEFAULT false
+allow_detect          boolean NOT NULL DEFAULT false
+allow_post            boolean NOT NULL DEFAULT false
+notes                 text
+added_by              text NOT NULL
+approved_by           text
+approved_at           timestamptz
+last_error            text
+created_at            timestamptz NOT NULL DEFAULT now()
+updated_at            timestamptz NOT NULL DEFAULT now()
+
+UNIQUE (community_id)
+```
+
+Worker gates:
+- `community.join` requires an approved target with `allow_join = true`.
+- `engagement.detect` requires an approved target with `allow_detect = true`.
+- `engagement.send` requires an approved target with `allow_post = true`.
 
 ### `community_engagement_settings`
 
@@ -506,9 +538,12 @@ CREATE INDEX ON telegram_entity_intakes (community_id);
 CREATE INDEX ON telegram_entity_intakes (user_id);
 ```
 
-Future engagement indexes:
+Engagement indexes:
 
 ```sql
+CREATE INDEX ON engagement_targets (community_id);
+CREATE INDEX ON engagement_targets (status);
+CREATE INDEX ON engagement_targets (submitted_ref);
 CREATE INDEX ON community_engagement_settings (community_id);
 CREATE INDEX ON community_account_memberships (community_id, telegram_account_id);
 CREATE INDEX ON engagement_topics (active);

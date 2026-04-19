@@ -24,6 +24,7 @@ from backend.services.community_engagement import (
     EngagementValidationError,
     get_engagement_settings,
     get_joined_membership_for_send,
+    has_engagement_target_permission,
     validate_suggested_reply,
 )
 from backend.workers.account_manager import (
@@ -112,6 +113,12 @@ async def process_engagement_send(
             settings = await get_engagement_settings(session, candidate.community_id)
             if settings.mode == EngagementMode.DISABLED.value or not settings.allow_post:
                 return _skipped("posting_not_allowed", candidate.id)
+            if not await has_engagement_target_permission(
+                session,
+                community_id=candidate.community_id,
+                permission="post",
+            ):
+                return _skipped("engagement_target_post_not_approved", candidate.id)
             if not settings.require_approval:
                 return _skipped("approval_required", candidate.id)
             if settings.reply_only and candidate.source_tg_message_id is None:

@@ -10,6 +10,7 @@ from backend.queue.client import (
     enqueue_engagement_detect,
     enqueue_manual_engagement_detect,
     enqueue_engagement_send,
+    enqueue_engagement_target_resolve,
     enqueue_job,
     enqueue_seed_expansion,
     enqueue_seed_resolve,
@@ -23,6 +24,7 @@ from backend.queue.payloads import (
     DiscoveryPayload,
     EngagementDetectPayload,
     EngagementSendPayload,
+    EngagementTargetResolvePayload,
     SeedExpandPayload,
     SeedResolvePayload,
     TelegramEntityResolvePayload,
@@ -323,6 +325,18 @@ def test_engagement_detect_payload_matches_contract_defaults() -> None:
     }
 
 
+def test_engagement_target_resolve_payload_matches_contract() -> None:
+    target_id = uuid4()
+    payload = EngagementTargetResolvePayload(target_id=target_id, requested_by="operator")
+
+    dumped = payload.model_dump(mode="json")
+
+    assert dumped == {
+        "target_id": str(target_id),
+        "requested_by": "operator",
+    }
+
+
 def test_engagement_send_payload_matches_contract() -> None:
     candidate_id = uuid4()
     payload = EngagementSendPayload(candidate_id=candidate_id, approved_by="operator")
@@ -412,6 +426,43 @@ def test_enqueue_engagement_detect_uses_engagement_queue(monkeypatch) -> None:
     }
     assert captured["queue_name"] == "engagement"
     assert str(captured["job_id"]).startswith(f"engagement.detect:{community_id}:")
+
+
+def test_enqueue_engagement_target_resolve_uses_engagement_queue(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_enqueue_job(
+        job_type: str,
+        payload: dict[str, object],
+        *,
+        queue_name: str,
+        job_id: str | None = None,
+    ) -> QueuedJob:
+        captured.update(
+            {
+                "job_type": job_type,
+                "payload": payload,
+                "queue_name": queue_name,
+                "job_id": job_id,
+            }
+        )
+        return QueuedJob(id="job-target-resolve", type=job_type)
+
+    monkeypatch.setattr("backend.queue.client.enqueue_job", fake_enqueue_job)
+    target_id = uuid4()
+
+    job = enqueue_engagement_target_resolve(target_id, requested_by="operator")
+
+    assert job == QueuedJob(id="job-target-resolve", type="engagement_target.resolve")
+    assert captured == {
+        "job_type": "engagement_target.resolve",
+        "payload": {
+            "target_id": str(target_id),
+            "requested_by": "operator",
+        },
+        "queue_name": "engagement",
+        "job_id": f"engagement_target.resolve:{target_id}",
+    }
 
 
 def test_enqueue_manual_engagement_detect_uses_distinct_job_id_prefix(monkeypatch) -> None:
@@ -536,11 +587,20 @@ def test_dispatch_recognizes_engagement_job_types(monkeypatch) -> None:
         lambda payload: {"status": "processed", "job_type": "engagement.detect", "payload": payload},
     )
     monkeypatch.setattr(
+        "backend.workers.jobs.run_engagement_target_resolve",
+        lambda payload: {
+            "status": "processed",
+            "job_type": "engagement_target.resolve",
+            "payload": payload,
+        },
+    )
+    monkeypatch.setattr(
         "backend.workers.jobs.run_engagement_send",
         lambda payload: {"status": "processed", "job_type": "engagement.send", "payload": payload},
     )
     community_id = str(uuid4())
     candidate_id = str(uuid4())
+    target_id = str(uuid4())
 
     assert dispatch_job(
         "community.join",
@@ -557,6 +617,14 @@ def test_dispatch_recognizes_engagement_job_types(monkeypatch) -> None:
             "telegram_account_id": None,
             "requested_by": "operator",
         },
+    }
+    assert dispatch_job(
+        "engagement_target.resolve",
+        {"target_id": target_id, "requested_by": "operator"},
+    ) == {
+        "status": "processed",
+        "job_type": "engagement_target.resolve",
+        "payload": {"target_id": target_id, "requested_by": "operator"},
     }
     assert dispatch_job(
         "engagement.detect",

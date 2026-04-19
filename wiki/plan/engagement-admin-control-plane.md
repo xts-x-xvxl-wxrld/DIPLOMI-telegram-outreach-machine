@@ -39,7 +39,11 @@ Acceptance:
 
 ## Slice 2: Engagement Targets Schema And Services
 
-Status: planned.
+Status: completed.
+
+Implemented in `alembic/versions/20260419_0007_engagement_targets.py`,
+`backend/services/community_engagement.py`, `backend/api/routes/engagement.py`,
+`backend/workers/engagement_target_resolve.py`, and the join/detect/send worker preflights.
 
 Add `engagement_targets` and service methods for:
 

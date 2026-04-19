@@ -17,6 +17,11 @@ from backend.api.schemas import (
     EngagementSendJobRequest,
     EngagementSettingsOut,
     EngagementSettingsUpdate,
+    EngagementTargetCreateRequest,
+    EngagementTargetListResponse,
+    EngagementTargetOut,
+    EngagementTargetResolveJobRequest,
+    EngagementTargetUpdateRequest,
     EngagementTopicCreate,
     EngagementTopicListResponse,
     EngagementTopicOut,
@@ -29,6 +34,7 @@ from backend.queue.client import (
     QueueUnavailable,
     enqueue_community_join,
     enqueue_engagement_send,
+    enqueue_engagement_target_resolve,
     enqueue_manual_engagement_detect,
 )
 from backend.services.community_engagement import (
@@ -36,17 +42,167 @@ from backend.services.community_engagement import (
     EngagementNotFound,
     EngagementServiceError,
     approve_candidate,
+    create_engagement_target,
     create_topic,
+    get_engagement_target,
     get_engagement_settings,
     list_engagement_actions,
     list_engagement_candidates,
+    list_engagement_targets,
     list_topics,
     reject_candidate,
+    update_engagement_target,
     update_topic,
     upsert_engagement_settings,
 )
 
 router = APIRouter(dependencies=[Depends(require_bot_token)])
+
+
+@router.get("/engagement/targets", response_model=EngagementTargetListResponse)
+async def get_engagement_targets(
+    db: DbSession,
+    status: str | None = None,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> EngagementTargetListResponse:
+    try:
+        result = await list_engagement_targets(db, status=status, limit=limit, offset=offset)
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+
+    return EngagementTargetListResponse(
+        items=[EngagementTargetOut.model_validate(item) for item in result.items],
+        limit=result.limit,
+        offset=result.offset,
+        total=result.total,
+    )
+
+
+@router.post("/engagement/targets", response_model=EngagementTargetOut, status_code=201)
+async def post_engagement_target(
+    payload: EngagementTargetCreateRequest,
+    db: DbSession,
+) -> EngagementTargetOut:
+    try:
+        target = await create_engagement_target(
+            db,
+            target_ref=payload.target_ref,
+            added_by=payload.added_by or "operator",
+            notes=payload.notes,
+        )
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+
+    await db.commit()
+    return EngagementTargetOut.model_validate(target)
+
+
+@router.patch("/engagement/targets/{target_id}", response_model=EngagementTargetOut)
+async def patch_engagement_target(
+    target_id: UUID,
+    payload: EngagementTargetUpdateRequest,
+    db: DbSession,
+) -> EngagementTargetOut:
+    try:
+        target = await update_engagement_target(
+            db,
+            target_id=target_id,
+            payload=payload,
+            updated_by=payload.updated_by or "operator",
+        )
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+
+    await db.commit()
+    return EngagementTargetOut.model_validate(target)
+
+
+@router.post(
+    "/engagement/targets/{target_id}/resolve-jobs",
+    response_model=JobResponse,
+    status_code=202,
+)
+async def post_engagement_target_resolve_job(
+    target_id: UUID,
+    payload: EngagementTargetResolveJobRequest,
+    db: DbSession,
+) -> JobResponse:
+    try:
+        await get_engagement_target(db, target_id)
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+
+    try:
+        job = enqueue_engagement_target_resolve(
+            target_id,
+            requested_by=payload.requested_by or "operator",
+        )
+    except QueueUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return JobResponse(job=job)
+
+
+@router.post(
+    "/engagement/targets/{target_id}/join-jobs",
+    response_model=JobResponse,
+    status_code=202,
+)
+async def post_engagement_target_join_job(
+    target_id: UUID,
+    payload: EngagementJoinJobRequest,
+    db: DbSession,
+) -> JobResponse:
+    try:
+        target = await get_engagement_target(db, target_id)
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+    if target.community_id is None:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "target_not_resolved", "message": "Engagement target is not resolved"},
+        )
+
+    try:
+        job = enqueue_community_join(
+            target.community_id,
+            telegram_account_id=payload.telegram_account_id,
+            requested_by=payload.requested_by or "operator",
+        )
+    except QueueUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return JobResponse(job=job)
+
+
+@router.post(
+    "/engagement/targets/{target_id}/detect-jobs",
+    response_model=JobResponse,
+    status_code=202,
+)
+async def post_engagement_target_detect_job(
+    target_id: UUID,
+    payload: EngagementDetectJobRequest,
+    db: DbSession,
+) -> JobResponse:
+    try:
+        target = await get_engagement_target(db, target_id)
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+    if target.community_id is None:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "target_not_resolved", "message": "Engagement target is not resolved"},
+        )
+
+    try:
+        job = enqueue_manual_engagement_detect(
+            target.community_id,
+            window_minutes=payload.window_minutes,
+            requested_by=payload.requested_by or "operator",
+        )
+    except QueueUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return JobResponse(job=job)
 
 
 @router.get(

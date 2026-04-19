@@ -78,6 +78,22 @@ class EngagementMode(StrEnum):
     AUTO_LIMITED = "auto_limited"
 
 
+class EngagementTargetRefType(StrEnum):
+    COMMUNITY_ID = "community_id"
+    TELEGRAM_USERNAME = "telegram_username"
+    TELEGRAM_LINK = "telegram_link"
+    INVITE_LINK = "invite_link"
+
+
+class EngagementTargetStatus(StrEnum):
+    PENDING = "pending"
+    RESOLVED = "resolved"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    FAILED = "failed"
+    ARCHIVED = "archived"
+
+
 class CommunityAccountMembershipStatus(StrEnum):
     NOT_JOINED = "not_joined"
     JOIN_REQUESTED = "join_requested"

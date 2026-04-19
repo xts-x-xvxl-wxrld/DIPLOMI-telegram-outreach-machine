@@ -20,6 +20,9 @@ from backend.api.routes.engagement import (
     post_engagement_candidate_approve,
     post_engagement_candidate_reject,
     post_engagement_candidate_send_job,
+    post_engagement_target,
+    post_engagement_target_resolve_job,
+    patch_engagement_target,
     post_engagement_topic,
     put_community_engagement_settings,
 )
@@ -30,6 +33,9 @@ from backend.api.schemas import (
     EngagementJoinJobRequest,
     EngagementSendJobRequest,
     EngagementSettingsUpdate,
+    EngagementTargetCreateRequest,
+    EngagementTargetResolveJobRequest,
+    EngagementTargetUpdateRequest,
     EngagementTopicCreate,
     EngagementTopicUpdate,
 )
@@ -39,12 +45,15 @@ from backend.db.enums import (
     EngagementActionType,
     EngagementCandidateStatus,
     EngagementMode,
+    EngagementTargetRefType,
+    EngagementTargetStatus,
 )
 from backend.db.models import (
     Community,
     CommunityEngagementSettings,
     EngagementAction,
     EngagementCandidate,
+    EngagementTarget,
     EngagementTopic,
 )
 from backend.queue.client import QueuedJob, QueueUnavailable
@@ -168,6 +177,118 @@ async def test_put_engagement_settings_requires_approved_community_for_join() ->
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail["code"] == "community_not_engagement_approved"
+
+
+@pytest.mark.asyncio
+async def test_create_engagement_target_from_existing_community() -> None:
+    community_id = uuid4()
+    db = FakeDb(community=_community(community_id, title="Founder Circle"))
+
+    response = await post_engagement_target(
+        EngagementTargetCreateRequest(
+            target_ref=str(community_id),
+            added_by="telegram:123",
+            notes="Manual engagement target",
+        ),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.community_id == community_id
+    assert response.status == EngagementTargetStatus.RESOLVED.value
+    assert response.submitted_ref_type == EngagementTargetRefType.COMMUNITY_ID.value
+    assert response.allow_join is False
+    assert response.allow_detect is False
+    assert response.allow_post is False
+    assert response.notes == "Manual engagement target"
+    assert db.commits == 1
+    assert isinstance(db.added[0], EngagementTarget)
+
+
+@pytest.mark.asyncio
+async def test_create_engagement_target_from_public_username_is_pending() -> None:
+    db = FakeDb()
+
+    response = await post_engagement_target(
+        EngagementTargetCreateRequest(target_ref="@Example_Channel", added_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.community_id is None
+    assert response.status == EngagementTargetStatus.PENDING.value
+    assert response.submitted_ref == "username:example_channel"
+    assert response.submitted_ref_type == EngagementTargetRefType.TELEGRAM_USERNAME.value
+    assert db.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_duplicate_engagement_target_returns_existing_row() -> None:
+    target = _target(uuid4(), status=EngagementTargetStatus.PENDING.value)
+    target.community_id = None
+    target.submitted_ref = "username:example"
+    target.submitted_ref_type = EngagementTargetRefType.TELEGRAM_USERNAME.value
+    db = FakeDb(target=target)
+
+    response = await post_engagement_target(
+        EngagementTargetCreateRequest(target_ref="@example", added_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.id == target.id
+    assert db.added == []
+    assert db.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_patch_engagement_target_approves_permissions() -> None:
+    community_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.RESOLVED.value)
+    target.allow_join = False
+    target.allow_detect = False
+    target.allow_post = False
+    db = FakeDb(target=target)
+
+    response = await patch_engagement_target(
+        target.id,
+        EngagementTargetUpdateRequest(
+            status=EngagementTargetStatus.APPROVED,
+            allow_join=True,
+            allow_detect=True,
+            allow_post=True,
+            updated_by="telegram:123",
+        ),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.status == EngagementTargetStatus.APPROVED.value
+    assert response.allow_join is True
+    assert response.allow_detect is True
+    assert response.allow_post is True
+    assert response.approved_by == "telegram:123"
+    assert response.approved_at is not None
+    assert db.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_engagement_target_resolve_job_enqueues_engagement_job(monkeypatch) -> None:
+    target = _target(uuid4(), status=EngagementTargetStatus.PENDING.value)
+    db = FakeDb(target=target)
+    captured: dict[str, object] = {}
+
+    def fake_enqueue(target_id_arg: object, *, requested_by: str) -> QueuedJob:
+        captured.update({"target_id": target_id_arg, "requested_by": requested_by})
+        return QueuedJob(id="target-resolve-job", type="engagement_target.resolve")
+
+    monkeypatch.setattr("backend.api.routes.engagement.enqueue_engagement_target_resolve", fake_enqueue)
+
+    response = await post_engagement_target_resolve_job(
+        target.id,
+        EngagementTargetResolveJobRequest(requested_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.job.id == "target-resolve-job"
+    assert response.job.type == "engagement_target.resolve"
+    assert captured == {"target_id": target.id, "requested_by": "telegram:123"}
 
 
 @pytest.mark.asyncio
@@ -635,6 +756,7 @@ class FakeDb:
         community: Community | None = None,
         settings: CommunityEngagementSettings | None = None,
         topic: EngagementTopic | None = None,
+        target: EngagementTarget | None = None,
         candidate: EngagementCandidate | None = None,
         candidates: list[EngagementCandidate] | None = None,
         actions: list[EngagementAction] | None = None,
@@ -643,6 +765,7 @@ class FakeDb:
         self.community = community
         self.settings = settings
         self.topic = topic
+        self.target = target
         self.candidate = candidate
         self.candidates = candidates
         self.actions = actions
@@ -656,6 +779,8 @@ class FakeDb:
             return self.community
         if model is EngagementTopic:
             return self.topic
+        if model is EngagementTarget:
+            return self.target
         if model is EngagementCandidate:
             return self.candidate
         return None
@@ -663,6 +788,8 @@ class FakeDb:
     async def scalar(self, statement: object) -> object | None:
         if self.scalar_result is not None:
             return self.scalar_result
+        if self.target is not None:
+            return self.target
         if self.candidates is not None:
             return len(self.candidates)
         if self.actions is not None:
@@ -735,3 +862,26 @@ def _candidate(
     candidate.community = community
     candidate.topic = topic
     return candidate
+
+
+def _target(
+    community_id: object,
+    *,
+    status: str = EngagementTargetStatus.APPROVED.value,
+) -> EngagementTarget:
+    community = _community(community_id, title="Founder Circle")
+    target = EngagementTarget(
+        id=uuid4(),
+        community_id=community_id,
+        submitted_ref=str(community_id),
+        submitted_ref_type=EngagementTargetRefType.COMMUNITY_ID.value,
+        status=status,
+        allow_join=True,
+        allow_detect=True,
+        allow_post=True,
+        added_by="telegram:123",
+        created_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
+    )
+    target.community = community
+    return target

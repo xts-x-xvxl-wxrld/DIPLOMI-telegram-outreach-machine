@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from backend.db.enums import CommunityStatus, EngagementMode
+from backend.db.enums import CommunityStatus, EngagementMode, EngagementTargetStatus
 
 
 class JobRef(BaseModel):
@@ -357,6 +357,53 @@ class EngagementSettingsOut(BaseModel):
     assigned_account_id: UUID | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class EngagementTargetCreateRequest(BaseModel):
+    target_ref: str = Field(min_length=1, max_length=500)
+    notes: str | None = Field(default=None, max_length=1000)
+    added_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class EngagementTargetUpdateRequest(BaseModel):
+    status: EngagementTargetStatus | None = None
+    allow_join: bool | None = None
+    allow_detect: bool | None = None
+    allow_post: bool | None = None
+    notes: str | None = Field(default=None, max_length=1000)
+    updated_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class EngagementTargetResolveJobRequest(BaseModel):
+    requested_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class EngagementTargetOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    community_id: UUID | None = None
+    community_title: str | None = None
+    submitted_ref: str
+    submitted_ref_type: str
+    status: str
+    allow_join: bool
+    allow_detect: bool
+    allow_post: bool
+    notes: str | None = None
+    added_by: str
+    approved_by: str | None = None
+    approved_at: datetime | None = None
+    last_error: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class EngagementTargetListResponse(BaseModel):
+    items: list[EngagementTargetOut]
+    limit: int
+    offset: int
+    total: int
 
 
 class EngagementTopicCreate(BaseModel):

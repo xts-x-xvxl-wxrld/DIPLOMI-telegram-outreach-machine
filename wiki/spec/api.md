@@ -749,6 +749,83 @@ Response:
 Engagement endpoints are optional/future. They must remain operator-controlled and separate from
 collection and analysis.
 
+### `GET /api/engagement/targets`
+
+Lists manual engagement targets. Targets are the explicit engagement allowlist and are separate from
+seed groups, direct handle intakes, and community review.
+
+Query parameters:
+
+- `status`
+- `limit`
+- `offset`
+
+### `POST /api/engagement/targets`
+
+Creates or returns an engagement target from an existing `community_id`, public Telegram username,
+or public Telegram link.
+
+Request:
+
+```json
+{
+  "target_ref": "@example",
+  "notes": "Manual engagement candidate",
+  "added_by": "telegram_user_id_or_operator"
+}
+```
+
+Rules:
+
+- Existing `community_id` targets are created as `resolved`.
+- Public username/link targets are created as `pending` and must be resolved by an engagement job.
+- Duplicate normalized targets return the existing row instead of creating seed rows.
+- Private invite-link resolution remains out of scope for MVP.
+
+### `PATCH /api/engagement/targets/{target_id}`
+
+Updates target status, notes, and engagement permissions.
+
+Request:
+
+```json
+{
+  "status": "approved",
+  "allow_join": true,
+  "allow_detect": true,
+  "allow_post": false,
+  "updated_by": "telegram_user_id_or_operator"
+}
+```
+
+Rules:
+
+- A target must resolve to a community before it can be approved.
+- Rejected and archived targets force `allow_join`, `allow_detect`, and `allow_post` to false.
+- Approving a target records `approved_by` and `approved_at`.
+
+### `POST /api/engagement/targets/{target_id}/resolve-jobs`
+
+Queues `engagement_target.resolve`. This is an engagement job, not a seed job.
+
+Request:
+
+```json
+{
+  "requested_by": "telegram_user_id_or_operator|null"
+}
+```
+
+### `POST /api/engagement/targets/{target_id}/join-jobs`
+
+Queues `community.join` for the target's resolved community. The worker still enforces target
+approval and `allow_join`.
+
+### `POST /api/engagement/targets/{target_id}/detect-jobs`
+
+Queues manual `engagement.detect` for the target's resolved community. The worker still enforces
+target approval and `allow_detect`.
+
 ### `GET /api/communities/{community_id}/engagement-settings`
 
 Returns engagement settings for one community. If no settings exist, engagement is disabled.
@@ -889,6 +966,8 @@ Rules:
 - API handlers must not call Telethon directly.
 - API responses must not expose phone numbers.
 - API responses must not expose person-level scores.
+- Engagement workers fail closed unless an approved engagement target grants the matching
+  join/detect/post permission.
 - Audit rows should remain available for operator review.
 
 ## Jobs and Debug
