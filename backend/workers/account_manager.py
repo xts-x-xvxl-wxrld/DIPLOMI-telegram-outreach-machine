@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Literal
+from typing import Literal, cast
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select, update
@@ -11,7 +11,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.db.enums import AccountStatus
 from backend.db.models import TelegramAccount
 
-AccountPurpose = Literal["expansion", "collection"]
+AccountPurpose = Literal[
+    "expansion",
+    "collection",
+    "entity_intake",
+    "engagement_join",
+    "engagement_send",
+]
+ACCOUNT_PURPOSES: tuple[AccountPurpose, ...] = (
+    "expansion",
+    "collection",
+    "entity_intake",
+    "engagement_join",
+    "engagement_send",
+)
 ReleaseOutcome = Literal["success", "error", "rate_limited", "banned"]
 
 
@@ -36,8 +49,7 @@ async def acquire_account(
     lease_seconds: int = 900,
     now: datetime | None = None,
 ) -> AccountLease:
-    if purpose not in {"expansion", "collection"}:
-        raise ValueError("purpose must be expansion or collection")
+    validate_account_purpose(purpose)
 
     current_time = now or utcnow()
     await recover_stale_leases(session, now=current_time)
@@ -159,6 +171,13 @@ def release_updates(
     raise ValueError(f"Unknown release outcome: {outcome}")
 
 
+def validate_account_purpose(purpose: str) -> AccountPurpose:
+    if purpose not in ACCOUNT_PURPOSES:
+        allowed = ", ".join(ACCOUNT_PURPOSES)
+        raise ValueError(f"purpose must be one of: {allowed}")
+    return cast(AccountPurpose, purpose)
+
+
 def mask_phone(phone: str) -> str:
     if len(phone) <= 4:
         return "*" * len(phone)
@@ -167,4 +186,3 @@ def mask_phone(phone: str) -> str:
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
-

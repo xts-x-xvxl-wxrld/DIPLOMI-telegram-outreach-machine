@@ -392,3 +392,10 @@ Added queue payloads, enqueue helpers, retry policies, deterministic engagement 
 dispatch stubs for `community.join`, `engagement.detect`, and `engagement.send`. Added queue
 contract tests for JSON serialization, queue placement, job IDs, and dispatcher recognition. Marked
 the queue contracts slice complete in the engagement plan.
+
+## [2026-04-19] code | Extended account manager purposes for engagement
+
+Updated the account manager purpose contract to accept `entity_intake`, `engagement_join`, and
+`engagement_send` in addition to existing expansion and collection leases. Added tests locking the
+supported purpose set, engagement-purpose validation, unknown-purpose rejection, and banned-account
+release mapping. Marked the account manager extension slice complete in the engagement plan.

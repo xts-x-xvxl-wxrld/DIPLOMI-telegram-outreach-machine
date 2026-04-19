@@ -114,7 +114,7 @@ Acceptance:
 
 ## Slice 4: Account Manager Extension
 
-Status: planned.
+Status: completed.
 
 Extend account manager purposes:
 

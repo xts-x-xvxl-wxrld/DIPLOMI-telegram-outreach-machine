@@ -5,7 +5,32 @@ from datetime import datetime, timezone
 import pytest
 
 from backend.db.enums import AccountStatus
-from backend.workers.account_manager import mask_phone, release_updates
+from backend.workers.account_manager import (
+    ACCOUNT_PURPOSES,
+    mask_phone,
+    release_updates,
+    validate_account_purpose,
+)
+
+
+def test_account_purposes_match_worker_contract() -> None:
+    assert ACCOUNT_PURPOSES == (
+        "expansion",
+        "collection",
+        "entity_intake",
+        "engagement_join",
+        "engagement_send",
+    )
+
+
+def test_validate_account_purpose_accepts_engagement_purposes() -> None:
+    assert validate_account_purpose("engagement_join") == "engagement_join"
+    assert validate_account_purpose("engagement_send") == "engagement_send"
+
+
+def test_validate_account_purpose_rejects_unknown_purpose() -> None:
+    with pytest.raises(ValueError, match="purpose must be one of"):
+        validate_account_purpose("engagement_detect")
 
 
 def test_release_success_clears_lease_and_error() -> None:
@@ -29,6 +54,15 @@ def test_release_rate_limited_sets_flood_wait_until() -> None:
 
     assert updates["status"] == AccountStatus.RATE_LIMITED.value
     assert updates["flood_wait_until"].isoformat() == "2026-04-15T12:01:00+00:00"
+
+
+def test_release_banned_marks_account_unusable() -> None:
+    updates = release_updates(outcome="banned", error_message="session revoked")
+
+    assert updates["status"] == AccountStatus.BANNED.value
+    assert updates["lease_owner"] is None
+    assert updates["lease_expires_at"] is None
+    assert updates["last_error"] == "session revoked"
 
 
 def test_mask_phone_hides_middle_digits() -> None:
