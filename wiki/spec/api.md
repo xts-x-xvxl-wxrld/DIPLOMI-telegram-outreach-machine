@@ -779,7 +779,29 @@ MVP rules:
 
 ### `POST /api/communities/{community_id}/join-jobs`
 
-Queues `community.join`.
+Queues `community.join` after verifying the community exists. The API does not call Telethon
+directly.
+
+Request:
+
+```json
+{
+  "telegram_account_id": "uuid-or-null",
+  "requested_by": "telegram_user_id_or_operator|null"
+}
+```
+
+Response `202`:
+
+```json
+{
+  "job": {
+    "id": "rq_job_id",
+    "type": "community.join",
+    "status": "queued"
+  }
+}
+```
 
 ### `GET /api/engagement/topics`
 
@@ -825,6 +847,42 @@ Queues `engagement.send` for an approved candidate.
 ### `GET /api/engagement/actions`
 
 Lists outbound action audit rows.
+
+Query parameters:
+
+- `community_id`
+- `candidate_id`
+- `status`
+- `action_type`
+- `limit`
+- `offset`
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "candidate_id": "uuid-or-null",
+      "community_id": "uuid",
+      "telegram_account_id": "uuid",
+      "action_type": "reply",
+      "status": "sent",
+      "outbound_text": "exact approved public reply",
+      "reply_to_tg_message_id": 123,
+      "sent_tg_message_id": 456,
+      "scheduled_at": "iso_datetime|null",
+      "sent_at": "iso_datetime|null",
+      "error_message": null,
+      "created_at": "iso_datetime"
+    }
+  ],
+  "limit": 20,
+  "offset": 0,
+  "total": 1
+}
+```
 
 Rules:
 

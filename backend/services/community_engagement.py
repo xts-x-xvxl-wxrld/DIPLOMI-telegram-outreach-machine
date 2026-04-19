@@ -15,6 +15,8 @@ from backend.db.enums import (
     AccountStatus,
     CommunityAccountMembershipStatus,
     CommunityStatus,
+    EngagementActionStatus,
+    EngagementActionType,
     EngagementCandidateStatus,
     EngagementMode,
 )
@@ -22,6 +24,7 @@ from backend.db.models import (
     Community,
     CommunityAccountMembership,
     CommunityEngagementSettings,
+    EngagementAction,
     EngagementCandidate,
     EngagementTopic,
     TelegramAccount,
@@ -94,6 +97,31 @@ class EngagementCandidateView:
 @dataclass(frozen=True)
 class EngagementCandidateListResult:
     items: list[EngagementCandidateView]
+    limit: int
+    offset: int
+    total: int
+
+
+@dataclass(frozen=True)
+class EngagementActionView:
+    id: UUID
+    candidate_id: UUID | None
+    community_id: UUID
+    telegram_account_id: UUID
+    action_type: str
+    status: str
+    outbound_text: str | None
+    reply_to_tg_message_id: int | None
+    sent_tg_message_id: int | None
+    scheduled_at: datetime | None
+    sent_at: datetime | None
+    error_message: str | None
+    created_at: datetime
+
+
+@dataclass(frozen=True)
+class EngagementActionListResult:
+    items: list[EngagementActionView]
     limit: int
     offset: int
     total: int
@@ -265,6 +293,8 @@ async def list_engagement_candidates(
     db: AsyncSession,
     *,
     status: str | None = EngagementCandidateStatus.NEEDS_REVIEW.value,
+    community_id: UUID | None = None,
+    topic_id: UUID | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> EngagementCandidateListResult:
@@ -276,6 +306,10 @@ async def list_engagement_candidates(
     filters = []
     if status is not None:
         filters.append(EngagementCandidate.status == status)
+    if community_id is not None:
+        filters.append(EngagementCandidate.community_id == community_id)
+    if topic_id is not None:
+        filters.append(EngagementCandidate.topic_id == topic_id)
 
     total_query = select(func.count(EngagementCandidate.id))
     candidate_query = (
@@ -296,6 +330,60 @@ async def list_engagement_candidates(
     rows = await db.scalars(candidate_query)
     return EngagementCandidateListResult(
         items=[_candidate_view(candidate) for candidate in rows],
+        limit=safe_limit,
+        offset=safe_offset,
+        total=total,
+    )
+
+
+async def list_engagement_actions(
+    db: AsyncSession,
+    *,
+    community_id: UUID | None = None,
+    candidate_id: UUID | None = None,
+    status: str | None = None,
+    action_type: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> EngagementActionListResult:
+    if status is not None and status not in _action_status_values():
+        raise EngagementValidationError(
+            "invalid_engagement_action_status",
+            "Unknown engagement action status",
+        )
+    if action_type is not None and action_type not in _action_type_values():
+        raise EngagementValidationError(
+            "invalid_engagement_action_type",
+            "Unknown engagement action type",
+        )
+
+    safe_limit = max(min(limit, 100), 1)
+    safe_offset = max(offset, 0)
+    filters = []
+    if community_id is not None:
+        filters.append(EngagementAction.community_id == community_id)
+    if candidate_id is not None:
+        filters.append(EngagementAction.candidate_id == candidate_id)
+    if status is not None:
+        filters.append(EngagementAction.status == status)
+    if action_type is not None:
+        filters.append(EngagementAction.action_type == action_type)
+
+    total_query = select(func.count(EngagementAction.id))
+    action_query = (
+        select(EngagementAction)
+        .order_by(EngagementAction.created_at.desc())
+        .limit(safe_limit)
+        .offset(safe_offset)
+    )
+    if filters:
+        total_query = total_query.where(*filters)
+        action_query = action_query.where(*filters)
+
+    total = int(await db.scalar(total_query) or 0)
+    rows = await db.scalars(action_query)
+    return EngagementActionListResult(
+        items=[_action_view(action) for action in rows],
         limit=safe_limit,
         offset=safe_offset,
         total=total,
@@ -850,6 +938,24 @@ def _candidate_view(candidate: EngagementCandidate) -> EngagementCandidateView:
     )
 
 
+def _action_view(action: EngagementAction) -> EngagementActionView:
+    return EngagementActionView(
+        id=action.id,
+        candidate_id=action.candidate_id,
+        community_id=action.community_id,
+        telegram_account_id=action.telegram_account_id,
+        action_type=action.action_type,
+        status=action.status,
+        outbound_text=action.outbound_text,
+        reply_to_tg_message_id=action.reply_to_tg_message_id,
+        sent_tg_message_id=action.sent_tg_message_id,
+        scheduled_at=action.scheduled_at,
+        sent_at=action.sent_at,
+        error_message=action.error_message,
+        created_at=action.created_at,
+    )
+
+
 def _candidate_is_expired(candidate: EngagementCandidate, now: datetime) -> bool:
     return _ensure_aware_utc(candidate.expires_at) <= _ensure_aware_utc(now)
 
@@ -862,6 +968,14 @@ def _ensure_aware_utc(value: datetime) -> datetime:
 
 def _candidate_status_values() -> set[str]:
     return {status.value for status in EngagementCandidateStatus}
+
+
+def _action_status_values() -> set[str]:
+    return {status.value for status in EngagementActionStatus}
+
+
+def _action_type_values() -> set[str]:
+    return {action_type.value for action_type in EngagementActionType}
 
 
 def _compact_model_output(value: dict[str, Any] | None) -> dict[str, Any] | None:

@@ -11,9 +11,11 @@ from fastapi.testclient import TestClient
 from backend.api.app import create_app
 from backend.api.deps import settings_dep
 from backend.api.routes.engagement import (
+    get_engagement_actions,
     get_engagement_candidates,
     get_community_engagement_settings,
     patch_engagement_topic,
+    post_community_join_job,
     post_community_engagement_detect_job,
     post_engagement_candidate_approve,
     post_engagement_candidate_reject,
@@ -25,14 +27,28 @@ from backend.api.schemas import (
     EngagementCandidateApproveRequest,
     EngagementCandidateRejectRequest,
     EngagementDetectJobRequest,
+    EngagementJoinJobRequest,
     EngagementSendJobRequest,
     EngagementSettingsUpdate,
     EngagementTopicCreate,
     EngagementTopicUpdate,
 )
-from backend.db.enums import CommunityStatus, EngagementCandidateStatus, EngagementMode
-from backend.db.models import Community, CommunityEngagementSettings, EngagementCandidate, EngagementTopic
-from backend.queue.client import QueuedJob
+from backend.db.enums import (
+    CommunityStatus,
+    EngagementActionStatus,
+    EngagementActionType,
+    EngagementCandidateStatus,
+    EngagementMode,
+)
+from backend.db.models import (
+    Community,
+    CommunityEngagementSettings,
+    EngagementAction,
+    EngagementCandidate,
+    EngagementTopic,
+)
+from backend.queue.client import QueuedJob, QueueUnavailable
+from backend.services.community_engagement import EngagementActionListResult, EngagementActionView
 
 
 def test_engagement_routes_require_api_auth() -> None:
@@ -41,6 +57,16 @@ def test_engagement_routes_require_api_auth() -> None:
     client = TestClient(app)
 
     response = client.get("/api/engagement/topics")
+
+    assert response.status_code == 401
+
+
+def test_join_job_route_requires_api_auth() -> None:
+    app = create_app()
+    app.dependency_overrides[settings_dep] = lambda: SimpleNamespace(bot_api_token="token")
+    client = TestClient(app)
+
+    response = client.post(f"/api/communities/{uuid4()}/join-jobs", json={})
 
     assert response.status_code == 401
 
@@ -271,6 +297,82 @@ async def test_manual_engagement_detect_job_rejects_unknown_community() -> None:
 
 
 @pytest.mark.asyncio
+async def test_community_join_job_enqueues_join_worker(monkeypatch) -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    db = FakeDb(community=_community(community_id, title="Founder Circle"))
+    captured: dict[str, object] = {}
+
+    def fake_enqueue(
+        community_id_arg: object,
+        *,
+        requested_by: str,
+        telegram_account_id: object | None = None,
+    ) -> QueuedJob:
+        captured.update(
+            {
+                "community_id": community_id_arg,
+                "telegram_account_id": telegram_account_id,
+                "requested_by": requested_by,
+            }
+        )
+        return QueuedJob(id="join-job", type="community.join")
+
+    monkeypatch.setattr("backend.api.routes.engagement.enqueue_community_join", fake_enqueue)
+
+    response = await post_community_join_job(
+        community_id,
+        EngagementJoinJobRequest(
+            telegram_account_id=account_id,
+            requested_by="telegram:123",
+        ),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.job.id == "join-job"
+    assert response.job.type == "community.join"
+    assert captured == {
+        "community_id": community_id,
+        "telegram_account_id": account_id,
+        "requested_by": "telegram:123",
+    }
+
+
+@pytest.mark.asyncio
+async def test_community_join_job_rejects_unknown_community() -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        await post_community_join_job(
+            uuid4(),
+            EngagementJoinJobRequest(),
+            FakeDb(),  # type: ignore[arg-type]
+        )
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail["code"] == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_community_join_job_maps_queue_failure_to_503(monkeypatch) -> None:
+    community_id = uuid4()
+    db = FakeDb(community=_community(community_id, title="Founder Circle"))
+
+    def fake_enqueue(*args: object, **kwargs: object) -> QueuedJob:
+        raise QueueUnavailable("redis unavailable")
+
+    monkeypatch.setattr("backend.api.routes.engagement.enqueue_community_join", fake_enqueue)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await post_community_join_job(
+            community_id,
+            EngagementJoinJobRequest(),
+            db,  # type: ignore[arg-type]
+        )
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == "redis unavailable"
+
+
+@pytest.mark.asyncio
 async def test_list_engagement_candidates_returns_pending_review_cards() -> None:
     community = _community(uuid4(), title="Founder Circle")
     topic = _topic(uuid4(), name="Open-source CRM")
@@ -283,6 +385,139 @@ async def test_list_engagement_candidates_returns_pending_review_cards() -> None
     assert response.items[0].community_title == "Founder Circle"
     assert response.items[0].topic_name == "Open-source CRM"
     assert response.items[0].source_excerpt == "The group is comparing CRM tools."
+
+
+@pytest.mark.asyncio
+async def test_list_engagement_candidates_passes_community_and_topic_filters(monkeypatch) -> None:
+    community_id = uuid4()
+    topic_id = uuid4()
+    captured: dict[str, object] = {}
+
+    async def fake_list(db: object, **kwargs: object) -> object:
+        captured.update(kwargs)
+        return SimpleNamespace(items=[], limit=10, offset=5, total=0)
+
+    monkeypatch.setattr("backend.api.routes.engagement.list_engagement_candidates", fake_list)
+
+    response = await get_engagement_candidates(
+        FakeDb(),  # type: ignore[arg-type]
+        status="approved",
+        community_id=community_id,
+        topic_id=topic_id,
+        limit=10,
+        offset=5,
+    )
+
+    assert response.total == 0
+    assert captured == {
+        "status": "approved",
+        "community_id": community_id,
+        "topic_id": topic_id,
+        "limit": 10,
+        "offset": 5,
+    }
+
+
+@pytest.mark.asyncio
+async def test_list_engagement_actions_returns_filtered_audit_rows() -> None:
+    community_id = uuid4()
+    candidate_id = uuid4()
+    account_id = uuid4()
+    created_at = datetime(2026, 4, 19, tzinfo=timezone.utc)
+    db = FakeDb(
+        actions=[
+            EngagementAction(
+                id=uuid4(),
+                candidate_id=candidate_id,
+                community_id=community_id,
+                telegram_account_id=account_id,
+                action_type=EngagementActionType.REPLY.value,
+                status=EngagementActionStatus.SENT.value,
+                outbound_text="Helpful public reply",
+                reply_to_tg_message_id=123,
+                sent_tg_message_id=456,
+                sent_at=created_at,
+                created_at=created_at,
+                updated_at=created_at,
+            )
+        ]
+    )
+
+    response = await get_engagement_actions(
+        db,  # type: ignore[arg-type]
+        community_id=community_id,
+        candidate_id=candidate_id,
+        status="sent",
+        action_type="reply",
+        limit=10,
+        offset=0,
+    )
+
+    assert response.total == 1
+    assert response.items[0].community_id == community_id
+    assert response.items[0].candidate_id == candidate_id
+    assert response.items[0].telegram_account_id == account_id
+    assert response.items[0].action_type == "reply"
+    assert response.items[0].status == "sent"
+    assert not hasattr(response.items[0], "phone")
+
+
+@pytest.mark.asyncio
+async def test_list_engagement_actions_passes_filters_and_pagination(monkeypatch) -> None:
+    community_id = uuid4()
+    candidate_id = uuid4()
+    account_id = uuid4()
+    action_id = uuid4()
+    created_at = datetime(2026, 4, 19, tzinfo=timezone.utc)
+    captured: dict[str, object] = {}
+
+    async def fake_list(db: object, **kwargs: object) -> EngagementActionListResult:
+        captured.update(kwargs)
+        return EngagementActionListResult(
+            items=[
+                EngagementActionView(
+                    id=action_id,
+                    candidate_id=candidate_id,
+                    community_id=community_id,
+                    telegram_account_id=account_id,
+                    action_type="join",
+                    status="failed",
+                    outbound_text=None,
+                    reply_to_tg_message_id=None,
+                    sent_tg_message_id=None,
+                    scheduled_at=None,
+                    sent_at=None,
+                    error_message="inaccessible",
+                    created_at=created_at,
+                )
+            ],
+            limit=7,
+            offset=14,
+            total=21,
+        )
+
+    monkeypatch.setattr("backend.api.routes.engagement.list_engagement_actions", fake_list)
+
+    response = await get_engagement_actions(
+        FakeDb(),  # type: ignore[arg-type]
+        community_id=community_id,
+        candidate_id=candidate_id,
+        status="failed",
+        action_type="join",
+        limit=7,
+        offset=14,
+    )
+
+    assert response.total == 21
+    assert response.items[0].id == action_id
+    assert captured == {
+        "community_id": community_id,
+        "candidate_id": candidate_id,
+        "status": "failed",
+        "action_type": "join",
+        "limit": 7,
+        "offset": 14,
+    }
 
 
 @pytest.mark.asyncio
@@ -402,6 +637,7 @@ class FakeDb:
         topic: EngagementTopic | None = None,
         candidate: EngagementCandidate | None = None,
         candidates: list[EngagementCandidate] | None = None,
+        actions: list[EngagementAction] | None = None,
         scalar_result: object | None = None,
     ) -> None:
         self.community = community
@@ -409,6 +645,7 @@ class FakeDb:
         self.topic = topic
         self.candidate = candidate
         self.candidates = candidates
+        self.actions = actions
         self.scalar_result = scalar_result
         self.added: list[object] = []
         self.commits = 0
@@ -428,10 +665,14 @@ class FakeDb:
             return self.scalar_result
         if self.candidates is not None:
             return len(self.candidates)
+        if self.actions is not None:
+            return len(self.actions)
         return self.settings
 
     async def scalars(self, statement: object) -> list[object]:
         del statement
+        if self.actions is not None:
+            return list(self.actions)
         return list(self.candidates or [])
 
     def add(self, model: object) -> None:

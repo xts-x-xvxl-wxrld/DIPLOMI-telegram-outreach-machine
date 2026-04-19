@@ -6,11 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.api.deps import DbSession, require_bot_token
 from backend.api.schemas import (
+    EngagementActionListResponse,
+    EngagementActionOut,
     EngagementCandidateApproveRequest,
     EngagementCandidateListResponse,
     EngagementCandidateOut,
     EngagementCandidateRejectRequest,
     EngagementDetectJobRequest,
+    EngagementJoinJobRequest,
     EngagementSendJobRequest,
     EngagementSettingsOut,
     EngagementSettingsUpdate,
@@ -24,6 +27,7 @@ from backend.db.enums import EngagementCandidateStatus
 from backend.db.models import Community, EngagementCandidate
 from backend.queue.client import (
     QueueUnavailable,
+    enqueue_community_join,
     enqueue_engagement_send,
     enqueue_manual_engagement_detect,
 )
@@ -34,6 +38,7 @@ from backend.services.community_engagement import (
     approve_candidate,
     create_topic,
     get_engagement_settings,
+    list_engagement_actions,
     list_engagement_candidates,
     list_topics,
     reject_candidate,
@@ -120,6 +125,34 @@ async def patch_engagement_topic(
 
 
 @router.post(
+    "/communities/{community_id}/join-jobs",
+    response_model=JobResponse,
+    status_code=202,
+)
+async def post_community_join_job(
+    community_id: UUID,
+    payload: EngagementJoinJobRequest,
+    db: DbSession,
+) -> JobResponse:
+    community = await db.get(Community, community_id)
+    if community is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "message": "Community not found"},
+        )
+
+    try:
+        job = enqueue_community_join(
+            community.id,
+            telegram_account_id=payload.telegram_account_id,
+            requested_by=payload.requested_by or "operator",
+        )
+    except QueueUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return JobResponse(job=job)
+
+
+@router.post(
     "/communities/{community_id}/engagement-detect-jobs",
     response_model=JobResponse,
     status_code=202,
@@ -151,6 +184,8 @@ async def post_community_engagement_detect_job(
 async def get_engagement_candidates(
     db: DbSession,
     status: str | None = Query(default="needs_review"),
+    community_id: UUID | None = None,
+    topic_id: UUID | None = None,
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> EngagementCandidateListResponse:
@@ -158,6 +193,8 @@ async def get_engagement_candidates(
         result = await list_engagement_candidates(
             db,
             status=status,
+            community_id=community_id,
+            topic_id=topic_id,
             limit=limit,
             offset=offset,
         )
@@ -166,6 +203,37 @@ async def get_engagement_candidates(
 
     return EngagementCandidateListResponse(
         items=[EngagementCandidateOut.model_validate(item) for item in result.items],
+        limit=result.limit,
+        offset=result.offset,
+        total=result.total,
+    )
+
+
+@router.get("/engagement/actions", response_model=EngagementActionListResponse)
+async def get_engagement_actions(
+    db: DbSession,
+    community_id: UUID | None = None,
+    candidate_id: UUID | None = None,
+    status: str | None = None,
+    action_type: str | None = None,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> EngagementActionListResponse:
+    try:
+        result = await list_engagement_actions(
+            db,
+            community_id=community_id,
+            candidate_id=candidate_id,
+            status=status,
+            action_type=action_type,
+            limit=limit,
+            offset=offset,
+        )
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+
+    return EngagementActionListResponse(
+        items=[EngagementActionOut.model_validate(item) for item in result.items],
         limit=result.limit,
         offset=result.offset,
         total=result.total,

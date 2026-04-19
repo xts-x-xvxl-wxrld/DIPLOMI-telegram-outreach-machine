@@ -469,3 +469,12 @@ Added API request DTOs and routes for manual `engagement.detect` jobs and approv
 the manual detect queue helper, and the send-job endpoint verifies the candidate exists and is
 approved before enqueueing. Telethon work remains in the workers. Added focused API tests for
 enqueue payloads, missing communities, approved sends, and unapproved send rejection.
+
+## [2026-04-19] code | Closed engagement operator API gaps
+
+Added the `community.join` API enqueue endpoint and engagement action audit listing endpoint for the
+operator bot control surface. Candidate listing now accepts `community_id` and `topic_id` filters,
+and action listing supports community, candidate, status, action type, limit, and offset filters
+without exposing account phone numbers or person-level data. Added focused API tests for join
+enqueue success, missing communities, queue failure, action audit shape, pagination filters, and
+candidate filters.

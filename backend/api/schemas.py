@@ -416,6 +416,11 @@ class EngagementDetectJobRequest(BaseModel):
     requested_by: str | None = Field(default=None, min_length=1, max_length=200)
 
 
+class EngagementJoinJobRequest(BaseModel):
+    telegram_account_id: UUID | None = None
+    requested_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
 class EngagementSendJobRequest(BaseModel):
     approved_by: str | None = Field(default=None, min_length=1, max_length=200)
 
@@ -443,6 +448,31 @@ class EngagementCandidateOut(BaseModel):
 
 class EngagementCandidateListResponse(BaseModel):
     items: list[EngagementCandidateOut]
+    limit: int
+    offset: int
+    total: int
+
+
+class EngagementActionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    candidate_id: UUID | None = None
+    community_id: UUID
+    telegram_account_id: UUID
+    action_type: str
+    status: str
+    outbound_text: str | None = None
+    reply_to_tg_message_id: int | None = None
+    sent_tg_message_id: int | None = None
+    scheduled_at: datetime | None = None
+    sent_at: datetime | None = None
+    error_message: str | None = None
+    created_at: datetime
+
+
+class EngagementActionListResponse(BaseModel):
+    items: list[EngagementActionOut]
     limit: int
     offset: int
     total: int

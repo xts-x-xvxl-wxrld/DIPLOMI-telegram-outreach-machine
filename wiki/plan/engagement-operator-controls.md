@@ -143,7 +143,7 @@ later slice unless the operator asks for it.
 
 ## Slice 1: API Gap Closure
 
-Status: planned.
+Status: completed.
 
 Add backend endpoints needed by the bot:
 
