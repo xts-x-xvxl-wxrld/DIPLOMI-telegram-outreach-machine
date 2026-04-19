@@ -8,10 +8,13 @@ import pytest
 from bot.main import (
     API_CLIENT_KEY,
     callback_query,
+    create_engagement_topic_command,
     engagement_candidates_command,
     engagement_command,
+    engagement_topics_command,
     send_reply_command,
     approve_reply_command,
+    toggle_engagement_topic_command,
 )
 
 
@@ -43,6 +46,26 @@ class _FakeApiClient:
         self.list_candidate_calls: list[dict[str, Any]] = []
         self.send_calls: list[dict[str, Any]] = []
         self.approve_calls: list[dict[str, Any]] = []
+        self.create_topic_calls: list[dict[str, Any]] = []
+        self.update_topic_calls: list[dict[str, Any]] = []
+        self.topics = [
+            {
+                "id": "topic-1",
+                "name": "Open CRM",
+                "stance_guidance": "Be factual, brief, and non-salesy.",
+                "trigger_keywords": ["crm", "open source"],
+                "negative_keywords": [],
+                "active": True,
+            },
+            {
+                "id": "topic-2",
+                "name": "Automation",
+                "stance_guidance": "Discuss practical automation tradeoffs.",
+                "trigger_keywords": ["automation"],
+                "negative_keywords": [],
+                "active": False,
+            },
+        ]
         self.candidates_by_status = {
             "needs_review": {
                 "items": [
@@ -88,13 +111,48 @@ class _FakeApiClient:
         return {"items": page["items"], "total": page["total"], "limit": limit, "offset": offset}
 
     async def list_engagement_topics(self) -> dict[str, Any]:
+        return {"items": self.topics, "total": len(self.topics)}
+
+    async def create_engagement_topic(
+        self,
+        *,
+        name: str,
+        stance_guidance: str,
+        trigger_keywords: list[str],
+        active: bool = True,
+        **_: Any,
+    ) -> dict[str, Any]:
+        self.create_topic_calls.append(
+            {
+                "name": name,
+                "stance_guidance": stance_guidance,
+                "trigger_keywords": trigger_keywords,
+                "active": active,
+            }
+        )
         return {
-            "items": [
-                {"id": "topic-1", "active": True},
-                {"id": "topic-2", "active": False},
-            ],
-            "total": 2,
+            "id": "topic-created",
+            "name": name,
+            "stance_guidance": stance_guidance,
+            "trigger_keywords": trigger_keywords,
+            "negative_keywords": [],
+            "active": active,
         }
+
+    async def update_engagement_topic(self, topic_id: str, **updates: Any) -> dict[str, Any]:
+        self.update_topic_calls.append({"topic_id": topic_id, "updates": updates})
+        topic = next((item for item in self.topics if item["id"] == topic_id), None)
+        if topic is None:
+            topic = {
+                "id": topic_id,
+                "name": "Topic",
+                "stance_guidance": "Be useful.",
+                "trigger_keywords": ["topic"],
+                "negative_keywords": [],
+                "active": True,
+            }
+        updated = {**topic, **updates}
+        return updated
 
     async def approve_engagement_candidate(
         self,
@@ -171,6 +229,103 @@ async def test_engagement_command_builds_home_counts_from_api_client() -> None:
         "approved",
         "failed",
     ]
+
+
+@pytest.mark.asyncio
+async def test_engagement_topics_command_lists_topic_cards_with_toggle_controls() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await engagement_topics_command(update, _context(client))
+
+    assert "Engagement topics (1-2 of 2) | active 1" in update.message.replies[0]["text"]
+    assert "Open CRM" in update.message.replies[1]["text"]
+    assert "Triggers: crm, open source" in update.message.replies[1]["text"]
+    assert "eng:topic:toggle:topic-1:0" in _callback_data_values(
+        update.message.replies[1]["reply_markup"]
+    )
+    assert "eng:topic:toggle:topic-2:1" in _callback_data_values(
+        update.message.replies[2]["reply_markup"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_engagement_topic_command_parses_pipe_syntax() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await create_engagement_topic_command(
+        update,
+        _context(
+            client,
+            "Open",
+            "CRM",
+            "|",
+            "Be",
+            "factual",
+            "and",
+            "brief.",
+            "|",
+            "crm,",
+            "open",
+            "source",
+        ),
+    )
+
+    assert client.create_topic_calls == [
+        {
+            "name": "Open CRM",
+            "stance_guidance": "Be factual and brief.",
+            "trigger_keywords": ["crm", "open source"],
+            "active": True,
+        }
+    ]
+    assert "Engagement topic created." in update.message.replies[0]["text"]
+    assert "Topic ID: topic-created" in update.message.replies[0]["text"]
+    assert "eng:topic:toggle:topic-created:0" in _callback_data_values(
+        update.message.replies[0]["reply_markup"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_engagement_topic_command_requires_keywords() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await create_engagement_topic_command(
+        update,
+        _context(client, "Open", "CRM", "|", "Be", "useful.", "|"),
+    )
+
+    assert "Usage: /create_engagement_topic" in update.message.replies[0]["text"]
+    assert "at least one trigger keyword" in update.message.replies[0]["text"]
+    assert client.create_topic_calls == []
+
+
+@pytest.mark.asyncio
+async def test_toggle_engagement_topic_command_updates_active_state() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await toggle_engagement_topic_command(update, _context(client, "topic-1", "off"))
+
+    assert client.update_topic_calls == [{"topic_id": "topic-1", "updates": {"active": False}}]
+    assert "Status: inactive" in update.message.replies[0]["text"]
+    assert "eng:topic:toggle:topic-1:1" in _callback_data_values(
+        update.message.replies[0]["reply_markup"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_toggle_engagement_topic_callback_edits_topic_card() -> None:
+    client = _FakeApiClient()
+    update = _callback_update("eng:topic:toggle:topic-1:0")
+
+    await callback_query(update, _context(client))
+
+    assert client.update_topic_calls == [{"topic_id": "topic-1", "updates": {"active": False}}]
+    assert update.callback_query.answers == [{"text": None, "show_alert": False}]
+    assert "Status: inactive" in update.callback_query.edits[0]["text"]
 
 
 @pytest.mark.asyncio

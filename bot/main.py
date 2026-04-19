@@ -21,6 +21,8 @@ from bot.formatting import (
     format_engagement_candidates,
     format_engagement_home,
     format_engagement_job_response,
+    format_engagement_topic_card,
+    format_engagement_topics,
     format_job_status,
     format_member_export,
     format_members,
@@ -46,6 +48,8 @@ from bot.ui import (
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_REJECT,
     ACTION_ENGAGEMENT_SEND,
+    ACTION_ENGAGEMENT_TOPIC_LIST,
+    ACTION_ENGAGEMENT_TOPIC_TOGGLE,
     ACTION_JOB_STATUS,
     ACTION_OPEN_COMMUNITY,
     ACTION_OPEN_SEED_GROUP,
@@ -64,6 +68,8 @@ from bot.ui import (
     engagement_candidate_send_markup,
     engagement_home_markup,
     engagement_job_markup,
+    engagement_topic_actions_markup,
+    engagement_topic_pager_markup,
     job_actions_markup,
     main_menu_markup,
     member_pager_markup,
@@ -80,6 +86,7 @@ CHANNEL_PAGE_SIZE = 5
 MEMBER_PAGE_SIZE = 10
 MEMBER_EXPORT_PAGE_SIZE = 1000
 ENGAGEMENT_CANDIDATE_PAGE_SIZE = 5
+ENGAGEMENT_TOPIC_PAGE_SIZE = 5
 ENGAGEMENT_CANDIDATE_STATUSES = {"needs_review", "approved", "failed", "sent", "rejected"}
 
 
@@ -289,6 +296,57 @@ async def engagement_command(update: Any, context: Any) -> None:
         await _reply(update, format_api_error(exc.message))
 
 
+async def engagement_topics_command(update: Any, context: Any) -> None:
+    try:
+        await _send_engagement_topics(update, context, offset=0)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def create_engagement_topic_command(update: Any, context: Any) -> None:
+    parsed = _parse_create_engagement_topic_args(context)
+    if parsed is None:
+        await _reply(update, _create_engagement_topic_usage())
+        return
+
+    name, guidance, keywords = parsed
+    client = _api_client(context)
+    try:
+        data = await client.create_engagement_topic(
+            name=name,
+            stance_guidance=guidance,
+            trigger_keywords=keywords,
+            active=True,
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+        return
+
+    topic_id = str(data.get("id", "unknown"))
+    await _reply(
+        update,
+        "Engagement topic created.\n\n" + format_engagement_topic_card(data),
+        reply_markup=engagement_topic_actions_markup(topic_id, active=bool(data.get("active"))),
+    )
+
+
+async def toggle_engagement_topic_command(update: Any, context: Any) -> None:
+    if len(context.args) < 2:
+        await _reply(update, "Usage: /toggle_engagement_topic <topic_id> <on|off>")
+        return
+
+    topic_id = str(context.args[0]).strip()
+    active = _parse_on_off(str(context.args[1]))
+    if not topic_id or active is None:
+        await _reply(update, "Usage: /toggle_engagement_topic <topic_id> <on|off>")
+        return
+
+    try:
+        await _toggle_engagement_topic(update, context, topic_id, active=active)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
 async def approve_reply_command(update: Any, context: Any) -> None:
     candidate_id = _first_arg(context)
     if candidate_id is None:
@@ -446,6 +504,18 @@ async def callback_query(update: Any, context: Any) -> None:
         if action == ACTION_ENGAGEMENT_CANDIDATES and parts:
             status, offset = _engagement_callback_status_and_offset(parts)
             await _send_engagement_candidates(update, context, status=status, offset=offset)
+            return
+        if action == ACTION_ENGAGEMENT_TOPIC_LIST and parts:
+            await _send_engagement_topics(update, context, offset=_parse_offset(parts[0]))
+            return
+        if action == ACTION_ENGAGEMENT_TOPIC_TOGGLE and len(parts) == 2:
+            await _toggle_engagement_topic(
+                update,
+                context,
+                parts[0],
+                active=parts[1] == "1",
+                edit_callback=True,
+            )
             return
         if action == ACTION_ENGAGEMENT_APPROVE and len(parts) == 1:
             await _review_engagement_candidate(
@@ -709,6 +779,53 @@ async def _send_engagement_candidates(
         await _callback_reply(update, "Reply page controls", reply_markup=pager_markup)
 
 
+async def _send_engagement_topics(update: Any, context: Any, *, offset: int) -> None:
+    client = _api_client(context)
+    data = await client.list_engagement_topics()
+    items = data.get("items") or []
+    total = int(data.get("total", len(items)) or 0)
+    page = items[offset : offset + ENGAGEMENT_TOPIC_PAGE_SIZE]
+    page_data = {"items": page, "total": total}
+
+    await _callback_reply(
+        update,
+        format_engagement_topics(page_data, offset=offset),
+        reply_markup=engagement_topic_pager_markup(
+            offset=offset,
+            total=total,
+            page_size=ENGAGEMENT_TOPIC_PAGE_SIZE,
+        ),
+    )
+    for index, item in enumerate(page, start=offset + 1):
+        topic_id = str(item.get("id", "unknown"))
+        await _callback_reply(
+            update,
+            format_engagement_topic_card(item, index=index),
+            reply_markup=engagement_topic_actions_markup(
+                topic_id,
+                active=bool(item.get("active")),
+            ),
+        )
+
+
+async def _toggle_engagement_topic(
+    update: Any,
+    context: Any,
+    topic_id: str,
+    *,
+    active: bool,
+    edit_callback: bool = False,
+) -> None:
+    client = _api_client(context)
+    data = await client.update_engagement_topic(topic_id, active=active)
+    message = format_engagement_topic_card(data)
+    reply_markup = engagement_topic_actions_markup(topic_id, active=bool(data.get("active")))
+    if edit_callback:
+        await _edit_callback_message(update, message, reply_markup=reply_markup)
+        return
+    await _reply(update, message, reply_markup=reply_markup)
+
+
 async def _review_engagement_candidate(
     update: Any,
     context: Any,
@@ -846,6 +963,9 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("members", members_command))
     application.add_handler(CommandHandler("exportmembers", exportmembers_command))
     application.add_handler(CommandHandler("engagement", engagement_command))
+    application.add_handler(CommandHandler("engagement_topics", engagement_topics_command))
+    application.add_handler(CommandHandler("create_engagement_topic", create_engagement_topic_command))
+    application.add_handler(CommandHandler("toggle_engagement_topic", toggle_engagement_topic_command))
     application.add_handler(CommandHandler("engagement_candidates", engagement_candidates_command))
     application.add_handler(CommandHandler("approve_reply", approve_reply_command))
     application.add_handler(CommandHandler("reject_reply", reject_reply_command))
@@ -899,6 +1019,38 @@ def _engagement_callback_status_and_offset(parts: list[str]) -> tuple[str, int]:
         status = raw_status if raw_status in ENGAGEMENT_CANDIDATE_STATUSES else "needs_review"
         return status, _parse_offset(parts[1])
     return "needs_review", _parse_offset(parts[0])
+
+
+def _parse_create_engagement_topic_args(context: Any) -> tuple[str, str, list[str]] | None:
+    raw_value = " ".join(str(arg) for arg in context.args).strip()
+    parts = [part.strip() for part in raw_value.split("|")]
+    if len(parts) != 3:
+        return None
+
+    name, guidance, raw_keywords = parts
+    keywords = [keyword.strip() for keyword in raw_keywords.split(",") if keyword.strip()]
+    if not name or not guidance or not keywords:
+        return None
+    return name, guidance, keywords
+
+
+def _create_engagement_topic_usage() -> str:
+    return "\n".join(
+        [
+            "Usage: /create_engagement_topic <name> | <guidance> | <comma_keywords>",
+            "Include at least one trigger keyword.",
+            "Example: /create_engagement_topic Open CRM | Be factual and brief. | crm, open source",
+        ]
+    )
+
+
+def _parse_on_off(raw_value: str) -> bool | None:
+    value = raw_value.strip().casefold()
+    if value == "on":
+        return True
+    if value == "off":
+        return False
+    return None
 
 
 def _candidate_community(item: dict[str, Any]) -> dict[str, Any]:

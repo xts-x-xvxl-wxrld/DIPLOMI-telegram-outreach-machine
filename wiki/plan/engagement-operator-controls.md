@@ -268,7 +268,7 @@ Acceptance:
 
 ## Slice 5: Topic Management
 
-Status: planned.
+Status: completed.
 
 Add topic controls:
 
@@ -283,6 +283,17 @@ Acceptance:
 - Topic guidance is truncated in bot cards but not silently changed.
 - Disallowed guidance remains enforced by the backend service.
 - Tests cover parser failures with helpful usage messages.
+
+Completed notes:
+
+- `/engagement_topics` now lists topic cards with active/inactive state, trigger keyword previews,
+  truncated guidance, and inline activate/deactivate controls.
+- `/create_engagement_topic <name> | <guidance> | <comma_keywords>` parses the planned pipe syntax,
+  requires at least one trigger keyword before calling the API, and creates active topics through
+  the bot API client only.
+- `/toggle_engagement_topic <topic_id> <on|off>` and `eng:topic:toggle:<topic_id>:<0|1>` patch the
+  topic active state through the API client and return refreshed topic cards.
+- Parser failures return usage copy with an example instead of calling the API.
 
 ## Slice 6: Audit Surface
 

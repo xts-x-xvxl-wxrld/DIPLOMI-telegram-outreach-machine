@@ -496,3 +496,13 @@ counts from API client calls. Made `/engagement_candidates [status]` status-awar
 inline send callback, and kept approval separate from send enqueueing. Added focused fake-client bot
 handler tests for the cockpit, approved send controls, approval next-step markup, and send job
 queueing.
+
+## [2026-04-19] code | Built engagement topic management controls
+
+Added Telegram bot topic management for engagement operators. `/engagement_topics` now lists topic
+cards with active state, trigger keyword previews, capped guidance, and inline toggles.
+`/create_engagement_topic <name> | <guidance> | <comma_keywords>` parses the planned pipe syntax,
+requires at least one trigger keyword before calling the API, and leaves unsafe guidance enforcement
+to the backend service. `/toggle_engagement_topic <topic_id> <on|off>` and the matching inline
+callback patch topic active state through the bot API client only. Added focused fake-client handler
+tests for list, create, malformed parser input, command toggles, and callback toggles.
