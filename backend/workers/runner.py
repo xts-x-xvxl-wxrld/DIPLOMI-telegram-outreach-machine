@@ -12,10 +12,12 @@ def main() -> None:
 
     settings = get_settings()
     connection = Redis.from_url(settings.redis_url)
-    queues = [Queue(name, connection=connection) for name in ("high", "default", "scheduled", "analysis")]
+    queues = [
+        Queue(name, connection=connection)
+        for name in ("high", "default", "scheduled", "analysis", "engagement")
+    ]
     Worker(queues, connection=connection).work()
 
 
 if __name__ == "__main__":
     main()
-

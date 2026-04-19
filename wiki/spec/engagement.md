@@ -630,6 +630,11 @@ May call:
 
 - OpenAI, only inside this engagement worker
 
+Model configuration:
+
+- `OPENAI_ENGAGEMENT_MODEL` selects the drafting/detection model and defaults to the same
+  lightweight model used for brief extraction unless overridden.
+
 Writes:
 
 - `engagement_candidates`

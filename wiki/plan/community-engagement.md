@@ -177,7 +177,7 @@ Acceptance:
 
 ## Slice 7: Detection Worker
 
-Status: planned.
+Status: completed.
 
 Implement `engagement.detect`:
 
@@ -194,6 +194,16 @@ Acceptance:
 - Duplicate active candidates are skipped.
 - Prompt tests or fixtures cover "no reply" and "draft reply" paths.
 - Candidate rows do not include sender IDs.
+
+Implemented notes:
+
+- Added `backend/workers/engagement_detect.py` for `engagement.detect` orchestration.
+- Added candidate creation, validation, phone redaction, and active-candidate dedupe helpers to the
+  engagement service.
+- Added `OPENAI_ENGAGEMENT_MODEL` so engagement drafting can be configured separately from brief
+  extraction.
+- Worker tests cover keyword no-signal, draft candidate creation, and duplicate active candidate
+  skips with fake model output.
 
 ## Slice 8: Review API And Bot Controls
 

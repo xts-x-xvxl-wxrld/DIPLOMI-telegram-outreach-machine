@@ -60,6 +60,7 @@
 - `backend/api/routes/telegram_entities.py` - direct Telegram handle intake API endpoints
 - `backend/services/community_engagement.py` - engagement settings and topic validation/state service
 - `backend/workers/community_join.py` - `community.join` orchestration with membership and audit updates
+- `backend/workers/engagement_detect.py` - `engagement.detect` orchestration, sample prefiltering, model calls, and candidate creation
 - `backend/workers/telegram_engagement.py` - fakeable Telethon adapter for engagement joins and future sends
 - `backend/services/seed_import.py` - CSV parsing and seed-group upsert logic
 - `backend/services/telegram_entity_intake.py` - direct Telegram handle intake persistence and classification rules
@@ -74,6 +75,7 @@
 - `backend/workers/telegram_expansion.py` - Telethon seed graph adapter shell
 - `alembic/versions/20260419_0006_engagement_schema.py` - engagement schema foundation migration
 - `tests/test_engagement_schema.py` - engagement schema enum/default/constraint/index tests
+- `tests/test_engagement_detect_worker.py` - engagement detection worker prefiltering, candidate creation, and dedupe tests
 - `scripts/` - local developer workflow helpers
 - `backend/` - FastAPI app, SQLAlchemy models, queue helpers, worker stubs
 - `bot/` - Telegram bot package placeholder

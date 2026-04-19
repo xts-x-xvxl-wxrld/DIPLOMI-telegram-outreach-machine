@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, time, timezone
+from datetime import datetime, timedelta, time, timezone
+import re
 from typing import Any
 from uuid import UUID
 
@@ -13,12 +14,14 @@ from backend.db.enums import (
     AccountStatus,
     CommunityAccountMembershipStatus,
     CommunityStatus,
+    EngagementCandidateStatus,
     EngagementMode,
 )
 from backend.db.models import (
     Community,
     CommunityAccountMembership,
     CommunityEngagementSettings,
+    EngagementCandidate,
     EngagementTopic,
     TelegramAccount,
 )
@@ -58,6 +61,13 @@ class EngagementSettingsView:
     assigned_account_id: UUID | None
     created_at: datetime | None
     updated_at: datetime | None
+
+
+@dataclass(frozen=True)
+class EngagementCandidateCreationResult:
+    candidate: EngagementCandidate
+    created: bool
+    reason: str
 
 
 async def get_engagement_settings(
@@ -318,6 +328,117 @@ async def get_joined_membership_for_send(
     )
 
 
+async def create_engagement_candidate(
+    db: AsyncSession,
+    *,
+    community_id: UUID,
+    topic_id: UUID,
+    source_tg_message_id: int | None,
+    source_excerpt: str | None,
+    detected_reason: str,
+    suggested_reply: str | None,
+    model: str | None,
+    model_output: dict[str, Any] | None,
+    risk_notes: list[str] | None,
+    now: datetime | None = None,
+) -> EngagementCandidateCreationResult:
+    current_time = now or _utcnow()
+    excerpt = sanitize_candidate_excerpt(source_excerpt)
+    reason = _required_text(detected_reason, field="detected_reason")[:500]
+    reply = validate_suggested_reply(suggested_reply)
+    notes = normalize_text_list(risk_notes)[:8]
+
+    existing = await _find_active_candidate_duplicate(
+        db,
+        community_id=community_id,
+        topic_id=topic_id,
+        source_tg_message_id=source_tg_message_id,
+        source_excerpt=excerpt,
+    )
+    if existing is not None:
+        return EngagementCandidateCreationResult(
+            candidate=existing,
+            created=False,
+            reason="duplicate_active_candidate",
+        )
+
+    candidate = EngagementCandidate(
+        id=uuid.uuid4(),
+        community_id=community_id,
+        topic_id=topic_id,
+        source_tg_message_id=source_tg_message_id,
+        source_excerpt=excerpt,
+        detected_reason=reason,
+        suggested_reply=reply,
+        model=model,
+        model_output=_compact_model_output(model_output),
+        risk_notes=notes,
+        status=EngagementCandidateStatus.NEEDS_REVIEW.value,
+        expires_at=current_time + timedelta(hours=24),
+        created_at=current_time,
+        updated_at=current_time,
+    )
+    db.add(candidate)
+    await db.flush()
+    return EngagementCandidateCreationResult(
+        candidate=candidate,
+        created=True,
+        reason="created",
+    )
+
+
+def sanitize_candidate_excerpt(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = " ".join(value.strip().split())
+    if not cleaned:
+        return None
+    cleaned = _PHONE_RE.sub("[phone redacted]", cleaned)
+    return cleaned[:500]
+
+
+def validate_suggested_reply(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = " ".join(value.strip().split())
+    if not cleaned:
+        raise EngagementValidationError("suggested_reply_required", "Suggested reply is required")
+    if len(cleaned) > 800:
+        raise EngagementValidationError(
+            "suggested_reply_too_long",
+            "Suggested reply must be 800 characters or fewer",
+        )
+
+    lowered = cleaned.casefold()
+    disallowed_markers = (
+        "dm me",
+        "direct message me",
+        "send me a dm",
+        "pm me",
+        "private message me",
+        "as a customer",
+        "as the founder",
+        "as founder",
+        "as a moderator",
+        "everyone agrees",
+        "guaranteed",
+        "limited time",
+    )
+    for marker in disallowed_markers:
+        if marker in lowered:
+            raise EngagementValidationError(
+                "unsafe_suggested_reply",
+                "Suggested reply must not ask for DMs, impersonate a role, "
+                "claim fake consensus, or use manipulative urgency",
+            )
+    if "http://" in lowered or "https://" in lowered:
+        raise EngagementValidationError(
+            "links_not_allowed",
+            "Suggested reply links are not enabled in the MVP",
+        )
+    return cleaned
+
+
 def normalize_keywords(values: list[str] | None) -> list[str]:
     normalized: list[str] = []
     seen: set[str] = set()
@@ -505,6 +626,47 @@ async def _get_membership(
     )
 
 
+async def _find_active_candidate_duplicate(
+    db: AsyncSession,
+    *,
+    community_id: UUID,
+    topic_id: UUID,
+    source_tg_message_id: int | None,
+    source_excerpt: str | None,
+) -> EngagementCandidate | None:
+    active_statuses = (
+        EngagementCandidateStatus.NEEDS_REVIEW.value,
+        EngagementCandidateStatus.APPROVED.value,
+    )
+    query = select(EngagementCandidate).where(
+        EngagementCandidate.community_id == community_id,
+        EngagementCandidate.topic_id == topic_id,
+        EngagementCandidate.status.in_(active_statuses),
+    )
+    if source_tg_message_id is not None:
+        query = query.where(EngagementCandidate.source_tg_message_id == source_tg_message_id)
+    else:
+        query = query.where(
+            EngagementCandidate.source_tg_message_id.is_(None),
+            EngagementCandidate.source_excerpt == source_excerpt,
+        )
+    return await db.scalar(query.limit(1))
+
+
+def _compact_model_output(value: dict[str, Any] | None) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    allowed_keys = {
+        "should_engage",
+        "topic_match",
+        "source_tg_message_id",
+        "reason",
+        "suggested_reply",
+        "risk_notes",
+    }
+    return {key: value[key] for key in allowed_keys if key in value}
+
+
 def _disabled_settings_view(community_id: UUID) -> EngagementSettingsView:
     return EngagementSettingsView(
         community_id=community_id,
@@ -550,3 +712,6 @@ def _enum_value(value: Any) -> str:
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+_PHONE_RE = re.compile(r"(?<!\w)(?:\+?\d[\d\s().-]{7,}\d)(?!\w)")

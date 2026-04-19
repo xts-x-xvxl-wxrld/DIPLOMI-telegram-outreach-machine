@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     bot_api_token: str = Field(default="", validation_alias="BOT_API_TOKEN")
     openai_api_key: str = Field(default="", validation_alias="OPENAI_API_KEY")
     openai_brief_model: str = Field(default="gpt-4o-mini", validation_alias="OPENAI_BRIEF_MODEL")
+    openai_engagement_model: str = Field(
+        default="gpt-4o-mini",
+        validation_alias="OPENAI_ENGAGEMENT_MODEL",
+    )
     telegram_api_id: str = Field(default="", validation_alias="TELEGRAM_API_ID")
     telegram_api_hash: str = Field(default="", validation_alias="TELEGRAM_API_HASH")
     sessions_dir: str = Field(default="/sessions", validation_alias="SESSIONS_DIR")

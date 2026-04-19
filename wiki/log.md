@@ -417,3 +417,13 @@ write audit actions, update durable membership state, release account leases wit
 rate-limited, banned, or error outcomes, and skip safely when joins are not enabled. Added worker
 tests for success, already joined, inaccessible communities, FloodWait, banned sessions, and
 disabled joins. Marked the join worker slice complete in the engagement plan.
+
+## [2026-04-19] code | Added engagement detection worker
+
+Implemented `engagement.detect` as a no-send worker that loads active engagement settings/topics,
+reads compact recent collection samples or opt-in stored messages, applies keyword prefiltering
+before model calls, validates structured draft output, and creates capped engagement candidates.
+Added candidate creation, phone redaction, reply safety validation, compact model-output storage,
+and active-candidate dedupe helpers. Wired worker dispatch and the engagement queue runner, added
+`OPENAI_ENGAGEMENT_MODEL`, and covered no-signal, draft-created, and duplicate-skip paths with
+tests. Marked the detection worker slice complete in the engagement plan.
