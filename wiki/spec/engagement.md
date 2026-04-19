@@ -22,6 +22,9 @@ detect relevant discussion
 Engagement is not part of the seed-first discovery MVP unless the operator explicitly enables it for
 a community and account.
 
+Admin prompt controls, engagement-specific target intake, per-community style rules, and editable
+reply review are specified separately in `wiki/spec/engagement-admin-control-plane.md`.
+
 ## Non-Goals
 
 - No direct messages to community members.
@@ -30,6 +33,7 @@ a community and account.
 - No vote, reaction, subscriber, member, or view manipulation.
 - No bulk joining or mass posting.
 - No posting in communities that have not been explicitly approved for engagement.
+- No regular seed add/import may automatically approve a community for engagement.
 - No business logic in collection workers.
 - No OpenAI calls in collection, discovery, seed resolution, or expansion.
 

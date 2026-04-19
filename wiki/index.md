@@ -10,6 +10,7 @@
 - [Collection](spec/collection.md) - public message and member collection from approved communities
 - [Analysis](spec/analysis.md) - community summarization and relevance scoring via OpenAI
 - [Engagement](spec/engagement.md) - optional operator-approved community joining, topic detection, reply drafting, sending, and audit logs
+- [Engagement Admin Control Plane](spec/engagement-admin-control-plane.md) - separated engagement target intake, prompt profiles, style rules, examples, and editable replies
 - [Account Manager](spec/account-manager.md) - Telegram account pool, session management, health tracking
 - [API](spec/api.md) - backend REST API, endpoints, auth
 - [Bot](spec/bot.md) - Telegram bot operator UI: seed import, candidate review, debug logs
@@ -38,6 +39,7 @@
 - [VPS Agent Ops Context](plan/vps-agent-ops.md) - redacted VPS map, helper commands, and staging deploy gates
 - [Community Engagement](plan/community-engagement.md) - human-in-the-loop Telethon joining and public reply workflow
 - [Engagement Operator Controls](plan/engagement-operator-controls.md) - Telegram bot control surface for settings, topics, joins, detection, candidate sends, and audit views
+- [Engagement Admin Control Plane](plan/engagement-admin-control-plane.md) - manual engagement targets, prompt/profile admin, style rules, and editable reply implementation plan
 
 ## Implementation roots
 

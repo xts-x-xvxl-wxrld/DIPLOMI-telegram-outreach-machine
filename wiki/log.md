@@ -516,3 +516,11 @@ audit review. `/engagement_settings` now renders disabled synthetic settings wit
 the matching inline callbacks route only through the bot API client. Added `/engagement_actions`
 with optional community filtering, capped outbound text cards, failed/skipped diagnostics, and
 filter-preserving inline paging. Added focused fake-client handler tests plus UI parser/pager coverage.
+
+## [2026-04-19] spec | Drafted engagement admin control plane
+
+Added a new engagement admin control-plane spec and implementation plan. The design separates
+engagement target intake from regular seed add/import, adds admin-editable OpenAI prompt profiles
+and rendered prompt previews, makes topic good/bad reply examples and per-scope style rules
+first-class controls, and requires editable candidate final replies before approval and send.
+Updated the engagement spec and wiki index to point to the new control-plane docs.
