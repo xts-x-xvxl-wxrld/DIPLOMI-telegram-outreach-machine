@@ -64,7 +64,7 @@ Acceptance:
 
 ## Slice 2: Schema Foundation
 
-Status: planned.
+Status: completed.
 
 Add Alembic migration and SQLAlchemy models for:
 

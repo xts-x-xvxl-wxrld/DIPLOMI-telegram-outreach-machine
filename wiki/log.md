@@ -378,3 +378,10 @@ status values, state transitions, service interfaces, worker preflights, Teletho
 API DTOs, idempotency rules, rate-limit rules, error mapping, scheduler behavior, observability, and
 minimum test expectations. Updated the database spec draft fields and marked the wiki contract slice
 complete in the engagement plan.
+
+## [2026-04-19] code | Added engagement schema foundation
+
+Added engagement status enums, SQLAlchemy models, and an Alembic migration for community engagement
+settings, account memberships, topics, candidate replies, and outbound action audit logs. Added
+schema tests for enum values, defaults, uniqueness constraints, indexes, and PostgreSQL DDL
+compilation. Marked the schema foundation slice complete in the engagement plan.

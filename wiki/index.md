@@ -68,6 +68,8 @@
 - `backend/workers/telegram_resolver.py` - Telethon public community entity resolver
 - `backend/workers/telegram_entity_resolver.py` - Telethon classifier for one submitted handle
 - `backend/workers/telegram_expansion.py` - Telethon seed graph adapter shell
+- `alembic/versions/20260419_0006_engagement_schema.py` - engagement schema foundation migration
+- `tests/test_engagement_schema.py` - engagement schema enum/default/constraint/index tests
 - `scripts/` - local developer workflow helpers
 - `backend/` - FastAPI app, SQLAlchemy models, queue helpers, worker stubs
 - `bot/` - Telegram bot package placeholder

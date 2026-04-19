@@ -68,3 +68,43 @@ class ActivityStatus(StrEnum):
     INACTIVE = "inactive"
     PASSIVE = "passive"
     ACTIVE = "active"
+
+
+class EngagementMode(StrEnum):
+    DISABLED = "disabled"
+    OBSERVE = "observe"
+    SUGGEST = "suggest"
+    REQUIRE_APPROVAL = "require_approval"
+    AUTO_LIMITED = "auto_limited"
+
+
+class CommunityAccountMembershipStatus(StrEnum):
+    NOT_JOINED = "not_joined"
+    JOIN_REQUESTED = "join_requested"
+    JOINED = "joined"
+    FAILED = "failed"
+    LEFT = "left"
+    BANNED = "banned"
+
+
+class EngagementCandidateStatus(StrEnum):
+    NEEDS_REVIEW = "needs_review"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    SENT = "sent"
+    EXPIRED = "expired"
+    FAILED = "failed"
+
+
+class EngagementActionType(StrEnum):
+    JOIN = "join"
+    REPLY = "reply"
+    POST = "post"
+    SKIP = "skip"
+
+
+class EngagementActionStatus(StrEnum):
+    QUEUED = "queued"
+    SENT = "sent"
+    FAILED = "failed"
+    SKIPPED = "skipped"
