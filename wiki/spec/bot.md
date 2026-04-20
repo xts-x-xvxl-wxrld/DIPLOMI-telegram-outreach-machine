@@ -43,9 +43,16 @@ Engagement commands are optional and operator-controlled:
 ```text
 /engagement
 /engagement_admin
-/engagement_targets
+/engagement_targets [status]
+/engagement_target <target_id>
 /add_engagement_target <telegram_link_or_username_or_community_id>
+/resolve_engagement_target <target_id>
 /approve_engagement_target <target_id>
+/reject_engagement_target <target_id>
+/archive_engagement_target <target_id>
+/target_permission <target_id> <join|detect|post> <on|off>
+/target_join <target_id>
+/target_detect <target_id> [window_minutes]
 /engagement_prompts
 /engagement_prompt_preview <profile_id>
 /engagement_style
@@ -319,19 +326,58 @@ Shows the admin-only configuration entrypoint for communities, topics, voice rul
 limits/accounts, and advanced prompt/audit controls. This surface stays separate from daily
 candidate review.
 
-### `/engagement_targets`
+### `/engagement_targets [status]`
 
-Lists manual engagement targets and their approval/posting permissions. Target cards start with a
-human-readable readiness summary before raw target IDs and permission fields.
+Lists manual engagement targets and their approval/posting permissions, optionally filtered by
+target status. Target cards start with a human-readable readiness summary before raw target IDs and
+permission fields, and expose target-scoped open, resolve, reject, archive, permission, join, and
+detect controls.
+
+### `/engagement_target <target_id>`
+
+Shows one engagement target card with submitted reference, resolved community, status, permissions,
+notes or last error when present, and the next safe target actions.
 
 ### `/add_engagement_target <telegram_link_or_username_or_community_id>`
 
 Calls the engagement target intake API. This must not create seed rows.
 
+### `/resolve_engagement_target <target_id>`
+
+Queues `engagement_target.resolve` through the target-scoped engagement API. This must not call seed
+resolution APIs or create seed rows.
+
 ### `/approve_engagement_target <target_id>`
 
 Approves a resolved engagement target and enables join/detect/post permissions for the target. The
-worker still enforces settings and target gates before any outbound work.
+bot shows the current permission state before mutation and the resulting state after the API
+returns. The worker still enforces settings and target gates before any outbound work.
+
+### `/reject_engagement_target <target_id>`
+
+Rejects an engagement target through the API. Rejection forces join, detect, and post permissions
+off.
+
+### `/archive_engagement_target <target_id>`
+
+Archives an engagement target through the API. Archiving forces join, detect, and post permissions
+off.
+
+### `/target_permission <target_id> <join|detect|post> <on|off>`
+
+Toggles one target permission through the engagement target API and displays before/after target
+permissions. `detect` is labeled to operators as watching/drafting, while `post` remains reviewed
+public posting only.
+
+### `/target_join <target_id>`
+
+Queues a target-scoped join job. The API maps the target to its resolved community and workers still
+enforce approval and `allow_join`.
+
+### `/target_detect <target_id> [window_minutes]`
+
+Queues a target-scoped engagement detection job. The API maps the target to its resolved community
+and workers still enforce approval and `allow_detect`.
 
 ### `/engagement_prompts`
 

@@ -619,3 +619,12 @@ Updated the bot operator cockpit spec with a nested Discovery cockpit: Start sea
 Review communities, Watching, Recent jobs, and Help. The update adds operator-facing discovery
 vocabulary, `disc:*` callback guidance, readiness summaries for searches, example communities, and
 suggested communities, plus first-slice implementation and testing expectations.
+
+## [2026-04-20] code | Built bot engagement target controls
+
+Completed bot engagement controls Slice 3. The Telegram bot now supports target status filters,
+target detail cards, target resolution, rejection, archive, join/detect permission toggles,
+target-scoped join jobs, and target-scoped detection jobs. Target approval and permission changes
+show before/after permission state, while rejected and archived targets display all permissions off.
+Added `GET /api/engagement/targets/{target_id}` plus focused API-client, UI parser, formatting,
+handler, and engagement API tests.

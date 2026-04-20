@@ -182,6 +182,9 @@ class BotApiClient:
             params["status"] = status
         return await self._request("GET", "/engagement/targets", params=params)
 
+    async def get_engagement_target(self, target_id: str) -> dict[str, Any]:
+        return await self._request("GET", f"/engagement/targets/{target_id}")
+
     async def create_engagement_target(
         self,
         *,
@@ -211,6 +214,38 @@ class BotApiClient:
             "POST",
             f"/engagement/targets/{target_id}/resolve-jobs",
             json={"requested_by": requested_by},
+        )
+
+    async def start_engagement_target_join(
+        self,
+        target_id: str,
+        *,
+        telegram_account_id: str | None = None,
+        requested_by: str | None = None,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            f"/engagement/targets/{target_id}/join-jobs",
+            json={
+                "telegram_account_id": telegram_account_id,
+                "requested_by": requested_by,
+            },
+        )
+
+    async def start_engagement_target_detection(
+        self,
+        target_id: str,
+        *,
+        window_minutes: int = 60,
+        requested_by: str | None = None,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            f"/engagement/targets/{target_id}/detect-jobs",
+            json={
+                "window_minutes": window_minutes,
+                "requested_by": requested_by,
+            },
         )
 
     async def approve_engagement_candidate(

@@ -37,7 +37,15 @@ ACTION_ENGAGEMENT_DETECT = "eng:detect"
 ACTION_ENGAGEMENT_ACTIONS = "eng:actions:list"
 ACTION_ENGAGEMENT_ADMIN = "eng:admin:home"
 ACTION_ENGAGEMENT_TARGETS = "eng:admin:tgt"
+ACTION_ENGAGEMENT_TARGET_ADD = "eng:admin:tna"
+ACTION_ENGAGEMENT_TARGET_OPEN = "eng:admin:to"
 ACTION_ENGAGEMENT_TARGET_APPROVE = "eng:admin:ta"
+ACTION_ENGAGEMENT_TARGET_RESOLVE = "eng:admin:tr"
+ACTION_ENGAGEMENT_TARGET_REJECT = "eng:admin:tx"
+ACTION_ENGAGEMENT_TARGET_ARCHIVE = "eng:admin:tz"
+ACTION_ENGAGEMENT_TARGET_PERMISSION = "eng:admin:tp"
+ACTION_ENGAGEMENT_TARGET_JOIN = "eng:admin:tj"
+ACTION_ENGAGEMENT_TARGET_DETECT = "eng:admin:td"
 ACTION_ENGAGEMENT_PROMPTS = "eng:admin:pr"
 ACTION_ENGAGEMENT_PROMPT_ACTIVATE = "eng:admin:pa"
 ACTION_ENGAGEMENT_STYLE = "eng:admin:sr"
@@ -225,10 +233,85 @@ def engagement_admin_advanced_markup():
     )
 
 
-def engagement_target_actions_markup(target_id: str, *, status: str):
+def engagement_target_list_markup(
+    *,
+    status: str | None,
+    offset: int,
+    total: int,
+    page_size: int,
+):
+    rows = [
+        [_button("Add target", ACTION_ENGAGEMENT_TARGET_ADD)],
+        *_target_status_filter_rows(status),
+        [_button("Admin", ACTION_ENGAGEMENT_ADMIN)],
+    ]
+    pager_row = _offset_pager_row(
+        action=ACTION_ENGAGEMENT_TARGETS,
+        offset=offset,
+        total=total,
+        page_size=page_size,
+        prefix_parts=[status or "all"],
+    )
+    if pager_row:
+        rows.append(pager_row)
+    return _inline_markup(rows)
+
+
+def engagement_target_actions_markup(
+    target_id: str,
+    *,
+    status: str,
+    allow_join: bool = False,
+    allow_detect: bool = False,
+    allow_post: bool = False,
+):
     rows = []
-    if status != "approved":
+    rows.append([_button("Open", ACTION_ENGAGEMENT_TARGET_OPEN, target_id)])
+    if status in {"pending", "failed"}:
+        rows.append([_button("Resolve", ACTION_ENGAGEMENT_TARGET_RESOLVE, target_id)])
+    if status == "resolved":
         rows.append([_button("Approve", ACTION_ENGAGEMENT_TARGET_APPROVE, target_id)])
+    if status not in {"rejected", "archived"}:
+        rows.append(
+            [
+                _button("Reject", ACTION_ENGAGEMENT_TARGET_REJECT, target_id),
+                _button("Archive", ACTION_ENGAGEMENT_TARGET_ARCHIVE, target_id),
+            ]
+        )
+    if status == "approved":
+        rows.extend(
+            [
+                [
+                    _button(
+                        "Watch off" if allow_detect else "Watch on",
+                        ACTION_ENGAGEMENT_TARGET_PERMISSION,
+                        target_id,
+                        "d",
+                        "0" if allow_detect else "1",
+                    ),
+                    _button(
+                        "Post off" if allow_post else "Post on",
+                        ACTION_ENGAGEMENT_TARGET_PERMISSION,
+                        target_id,
+                        "p",
+                        "0" if allow_post else "1",
+                    ),
+                ],
+                [
+                    _button(
+                        "Join off" if allow_join else "Join on",
+                        ACTION_ENGAGEMENT_TARGET_PERMISSION,
+                        target_id,
+                        "j",
+                        "0" if allow_join else "1",
+                    )
+                ],
+                [
+                    _button("Queue join", ACTION_ENGAGEMENT_TARGET_JOIN, target_id),
+                    _button("Detect now", ACTION_ENGAGEMENT_TARGET_DETECT, target_id, "60"),
+                ],
+            ]
+        )
     rows.append([_button("Targets", ACTION_ENGAGEMENT_TARGETS, "0")])
     return _inline_markup(rows)
 
@@ -484,6 +567,30 @@ def _offset_pager_row(
     if next_offset < total:
         buttons.append(_button("Next", action, *prefix_parts, str(next_offset)))
     return buttons
+
+
+def _target_status_filter_rows(status: str | None):
+    labels = [
+        ("all", "All"),
+        ("pending", "Pending"),
+        ("resolved", "Resolved"),
+        ("approved", "Approved"),
+        ("failed", "Failed"),
+        ("rejected", "Rejected"),
+        ("archived", "Archived"),
+    ]
+    rows = []
+    row = []
+    selected = status or "all"
+    for value, label in labels:
+        display_label = f"* {label}" if value == selected else label
+        row.append(_button(display_label, ACTION_ENGAGEMENT_TARGETS, value, "0"))
+        if len(row) == 4:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    return rows
 
 
 def _inline_types():

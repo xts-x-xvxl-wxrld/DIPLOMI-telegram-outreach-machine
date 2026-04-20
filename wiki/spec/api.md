@@ -760,6 +760,11 @@ Query parameters:
 - `limit`
 - `offset`
 
+### `GET /api/engagement/targets/{target_id}`
+
+Returns one manual engagement target with submitted reference, resolved community fields when
+available, status, permissions, notes, approval metadata, and last error.
+
 ### `POST /api/engagement/targets`
 
 Creates or returns an engagement target from an existing `community_id`, public Telegram username,

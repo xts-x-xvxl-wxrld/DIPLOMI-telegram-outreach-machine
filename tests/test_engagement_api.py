@@ -13,6 +13,7 @@ from backend.api.deps import settings_dep
 from backend.api.routes.engagement import (
     get_engagement_actions,
     get_engagement_candidates,
+    get_engagement_target_detail,
     get_community_engagement_settings,
     patch_engagement_topic,
     post_community_join_job,
@@ -22,6 +23,8 @@ from backend.api.routes.engagement import (
     post_engagement_candidate_reject,
     post_engagement_candidate_send_job,
     post_engagement_target,
+    post_engagement_target_detect_job,
+    post_engagement_target_join_job,
     post_engagement_target_resolve_job,
     patch_engagement_target,
     post_engagement_topic,
@@ -306,6 +309,21 @@ async def test_duplicate_engagement_target_returns_existing_row() -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_engagement_target_detail_returns_target_card_fields() -> None:
+    community_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.APPROVED.value)
+    db = FakeDb(target=target)
+
+    response = await get_engagement_target_detail(target.id, db)  # type: ignore[arg-type]
+
+    assert response.id == target.id
+    assert response.community_id == community_id
+    assert response.community_title == "Founder Circle"
+    assert response.status == EngagementTargetStatus.APPROVED.value
+    assert response.allow_detect is True
+
+
+@pytest.mark.asyncio
 async def test_patch_engagement_target_approves_permissions() -> None:
     community_id = uuid4()
     target = _target(community_id, status=EngagementTargetStatus.RESOLVED.value)
@@ -356,6 +374,105 @@ async def test_engagement_target_resolve_job_enqueues_engagement_job(monkeypatch
     assert response.job.id == "target-resolve-job"
     assert response.job.type == "engagement_target.resolve"
     assert captured == {"target_id": target.id, "requested_by": "telegram:123"}
+
+
+@pytest.mark.asyncio
+async def test_engagement_target_join_job_uses_resolved_target_community(monkeypatch) -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.APPROVED.value)
+    db = FakeDb(target=target)
+    captured: dict[str, object] = {}
+
+    def fake_enqueue(
+        community_id_arg: object,
+        *,
+        requested_by: str,
+        telegram_account_id: object | None = None,
+    ) -> QueuedJob:
+        captured.update(
+            {
+                "community_id": community_id_arg,
+                "telegram_account_id": telegram_account_id,
+                "requested_by": requested_by,
+            }
+        )
+        return QueuedJob(id="target-join-job", type="community.join")
+
+    monkeypatch.setattr("backend.api.routes.engagement.enqueue_community_join", fake_enqueue)
+
+    response = await post_engagement_target_join_job(
+        target.id,
+        EngagementJoinJobRequest(
+            telegram_account_id=account_id,
+            requested_by="telegram:123",
+        ),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.job.id == "target-join-job"
+    assert response.job.type == "community.join"
+    assert captured == {
+        "community_id": community_id,
+        "telegram_account_id": account_id,
+        "requested_by": "telegram:123",
+    }
+
+
+@pytest.mark.asyncio
+async def test_engagement_target_detect_job_uses_resolved_target_community(monkeypatch) -> None:
+    community_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.APPROVED.value)
+    db = FakeDb(target=target)
+    captured: dict[str, object] = {}
+
+    def fake_enqueue(
+        community_id_arg: object,
+        *,
+        window_minutes: int,
+        requested_by: str,
+    ) -> QueuedJob:
+        captured.update(
+            {
+                "community_id": community_id_arg,
+                "window_minutes": window_minutes,
+                "requested_by": requested_by,
+            }
+        )
+        return QueuedJob(id="target-detect-job", type="engagement.detect")
+
+    monkeypatch.setattr("backend.api.routes.engagement.enqueue_manual_engagement_detect", fake_enqueue)
+
+    response = await post_engagement_target_detect_job(
+        target.id,
+        EngagementDetectJobRequest(window_minutes=45, requested_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.job.id == "target-detect-job"
+    assert response.job.type == "engagement.detect"
+    assert captured == {
+        "community_id": community_id,
+        "window_minutes": 45,
+        "requested_by": "telegram:123",
+    }
+
+
+@pytest.mark.asyncio
+async def test_engagement_target_jobs_reject_unresolved_target() -> None:
+    target = _target(uuid4(), status=EngagementTargetStatus.PENDING.value)
+    target.community_id = None
+    db = FakeDb(target=target)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await post_engagement_target_join_job(
+            target.id,
+            EngagementJoinJobRequest(),
+            db,  # type: ignore[arg-type]
+        )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail["code"] == "target_not_resolved"
 
 
 @pytest.mark.asyncio

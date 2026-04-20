@@ -33,6 +33,7 @@ from bot.formatting import (
     format_engagement_style_rule_card,
     format_engagement_style_rules,
     format_engagement_target_card,
+    format_engagement_target_mutation,
     format_engagement_targets,
     format_engagement_topic_card,
     format_engagement_topics,
@@ -74,7 +75,15 @@ from bot.ui import (
     ACTION_ENGAGEMENT_SETTINGS_POST,
     ACTION_ENGAGEMENT_SETTINGS_PRESET,
     ACTION_ENGAGEMENT_STYLE,
+    ACTION_ENGAGEMENT_TARGET_ADD,
     ACTION_ENGAGEMENT_TARGET_APPROVE,
+    ACTION_ENGAGEMENT_TARGET_ARCHIVE,
+    ACTION_ENGAGEMENT_TARGET_DETECT,
+    ACTION_ENGAGEMENT_TARGET_JOIN,
+    ACTION_ENGAGEMENT_TARGET_OPEN,
+    ACTION_ENGAGEMENT_TARGET_PERMISSION,
+    ACTION_ENGAGEMENT_TARGET_REJECT,
+    ACTION_ENGAGEMENT_TARGET_RESOLVE,
     ACTION_ENGAGEMENT_TARGETS,
     ACTION_ENGAGEMENT_TOPIC_LIST,
     ACTION_ENGAGEMENT_TOPIC_TOGGLE,
@@ -104,6 +113,7 @@ from bot.ui import (
     engagement_job_markup,
     engagement_settings_markup,
     engagement_target_actions_markup,
+    engagement_target_list_markup,
     engagement_topic_actions_markup,
     engagement_topic_pager_markup,
     job_actions_markup,
@@ -126,6 +136,9 @@ ENGAGEMENT_TOPIC_PAGE_SIZE = 5
 ENGAGEMENT_ACTION_PAGE_SIZE = 5
 ENGAGEMENT_ADMIN_PAGE_SIZE = 5
 ENGAGEMENT_CANDIDATE_STATUSES = {"needs_review", "approved", "failed", "sent", "rejected"}
+ENGAGEMENT_TARGET_STATUSES = {"pending", "resolved", "approved", "rejected", "archived", "failed"}
+ENGAGEMENT_TARGET_PERMISSIONS = {"join": "allow_join", "detect": "allow_detect", "post": "allow_post"}
+ENGAGEMENT_TARGET_PERMISSION_ALIASES = {"j": "join", "d": "detect", "p": "post"}
 ENGAGEMENT_SETTING_PRESETS = {"off", "observe", "suggest", "ready"}
 
 
@@ -344,7 +357,23 @@ async def engagement_admin_command(update: Any, context: Any) -> None:
 
 async def engagement_targets_command(update: Any, context: Any) -> None:
     try:
-        await _send_engagement_targets(update, context, offset=0)
+        await _send_engagement_targets(
+            update,
+            context,
+            status=_engagement_target_status_arg(context),
+            offset=0,
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def engagement_target_command(update: Any, context: Any) -> None:
+    target_id = _first_arg(context)
+    if target_id is None:
+        await _reply(update, "Usage: /engagement_target <target_id>")
+        return
+    try:
+        await _send_engagement_target(update, context, target_id)
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
 
@@ -380,6 +409,93 @@ async def approve_engagement_target_command(update: Any, context: Any) -> None:
         return
     try:
         await _approve_engagement_target(update, context, target_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def resolve_engagement_target_command(update: Any, context: Any) -> None:
+    target_id = _first_arg(context)
+    if target_id is None:
+        await _reply(update, "Usage: /resolve_engagement_target <target_id>")
+        return
+    try:
+        await _resolve_engagement_target(update, context, target_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def reject_engagement_target_command(update: Any, context: Any) -> None:
+    target_id = _first_arg(context)
+    if target_id is None:
+        await _reply(update, "Usage: /reject_engagement_target <target_id>")
+        return
+    try:
+        await _set_engagement_target_status(update, context, target_id, status="rejected")
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def archive_engagement_target_command(update: Any, context: Any) -> None:
+    target_id = _first_arg(context)
+    if target_id is None:
+        await _reply(update, "Usage: /archive_engagement_target <target_id>")
+        return
+    try:
+        await _set_engagement_target_status(update, context, target_id, status="archived")
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def target_permission_command(update: Any, context: Any) -> None:
+    if len(context.args) < 3:
+        await _reply(update, "Usage: /target_permission <target_id> <join|detect|post> <on|off>")
+        return
+
+    target_id = str(context.args[0]).strip()
+    permission = _normalize_target_permission(str(context.args[1]))
+    enabled = _parse_on_off(str(context.args[2]))
+    if not target_id or permission is None or enabled is None:
+        await _reply(update, "Usage: /target_permission <target_id> <join|detect|post> <on|off>")
+        return
+    try:
+        await _set_engagement_target_permission(
+            update,
+            context,
+            target_id,
+            permission=permission,
+            enabled=enabled,
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def target_join_command(update: Any, context: Any) -> None:
+    target_id = _first_arg(context)
+    if target_id is None:
+        await _reply(update, "Usage: /target_join <target_id>")
+        return
+    try:
+        await _start_engagement_target_join(update, context, target_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def target_detect_command(update: Any, context: Any) -> None:
+    target_id = _first_arg(context)
+    if target_id is None:
+        await _reply(update, "Usage: /target_detect <target_id> [window_minutes]")
+        return
+    window_minutes = _optional_window_minutes(context)
+    if window_minutes is None:
+        await _reply(update, "Usage: /target_detect <target_id> [window_minutes]")
+        return
+    try:
+        await _start_engagement_target_detection(
+            update,
+            context,
+            target_id,
+            window_minutes=window_minutes,
+        )
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
 
@@ -724,10 +840,65 @@ async def callback_query(update: Any, context: Any) -> None:
             await _send_engagement_admin_advanced(update)
             return
         if action == ACTION_ENGAGEMENT_TARGETS and parts:
-            await _send_engagement_targets(update, context, offset=_parse_offset(parts[0]))
+            status, offset = _engagement_target_callback_status_and_offset(parts)
+            await _send_engagement_targets(update, context, status=status, offset=offset)
+            return
+        if action == ACTION_ENGAGEMENT_TARGET_ADD:
+            await _callback_reply(
+                update,
+                "Add an engagement community with:\n/add_engagement_target <telegram_link_or_username_or_community_id>",
+            )
+            return
+        if action == ACTION_ENGAGEMENT_TARGET_OPEN and len(parts) == 1:
+            await _send_engagement_target(update, context, parts[0])
+            return
+        if action == ACTION_ENGAGEMENT_TARGET_RESOLVE and len(parts) == 1:
+            await _resolve_engagement_target(update, context, parts[0])
             return
         if action == ACTION_ENGAGEMENT_TARGET_APPROVE and len(parts) == 1:
             await _approve_engagement_target(update, context, parts[0], edit_callback=True)
+            return
+        if action == ACTION_ENGAGEMENT_TARGET_REJECT and len(parts) == 1:
+            await _set_engagement_target_status(
+                update,
+                context,
+                parts[0],
+                status="rejected",
+                edit_callback=True,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_TARGET_ARCHIVE and len(parts) == 1:
+            await _set_engagement_target_status(
+                update,
+                context,
+                parts[0],
+                status="archived",
+                edit_callback=True,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_TARGET_PERMISSION and len(parts) == 3:
+            permission = _normalize_target_permission(parts[1])
+            enabled = _parse_callback_bool(parts[2])
+            if permission is not None and enabled is not None:
+                await _set_engagement_target_permission(
+                    update,
+                    context,
+                    parts[0],
+                    permission=permission,
+                    enabled=enabled,
+                    edit_callback=True,
+                )
+                return
+        if action == ACTION_ENGAGEMENT_TARGET_JOIN and len(parts) == 1:
+            await _start_engagement_target_join(update, context, parts[0])
+            return
+        if action == ACTION_ENGAGEMENT_TARGET_DETECT and len(parts) == 2:
+            await _start_engagement_target_detection(
+                update,
+                context,
+                parts[0],
+                window_minutes=_parse_positive_int(parts[1], default=60),
+            )
             return
         if action == ACTION_ENGAGEMENT_PROMPTS and parts:
             await _send_engagement_prompts(update, context, offset=_parse_offset(parts[0]))
@@ -1065,14 +1236,25 @@ async def _send_engagement_admin_advanced(update: Any) -> None:
     )
 
 
-async def _send_engagement_targets(update: Any, context: Any, *, offset: int) -> None:
+async def _send_engagement_targets(
+    update: Any,
+    context: Any,
+    *,
+    status: str | None = None,
+    offset: int,
+) -> None:
     client = _api_client(context)
-    data = await client.list_engagement_targets(limit=ENGAGEMENT_ADMIN_PAGE_SIZE, offset=offset)
+    data = await client.list_engagement_targets(
+        status=status,
+        limit=ENGAGEMENT_ADMIN_PAGE_SIZE,
+        offset=offset,
+    )
+    data = {**data, "status": status}
     await _callback_reply(
         update,
         format_engagement_targets(data, offset=offset),
-        reply_markup=engagement_admin_pager_markup(
-            action=ACTION_ENGAGEMENT_TARGETS,
+        reply_markup=engagement_target_list_markup(
+            status=status,
             offset=offset,
             total=data.get("total", 0),
             page_size=ENGAGEMENT_ADMIN_PAGE_SIZE,
@@ -1085,8 +1267,21 @@ async def _send_engagement_targets(update: Any, context: Any, *, offset: int) ->
             reply_markup=engagement_target_actions_markup(
                 str(item.get("id", "unknown")),
                 status=str(item.get("status") or "pending"),
+                allow_join=bool(item.get("allow_join")),
+                allow_detect=bool(item.get("allow_detect")),
+                allow_post=bool(item.get("allow_post")),
             ),
         )
+
+
+async def _send_engagement_target(update: Any, context: Any, target_id: str) -> None:
+    client = _api_client(context)
+    data = await client.get_engagement_target(target_id)
+    await _callback_reply(
+        update,
+        format_engagement_target_card(data),
+        reply_markup=_engagement_target_markup(target_id, data),
+    )
 
 
 async def _approve_engagement_target(
@@ -1097,6 +1292,7 @@ async def _approve_engagement_target(
     edit_callback: bool = False,
 ) -> None:
     client = _api_client(context)
+    before = await client.get_engagement_target(target_id)
     data = await client.update_engagement_target(
         target_id,
         status="approved",
@@ -1105,12 +1301,106 @@ async def _approve_engagement_target(
         allow_post=True,
         updated_by=_reviewer_label(update),
     )
-    message = format_engagement_target_card(data)
-    markup = engagement_target_actions_markup(target_id, status=str(data.get("status") or "approved"))
+    message = format_engagement_target_mutation(action="approved", before=before, after=data)
+    markup = _engagement_target_markup(target_id, data)
     if edit_callback:
         await _edit_callback_message(update, message, reply_markup=markup)
         return
     await _reply(update, message, reply_markup=markup)
+
+
+async def _set_engagement_target_status(
+    update: Any,
+    context: Any,
+    target_id: str,
+    *,
+    status: str,
+    edit_callback: bool = False,
+) -> None:
+    client = _api_client(context)
+    before = await client.get_engagement_target(target_id)
+    data = await client.update_engagement_target(
+        target_id,
+        status=status,
+        updated_by=_reviewer_label(update),
+    )
+    message = format_engagement_target_mutation(action=status, before=before, after=data)
+    markup = _engagement_target_markup(target_id, data)
+    if edit_callback:
+        await _edit_callback_message(update, message, reply_markup=markup)
+        return
+    await _reply(update, message, reply_markup=markup)
+
+
+async def _set_engagement_target_permission(
+    update: Any,
+    context: Any,
+    target_id: str,
+    *,
+    permission: str,
+    enabled: bool,
+    edit_callback: bool = False,
+) -> None:
+    client = _api_client(context)
+    before = await client.get_engagement_target(target_id)
+    field_name = ENGAGEMENT_TARGET_PERMISSIONS[permission]
+    data = await client.update_engagement_target(
+        target_id,
+        **{field_name: enabled, "updated_by": _reviewer_label(update)},
+    )
+    action = f"{permission} {'enabled' if enabled else 'disabled'}"
+    message = format_engagement_target_mutation(action=action, before=before, after=data)
+    markup = _engagement_target_markup(target_id, data)
+    if edit_callback:
+        await _edit_callback_message(update, message, reply_markup=markup)
+        return
+    await _reply(update, message, reply_markup=markup)
+
+
+async def _resolve_engagement_target(update: Any, context: Any, target_id: str) -> None:
+    client = _api_client(context)
+    data = await client.resolve_engagement_target(target_id, requested_by=_reviewer_label(update))
+    job_id = str((data.get("job") or {}).get("id", "unknown"))
+    await _callback_reply(
+        update,
+        format_engagement_job_response(data, label="Engagement target resolution"),
+        reply_markup=job_actions_markup(job_id),
+    )
+
+
+async def _start_engagement_target_join(update: Any, context: Any, target_id: str) -> None:
+    client = _api_client(context)
+    data = await client.start_engagement_target_join(
+        target_id,
+        requested_by=_reviewer_label(update),
+    )
+    job_id = str((data.get("job") or {}).get("id", "unknown"))
+    await _callback_reply(
+        update,
+        format_engagement_job_response(data, label="Target join"),
+        reply_markup=job_actions_markup(job_id),
+    )
+
+
+async def _start_engagement_target_detection(
+    update: Any,
+    context: Any,
+    target_id: str,
+    *,
+    window_minutes: int,
+) -> None:
+    client = _api_client(context)
+    data = await client.start_engagement_target_detection(
+        target_id,
+        window_minutes=window_minutes,
+        requested_by=_reviewer_label(update),
+    )
+    job_id = str((data.get("job") or {}).get("id", "unknown"))
+    await _callback_reply(
+        update,
+        format_engagement_job_response(data, label="Target engagement detection"),
+        reply_markup=job_actions_markup(job_id),
+    )
 
 
 async def _send_engagement_prompts(update: Any, context: Any, *, offset: int) -> None:
@@ -1519,8 +1809,15 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("engagement", engagement_command))
     application.add_handler(CommandHandler("engagement_admin", engagement_admin_command))
     application.add_handler(CommandHandler("engagement_targets", engagement_targets_command))
+    application.add_handler(CommandHandler("engagement_target", engagement_target_command))
     application.add_handler(CommandHandler("add_engagement_target", add_engagement_target_command))
     application.add_handler(CommandHandler("approve_engagement_target", approve_engagement_target_command))
+    application.add_handler(CommandHandler("resolve_engagement_target", resolve_engagement_target_command))
+    application.add_handler(CommandHandler("reject_engagement_target", reject_engagement_target_command))
+    application.add_handler(CommandHandler("archive_engagement_target", archive_engagement_target_command))
+    application.add_handler(CommandHandler("target_permission", target_permission_command))
+    application.add_handler(CommandHandler("target_join", target_join_command))
+    application.add_handler(CommandHandler("target_detect", target_detect_command))
     application.add_handler(CommandHandler("engagement_prompts", engagement_prompts_command))
     application.add_handler(CommandHandler("engagement_prompt_preview", engagement_prompt_preview_command))
     application.add_handler(CommandHandler("engagement_style", engagement_style_command))
@@ -1582,12 +1879,29 @@ def _engagement_candidate_status_arg(context: Any) -> str:
     return status
 
 
+def _engagement_target_status_arg(context: Any) -> str | None:
+    status = _first_arg(context)
+    if status is None or status == "all":
+        return None
+    if status not in ENGAGEMENT_TARGET_STATUSES:
+        return None
+    return status
+
+
 def _engagement_callback_status_and_offset(parts: list[str]) -> tuple[str, int]:
     if len(parts) >= 2:
         raw_status = parts[0]
         status = raw_status if raw_status in ENGAGEMENT_CANDIDATE_STATUSES else "needs_review"
         return status, _parse_offset(parts[1])
     return "needs_review", _parse_offset(parts[0])
+
+
+def _engagement_target_callback_status_and_offset(parts: list[str]) -> tuple[str | None, int]:
+    if len(parts) >= 2:
+        raw_status = parts[0]
+        status = raw_status if raw_status in ENGAGEMENT_TARGET_STATUSES else None
+        return status, _parse_offset(parts[1])
+    return None, _parse_offset(parts[0])
 
 
 def _engagement_actions_filter_and_offset(parts: list[str]) -> tuple[str | None, int]:
@@ -1600,6 +1914,16 @@ def _engagement_settings_markup(community_id: str, data: dict[str, Any]) -> Any:
     return engagement_settings_markup(
         community_id,
         allow_join=bool(data.get("allow_join")),
+        allow_post=bool(data.get("allow_post")),
+    )
+
+
+def _engagement_target_markup(target_id: str, data: dict[str, Any]) -> Any:
+    return engagement_target_actions_markup(
+        target_id,
+        status=str(data.get("status") or "pending"),
+        allow_join=bool(data.get("allow_join")),
+        allow_detect=bool(data.get("allow_detect")),
         allow_post=bool(data.get("allow_post")),
     )
 
@@ -1653,6 +1977,14 @@ def _optional_window_minutes(context: Any) -> int | None:
     except ValueError:
         return None
     return value if value > 0 else None
+
+
+def _parse_positive_int(raw_value: str, *, default: int) -> int:
+    try:
+        value = int(raw_value)
+    except ValueError:
+        return default
+    return value if value > 0 else default
 
 
 def _parse_create_engagement_topic_args(context: Any) -> tuple[str, str, list[str]] | None:
@@ -1730,6 +2062,22 @@ def _parse_on_off(raw_value: str) -> bool | None:
         return True
     if value == "off":
         return False
+    return None
+
+
+def _parse_callback_bool(raw_value: str) -> bool | None:
+    if raw_value == "1":
+        return True
+    if raw_value == "0":
+        return False
+    return None
+
+
+def _normalize_target_permission(raw_value: str) -> str | None:
+    value = raw_value.strip().casefold()
+    value = ENGAGEMENT_TARGET_PERMISSION_ALIASES.get(value, value)
+    if value in ENGAGEMENT_TARGET_PERMISSIONS:
+        return value
     return None
 
 

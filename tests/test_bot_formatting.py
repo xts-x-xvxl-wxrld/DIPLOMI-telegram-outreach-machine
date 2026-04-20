@@ -17,6 +17,7 @@ from bot.formatting import (
     format_engagement_job_response,
     format_engagement_settings,
     format_engagement_target_card,
+    format_engagement_target_mutation,
     format_engagement_topic_card,
     format_engagement_topics,
     format_job_status,
@@ -374,6 +375,33 @@ def test_format_engagement_target_card_starts_with_readiness() -> None:
     assert "1. username:founders" in message
     assert "Readiness: Drafting replies" in message
     assert message.index("Readiness: Drafting replies") < message.index("Target ID: target-1")
+    assert "/target_detect target-1" in message
+
+
+def test_format_engagement_target_mutation_shows_before_after_permissions() -> None:
+    message = format_engagement_target_mutation(
+        action="post enabled",
+        before={
+            "id": "target-1",
+            "submitted_ref": "username:founders",
+            "status": "approved",
+            "allow_join": True,
+            "allow_detect": True,
+            "allow_post": False,
+        },
+        after={
+            "id": "target-1",
+            "submitted_ref": "username:founders",
+            "status": "approved",
+            "allow_join": True,
+            "allow_detect": True,
+            "allow_post": True,
+        },
+    )
+
+    assert "Before: status=approved, join=yes, detect=yes, post=no" in message
+    assert "After: status=approved, join=yes, detect=yes, post=yes" in message
+    assert "Readiness: Ready to post with review" in message
 
 
 def test_format_engagement_topics_and_card_truncate_guidance() -> None:

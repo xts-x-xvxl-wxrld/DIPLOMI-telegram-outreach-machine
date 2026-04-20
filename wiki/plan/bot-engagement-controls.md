@@ -120,7 +120,7 @@ Completed notes:
 
 ## Slice 3: Engagement Target Bot Controls
 
-Status: planned.
+Status: completed.
 
 Add bot support for:
 
@@ -150,6 +150,20 @@ Acceptance:
 - Permission toggles display before/after state.
 - Rejected and archived targets show all permissions off.
 - Target join/detect controls enqueue jobs only through API methods.
+
+Completed notes:
+
+- Added `/engagement_targets [status]`, `/engagement_target`, `/resolve_engagement_target`,
+  `/reject_engagement_target`, `/archive_engagement_target`, `/target_permission`, `/target_join`,
+  and `/target_detect` bot commands.
+- Target list navigation now includes an add-target usage button and status filters for all,
+  pending, resolved, approved, failed, rejected, and archived targets.
+- Target cards expose state-aware inline controls for open/detail, resolve, approval, rejection,
+  archive, permission toggles, target-scoped join, and target-scoped detect.
+- Target approval and permission/status mutations fetch the current target first and display
+  before/after permission state after the API returns.
+- Added `GET /api/engagement/targets/{target_id}` and bot API-client methods for target detail,
+  target-scoped join, and target-scoped detection.
 
 ## Slice 4: Config Editing Foundation
 

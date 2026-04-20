@@ -111,6 +111,19 @@ async def get_engagement_targets(
     )
 
 
+@router.get("/engagement/targets/{target_id}", response_model=EngagementTargetOut)
+async def get_engagement_target_detail(
+    target_id: UUID,
+    db: DbSession,
+) -> EngagementTargetOut:
+    try:
+        target = await get_engagement_target(db, target_id)
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+
+    return EngagementTargetOut.model_validate(target)
+
+
 @router.post("/engagement/targets", response_model=EngagementTargetOut, status_code=201)
 async def post_engagement_target(
     payload: EngagementTargetCreateRequest,

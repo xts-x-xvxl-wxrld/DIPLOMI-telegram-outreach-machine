@@ -7,6 +7,8 @@ import pytest
 
 from bot.main import (
     API_CLIENT_KEY,
+    add_engagement_target_command,
+    archive_engagement_target_command,
     callback_query,
     create_engagement_topic_command,
     detect_engagement_command,
@@ -15,10 +17,17 @@ from bot.main import (
     engagement_candidates_command,
     engagement_command,
     engagement_settings_command,
+    engagement_target_command,
+    engagement_targets_command,
     engagement_topics_command,
     join_community_command,
+    reject_engagement_target_command,
+    resolve_engagement_target_command,
     send_reply_command,
     approve_reply_command,
+    target_detect_command,
+    target_join_command,
+    target_permission_command,
     set_engagement_command,
     toggle_engagement_topic_command,
 )
@@ -57,6 +66,13 @@ class _FakeApiClient:
         self.get_settings_calls: list[str] = []
         self.update_settings_calls: list[dict[str, Any]] = []
         self.target_list_calls: list[dict[str, Any]] = []
+        self.get_target_calls: list[str] = []
+        self.create_target_calls: list[dict[str, Any]] = []
+        self.update_target_calls: list[dict[str, Any]] = []
+        self.resolve_target_calls: list[dict[str, Any]] = []
+        self.target_join_calls: list[dict[str, Any]] = []
+        self.target_detect_calls: list[dict[str, Any]] = []
+        self.seed_resolution_calls: list[str] = []
         self.prompt_list_calls: list[dict[str, Any]] = []
         self.style_list_calls: list[dict[str, Any]] = []
         self.join_calls: list[dict[str, Any]] = []
@@ -122,6 +138,50 @@ class _FakeApiClient:
                 "active": False,
             },
         ]
+        self.targets = [
+            {
+                "id": "target-pending",
+                "submitted_ref": "username:pending",
+                "submitted_ref_type": "telegram_username",
+                "status": "pending",
+                "community_id": None,
+                "community_title": None,
+                "allow_join": False,
+                "allow_detect": False,
+                "allow_post": False,
+                "added_by": "telegram:123",
+                "created_at": "2026-04-19T10:00:00Z",
+                "updated_at": "2026-04-19T10:00:00Z",
+            },
+            {
+                "id": "target-approved",
+                "submitted_ref": "username:founders",
+                "submitted_ref_type": "telegram_username",
+                "status": "approved",
+                "community_id": "community-1",
+                "community_title": "Founder Circle",
+                "allow_join": True,
+                "allow_detect": True,
+                "allow_post": False,
+                "added_by": "telegram:123",
+                "created_at": "2026-04-19T10:00:00Z",
+                "updated_at": "2026-04-19T10:00:00Z",
+            },
+            {
+                "id": "target-resolved",
+                "submitted_ref": "username:resolved",
+                "submitted_ref_type": "telegram_username",
+                "status": "resolved",
+                "community_id": "community-2",
+                "community_title": "Resolved Circle",
+                "allow_join": False,
+                "allow_detect": False,
+                "allow_post": False,
+                "added_by": "telegram:123",
+                "created_at": "2026-04-19T10:00:00Z",
+                "updated_at": "2026-04-19T10:00:00Z",
+            },
+        ]
         self.candidates_by_status = {
             "needs_review": {
                 "items": [
@@ -157,12 +217,94 @@ class _FakeApiClient:
     async def list_engagement_targets(
         self,
         *,
+        status: str | None = None,
         limit: int = 5,
         offset: int = 0,
         **_: Any,
     ) -> dict[str, Any]:
-        self.target_list_calls.append({"limit": limit, "offset": offset})
-        return {"items": [], "total": 2, "limit": limit, "offset": offset}
+        self.target_list_calls.append({"status": status, "limit": limit, "offset": offset})
+        items = [
+            target
+            for target in self.targets
+            if status is None or target["status"] == status
+        ]
+        return {
+            "items": items[offset : offset + limit],
+            "total": len(items),
+            "limit": limit,
+            "offset": offset,
+        }
+
+    async def get_engagement_target(self, target_id: str) -> dict[str, Any]:
+        self.get_target_calls.append(target_id)
+        target = next((item for item in self.targets if item["id"] == target_id), None)
+        return dict(target or {**self.targets[0], "id": target_id})
+
+    async def create_engagement_target(
+        self,
+        *,
+        target_ref: str,
+        added_by: str,
+        notes: str | None = None,
+    ) -> dict[str, Any]:
+        self.create_target_calls.append(
+            {"target_ref": target_ref, "added_by": added_by, "notes": notes}
+        )
+        return {
+            **self.targets[0],
+            "id": "target-created",
+            "submitted_ref": f"username:{target_ref.lstrip('@')}",
+        }
+
+    async def update_engagement_target(self, target_id: str, **updates: Any) -> dict[str, Any]:
+        self.update_target_calls.append({"target_id": target_id, "updates": updates})
+        target = await self.get_engagement_target(target_id)
+        updated = {**target, **{key: value for key, value in updates.items() if key != "updated_by"}}
+        if updated["status"] in {"rejected", "archived"}:
+            updated["allow_join"] = False
+            updated["allow_detect"] = False
+            updated["allow_post"] = False
+        self.targets = [updated if item["id"] == target_id else item for item in self.targets]
+        return updated
+
+    async def resolve_engagement_target(
+        self,
+        target_id: str,
+        *,
+        requested_by: str | None = None,
+    ) -> dict[str, Any]:
+        self.resolve_target_calls.append({"target_id": target_id, "requested_by": requested_by})
+        return {"job": {"id": "target-resolve-job", "type": "engagement_target.resolve", "status": "queued"}}
+
+    async def start_engagement_target_join(
+        self,
+        target_id: str,
+        *,
+        requested_by: str | None = None,
+        **_: Any,
+    ) -> dict[str, Any]:
+        self.target_join_calls.append({"target_id": target_id, "requested_by": requested_by})
+        return {"job": {"id": "target-join-job", "type": "community.join", "status": "queued"}}
+
+    async def start_engagement_target_detection(
+        self,
+        target_id: str,
+        *,
+        window_minutes: int = 60,
+        requested_by: str | None = None,
+    ) -> dict[str, Any]:
+        self.target_detect_calls.append(
+            {
+                "target_id": target_id,
+                "window_minutes": window_minutes,
+                "requested_by": requested_by,
+            }
+        )
+        return {"job": {"id": "target-detect-job", "type": "engagement.detect", "status": "queued"}}
+
+    async def start_seed_group_resolution(self, seed_group_id: str, **_: Any) -> dict[str, Any]:
+        self.seed_resolution_calls.append(seed_group_id)
+        return {"job": {"id": "seed-job", "type": "seed.resolve", "status": "queued"}}
 
     async def list_engagement_prompt_profiles(
         self,
@@ -405,7 +547,7 @@ async def test_engagement_admin_command_uses_setup_navigation() -> None:
 
     await engagement_admin_command(update, _context(client))
 
-    assert "Communities: 2" in update.message.replies[0]["text"]
+    assert "Communities: 3" in update.message.replies[0]["text"]
     assert "Topics: 2" in update.message.replies[0]["text"]
     assert "Voice rules: 4" in update.message.replies[0]["text"]
     assert _button_labels(update.message.replies[0]["reply_markup"]) == [
@@ -438,6 +580,142 @@ async def test_engagement_admin_limit_and_advanced_callbacks_have_destinations()
     assert "Prompt profiles: /engagement_prompts" in (
         advanced_update.callback_query.message.replies[0]["text"]
     )
+
+
+@pytest.mark.asyncio
+async def test_engagement_targets_command_filters_and_shows_target_controls() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await engagement_targets_command(update, _context(client, "approved"))
+
+    assert client.target_list_calls[-1] == {"status": "approved", "limit": 5, "offset": 0}
+    assert "Engagement targets | approved" in update.message.replies[0]["text"]
+    card = update.message.replies[1]
+    assert "Readiness: Drafting replies" in card["text"]
+    callbacks = _callback_data_values(card["reply_markup"])
+    assert "eng:admin:to:target-approved" in callbacks
+    assert "eng:admin:tp:target-approved:p:1" in callbacks
+    assert "eng:admin:tj:target-approved" in callbacks
+    assert "eng:admin:td:target-approved:60" in callbacks
+
+
+@pytest.mark.asyncio
+async def test_engagement_target_detail_command_reads_target_without_seed_api() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await engagement_target_command(update, _context(client, "target-approved"))
+
+    assert client.get_target_calls == ["target-approved"]
+    assert client.seed_resolution_calls == []
+    assert "Target ID: target-approved" in update.message.replies[0]["text"]
+    assert "Community ID: community-1" in update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_add_engagement_target_command_uses_target_api_only() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await add_engagement_target_command(update, _context(client, "@newgroup"))
+
+    assert client.create_target_calls == [
+        {
+            "target_ref": "@newgroup",
+            "added_by": "telegram:123:@operator",
+            "notes": None,
+        }
+    ]
+    assert client.seed_resolution_calls == []
+    assert "Engagement target added." in update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_resolve_target_command_queues_engagement_target_job() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await resolve_engagement_target_command(update, _context(client, "target-pending"))
+
+    assert client.resolve_target_calls == [
+        {"target_id": "target-pending", "requested_by": "telegram:123:@operator"}
+    ]
+    assert client.seed_resolution_calls == []
+    assert "Engagement target resolution queued." in update.message.replies[0]["text"]
+    assert "target-resolve-job (engagement_target.resolve)" in update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_target_permission_command_displays_before_after_state() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await target_permission_command(update, _context(client, "target-approved", "post", "on"))
+
+    assert client.update_target_calls[-1] == {
+        "target_id": "target-approved",
+        "updates": {"allow_post": True, "updated_by": "telegram:123:@operator"},
+    }
+    message = update.message.replies[0]["text"]
+    assert "Before: status=approved, join=yes, detect=yes, post=no" in message
+    assert "After: status=approved, join=yes, detect=yes, post=yes" in message
+
+
+@pytest.mark.asyncio
+async def test_reject_and_archive_target_force_permissions_off() -> None:
+    client = _FakeApiClient()
+    reject_update = _message_update()
+    archive_update = _message_update()
+
+    await reject_engagement_target_command(reject_update, _context(client, "target-approved"))
+    client.targets[1] = {**client.targets[1], "status": "approved", "allow_post": True}
+    await archive_engagement_target_command(archive_update, _context(client, "target-approved"))
+
+    assert "After: status=rejected, join=no, detect=no, post=no" in reject_update.message.replies[0]["text"]
+    assert "After: status=archived, join=no, detect=no, post=no" in archive_update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_target_join_and_detect_commands_use_target_scoped_routes() -> None:
+    client = _FakeApiClient()
+    join_update = _message_update()
+    detect_update = _message_update()
+
+    await target_join_command(join_update, _context(client, "target-approved"))
+    await target_detect_command(detect_update, _context(client, "target-approved", "45"))
+
+    assert client.target_join_calls == [
+        {"target_id": "target-approved", "requested_by": "telegram:123:@operator"}
+    ]
+    assert client.target_detect_calls == [
+        {
+            "target_id": "target-approved",
+            "window_minutes": 45,
+            "requested_by": "telegram:123:@operator",
+        }
+    ]
+    assert "Target join queued." in join_update.message.replies[0]["text"]
+    assert "Target engagement detection queued." in detect_update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_target_callbacks_open_toggle_and_queue_jobs() -> None:
+    client = _FakeApiClient()
+    open_update = _callback_update("eng:admin:to:target-approved")
+    toggle_update = _callback_update("eng:admin:tp:target-approved:p:1")
+    join_update = _callback_update("eng:admin:tj:target-approved")
+    detect_update = _callback_update("eng:admin:td:target-approved:60")
+
+    await callback_query(open_update, _context(client))
+    await callback_query(toggle_update, _context(client))
+    await callback_query(join_update, _context(client))
+    await callback_query(detect_update, _context(client))
+
+    assert "Target ID: target-approved" in open_update.callback_query.message.replies[0]["text"]
+    assert "After: status=approved" in toggle_update.callback_query.edits[0]["text"]
+    assert client.target_join_calls[-1]["target_id"] == "target-approved"
+    assert client.target_detect_calls[-1]["window_minutes"] == 60
 
 
 @pytest.mark.asyncio

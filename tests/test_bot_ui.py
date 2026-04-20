@@ -16,6 +16,11 @@ from bot.ui import (
     ACTION_ENGAGEMENT_JOIN,
     ACTION_ENGAGEMENT_SETTINGS_OPEN,
     ACTION_ENGAGEMENT_STYLE,
+    ACTION_ENGAGEMENT_TARGET_APPROVE,
+    ACTION_ENGAGEMENT_TARGET_DETECT,
+    ACTION_ENGAGEMENT_TARGET_JOIN,
+    ACTION_ENGAGEMENT_TARGET_OPEN,
+    ACTION_ENGAGEMENT_TARGET_PERMISSION,
     ACTION_ENGAGEMENT_TARGETS,
     ACTION_ENGAGEMENT_TOPIC_LIST,
     ACTION_SEED_CANDIDATES,
@@ -30,6 +35,8 @@ from bot.ui import (
     engagement_admin_home_markup,
     engagement_home_markup,
     engagement_settings_markup,
+    engagement_target_actions_markup,
+    engagement_target_list_markup,
     engagement_topic_actions_markup,
     engagement_topic_pager_markup,
     encode_callback_data,
@@ -67,6 +74,10 @@ def test_parse_all_engagement_callback_namespaces() -> None:
         "eng:set:preset:community-1:ready": ("eng:set:preset", ["community-1", "ready"]),
         "eng:join:community-1": (ACTION_ENGAGEMENT_JOIN, ["community-1"]),
         "eng:detect:community-1:60": (ACTION_ENGAGEMENT_DETECT, ["community-1", "60"]),
+        "eng:admin:to:target-1": (ACTION_ENGAGEMENT_TARGET_OPEN, ["target-1"]),
+        "eng:admin:tp:target-1:p:1": (ACTION_ENGAGEMENT_TARGET_PERMISSION, ["target-1", "p", "1"]),
+        "eng:admin:tj:target-1": (ACTION_ENGAGEMENT_TARGET_JOIN, ["target-1"]),
+        "eng:admin:td:target-1:60": (ACTION_ENGAGEMENT_TARGET_DETECT, ["target-1", "60"]),
         "eng:cand:send:candidate-1": ("eng:cand:send", ["candidate-1"]),
         "eng:actions:list:20": (ACTION_ENGAGEMENT_ACTIONS, ["20"]),
     }
@@ -84,6 +95,14 @@ def test_engagement_uuid_callback_data_stays_under_telegram_limit() -> None:
     community_id = "12345678-1234-1234-1234-123456789abc"
 
     data = encode_callback_data("eng:set:preset", community_id, "ready")
+
+    assert len(data) <= 64
+
+
+def test_engagement_target_permission_callback_data_stays_under_telegram_limit() -> None:
+    target_id = "12345678-1234-1234-1234-123456789abc"
+
+    data = encode_callback_data(ACTION_ENGAGEMENT_TARGET_PERMISSION, target_id, "p", "1")
 
     assert len(data) <= 64
 
@@ -195,6 +214,42 @@ def test_engagement_settings_markup_exposes_presets_and_jobs() -> None:
     assert rows[2][1].callback_data == "eng:set:post:community-1:0"
     assert rows[3][0].callback_data == f"{ACTION_ENGAGEMENT_JOIN}:community-1"
     assert rows[3][1].callback_data == f"{ACTION_ENGAGEMENT_DETECT}:community-1:60"
+
+
+def test_engagement_target_list_markup_filters_and_pages() -> None:
+    markup = engagement_target_list_markup(status="approved", offset=5, total=12, page_size=5)
+    rows = markup.inline_keyboard
+
+    assert rows[0][0].text == "Add target"
+    assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:all:0"
+    assert rows[1][3].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:approved:0"
+    assert rows[2][2].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:archived:0"
+    assert rows[4][0].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:approved:0"
+    assert rows[4][1].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:approved:10"
+
+
+def test_engagement_target_actions_markup_exposes_safe_target_controls() -> None:
+    pending = engagement_target_actions_markup("target-1", status="pending")
+    approved = engagement_target_actions_markup(
+        "target-2",
+        status="approved",
+        allow_join=True,
+        allow_detect=True,
+        allow_post=False,
+    )
+
+    pending_callbacks = [
+        button.callback_data for row in pending.inline_keyboard for button in row
+    ]
+    approved_callbacks = [
+        button.callback_data for row in approved.inline_keyboard for button in row
+    ]
+    assert f"{ACTION_ENGAGEMENT_TARGET_APPROVE}:target-1" not in pending_callbacks
+    assert f"{ACTION_ENGAGEMENT_TARGET_OPEN}:target-1" in pending_callbacks
+    assert "eng:admin:tr:target-1" in pending_callbacks
+    assert f"{ACTION_ENGAGEMENT_TARGET_PERMISSION}:target-2:p:1" in approved_callbacks
+    assert f"{ACTION_ENGAGEMENT_TARGET_JOIN}:target-2" in approved_callbacks
+    assert f"{ACTION_ENGAGEMENT_TARGET_DETECT}:target-2:60" in approved_callbacks
 
 
 def test_engagement_topic_markup_pages_and_toggles() -> None:

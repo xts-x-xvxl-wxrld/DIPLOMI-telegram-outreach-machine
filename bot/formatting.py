@@ -29,6 +29,8 @@ def format_start() -> str:
             "/engagement",
             "/engagement_admin",
             "/engagement_candidates",
+            "/engagement_targets",
+            "/engagement_target <target_id>",
             "/engagement_prompts",
             "/engagement_style",
             "/approve_reply <candidate_id>",
@@ -470,9 +472,19 @@ def format_engagement_admin_advanced_home() -> str:
 def format_engagement_targets(data: dict[str, Any], *, offset: int = 0) -> str:
     items = data.get("items") or []
     total = data.get("total", len(items))
+    status = data.get("status")
+    status_label = f" | {status}" if status else ""
     if not items:
-        return "No engagement targets in this view."
-    return f"Engagement targets ({offset + 1}-{offset + len(items)} of {total})"
+        return (
+            f"No engagement targets{status_label} in this view.\n\n"
+            "Add one with /add_engagement_target <telegram_link_or_username_or_community_id>"
+        )
+    return "\n".join(
+        [
+            f"Engagement targets{status_label} ({offset + 1}-{offset + len(items)} of {total})",
+            "Add: /add_engagement_target <telegram_link_or_username_or_community_id>",
+        ]
+    )
 
 
 def format_engagement_target_card(item: dict[str, Any], *, index: int | None = None) -> str:
@@ -484,6 +496,7 @@ def format_engagement_target_card(item: dict[str, Any], *, index: int | None = N
         f"Readiness: {_engagement_target_readiness(item)}",
         "",
         f"Target ID: {target_id}",
+        f"Submitted: {item.get('submitted_ref', 'unknown')}",
         f"Status: {item.get('status', 'unknown')}",
         (
             "Permissions: "
@@ -494,10 +507,29 @@ def format_engagement_target_card(item: dict[str, Any], *, index: int | None = N
     ]
     if item.get("community_id"):
         lines.append(f"Community ID: {item['community_id']}")
+    if item.get("notes"):
+        lines.append(f"Notes: {_shorten(str(item['notes']), 240)}")
     if item.get("last_error"):
         lines.append(f"Error: {_shorten(str(item['last_error']), 240)}")
-    lines.append(f"Approve: /approve_engagement_target {target_id}")
+    lines.extend(["", *_engagement_target_next_actions(target_id, str(item.get("status") or "unknown"))])
     return "\n".join(lines)
+
+
+def format_engagement_target_mutation(
+    *,
+    action: str,
+    before: dict[str, Any],
+    after: dict[str, Any],
+) -> str:
+    return "\n".join(
+        [
+            f"Engagement target {action}.",
+            f"Before: {_target_permission_summary(before)}",
+            f"After: {_target_permission_summary(after)}",
+            "",
+            format_engagement_target_card(after),
+        ]
+    )
 
 
 def format_engagement_prompt_profiles(data: dict[str, Any], *, offset: int = 0) -> str:
@@ -938,6 +970,37 @@ def _engagement_target_readiness(item: dict[str, Any]) -> str:
     if allow_join:
         return "Approved, not joined"
     return "Watching only"
+
+
+def _engagement_target_next_actions(target_id: str, status: str) -> list[str]:
+    actions = [f"Open: /engagement_target {target_id}"]
+    if status in {"pending", "failed"}:
+        actions.append(f"Resolve: /resolve_engagement_target {target_id}")
+    if status == "resolved":
+        actions.append(f"Approve: /approve_engagement_target {target_id}")
+    if status == "approved":
+        actions.extend(
+            [
+                f"Watch/draft: /target_permission {target_id} detect <on|off>",
+                f"Posting: /target_permission {target_id} post <on|off>",
+                f"Joining: /target_permission {target_id} join <on|off>",
+                f"Join: /target_join {target_id}",
+                f"Detect: /target_detect {target_id}",
+            ]
+        )
+    if status not in {"rejected", "archived"}:
+        actions.append(f"Reject: /reject_engagement_target {target_id}")
+        actions.append(f"Archive: /archive_engagement_target {target_id}")
+    return actions
+
+
+def _target_permission_summary(item: dict[str, Any]) -> str:
+    return (
+        f"status={item.get('status', 'unknown')}, "
+        f"join={_yes_no(item.get('allow_join'))}, "
+        f"detect={_yes_no(item.get('allow_detect'))}, "
+        f"post={_yes_no(item.get('allow_post'))}"
+    )
 
 
 def _engagement_settings_readiness(data: dict[str, Any]) -> str:

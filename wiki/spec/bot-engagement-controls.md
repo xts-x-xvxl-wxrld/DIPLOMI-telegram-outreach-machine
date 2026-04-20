@@ -352,8 +352,13 @@ The current main engagement menu exposes:
 - `/engagement_topics`, topic creation, topic active-state toggles, and good/bad topic examples.
 - `/engagement_admin` with inline `Communities`, `Topics`, `Voice rules`, `Limits/accounts`,
   `Advanced`, and back-to-engagement buttons.
-- `/engagement_targets`, `/add_engagement_target`, and `/approve_engagement_target`.
+- `/engagement_targets [status]`, `/engagement_target`, `/add_engagement_target`,
+  `/resolve_engagement_target`, `/approve_engagement_target`, `/reject_engagement_target`,
+  `/archive_engagement_target`, `/target_permission`, `/target_join`, and `/target_detect`.
+- Inline target list filters for all, pending, resolved, approved, failed, rejected, and archived.
 - Target cards with readiness summaries before raw target status and permission fields.
+- Target cards with add-target, open/detail, resolve, approve, reject, archive, permission toggle,
+  target-scoped join, and target-scoped detect controls.
 - `/engagement_prompts`, `/engagement_prompt_preview`, and direct prompt activation.
 - `/engagement_style` as a read-only style-rule list.
 
@@ -371,17 +376,8 @@ The current main engagement menu exposes:
 
 ### Missing From Engagement Targets
 
-- Add-target menu button. `/add_engagement_target` exists, but the admin menu only lists targets.
-- Target detail/open command: `/engagement_target <target_id>`.
-- Resolve target command: `/resolve_engagement_target <target_id>`.
-- Reject target command: `/reject_engagement_target <target_id>`.
-- Archive target command: `/archive_engagement_target <target_id>`.
-- Permission toggle command:
-  `/target_permission <target_id> <join|detect|post> <on|off>`.
-- Target-scoped join command: `/target_join <target_id>`.
-- Target-scoped detect command: `/target_detect <target_id> [window_minutes]`.
-- Target status filters in target list navigation.
-- Inline target detail, resolve, reject, archive, permission, join, and detect controls.
+- Confirmation flow before posting permission changes and target approval.
+- Conversation-state target note editing.
 
 ### Missing From Prompt Profiles
 
@@ -443,11 +439,11 @@ The current main engagement menu exposes:
 
 The next implementation slice should prioritize:
 
-- Expand target cards with resolve, reject, archive, permission toggles, target join, and target
-  detect controls, but label them as watch/draft/post readiness where possible.
-- Add target detail/open commands and callbacks before exposing more prompt or style editing.
-- Keep target controls separate from seed APIs and preserve before/after visibility for permission
-  changes.
+- Add a reusable config-editing foundation for long and risky admin edits.
+- Start with preview/save/cancel flows for candidate replies, prompt text, topic guidance, and style
+  rule text.
+- Keep permission changes and target approval ready for explicit confirmation instead of direct
+  mutation in a later hardening pass.
 
 ## Command Surface
 
@@ -773,6 +769,7 @@ Required for the expanded controls:
 
 ```http
 GET    /api/engagement/targets
+GET    /api/engagement/targets/{target_id}
 POST   /api/engagement/targets
 PATCH  /api/engagement/targets/{target_id}
 POST   /api/engagement/targets/{target_id}/resolve-jobs

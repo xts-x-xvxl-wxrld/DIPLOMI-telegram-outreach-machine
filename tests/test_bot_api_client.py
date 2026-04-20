@@ -306,6 +306,81 @@ async def test_list_engagement_candidates_uses_review_endpoint() -> None:
 
 
 @pytest.mark.asyncio
+async def test_engagement_target_methods_use_target_routes() -> None:
+    seen: list[tuple[str, str, dict[str, object] | None, dict[str, str]]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content) if request.content else None
+        seen.append((request.method, request.url.path, payload, dict(request.url.params)))
+        if request.method == "GET" and request.url.path.endswith("/engagement/targets"):
+            return httpx.Response(200, json={"items": [], "limit": 10, "offset": 5, "total": 0})
+        if request.method == "GET":
+            return httpx.Response(200, json={"id": "target-1", "status": "approved"})
+        if request.method == "PATCH":
+            return httpx.Response(
+                200,
+                json={
+                    "id": "target-1",
+                    "status": "approved",
+                    "allow_post": True,
+                },
+            )
+        if request.url.path.endswith("/engagement/targets"):
+            return httpx.Response(201, json={"id": "target-1", "status": "pending"})
+        return httpx.Response(202, json={"job": {"id": "job-1", "type": "queued"}})
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    await client.list_engagement_targets(status="approved", limit=10, offset=5)
+    await client.get_engagement_target("target-1")
+    await client.create_engagement_target(target_ref="@example", added_by="telegram:123")
+    await client.update_engagement_target("target-1", allow_post=True, updated_by="telegram:123")
+    await client.resolve_engagement_target("target-1", requested_by="telegram:123")
+    await client.start_engagement_target_join("target-1", requested_by="telegram:123")
+    await client.start_engagement_target_detection(
+        "target-1",
+        window_minutes=45,
+        requested_by="telegram:123",
+    )
+    await client.aclose()
+
+    assert seen[0] == (
+        "GET",
+        "/api/engagement/targets",
+        None,
+        {"limit": "10", "offset": "5", "status": "approved"},
+    )
+    assert seen[1] == ("GET", "/api/engagement/targets/target-1", None, {})
+    assert seen[2][0:3] == (
+        "POST",
+        "/api/engagement/targets",
+        {"target_ref": "@example", "added_by": "telegram:123"},
+    )
+    assert seen[3][0:3] == (
+        "PATCH",
+        "/api/engagement/targets/target-1",
+        {"allow_post": True, "updated_by": "telegram:123"},
+    )
+    assert seen[4][0:3] == (
+        "POST",
+        "/api/engagement/targets/target-1/resolve-jobs",
+        {"requested_by": "telegram:123"},
+    )
+    assert seen[5][1:3] == (
+        "/api/engagement/targets/target-1/join-jobs",
+        {"telegram_account_id": None, "requested_by": "telegram:123"},
+    )
+    assert seen[6][1:3] == (
+        "/api/engagement/targets/target-1/detect-jobs",
+        {"window_minutes": 45, "requested_by": "telegram:123"},
+    )
+
+
+@pytest.mark.asyncio
 async def test_approve_engagement_candidate_posts_reviewer() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
