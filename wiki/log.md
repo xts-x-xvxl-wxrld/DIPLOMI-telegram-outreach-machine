@@ -6,6 +6,14 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-04-20] spec | Reframed engagement cockpit around operator intent
+
+Updated the bot engagement controls spec so the Telegram cockpit prioritizes operator intentions
+instead of mirroring backend entities. Added Today, Review replies, Approved to send, Communities,
+Topics, Voice rules, Limits/accounts, and Advanced as the primary navigation model. Added readiness
+summaries, progressive disclosure rules, state-aware default actions, and human labels for backend
+permissions. Updated the plan with an operator-intention navigation and readiness summary slice.
+
 ## [2026-04-20] spec | Defined engagement config editing model
 
 Documented a reusable Telegram bot admin/settings editing model for engagement configuration. The

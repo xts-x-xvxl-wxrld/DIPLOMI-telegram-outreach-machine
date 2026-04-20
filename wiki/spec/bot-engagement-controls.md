@@ -39,6 +39,7 @@ calls, and audit logging remain owned by the API, services, and workers.
 - Keep target approval, prompt configuration, reply review, and send enqueueing explicit.
 - Make every outbound-capable action visible, reversible before send, and auditable after send.
 - Keep long or risky edits behind confirmation steps.
+- Orient menus around operator intentions before backend entities.
 - Support safe defaults for small-screen Telegram usage.
 - Add controls incrementally, with each slice useful on its own.
 
@@ -69,11 +70,11 @@ Entry point:
 
 Primary controls:
 
-- candidate queues by status
-- candidate detail cards
-- edit, approve, reject, and queue-send actions
-- recent action audit rows
-- community settings handoff
+- what needs review today
+- approved replies waiting to send
+- clear edit, approve, reject, and send actions
+- recent action outcomes
+- handoff links for community, topic, and voice tuning
 
 Daily controls may be available to ordinary allowlisted operators.
 
@@ -89,11 +90,11 @@ Entry point:
 
 Primary controls:
 
-- engagement targets and permissions
-- prompt profiles and prompt previews
-- topic guidance and good/bad examples
-- style rules
-- community rate limits, quiet hours, and account assignment
+- which communities may be watched, drafted for, or posted in
+- what topics the system should notice
+- how replies should sound
+- safety limits, quiet hours, and account assignment
+- advanced prompt profile controls
 
 Admin controls require an admin permission layer in addition to the normal bot allowlist when the
 backend exposes that distinction. Until then, the bot should keep admin actions behind distinct
@@ -101,21 +102,46 @@ commands and confirmation copy so they are not confused with daily review.
 
 ## Navigation
 
-Recommended top-level engagement menus:
+The primary navigation must be operator-intention first. Backend entities such as targets, settings,
+prompt profiles, style rules, and action rows should be secondary implementation details unless the
+operator opens an advanced or diagnostic view.
+
+Recommended top-level engagement menu:
 
 ```text
 Engagement
-  Candidates
-  Approved queue
-  Actions
-  Settings lookup
+  Today
+  Review replies
+  Approved to send
+  Communities
+  Topics
+  Recent actions
+  Admin
+```
 
+Recommended engagement admin menu:
+
+```text
 Engagement Admin
-  Targets
-  Prompt profiles
-  Topics and examples
-  Style rules
-  Community controls
+  Setup
+    Communities
+    Topics
+    Voice rules
+    Limits and accounts
+  Advanced
+    Prompt profiles
+    Audit and diagnostics
+```
+
+The operator-facing labels should answer common questions:
+
+```text
+What needs my review today?
+Where are we allowed to participate?
+What should the system notice?
+How should replies sound?
+Why can or can't this be posted?
+What changed recently?
 ```
 
 Telegram reply-keyboard buttons may open these menus, but every state-changing action must also be
@@ -124,10 +150,93 @@ reachable through an explicit command for traceability and testing.
 Inline callback data must stay under Telegram's 64-byte limit. UUID-heavy actions should use short
 prefixes and compact action segments.
 
+## Operator Intention Model
+
+The cockpit should hide backend complexity until it helps the operator make a decision.
+
+| Operator intention | Primary UI label | Backend concepts behind it |
+|---|---|---|
+| Review what needs attention | Today, Review replies, Approved to send | candidates, candidate statuses, revisions, send jobs |
+| Decide where engagement is allowed | Communities | engagement targets, community engagement settings, memberships |
+| Decide what to notice | Topics | engagement topics, trigger keywords, negative keywords, topic examples |
+| Tune how replies sound | Voice rules | style rules, topic guidance, prompt fragments |
+| Understand whether posting is safe | Readiness, Blocked reasons | target permissions, settings mode, joined account, rate limits, expiry |
+| Investigate or tune internals | Advanced | prompt profiles, prompt versions, audit/action rows, diagnostics |
+
+Rules:
+
+- Show a short readiness summary before raw booleans.
+- Show only the next safe actions for the current state by default.
+- Put IDs, raw permission fields, prompt profile internals, and diagnostic details behind expandable
+  cards or advanced commands.
+- Keep command paths available for traceability, testing, and power users, but make button-led flows
+  the normal operator path.
+- Prefer verbs the operator understands: watch, draft, review, post, tune, pause, block.
+- Avoid making the operator choose between backend concepts that represent one real-world decision.
+
+### Readiness Summaries
+
+Community cards should summarize engagement readiness in one line before showing lower-level fields.
+
+Recommended readiness labels:
+
+- `Not approved`
+- `Approved, not joined`
+- `Watching only`
+- `Drafting replies`
+- `Ready to post with review`
+- `Paused`
+- `Blocked: no joined engagement account`
+- `Blocked: posting permission off`
+- `Blocked: rate limit or quiet hours`
+
+Candidate cards should summarize send readiness in one line:
+
+- `Needs review`
+- `Approved, ready to send`
+- `Blocked: community not ready`
+- `Blocked: reply expired`
+- `Blocked: account or rate limit`
+- `Sent`
+- `Rejected`
+- `Failed, retry may be available`
+
+The readiness summary is derived from backend state. It must not replace backend validation; it is a
+human-readable explanation of the same preflight rules.
+
+### Progressive Disclosure
+
+The bot should keep the default card small. Detailed controls should appear only when the operator
+opens the relevant item.
+
+Candidate card default actions:
+
+| Candidate state | Default actions |
+|---|---|
+| `needs_review` | Edit, Approve, Reject |
+| `approved` | Send, Reopen/Edit, Reject |
+| `failed` | Retry, View error, Reject |
+| `sent` | View audit |
+| `rejected` or `expired` | View audit |
+
+Community card default actions should be similarly state-aware:
+
+- Not approved: add or approve engagement community.
+- Approved but not joined: join or keep watching without join.
+- Watching only: enable drafting or pause.
+- Drafting: review suggested replies, adjust topics, or pause.
+- Ready to post: review approved replies, adjust limits, or pause posting.
+- Blocked: show the single most important next fix first.
+
 ## Config Editing Model
 
 The engagement admin cockpit should let admins edit most engagement configuration from Telegram,
 but the bot must remain a control surface, not the source of truth.
+
+Config editing must be reached from intention pages where possible. For example, editing
+`allow_detect` should appear to the operator as changing whether a community is watched, and editing
+topic trigger keywords should appear as tuning what the system notices. Raw field names may be shown
+in advanced detail cards, logs, and tests, but should not be the primary label in normal use.
 
 Every editable engagement setting should follow the same contract:
 
@@ -319,6 +428,12 @@ The current main engagement menu exposes:
 
 ### Missing Cross-Cutting UX
 
+- Operator-intention navigation for Today, Communities, Topics, Voice rules, Limits/accounts, and
+  Advanced.
+- Readiness summaries that collapse target permissions, community settings, membership, candidate
+  status, expiry, and rate limits into one operator-facing state.
+- Progressive disclosure so cards show only the next safe actions by default.
+- Human labels for backend fields, especially target permissions and community settings.
 - Conversation-state editing for long prompt, topic guidance, style rule, and reply edits.
 - Save/cancel confirmation buttons for long edits.
 - Admin permission boundary in the bot UI.
@@ -329,10 +444,13 @@ The current main engagement menu exposes:
 
 The next implementation slice should prioritize:
 
-- Add `Approved queue` and `Settings lookup` to `/engagement`.
-- Add `Topics and examples` and `Community controls` to `/engagement_admin`.
+- Add `Today`, `Review replies`, `Approved to send`, `Communities`, `Topics`, and `Recent actions`
+  entries to `/engagement`.
+- Add `Communities`, `Topics`, `Voice rules`, `Limits and accounts`, and `Advanced` entries to
+  `/engagement_admin`.
+- Add readiness summaries to community and candidate cards before adding more low-level controls.
 - Expand target cards with resolve, reject, archive, permission toggles, target join, and target
-  detect controls.
+  detect controls, but label them as watch/draft/post readiness where possible.
 
 ## Command Surface
 
@@ -361,6 +479,8 @@ Expanded daily commands:
 
 Rules:
 
+- Command syntax is a traceability and testing surface. The normal operator path should be
+  button-led cards from `Today`, `Review replies`, and `Approved to send`.
 - `/engagement_candidate` shows one full candidate card with capped source excerpt, suggested
   reply, current final reply, prompt provenance, risk notes, status, expiry, and next actions.
 - `/candidate_revisions` shows manual reply revisions and who edited them.
@@ -386,6 +506,8 @@ Rules:
 
 Rules:
 
+- Target commands power the `Communities` screen. Operator-facing copy should talk about watching,
+  drafting, joining, and posting rather than only `allow_*` flags.
 - Adding an engagement target must call the engagement target API and must not create seed rows.
 - A target must resolve to a community before it can be approved.
 - Approval and permission changes must show the current `allow_join`, `allow_detect`, and
@@ -420,6 +542,8 @@ Editable fields:
 
 Rules:
 
+- Prompt profile controls belong under `Advanced` by default. Most day-to-day tuning should use
+  `Topics` and `Voice rules`.
 - Long prompt fields should use conversation-state editing: the admin starts an edit, sends the new
   text as the next message, reviews a rendered preview, then confirms save.
 - Every edit creates or references an immutable backend version row.
@@ -452,6 +576,8 @@ Expanded topic commands:
 
 Rules:
 
+- Topic controls should be labeled as "what to notice" and "what to say about it" before showing raw
+  keyword arrays.
 - Good examples are positive guidance.
 - Bad examples are avoid-this guidance and must never be treated as templates to copy.
 - Example removal by array index is acceptable until the backend stores examples as first-class
@@ -477,6 +603,7 @@ Supported scopes:
 
 Rules:
 
+- Style rule controls should be labeled as `Voice rules` in normal navigation.
 - Style rules may make replies stricter, shorter, more contextual, or more transparent.
 - Style rules may not permit DMs, impersonation, fake consensus, harassment, moderation evasion, or
   unsafe link behavior.
@@ -507,6 +634,8 @@ Expanded community commands:
 
 Rules:
 
+- Community controls should be summarized as readiness, safety limits, and account assignment before
+  raw settings fields.
 - Limit updates must preserve `reply_only=true` and `require_approval=true`.
 - The backend owns numeric bounds. The bot may pre-check obvious malformed values but must rely on
   API validation.
@@ -584,6 +713,7 @@ Rules:
 
 Candidate cards should show:
 
+- send readiness summary
 - candidate ID
 - community title and username when available
 - topic name
@@ -598,6 +728,7 @@ Candidate cards should show:
 
 Target cards should show:
 
+- community readiness summary
 - target ID
 - submitted reference
 - resolved community when available
@@ -627,7 +758,10 @@ Style cards should show:
 
 Formatting rules:
 
+- Put the operator-facing summary and next safe action above raw IDs and backend fields.
 - Prefer compact cards over long lists.
+- Show only state-relevant actions on default cards; move diagnostic and advanced actions into detail
+  views.
 - Truncate source excerpts before final reply text.
 - Never truncate final reply text in a send confirmation card. If it is too long for Telegram,
   split the confirmation into multiple messages.

@@ -53,6 +53,8 @@ Known menu gaps:
   missing.
 - Config editing should use an explicit field allowlist and typed edit flow, not generic database
   column editing.
+- The bot engagement surfaces should be reorganized around operator intentions before exposing
+  backend entities and raw permission fields.
 
 ## Slice 1: Documentation Baseline
 
@@ -80,7 +82,32 @@ Completed notes:
 - Added a current menu gap inventory to the spec so later slices can work from the real bot menu
   state instead of only the target command list.
 
-## Slice 2: Engagement Target Bot Controls
+## Slice 2: Operator Intention Navigation And Readiness Summaries
+
+Status: planned.
+
+Reorganize the engagement cockpit around what the operator is trying to do.
+
+Work items:
+
+- Add intention-first entries for `Today`, `Review replies`, `Approved to send`, `Communities`,
+  `Topics`, and `Recent actions`.
+- Add engagement admin entries for `Communities`, `Topics`, `Voice rules`, `Limits and accounts`,
+  and `Advanced`.
+- Add candidate send-readiness summaries before raw candidate details.
+- Add community readiness summaries before raw target and settings fields.
+- Keep existing commands working as traceability and testing paths.
+
+Acceptance:
+
+- The default `/engagement` card answers what needs review and what is ready to send.
+- Community cards summarize whether the app is not approved, watching only, drafting, ready to post,
+  paused, or blocked.
+- Candidate cards show only state-relevant primary actions by default.
+- Backend identifiers and raw fields remain available in detail cards but are not the first thing an
+  operator has to interpret.
+
+## Slice 3: Engagement Target Bot Controls
 
 Status: planned.
 
@@ -113,7 +140,7 @@ Acceptance:
 - Rejected and archived targets show all permissions off.
 - Target join/detect controls enqueue jobs only through API methods.
 
-## Slice 3: Config Editing Foundation
+## Slice 4: Config Editing Foundation
 
 Status: planned.
 
@@ -139,7 +166,7 @@ Acceptance:
 - Backend validation remains the source of truth for unsafe guidance, wrong account pools, invalid
   prompt variables, and out-of-range settings.
 
-## Slice 4: Candidate Detail, Editing, And Revisions
+## Slice 5: Candidate Detail, Editing, And Revisions
 
 Status: planned.
 
@@ -167,7 +194,7 @@ Acceptance:
 - Send buttons appear only for approved candidates.
 - Source excerpts are capped and sender identity is never shown.
 
-## Slice 5: Prompt Profile Admin Controls
+## Slice 6: Prompt Profile Admin Controls
 
 Status: planned.
 
@@ -198,7 +225,7 @@ Acceptance:
 - Activation is explicit and visible.
 - The bot rejects unapproved prompt fields and variables before calling the API when possible.
 
-## Slice 6: Topic Examples And Style Rules
+## Slice 7: Topic Examples And Style Rules
 
 Status: planned.
 
@@ -233,7 +260,7 @@ Acceptance:
 - Style rule scope and priority are visible in every rule card.
 - Unsafe guidance is still rejected by backend validation.
 
-## Slice 7: Advanced Community Settings
+## Slice 8: Advanced Community Settings
 
 Status: planned.
 
@@ -259,7 +286,7 @@ Acceptance:
 - Backend rejects out-of-range limits and wrong-pool accounts.
 - Bot never shows full account phone numbers.
 
-## Slice 8: Admin Permission Boundary
+## Slice 9: Admin Permission Boundary
 
 Status: planned.
 
@@ -278,7 +305,7 @@ Acceptance:
 - Unauthorized attempts produce clear bot messages without calling protected API mutations.
 - Backend auth remains the source of truth.
 
-## Slice 9: Release Documentation And Tests
+## Slice 10: Release Documentation And Tests
 
 Status: planned.
 
