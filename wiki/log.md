@@ -6,6 +6,14 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-04-20] spec | Defined engagement config editing model
+
+Documented a reusable Telegram bot admin/settings editing model for engagement configuration. The
+spec now requires explicit editable field allowlists, typed value parsing, preview or before/after
+confirmation, backend-owned validation, audit/version history for outbound-affecting changes, and a
+hard safety floor that editable prompts, topics, style rules, settings, and replies cannot weaken.
+Updated the bot engagement controls plan with a config editing foundation slice.
+
 ## [2026-04-20] spec | Designed Telegram account pool separation
 
 Added a dedicated Telegram account pool separation spec and implementation plan. The design splits

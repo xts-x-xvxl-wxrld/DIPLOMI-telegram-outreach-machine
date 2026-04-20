@@ -124,6 +124,99 @@ reachable through an explicit command for traceability and testing.
 Inline callback data must stay under Telegram's 64-byte limit. UUID-heavy actions should use short
 prefixes and compact action segments.
 
+## Config Editing Model
+
+The engagement admin cockpit should let admins edit most engagement configuration from Telegram,
+but the bot must remain a control surface, not the source of truth.
+
+Every editable engagement setting should follow the same contract:
+
+1. The backend owns the persisted value.
+2. The API exposes a typed route for reading and updating that value.
+3. The service layer validates safety, bounds, state transitions, and authorization.
+4. The bot renders the current value, collects the proposed value, shows a preview or before/after
+   confirmation, and then calls the API.
+5. The mutation creates audit or version history when it can affect outbound behavior.
+
+The bot must not implement a generic "edit any database column" surface. Each editable field must be
+explicitly allowlisted by entity, field name, value type, and admin requirement.
+
+Recommended editable field metadata:
+
+```text
+entity
+field
+label
+value_type
+requires_confirmation
+admin_only
+```
+
+Supported first implementation value types:
+
+- `text`
+- `long_text`
+- `int`
+- `float`
+- `bool`
+- `enum`
+- `time`
+- `uuid`
+- `keyword_list`
+
+Short values may use commands or inline toggles. Long text values should use conversation-state
+editing. Risky values, including posting permission, prompt activation, assigned account changes,
+and long instruction changes, must show a confirmation before saving.
+
+### Editable Config Map
+
+The admin cockpit should expose these editable areas.
+
+| Area | Editable fields | Notes |
+|---|---|---|
+| Engagement targets | `notes`, status transitions, `allow_join`, `allow_detect`, `allow_post` | Approval and permission changes require confirmation and before/after display. |
+| Community settings | `mode`, `max_posts_per_day`, `min_minutes_between_posts`, quiet hours, assigned engagement account, allowed join/post flags where supported | MVP edits must preserve `reply_only=true` and `require_approval=true`. |
+| Prompt profiles | `name`, `description`, `model`, `temperature`, `max_output_tokens`, `system_prompt`, `user_prompt_template` | Prompt edits create immutable backend versions. Activation is separate and confirmed. |
+| Topics | `name`, `description`, `stance_guidance`, `trigger_keywords`, `negative_keywords`, good examples, bad examples, `active` | Guidance and examples are admin-authored instruction inputs. Bad examples are never templates to copy. |
+| Style rules | `name`, `priority`, `rule_text`, `active` | Scope may be immutable after creation in the first implementation. |
+| Candidates | `final_reply`, approval/rejection/send state | Final replies are editable only before terminal states. Sending remains separate from approval. |
+| Account assignment | assigned engagement account for a community | Only engagement-pool accounts are valid. Bot output must not expose full phone numbers. |
+
+### Instruction Inputs
+
+Written instruction fields include prompt profile prompts, topic guidance, topic good/bad examples,
+style rules, and manually edited candidate replies.
+
+These fields are operator/admin-authored configuration. They may be assisted by future draft helpers,
+but generated suggestions must be treated as drafts only. A generated or inferred instruction must
+not become active until an admin reviews it and explicitly saves it.
+
+The bot should label instruction fields clearly:
+
+- Prompt profile text controls the detection/drafting prompt.
+- Topic guidance controls when and how the system should be useful for one subject.
+- Good examples show desired reply shape.
+- Bad examples show what to avoid and must be passed to the model only as negative examples.
+- Style rules tune voice, brevity, disclosure, and community/topic-specific constraints.
+- Candidate final reply is the exact text eligible for approval and eventual sending.
+
+### Safety Floor
+
+Editable configuration must never weaken hard safety rules. The backend and workers must continue to
+enforce:
+
+- no DMs
+- no automatic sending in MVP
+- no impersonation or fake personal experience
+- no hidden sponsorship or fake consensus
+- no person-level scoring, ranking, or targeting
+- no bypassing operator approval
+- no disabling audit logs
+- no outbound behavior from collection, discovery, expansion, or analysis workers
+
+If an editable prompt, topic, style rule, or reply conflicts with these rules, backend validation or
+worker preflight must reject, skip, or fail closed.
+
 ## Current Menu Gap Inventory
 
 This inventory records the gap between the current bot engagement menu and the target control

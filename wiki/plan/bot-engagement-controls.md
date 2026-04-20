@@ -51,6 +51,8 @@ Known menu gaps:
 - Community controls lack rate-limit, quiet-hours, and assigned-account commands and menu entries.
 - Cross-cutting admin permission, confirmation, and conversation-state editing flows are still
   missing.
+- Config editing should use an explicit field allowlist and typed edit flow, not generic database
+  column editing.
 
 ## Slice 1: Documentation Baseline
 
@@ -111,7 +113,33 @@ Acceptance:
 - Rejected and archived targets show all permissions off.
 - Target join/detect controls enqueue jobs only through API methods.
 
-## Slice 3: Candidate Detail, Editing, And Revisions
+## Slice 3: Config Editing Foundation
+
+Status: planned.
+
+Add a reusable bot editing foundation for admin/settings configuration.
+
+Work items:
+
+- Define editable field metadata by entity, field, label, value type, confirmation requirement, and
+  admin requirement.
+- Add in-process pending edit state scoped by Telegram operator ID.
+- Add typed parsers for text, long text, int, float, bool, enum, time, UUID, and keyword-list
+  values.
+- Add common preview/confirmation rendering with Save and Cancel callbacks.
+- Route saves through explicit API-client methods for each entity rather than a generic PATCH helper.
+
+Acceptance:
+
+- A pending edit from one operator cannot be saved by another operator.
+- Starting a new command cancels or supersedes stale pending edit state.
+- Long instruction values show a preview before save.
+- Risky changes such as prompt activation, posting permission, and account assignment require
+  confirmation.
+- Backend validation remains the source of truth for unsafe guidance, wrong account pools, invalid
+  prompt variables, and out-of-range settings.
+
+## Slice 4: Candidate Detail, Editing, And Revisions
 
 Status: planned.
 
@@ -139,7 +167,7 @@ Acceptance:
 - Send buttons appear only for approved candidates.
 - Source excerpts are capped and sender identity is never shown.
 
-## Slice 4: Prompt Profile Admin Controls
+## Slice 5: Prompt Profile Admin Controls
 
 Status: planned.
 
@@ -170,7 +198,7 @@ Acceptance:
 - Activation is explicit and visible.
 - The bot rejects unapproved prompt fields and variables before calling the API when possible.
 
-## Slice 5: Topic Examples And Style Rules
+## Slice 6: Topic Examples And Style Rules
 
 Status: planned.
 
@@ -205,7 +233,7 @@ Acceptance:
 - Style rule scope and priority are visible in every rule card.
 - Unsafe guidance is still rejected by backend validation.
 
-## Slice 6: Advanced Community Settings
+## Slice 7: Advanced Community Settings
 
 Status: planned.
 
@@ -231,7 +259,7 @@ Acceptance:
 - Backend rejects out-of-range limits and wrong-pool accounts.
 - Bot never shows full account phone numbers.
 
-## Slice 7: Admin Permission Boundary
+## Slice 8: Admin Permission Boundary
 
 Status: planned.
 
@@ -250,7 +278,7 @@ Acceptance:
 - Unauthorized attempts produce clear bot messages without calling protected API mutations.
 - Backend auth remains the source of truth.
 
-## Slice 8: Release Documentation And Tests
+## Slice 9: Release Documentation And Tests
 
 Status: planned.
 
