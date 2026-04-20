@@ -680,3 +680,12 @@ preview/save/cancel rendering, and compact `eng:edit:*` callbacks. Wired the fir
 flow into `/edit_reply <candidate_id>`, while preserving the existing pipe-command edit path.
 Added focused tests for parser behavior, pending edit scoping and expiry, callback parsing, guided
 reply-edit preview/save/cancel, and operator isolation.
+
+## [2026-04-20] spec | Clarified engagement instructions and monitoring
+
+Expanded the engagement spec with an operator-facing instruction model for the message-generation
+agent and a monitoring/send-timing model for scheduled detection. The contract now states that
+engagement watches approved public surfaces through collection artifacts, drafts from durable prompt
+profiles/topics/style rules, prefers no reply when the moment is weak, and sends only through
+approval, quiet-hour, membership, reply-only, and rate-limit preflights. Updated the community
+engagement plan with the completed documentation slice.

@@ -28,6 +28,11 @@ Those controls are now part of the active engagement implementation: detection r
 profile/version summary used for drafting, and candidate approval uses the latest validated
 `final_reply` when an operator edits a reply before approval.
 
+In plain product terms: the engagement module may participate only in groups or channels where an
+approved engagement account is already allowed to operate. It does not discover people to contact.
+It watches approved public discussion surfaces, drafts candidate public replies from configured
+instructions, and sends only through the approval and rate-limit path described below.
+
 ## Non-Goals
 
 - No direct messages to community members.
@@ -827,6 +832,60 @@ Error mapping:
 The engagement detector may use OpenAI to decide whether a message sample is a good moment for a
 reply and to draft that reply.
 
+### Instruction Model
+
+The message-generation agent must be instructed through durable admin configuration, not ad hoc
+worker code. The worker assembles the final prompt from these layers:
+
+```text
+immutable safety floor
+  + active prompt profile
+  + topic guidance and examples
+  + global/account/community/topic style rules
+  + recent public message context
+  + community-level analysis context
+```
+
+The operator-facing instruction controls should answer five questions:
+
+| Question | Stored as | Example |
+|---|---|---|
+| What should the agent notice? | topic trigger and negative keywords | notice discussions about CRM migrations; ignore hiring posts |
+| What stance should it take? | topic `stance_guidance` | be practical, compare tradeoffs, avoid sales pressure |
+| How should it sound here? | style rules | brief, transparent, no links unless asked |
+| What is allowed to be claimed? | prompt profile and account/community style rules | may say "we maintain a tool"; must not claim to be a customer |
+| What should it avoid? | bad examples, validation, and safety floor | no DMs, no urgency, no fake consensus, no personal profiling |
+
+The editable prompt profile can tune the model's role, reasoning rubric, output format, and tone.
+It cannot override hard product rules. If a prompt profile, topic, or style rule conflicts with
+reply-only mode, approval requirements, no-DM rules, link validation, or rate limits, backend
+validation and worker preflight win.
+
+The generator should behave like a helpful public participant for the configured operator account:
+
+- Reply only when the current discussion already creates a relevant opening.
+- Add one useful thought, question, comparison, caveat, or resource.
+- Prefer short replies that fit the community's current tone.
+- Say nothing when the reply would be generic, promotional, late, or off-topic.
+- Never invent personal experience, customer status, moderator authority, affiliation, statistics,
+  scarcity, urgency, or consensus.
+- Never target a named individual, rank people, or suggest moving the conversation to DMs.
+- Avoid links by default; allow links only when the topic or style policy permits them and the
+  operator approves the final reply.
+
+Recommended generated reply shape:
+
+```text
+1-3 sentences
+directly references the public topic being discussed
+adds practical value or a clarifying question
+does not ask for private contact
+does not sound like an advertisement
+```
+
+The model must always be allowed to return `should_engage = false`. A "no reply" decision is a
+successful outcome when the moment is weak, stale, risky, or already well answered.
+
 System rules:
 
 ```text
@@ -1017,6 +1076,66 @@ then the detected reason, never the final reply text.
 ## Scheduling
 
 Engagement detection can run after collection or on a separate low-frequency scheduler tick.
+
+### Monitoring Model
+
+Monitoring is a two-stage process:
+
+```text
+collection watches approved communities
+  -> collection writes compact recent public samples
+  -> engagement scheduler checks which communities are eligible
+  -> engagement.detect evaluates recent samples against active topics
+  -> candidate replies wait for operator review
+```
+
+The engagement scheduler does not directly scrape Telegram in the MVP. It reads durable collection
+artifacts or opt-in stored messages. This keeps outbound behavior separate from collection and
+prevents the engagement module from becoming an always-on raw chat listener.
+
+Eligibility for a scheduled detection run:
+
+- The community has engagement settings in `observe`, `suggest`, or `require_approval` mode.
+- An approved engagement target grants `allow_detect`.
+- A completed collection run exists inside the configured detection window.
+- There is no active candidate already waiting for the same community review flow.
+- The current time is outside configured quiet hours.
+
+Default cadence:
+
+| Setting | Default | Meaning |
+|---|---:|---|
+| `ENGAGEMENT_SCHEDULER_INTERVAL_SECONDS` | 3600 | scheduler wakes roughly once per hour |
+| `ENGAGEMENT_DETECTION_WINDOW_MINUTES` | 60 | detection considers the latest hour of collected samples |
+| `max_posts_per_day` | 1 | maximum sent replies per community and account in a rolling 24-hour window |
+| `min_minutes_between_posts` | 240 | minimum spacing between sent replies for both community and account |
+
+Manual detection can be operator-triggered for an approved target and may use a custom
+`window_minutes`, but it still uses the same target permission, topic, prompt, privacy, and
+candidate creation rules.
+
+### Send Timing Model
+
+Sending is intentionally separated from monitoring. The scheduler may create candidate drafts, but
+it must not queue `engagement.send` in the MVP.
+
+A public reply may be sent only when all of these are true:
+
+- The candidate is still fresh and has status `approved`.
+- The approved `final_reply` passes safety and length validation.
+- The community settings still allow posting and require approval.
+- The engagement target grants `allow_post`.
+- The selected engagement account is already joined to the community.
+- Reply-only mode can be satisfied by replying to a source Telegram message.
+- Quiet hours, rolling daily limits, and minimum spacing checks pass.
+
+Timing behavior should feel sparse and human-supervised:
+
+- Draft quickly enough that the operator can review while the discussion is still current.
+- Expire stale candidates rather than sending late replies into a cooled-off thread.
+- Use rate limits as hard caps, not goals. The best day may still have zero sends.
+- Never batch multiple sends into the same community just because multiple topics matched.
+- Treat failed or skipped send attempts as audit events, not reasons to retry aggressively.
 
 Recommended MVP:
 

@@ -328,6 +328,25 @@ Implemented notes:
 - Added focused API tests for manual detection enqueueing, missing communities, approved send
   enqueueing, and unapproved send rejection.
 
+## Slice 12: Instruction And Monitoring Policy
+
+Status: completed.
+
+Clarified the operator-facing product contract for:
+
+- how admin instructions are assembled for the message-generation agent
+- what durable configuration answers: what to notice, what stance to take, how to sound, what may be
+  claimed, and what to avoid
+- how the scheduler monitors recent public discussion through collection artifacts rather than a
+  separate always-on chat listener
+- how detection cadence, quiet hours, candidate expiry, human review, and send spacing fit together
+
+Acceptance:
+
+- Future implementation work has a single spec section for prompt instruction assembly.
+- Monitoring is documented as collection-driven detection, not direct outbound-worker scraping.
+- Send timing remains sparse, approval-gated, reply-only, and rate-limited.
+
 ## Open Questions
 
 - Should engagement settings be available only for `status = monitoring` communities, or also for
