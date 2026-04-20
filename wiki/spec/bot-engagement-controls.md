@@ -342,6 +342,13 @@ The current main engagement menu exposes:
 - Candidate cards with readiness summaries and state-relevant approve, reject, edit, audit, and
   queue-send command hints.
 - `/edit_reply <candidate_id> | <new final reply>` as a pipe-command edit path.
+- `/edit_reply <candidate_id>` as a guided reply-edit flow: the bot stores a pending edit by
+  Telegram operator ID, accepts the next text message as the proposed final reply, shows a
+  preview, and saves or cancels through `eng:edit:save` / `eng:edit:cancel`.
+- Shared config-editing foundation with explicit editable field metadata, typed parsers for
+  text/long-text/int/float/bool/enum/time/UUID/keyword-list values, per-operator pending state,
+  15-minute expiry, and entity-specific API save dispatch.
+- `/cancel_edit` for discarding the caller's pending guided edit.
 - `/engagement_actions [community_id]`.
 - `/engagement_settings <community_id>`.
 - Community settings cards with readiness summaries before raw mode, permission, and rate-limit
@@ -429,8 +436,9 @@ The current main engagement menu exposes:
 - Full readiness summaries for membership, account assignment, expiry, rate limits, and quiet-hour
   blocks when those backend fields are exposed to the bot.
 - Detail/open views that keep raw IDs and backend fields behind progressive disclosure.
-- Conversation-state editing for long prompt, topic guidance, style rule, and reply edits.
-- Save/cancel confirmation buttons for long edits.
+- Conversation-state editing for long prompt, topic guidance, and style rule edits.
+- Button-led entrypoints that start the shared edit flow from prompt, topic, style, target, and
+  settings cards.
 - Admin permission boundary in the bot UI.
 - Confirmation flows for risky admin mutations, including prompt activation, posting permission
   changes, target approval, and account assignment.
@@ -439,11 +447,10 @@ The current main engagement menu exposes:
 
 The next implementation slice should prioritize:
 
-- Add a reusable config-editing foundation for long and risky admin edits.
-- Start with preview/save/cancel flows for candidate replies, prompt text, topic guidance, and style
-  rule text.
-- Keep permission changes and target approval ready for explicit confirmation instead of direct
-  mutation in a later hardening pass.
+- Add candidate detail/open views and wire the existing guided edit foundation into candidate
+  detail cards.
+- Add candidate revision, expire, and retry commands when the backend routes are available.
+- Keep send buttons limited to approved candidates and terminal candidates read-only.
 
 ## Implementation Slice Contracts
 

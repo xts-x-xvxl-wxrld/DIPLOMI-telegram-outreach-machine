@@ -7,6 +7,7 @@ import pytest
 
 from bot.main import (
     API_CLIENT_KEY,
+    CONFIG_EDIT_STORE_KEY,
     add_engagement_target_command,
     archive_engagement_target_command,
     callback_query,
@@ -20,6 +21,7 @@ from bot.main import (
     engagement_target_command,
     engagement_targets_command,
     engagement_topics_command,
+    edit_reply_command,
     join_community_command,
     reject_engagement_target_command,
     resolve_engagement_target_command,
@@ -30,11 +32,13 @@ from bot.main import (
     target_permission_command,
     set_engagement_command,
     toggle_engagement_topic_command,
+    telegram_entity_text,
 )
 
 
 class _FakeMessage:
-    def __init__(self) -> None:
+    def __init__(self, text: str | None = None) -> None:
+        self.text = text
         self.replies: list[dict[str, Any]] = []
 
     async def reply_text(self, text: str, reply_markup: Any | None = None) -> None:
@@ -42,10 +46,10 @@ class _FakeMessage:
 
 
 class _FakeCallbackQuery:
-    def __init__(self, data: str) -> None:
+    def __init__(self, data: str, *, user_id: int = 123) -> None:
         self.data = data
         self.message = _FakeMessage()
-        self.from_user = SimpleNamespace(id=123, username="operator")
+        self.from_user = SimpleNamespace(id=user_id, username="operator")
         self.answers: list[dict[str, Any]] = []
         self.edits: list[dict[str, Any]] = []
 
@@ -61,6 +65,7 @@ class _FakeApiClient:
         self.list_candidate_calls: list[dict[str, Any]] = []
         self.send_calls: list[dict[str, Any]] = []
         self.approve_calls: list[dict[str, Any]] = []
+        self.edit_candidate_calls: list[dict[str, Any]] = []
         self.create_topic_calls: list[dict[str, Any]] = []
         self.update_topic_calls: list[dict[str, Any]] = []
         self.get_settings_calls: list[str] = []
@@ -461,6 +466,33 @@ class _FakeApiClient:
         self.send_calls.append({"candidate_id": candidate_id, "approved_by": approved_by})
         return {"job": {"id": "send-job", "type": "engagement.send", "status": "queued"}}
 
+    async def edit_engagement_candidate(
+        self,
+        candidate_id: str,
+        *,
+        final_reply: str,
+        edited_by: str,
+        edit_reason: str | None = None,
+    ) -> dict[str, Any]:
+        self.edit_candidate_calls.append(
+            {
+                "candidate_id": candidate_id,
+                "final_reply": final_reply,
+                "edited_by": edited_by,
+                "edit_reason": edit_reason,
+            }
+        )
+        return {
+            "id": candidate_id,
+            "community_title": "Founder Circle",
+            "topic_name": "Open CRM",
+            "status": "needs_review",
+            "source_excerpt": "Discussing CRM tools.",
+            "detected_reason": "Relevant CRM discussion.",
+            "suggested_reply": "Compare ownership and integrations first.",
+            "final_reply": final_reply,
+        }
+
 
 def _context(client: _FakeApiClient, *args: str) -> SimpleNamespace:
     return SimpleNamespace(
@@ -469,16 +501,16 @@ def _context(client: _FakeApiClient, *args: str) -> SimpleNamespace:
     )
 
 
-def _message_update() -> SimpleNamespace:
+def _message_update(text: str | None = None) -> SimpleNamespace:
     return SimpleNamespace(
-        message=_FakeMessage(),
+        message=_FakeMessage(text=text),
         callback_query=None,
         effective_user=SimpleNamespace(id=123, username="operator"),
     )
 
 
-def _callback_update(data: str) -> SimpleNamespace:
-    query = _FakeCallbackQuery(data)
+def _callback_update(data: str, *, user_id: int = 123) -> SimpleNamespace:
+    query = _FakeCallbackQuery(data, user_id=user_id)
     return SimpleNamespace(
         message=None,
         callback_query=query,
@@ -1013,3 +1045,81 @@ async def test_send_reply_callback_queues_send_job() -> None:
     assert client.send_calls == [
         {"candidate_id": "candidate-approved", "approved_by": "telegram:123:@operator"}
     ]
+
+
+@pytest.mark.asyncio
+async def test_edit_reply_command_starts_guided_pending_edit() -> None:
+    client = _FakeApiClient()
+    context = _context(client, "candidate-review")
+    update = _message_update()
+
+    await edit_reply_command(update, context)
+
+    assert "Editing Final reply" in update.message.replies[0]["text"]
+    assert "Send the replacement value as your next message." in update.message.replies[0]["text"]
+    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
+    assert pending is not None
+    assert pending.object_id == "candidate-review"
+    assert client.edit_candidate_calls == []
+
+
+@pytest.mark.asyncio
+async def test_guided_edit_reply_previews_then_saves_latest_value() -> None:
+    client = _FakeApiClient()
+    context = _context(client, "candidate-review")
+    start_update = _message_update()
+
+    await edit_reply_command(start_update, context)
+    text_update = _message_update("Compare data ownership and export access first.")
+    await telegram_entity_text(text_update, context)
+
+    preview = text_update.message.replies[0]
+    assert "Review Final reply" in preview["text"]
+    assert "Confirmation required before saving." in preview["text"]
+    assert "Compare data ownership" in preview["text"]
+    assert "eng:edit:save" in _callback_data_values(preview["reply_markup"])
+    assert "eng:edit:cancel" in _callback_data_values(preview["reply_markup"])
+    assert client.edit_candidate_calls == []
+
+    save_update = _callback_update("eng:edit:save")
+    await callback_query(save_update, context)
+
+    assert client.edit_candidate_calls == [
+        {
+            "candidate_id": "candidate-review",
+            "final_reply": "Compare data ownership and export access first.",
+            "edited_by": "telegram:123:@operator",
+            "edit_reason": None,
+        }
+    ]
+    assert "Saved Final reply." in save_update.callback_query.edits[0]["text"]
+    assert context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123) is None
+
+
+@pytest.mark.asyncio
+async def test_guided_edit_save_is_scoped_to_operator() -> None:
+    client = _FakeApiClient()
+    context = _context(client, "candidate-review")
+
+    await edit_reply_command(_message_update(), context)
+    await telegram_entity_text(_message_update("Keep this scoped to the operator."), context)
+
+    await callback_query(_callback_update("eng:edit:save", user_id=456), context)
+
+    assert client.edit_candidate_calls == []
+    assert context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123) is not None
+
+
+@pytest.mark.asyncio
+async def test_guided_edit_cancel_removes_only_callers_pending_edit() -> None:
+    client = _FakeApiClient()
+    context = _context(client, "candidate-review")
+
+    await edit_reply_command(_message_update(), context)
+    await telegram_entity_text(_message_update("Draft to cancel."), context)
+    cancel_update = _callback_update("eng:edit:cancel")
+    await callback_query(cancel_update, context)
+
+    assert "Cancelled edit for Final reply." in cancel_update.callback_query.edits[0]["text"]
+    assert context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123) is None
+    assert client.edit_candidate_calls == []

@@ -5,6 +5,8 @@ import pytest
 from bot.ui import (
     ACTION_APPROVE_COMMUNITY,
     ACTION_COMMUNITY_MEMBERS,
+    ACTION_CONFIG_EDIT_CANCEL,
+    ACTION_CONFIG_EDIT_SAVE,
     ACTION_ENGAGEMENT_ACTIONS,
     ACTION_ENGAGEMENT_ADMIN,
     ACTION_ENGAGEMENT_ADMIN_ADVANCED,
@@ -27,6 +29,7 @@ from bot.ui import (
     ENGAGEMENT_MENU_LABEL,
     candidate_actions_markup,
     community_actions_markup,
+    config_edit_confirmation_markup,
     engagement_action_pager_markup,
     engagement_candidate_actions_markup,
     engagement_candidate_filter_markup,
@@ -79,6 +82,8 @@ def test_parse_all_engagement_callback_namespaces() -> None:
         "eng:admin:tj:target-1": (ACTION_ENGAGEMENT_TARGET_JOIN, ["target-1"]),
         "eng:admin:td:target-1:60": (ACTION_ENGAGEMENT_TARGET_DETECT, ["target-1", "60"]),
         "eng:cand:send:candidate-1": ("eng:cand:send", ["candidate-1"]),
+        "eng:edit:save": (ACTION_CONFIG_EDIT_SAVE, []),
+        "eng:edit:cancel": (ACTION_CONFIG_EDIT_CANCEL, []),
         "eng:actions:list:20": (ACTION_ENGAGEMENT_ACTIONS, ["20"]),
     }
 
@@ -97,6 +102,19 @@ def test_engagement_uuid_callback_data_stays_under_telegram_limit() -> None:
     data = encode_callback_data("eng:set:preset", community_id, "ready")
 
     assert len(data) <= 64
+
+
+def test_config_edit_callback_data_stays_under_telegram_limit() -> None:
+    assert len(ACTION_CONFIG_EDIT_SAVE) <= 64
+    assert len(ACTION_CONFIG_EDIT_CANCEL) <= 64
+
+
+def test_config_edit_confirmation_markup_exposes_save_and_cancel() -> None:
+    markup = config_edit_confirmation_markup()
+    rows = markup.inline_keyboard
+
+    assert rows[0][0].callback_data == ACTION_CONFIG_EDIT_SAVE
+    assert rows[0][1].callback_data == ACTION_CONFIG_EDIT_CANCEL
 
 
 def test_engagement_target_permission_callback_data_stays_under_telegram_limit() -> None:

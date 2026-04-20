@@ -643,3 +643,12 @@ through 10: config editing foundation, candidate detail and revisions, prompt pr
 controls, topic examples and style rules, advanced community settings, admin permission boundaries,
 and release documentation with broader test wrap-up. Aligned the matching plan heading for the
 release slice.
+
+## [2026-04-20] code | Built bot config editing foundation
+
+Completed bot engagement controls Slice 4. Added a reusable bot config-editing foundation with
+explicit editable field metadata, typed parsers, per-operator pending edit state, 15-minute expiry,
+preview/save/cancel rendering, and compact `eng:edit:*` callbacks. Wired the first concrete guided
+flow into `/edit_reply <candidate_id>`, while preserving the existing pipe-command edit path.
+Added focused tests for parser behavior, pending edit scoping and expiry, callback parsing, guided
+reply-edit preview/save/cancel, and operator isolation.

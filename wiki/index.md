@@ -50,6 +50,8 @@
 ## Implementation roots
 
 - `bot/api_client.py` - bot HTTP client for backend API endpoints
+- `bot/config_editing.py` - shared Telegram bot config-edit metadata, typed parsers, and
+  per-operator pending edit state
 - `bot/formatting.py` - concise Telegram message formatting helpers
 - `bot/main.py` - Telegram bot command and callback handlers for seed-group operations
 - `bot/ui.py` - Telegram keyboard and callback-data helpers for inline operator actions
@@ -95,6 +97,7 @@
 - `tests/test_engagement_detect_worker.py` - engagement detection worker prefiltering, candidate creation, and dedupe tests
 - `tests/test_engagement_send_worker.py` - engagement send worker preflight, rate-limit, idempotency, and Telethon error-mapping tests
 - `tests/test_bot_engagement_handlers.py` - engagement cockpit, candidate status, approve-to-send, and send callback bot tests
+- `tests/test_bot_config_editing.py` - config-edit field registry, typed parser, pending-state, and expiry tests
 - `scripts/` - local developer workflow helpers
 - `backend/` - FastAPI app, SQLAlchemy models, queue helpers, worker stubs
 - `bot/` - Telegram bot package placeholder

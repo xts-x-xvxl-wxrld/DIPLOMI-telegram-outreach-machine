@@ -51,6 +51,8 @@ ACTION_ENGAGEMENT_PROMPT_ACTIVATE = "eng:admin:pa"
 ACTION_ENGAGEMENT_STYLE = "eng:admin:sr"
 ACTION_ENGAGEMENT_ADMIN_LIMITS = "eng:admin:lim"
 ACTION_ENGAGEMENT_ADMIN_ADVANCED = "eng:admin:adv"
+ACTION_CONFIG_EDIT_SAVE = "eng:edit:save"
+ACTION_CONFIG_EDIT_CANCEL = "eng:edit:cancel"
 
 
 @dataclass(frozen=True)
@@ -458,6 +460,17 @@ def engagement_job_markup(
     return _inline_markup(rows)
 
 
+def config_edit_confirmation_markup():
+    return _inline_markup(
+        [
+            [
+                _button("Save", ACTION_CONFIG_EDIT_SAVE),
+                _button("Cancel", ACTION_CONFIG_EDIT_CANCEL),
+            ]
+        ]
+    )
+
+
 def review_result_markup(community_id: str, job_id: str | None = None):
     rows = [[_button("Community", ACTION_OPEN_COMMUNITY, community_id)]]
     if job_id:
@@ -507,7 +520,7 @@ def parse_callback_data(data: str) -> tuple[str, list[str]]:
     if parts[0] == "eng":
         if len(parts) >= 3 and parts[1] == "admin":
             return ":".join(parts[:3]), parts[3:]
-        if len(parts) >= 3 and parts[1] in {"actions", "cand", "set", "topic"}:
+        if len(parts) >= 3 and parts[1] in {"actions", "cand", "edit", "set", "topic"}:
             return ":".join(parts[:3]), parts[3:]
         if len(parts) >= 2:
             return ":".join(parts[:2]), parts[2:]

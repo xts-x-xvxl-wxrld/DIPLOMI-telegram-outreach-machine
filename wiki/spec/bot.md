@@ -67,6 +67,7 @@ Engagement commands are optional and operator-controlled:
 /detect_engagement <community_id> [window_minutes]
 /engagement_candidates [status]
 /edit_reply <candidate_id> | <new final reply>
+/cancel_edit
 /approve_reply <candidate_id>
 /reject_reply <candidate_id>
 /send_reply <candidate_id>
@@ -462,6 +463,20 @@ state-relevant primary action hints, such as approve/reject for `needs_review` a
 
 Edits the candidate's final reply through the API. The edit creates a candidate revision and uses
 the same safety and length validation as generated replies.
+
+Operators may also start a guided edit with only:
+
+```text
+/edit_reply <candidate_id>
+```
+
+In that mode, the bot stores a pending edit for the caller's Telegram user ID, accepts the next text
+message as the proposed final reply, shows a preview, and saves or cancels through inline controls.
+Pending edits are in-process, expire after a short timeout, and are not shared between operators.
+
+### `/cancel_edit`
+
+Cancels the caller's pending guided config edit, if one exists.
 
 ### `/approve_reply <candidate_id>`
 

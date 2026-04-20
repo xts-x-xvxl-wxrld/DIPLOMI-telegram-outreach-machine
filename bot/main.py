@@ -6,6 +6,16 @@ from typing import Any
 
 from bot.api_client import BotApiClient, BotApiError
 from bot.config import BotSettings, load_settings, validate_runtime_settings
+from bot.config_editing import (
+    PendingEdit,
+    PendingEditStore,
+    editable_field,
+    parse_edit_value,
+    render_edit_cancelled,
+    render_edit_preview,
+    render_edit_request,
+    render_edit_saved,
+)
 from bot.formatting import (
     format_access_denied,
     format_accounts,
@@ -57,6 +67,8 @@ from bot.ui import (
     ACTION_APPROVE_COMMUNITY,
     ACTION_COLLECT_COMMUNITY,
     ACTION_COMMUNITY_MEMBERS,
+    ACTION_CONFIG_EDIT_CANCEL,
+    ACTION_CONFIG_EDIT_SAVE,
     ACTION_ENGAGEMENT_ACTIONS,
     ACTION_ENGAGEMENT_ADMIN,
     ACTION_ENGAGEMENT_ADMIN_ADVANCED,
@@ -99,6 +111,7 @@ from bot.ui import (
     SEEDS_MENU_LABEL,
     candidate_actions_markup,
     community_actions_markup,
+    config_edit_confirmation_markup,
     engagement_action_pager_markup,
     engagement_admin_advanced_markup,
     engagement_admin_home_markup,
@@ -127,6 +140,7 @@ from bot.ui import (
 
 
 API_CLIENT_KEY = "api_client"
+CONFIG_EDIT_STORE_KEY = "config_edit_store"
 CANDIDATE_PAGE_SIZE = 5
 CHANNEL_PAGE_SIZE = 5
 MEMBER_PAGE_SIZE = 10
@@ -701,8 +715,21 @@ async def send_reply_command(update: Any, context: Any) -> None:
 
 async def edit_reply_command(update: Any, context: Any) -> None:
     parsed = _parse_edit_reply_args(context)
+    if parsed is None and len(context.args) == 1:
+        await _start_config_edit(
+            update,
+            context,
+            entity="candidate",
+            object_id=str(context.args[0]).strip(),
+            field="final_reply",
+        )
+        return
     if parsed is None:
-        await _reply(update, "Usage: /edit_reply <candidate_id> | <new final reply>")
+        await _reply(
+            update,
+            "Usage: /edit_reply <candidate_id> | <new final reply>\n"
+            "Or start a guided edit with: /edit_reply <candidate_id>",
+        )
         return
     candidate_id, final_reply = parsed
     client = _api_client(context)
@@ -720,6 +747,15 @@ async def edit_reply_command(update: Any, context: Any) -> None:
         "Reply edited.\n\n" + format_engagement_candidate_card(data),
         reply_markup=engagement_candidate_actions_markup(candidate_id),
     )
+
+
+async def cancel_edit_command(update: Any, context: Any) -> None:
+    operator_id = _telegram_user_id(update)
+    if operator_id is None:
+        await _reply(update, "Telegram did not include a user ID on this update.")
+        return
+    pending = _config_edit_store(context).cancel(operator_id)
+    await _reply(update, render_edit_cancelled(pending))
 
 
 async def seed_csv_document(update: Any, context: Any) -> None:
@@ -761,6 +797,9 @@ async def telegram_entity_text(update: Any, context: Any) -> None:
         return
 
     raw_text = update.message.text.strip()
+    if await _handle_config_edit_text(update, context, raw_text):
+        return
+
     if not _looks_like_telegram_reference(raw_text):
         return
 
@@ -838,6 +877,12 @@ async def callback_query(update: Any, context: Any) -> None:
             return
         if action == ACTION_ENGAGEMENT_ADMIN_ADVANCED:
             await _send_engagement_admin_advanced(update)
+            return
+        if action == ACTION_CONFIG_EDIT_SAVE:
+            await _save_config_edit_callback(update, context)
+            return
+        if action == ACTION_CONFIG_EDIT_CANCEL:
+            await _cancel_config_edit_callback(update, context)
             return
         if action == ACTION_ENGAGEMENT_TARGETS and parts:
             status, offset = _engagement_target_callback_status_and_offset(parts)
@@ -1013,6 +1058,7 @@ async def callback_query(update: Any, context: Any) -> None:
 async def access_gate(update: Any, context: Any) -> None:
     settings: BotSettings = context.application.bot_data["settings"]
     if _is_identity_command(update) or _is_authorized_update(update, settings):
+        _clear_pending_edit_if_command(update, context)
         return
 
     await _deny_access(update)
@@ -1753,6 +1799,7 @@ async def post_init(application: Any) -> None:
         api_token=settings.api_token,
         timeout_seconds=settings.request_timeout_seconds,
     )
+    application.bot_data[CONFIG_EDIT_STORE_KEY] = PendingEditStore()
 
 
 async def post_shutdown(application: Any) -> None:
@@ -1834,6 +1881,7 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("engagement_candidates", engagement_candidates_command))
     application.add_handler(CommandHandler("approve_reply", approve_reply_command))
     application.add_handler(CommandHandler("edit_reply", edit_reply_command))
+    application.add_handler(CommandHandler("cancel_edit", cancel_edit_command))
     application.add_handler(CommandHandler("reject_reply", reject_reply_command))
     application.add_handler(CommandHandler("send_reply", send_reply_command))
     application.add_handler(CallbackQueryHandler(callback_query))
@@ -1857,6 +1905,175 @@ def main() -> None:
 
 def _api_client(context: Any) -> BotApiClient:
     return context.application.bot_data[API_CLIENT_KEY]
+
+
+def _config_edit_store(context: Any) -> PendingEditStore:
+    store = context.application.bot_data.get(CONFIG_EDIT_STORE_KEY)
+    if store is None:
+        store = PendingEditStore()
+        context.application.bot_data[CONFIG_EDIT_STORE_KEY] = store
+    return store
+
+
+def _clear_pending_edit_if_command(update: Any, context: Any) -> None:
+    command = _message_command_name(update)
+    if command is None or command == "cancel_edit":
+        return
+    operator_id = _telegram_user_id(update)
+    if operator_id is not None:
+        _config_edit_store(context).cancel(operator_id)
+
+
+async def _start_config_edit(
+    update: Any,
+    context: Any,
+    *,
+    entity: str,
+    object_id: str,
+    field: str,
+) -> None:
+    operator_id = _telegram_user_id(update)
+    if operator_id is None:
+        await _reply(update, "Telegram did not include a user ID on this update.")
+        return
+    if not object_id:
+        await _reply(update, "Missing item ID for this edit.")
+        return
+    editable = editable_field(entity, field)
+    if editable is None:
+        await _reply(update, "That field is not editable from the bot.")
+        return
+    pending = _config_edit_store(context).start(
+        operator_id=operator_id,
+        field=editable,
+        object_id=object_id,
+    )
+    await _reply(update, render_edit_request(pending))
+
+
+async def _handle_config_edit_text(update: Any, context: Any, raw_text: str) -> bool:
+    operator_id = _telegram_user_id(update)
+    if operator_id is None:
+        return False
+    store = _config_edit_store(context)
+    pending = store.get(operator_id)
+    if pending is None:
+        return False
+    ok, parsed_or_error = parse_edit_value(pending, raw_text)
+    if not ok:
+        await _reply(update, str(parsed_or_error))
+        return True
+    updated = store.set_value(operator_id, raw_value=raw_text, parsed_value=parsed_or_error)
+    if updated is None:
+        await _reply(update, "That edit expired. Start again when you are ready.")
+        return True
+    await _reply(
+        update,
+        render_edit_preview(updated),
+        reply_markup=config_edit_confirmation_markup(),
+    )
+    return True
+
+
+async def _save_config_edit_callback(update: Any, context: Any) -> None:
+    operator_id = _telegram_user_id(update)
+    if operator_id is None:
+        await _callback_reply(update, "Telegram did not include a user ID on this update.")
+        return
+    store = _config_edit_store(context)
+    pending = store.get(operator_id)
+    if pending is None:
+        await _callback_reply(update, "No pending edit to save.")
+        return
+    if pending.raw_value is None:
+        await _callback_reply(update, "Send the replacement value before saving.")
+        return
+    data = await _save_config_edit(update, context, pending)
+    store.cancel(operator_id)
+    message, markup = _saved_config_edit_response(pending, data)
+    await _edit_callback_message(update, message, reply_markup=markup)
+
+
+async def _cancel_config_edit_callback(update: Any, context: Any) -> None:
+    operator_id = _telegram_user_id(update)
+    if operator_id is None:
+        await _callback_reply(update, "Telegram did not include a user ID on this update.")
+        return
+    pending = _config_edit_store(context).cancel(operator_id)
+    await _edit_callback_message(update, render_edit_cancelled(pending))
+
+
+async def _save_config_edit(update: Any, context: Any, pending: PendingEdit) -> dict[str, Any]:
+    client = _api_client(context)
+    value = pending.parsed_value
+    reviewer = _reviewer_label(update)
+
+    if pending.entity == "candidate" and pending.field == "final_reply":
+        return await client.edit_engagement_candidate(
+            pending.object_id,
+            final_reply=str(value),
+            edited_by=reviewer,
+        )
+
+    if pending.entity == "target":
+        return await client.update_engagement_target(
+            pending.object_id,
+            **{pending.field: value, "updated_by": reviewer},
+        )
+
+    if pending.entity == "prompt_profile":
+        return await client.update_engagement_prompt_profile(
+            pending.object_id,
+            **{pending.field: value, "updated_by": reviewer},
+        )
+
+    if pending.entity == "topic":
+        return await client.update_engagement_topic(pending.object_id, **{pending.field: value})
+
+    if pending.entity == "style_rule":
+        return await client.update_engagement_style_rule(
+            pending.object_id,
+            **{pending.field: value, "updated_by": reviewer},
+        )
+
+    if pending.entity == "settings":
+        current = await client.get_engagement_settings(pending.object_id)
+        payload = _engagement_settings_payload_from_current(current, **{pending.field: value})
+        return await client.update_engagement_settings(pending.object_id, **payload)
+
+    raise BotApiError("That edit type is not available yet.")
+
+
+def _saved_config_edit_response(pending: PendingEdit, data: dict[str, Any]) -> tuple[str, Any | None]:
+    prefix = render_edit_saved(pending)
+    if pending.entity == "candidate":
+        return (
+            prefix + "\n\n" + format_engagement_candidate_card(data),
+            engagement_candidate_actions_markup(pending.object_id),
+        )
+    if pending.entity == "target":
+        return (
+            prefix + "\n\n" + format_engagement_target_card(data),
+            _engagement_target_markup(pending.object_id, data),
+        )
+    if pending.entity == "prompt_profile":
+        return (
+            prefix + "\n\n" + format_engagement_prompt_profile_card(data),
+            engagement_prompt_actions_markup(pending.object_id, active=bool(data.get("active"))),
+        )
+    if pending.entity == "topic":
+        return (
+            prefix + "\n\n" + format_engagement_topic_card(data),
+            engagement_topic_actions_markup(pending.object_id, active=bool(data.get("active"))),
+        )
+    if pending.entity == "style_rule":
+        return prefix + "\n\n" + format_engagement_style_rule_card(data), None
+    if pending.entity == "settings":
+        return (
+            prefix + "\n\n" + format_engagement_settings(data),
+            _engagement_settings_markup(pending.object_id, data),
+        )
+    return prefix, None
 
 
 def _first_arg(context: Any) -> str | None:

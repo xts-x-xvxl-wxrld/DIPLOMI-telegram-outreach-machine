@@ -167,7 +167,7 @@ Completed notes:
 
 ## Slice 4: Config Editing Foundation
 
-Status: planned.
+Status: completed.
 
 Add a reusable bot editing foundation for admin/settings configuration.
 The behavioral contract for this slice lives in `wiki/spec/bot-engagement-controls.md`.
@@ -191,6 +191,22 @@ Acceptance:
   confirmation.
 - Backend validation remains the source of truth for unsafe guidance, wrong account pools, invalid
   prompt variables, and out-of-range settings.
+
+Completed notes:
+
+- Added `bot/config_editing.py` with explicit editable field metadata, typed parsers, pending edit
+  state, 15-minute expiry, and reusable preview/cancel/save message rendering.
+- Added `eng:edit:save` and `eng:edit:cancel` callbacks with compact callback data.
+- Added `/edit_reply <candidate_id>` as the first guided long-edit flow. Operators can still use
+  the existing pipe command, while the guided path stores pending state by Telegram user ID, accepts
+  the next text message as the proposed final reply, previews it, and saves only through the
+  candidate edit API.
+- Added `/cancel_edit` for the caller's pending edit.
+- Added save dispatch plumbing for candidate, target, prompt profile, topic, style rule, and
+  engagement settings entities. Later slices can register UI entrypoints without adding a new state
+  machine.
+- Added focused config-editing, UI callback, and engagement-handler tests for value parsing,
+  operator scoping, expiry, preview, save, cancel, and callback length.
 
 ## Slice 5: Candidate Detail, Editing, And Revisions
 
