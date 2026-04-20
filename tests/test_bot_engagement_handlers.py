@@ -552,7 +552,7 @@ async def test_engagement_command_builds_home_counts_from_api_client() -> None:
     assert "Needs attention: 3" in update.message.replies[0]["text"]
     assert "Active topics: 1" in update.message.replies[0]["text"]
     labels = _button_labels(update.message.replies[0]["reply_markup"])
-    assert labels == [
+    for label in [
         "Today",
         "Review replies",
         "Approved to send",
@@ -560,7 +560,9 @@ async def test_engagement_command_builds_home_counts_from_api_client() -> None:
         "Topics",
         "Recent actions",
         "Admin",
-    ]
+        "Home",
+    ]:
+        assert label in labels
     callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
     assert "eng:cand:list:needs_review:0" in callbacks
     assert "eng:cand:list:approved:0" in callbacks
@@ -582,14 +584,17 @@ async def test_engagement_admin_command_uses_setup_navigation() -> None:
     assert "Communities: 3" in update.message.replies[0]["text"]
     assert "Topics: 2" in update.message.replies[0]["text"]
     assert "Voice rules: 4" in update.message.replies[0]["text"]
-    assert _button_labels(update.message.replies[0]["reply_markup"]) == [
+    labels = _button_labels(update.message.replies[0]["reply_markup"])
+    for label in [
         "Communities",
         "Topics",
         "Voice rules",
         "Limits/accounts",
         "Advanced",
-        "Engagement",
-    ]
+        "Back",
+        "Home",
+    ]:
+        assert label in labels
     callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
     assert "eng:admin:lim" in callbacks
     assert "eng:admin:adv" in callbacks
@@ -870,7 +875,10 @@ async def test_engagement_actions_command_filters_by_community_and_renders_audit
     assert "reply | failed" in update.message.replies[1]["text"]
     assert "Error: Flood wait" in update.message.replies[1]["text"]
     assert "Outbound text: Compare ownership" in update.message.replies[1]["text"]
-    assert _callback_data_values(update.message.replies[0]["reply_markup"]) == ["eng:home"]
+    assert _callback_data_values(update.message.replies[0]["reply_markup"]) == [
+        "eng:home",
+        "op:home",
+    ]
 
 
 @pytest.mark.asyncio

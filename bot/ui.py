@@ -117,25 +117,19 @@ def operator_cockpit_markup():
 
 
 def discovery_cockpit_markup():
-    return _inline_markup(
-        [
-            [_button("Start search", ACTION_DISC_START)],
-            [_button("Needs attention", ACTION_DISC_ATTENTION)],
-            [_button("Review communities", ACTION_DISC_REVIEW)],
-            [_button("Watching", ACTION_DISC_WATCHING)],
-            [_button("Recent activity", ACTION_DISC_ACTIVITY)],
-            [_button("Help", ACTION_DISC_HELP)],
-            [_button("Cockpit", ACTION_OP_HOME)],
-        ]
-    )
+    rows = [
+        [_button("Start search", ACTION_DISC_START)],
+        [_button("Needs attention", ACTION_DISC_ATTENTION)],
+        [_button("Review communities", ACTION_DISC_REVIEW)],
+        [_button("Watching", ACTION_DISC_WATCHING)],
+        [_button("Recent activity", ACTION_DISC_ACTIVITY)],
+        [_button("Help", ACTION_DISC_HELP)],
+    ]
+    return _inline_markup(_with_navigation(rows))
 
 
 def discovery_seeds_markup():
-    return _inline_markup(
-        [
-            [_button("Discovery", ACTION_DISC_HOME)],
-        ]
-    )
+    return _inline_markup(_with_navigation([], back_action=ACTION_DISC_HOME))
 
 
 def reply_keyboard_remove():
@@ -162,16 +156,15 @@ def main_menu_markup():
 
 
 def seed_group_actions_markup(seed_group_id: str):
-    return _inline_markup(
+    rows = [
+        [_button("Open", ACTION_OPEN_SEED_GROUP, seed_group_id)],
         [
-            [_button("Open", ACTION_OPEN_SEED_GROUP, seed_group_id)],
-            [
-                _button("Resolve", ACTION_RESOLVE_SEED_GROUP, seed_group_id),
-                _button("Channels", ACTION_SEED_CHANNELS, seed_group_id, "0"),
-            ],
-            [_button("Candidates", ACTION_SEED_CANDIDATES, seed_group_id, "0")],
-        ]
-    )
+            _button("Resolve", ACTION_RESOLVE_SEED_GROUP, seed_group_id),
+            _button("Channels", ACTION_SEED_CHANNELS, seed_group_id, "0"),
+        ],
+        [_button("Candidates", ACTION_SEED_CANDIDATES, seed_group_id, "0")],
+    ]
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_DISC_ALL))
 
 
 def seed_group_pager_markup(
@@ -192,41 +185,50 @@ def seed_group_pager_markup(
     )
     if pager_row:
         rows.append(pager_row)
-    if not rows:
-        return None
-    return _inline_markup(rows)
-
-
-def candidate_actions_markup(community_id: str):
     return _inline_markup(
-        [
-            [
-                _button("Approve", ACTION_APPROVE_COMMUNITY, community_id),
-                _button("Reject", ACTION_REJECT_COMMUNITY, community_id),
-            ],
-            [_button("Community", ACTION_OPEN_COMMUNITY, community_id)],
-        ]
+        _with_navigation(rows, back_action=ACTION_OPEN_SEED_GROUP, back_parts=[seed_group_id])
     )
 
 
-def engagement_candidate_actions_markup(candidate_id: str):
-    return _inline_markup(
+def candidate_actions_markup(community_id: str):
+    rows = [
         [
-            [
-                _button("Approve", ACTION_ENGAGEMENT_APPROVE, candidate_id),
-                _button("Reject", ACTION_ENGAGEMENT_REJECT, candidate_id),
-            ],
-            [_button("More replies", ACTION_ENGAGEMENT_CANDIDATES, "needs_review", "0")],
-        ]
+            _button("Approve", ACTION_APPROVE_COMMUNITY, community_id),
+            _button("Reject", ACTION_REJECT_COMMUNITY, community_id),
+        ],
+        [_button("Community", ACTION_OPEN_COMMUNITY, community_id)],
+    ]
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_DISC_REVIEW))
+
+
+def engagement_candidate_actions_markup(candidate_id: str):
+    rows = [
+        [
+            _button("Approve", ACTION_ENGAGEMENT_APPROVE, candidate_id),
+            _button("Reject", ACTION_ENGAGEMENT_REJECT, candidate_id),
+        ],
+        [_button("More replies", ACTION_ENGAGEMENT_CANDIDATES, "needs_review", "0")],
+    ]
+    return _inline_markup(
+        _with_navigation(
+            rows,
+            back_action=ACTION_ENGAGEMENT_CANDIDATES,
+            back_parts=["needs_review", "0"],
+        )
     )
 
 
 def engagement_candidate_send_markup(candidate_id: str):
+    rows = [
+        [_button("Queue send", ACTION_ENGAGEMENT_SEND, candidate_id)],
+        [_button("Approved replies", ACTION_ENGAGEMENT_CANDIDATES, "approved", "0")],
+    ]
     return _inline_markup(
-        [
-            [_button("Queue send", ACTION_ENGAGEMENT_SEND, candidate_id)],
-            [_button("Approved replies", ACTION_ENGAGEMENT_CANDIDATES, "approved", "0")],
-        ]
+        _with_navigation(
+            rows,
+            back_action=ACTION_ENGAGEMENT_CANDIDATES,
+            back_parts=["approved", "0"],
+        )
     )
 
 
@@ -244,63 +246,55 @@ def engagement_candidate_pager_markup(
         page_size=page_size,
         prefix_parts=[status],
     )
-    if not buttons:
-        return None
-    return _inline_markup([buttons])
+    rows = []
+    if buttons:
+        rows.append(buttons)
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))
 
 
 def engagement_home_markup():
-    return _inline_markup(
+    rows = [
+        [_button("Today", ACTION_ENGAGEMENT_HOME)],
         [
-            [_button("Today", ACTION_ENGAGEMENT_HOME)],
-            [
-                _button("Review replies", ACTION_ENGAGEMENT_CANDIDATES, "needs_review", "0"),
-                _button("Approved to send", ACTION_ENGAGEMENT_CANDIDATES, "approved", "0"),
-            ],
-            [
-                _button("Communities", ACTION_ENGAGEMENT_TARGETS, "0"),
-                _button("Topics", ACTION_ENGAGEMENT_TOPIC_LIST, "0"),
-            ],
-            [_button("Recent actions", ACTION_ENGAGEMENT_ACTIONS, "0")],
-            [_button("Admin", ACTION_ENGAGEMENT_ADMIN)],
-        ]
-    )
+            _button("Review replies", ACTION_ENGAGEMENT_CANDIDATES, "needs_review", "0"),
+            _button("Approved to send", ACTION_ENGAGEMENT_CANDIDATES, "approved", "0"),
+        ],
+        [
+            _button("Communities", ACTION_ENGAGEMENT_TARGETS, "0"),
+            _button("Topics", ACTION_ENGAGEMENT_TOPIC_LIST, "0"),
+        ],
+        [_button("Recent actions", ACTION_ENGAGEMENT_ACTIONS, "0")],
+        [_button("Admin", ACTION_ENGAGEMENT_ADMIN)],
+    ]
+    return _inline_markup(_with_navigation(rows))
 
 
 def engagement_admin_home_markup():
-    return _inline_markup(
+    rows = [
         [
-            [
-                _button("Communities", ACTION_ENGAGEMENT_TARGETS, "0"),
-                _button("Topics", ACTION_ENGAGEMENT_TOPIC_LIST, "0"),
-            ],
-            [
-                _button("Voice rules", ACTION_ENGAGEMENT_STYLE, "0"),
-                _button("Limits/accounts", ACTION_ENGAGEMENT_ADMIN_LIMITS),
-            ],
-            [_button("Advanced", ACTION_ENGAGEMENT_ADMIN_ADVANCED)],
-            [_button("Engagement", ACTION_ENGAGEMENT_HOME)],
-        ]
-    )
+            _button("Communities", ACTION_ENGAGEMENT_TARGETS, "0"),
+            _button("Topics", ACTION_ENGAGEMENT_TOPIC_LIST, "0"),
+        ],
+        [
+            _button("Voice rules", ACTION_ENGAGEMENT_STYLE, "0"),
+            _button("Limits/accounts", ACTION_ENGAGEMENT_ADMIN_LIMITS),
+        ],
+        [_button("Advanced", ACTION_ENGAGEMENT_ADMIN_ADVANCED)],
+    ]
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))
 
 
 def engagement_admin_limits_markup():
-    return _inline_markup(
-        [
-            [_button("Communities", ACTION_ENGAGEMENT_TARGETS, "0")],
-            [_button("Admin", ACTION_ENGAGEMENT_ADMIN)],
-        ]
-    )
+    rows = [[_button("Communities", ACTION_ENGAGEMENT_TARGETS, "0")]]
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_ADMIN))
 
 
 def engagement_admin_advanced_markup():
-    return _inline_markup(
-        [
-            [_button("Prompt profiles", ACTION_ENGAGEMENT_PROMPTS, "0")],
-            [_button("Audit and diagnostics", ACTION_ENGAGEMENT_ACTIONS, "0")],
-            [_button("Admin", ACTION_ENGAGEMENT_ADMIN)],
-        ]
-    )
+    rows = [
+        [_button("Prompt profiles", ACTION_ENGAGEMENT_PROMPTS, "0")],
+        [_button("Audit and diagnostics", ACTION_ENGAGEMENT_ACTIONS, "0")],
+    ]
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_ADMIN))
 
 
 def engagement_target_list_markup(
@@ -313,7 +307,6 @@ def engagement_target_list_markup(
     rows = [
         [_button("Add target", ACTION_ENGAGEMENT_TARGET_ADD)],
         *_target_status_filter_rows(status),
-        [_button("Admin", ACTION_ENGAGEMENT_ADMIN)],
     ]
     pager_row = _offset_pager_row(
         action=ACTION_ENGAGEMENT_TARGETS,
@@ -324,7 +317,7 @@ def engagement_target_list_markup(
     )
     if pager_row:
         rows.append(pager_row)
-    return _inline_markup(rows)
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_ADMIN))
 
 
 def engagement_target_actions_markup(
@@ -382,16 +375,18 @@ def engagement_target_actions_markup(
                 ],
             ]
         )
-    rows.append([_button("Targets", ACTION_ENGAGEMENT_TARGETS, "0")])
-    return _inline_markup(rows)
+    return _inline_markup(
+        _with_navigation(rows, back_action=ACTION_ENGAGEMENT_TARGETS, back_parts=["0"])
+    )
 
 
 def engagement_prompt_actions_markup(profile_id: str, *, active: bool):
     rows = []
     if not active:
         rows.append([_button("Activate", ACTION_ENGAGEMENT_PROMPT_ACTIVATE, profile_id)])
-    rows.append([_button("Prompts", ACTION_ENGAGEMENT_PROMPTS, "0")])
-    return _inline_markup(rows)
+    return _inline_markup(
+        _with_navigation(rows, back_action=ACTION_ENGAGEMENT_PROMPTS, back_parts=["0"])
+    )
 
 
 def engagement_admin_pager_markup(
@@ -401,43 +396,44 @@ def engagement_admin_pager_markup(
     total: int,
     page_size: int,
 ):
-    rows = [[_button("Admin", ACTION_ENGAGEMENT_ADMIN)]]
+    rows = []
     pager_row = _offset_pager_row(action=action, offset=offset, total=total, page_size=page_size)
     if pager_row:
         rows.append(pager_row)
-    return _inline_markup(rows)
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_ADMIN))
 
 
 def engagement_settings_markup(community_id: str, *, allow_join: bool, allow_post: bool):
-    return _inline_markup(
+    rows = [
         [
-            [
-                _button("Off", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "off"),
-                _button("Observe", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "observe"),
-            ],
-            [
-                _button("Suggest", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "suggest"),
-                _button("Ready", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "ready"),
-            ],
-            [
-                _button(
-                    "Join on" if not allow_join else "Join off",
-                    ACTION_ENGAGEMENT_SETTINGS_JOIN,
-                    community_id,
-                    "1" if not allow_join else "0",
-                ),
-                _button(
-                    "Post on" if not allow_post else "Post off",
-                    ACTION_ENGAGEMENT_SETTINGS_POST,
-                    community_id,
-                    "1" if not allow_post else "0",
-                ),
-            ],
-            [
-                _button("Queue join", ACTION_ENGAGEMENT_JOIN, community_id),
-                _button("Detect now", ACTION_ENGAGEMENT_DETECT, community_id, "60"),
-            ],
-        ]
+            _button("Off", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "off"),
+            _button("Observe", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "observe"),
+        ],
+        [
+            _button("Suggest", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "suggest"),
+            _button("Ready", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "ready"),
+        ],
+        [
+            _button(
+                "Join on" if not allow_join else "Join off",
+                ACTION_ENGAGEMENT_SETTINGS_JOIN,
+                community_id,
+                "1" if not allow_join else "0",
+            ),
+            _button(
+                "Post on" if not allow_post else "Post off",
+                ACTION_ENGAGEMENT_SETTINGS_POST,
+                community_id,
+                "1" if not allow_post else "0",
+            ),
+        ],
+        [
+            _button("Queue join", ACTION_ENGAGEMENT_JOIN, community_id),
+            _button("Detect now", ACTION_ENGAGEMENT_DETECT, community_id, "60"),
+        ],
+    ]
+    return _inline_markup(
+        _with_navigation(rows, back_action=ACTION_OPEN_COMMUNITY, back_parts=[community_id])
     )
 
 
@@ -447,7 +443,7 @@ def engagement_topic_pager_markup(
     total: int,
     page_size: int,
 ):
-    rows = [[_button("Engagement", ACTION_ENGAGEMENT_HOME)]]
+    rows = []
     pager_row = _offset_pager_row(
         action=ACTION_ENGAGEMENT_TOPIC_LIST,
         offset=offset,
@@ -456,22 +452,22 @@ def engagement_topic_pager_markup(
     )
     if pager_row:
         rows.append(pager_row)
-    return _inline_markup(rows)
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))
 
 
 def engagement_topic_actions_markup(topic_id: str, *, active: bool):
-    return _inline_markup(
+    rows = [
         [
-            [
-                _button(
-                    "Deactivate" if active else "Activate",
-                    ACTION_ENGAGEMENT_TOPIC_TOGGLE,
-                    topic_id,
-                    "0" if active else "1",
-                )
-            ],
-            [_button("Topics", ACTION_ENGAGEMENT_TOPIC_LIST, "0")],
-        ]
+            _button(
+                "Deactivate" if active else "Activate",
+                ACTION_ENGAGEMENT_TOPIC_TOGGLE,
+                topic_id,
+                "0" if active else "1",
+            )
+        ],
+    ]
+    return _inline_markup(
+        _with_navigation(rows, back_action=ACTION_ENGAGEMENT_TOPIC_LIST, back_parts=["0"])
     )
 
 
@@ -489,8 +485,7 @@ def engagement_candidate_filter_markup(*, status: str = "needs_review"):
             row = []
     if row:
         rows.append(row)
-    rows.append([_button("Engagement", ACTION_ENGAGEMENT_HOME)])
-    return _inline_markup(rows)
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))
 
 
 def engagement_action_pager_markup(
@@ -500,7 +495,7 @@ def engagement_action_pager_markup(
     page_size: int,
     community_id: str | None = None,
 ):
-    rows = [[_button("Engagement", ACTION_ENGAGEMENT_HOME)]]
+    rows = []
     prefix_parts = [community_id] if community_id else []
     pager_row = _offset_pager_row(
         action=ACTION_ENGAGEMENT_ACTIONS,
@@ -511,7 +506,7 @@ def engagement_action_pager_markup(
     )
     if pager_row:
         rows.append(pager_row)
-    return _inline_markup(rows)
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))
 
 
 def engagement_job_markup(
@@ -525,7 +520,9 @@ def engagement_job_markup(
         rows.append([_button("Community", ACTION_OPEN_COMMUNITY, community_id)])
     if candidate_id:
         rows.append([_button("Reply", ACTION_ENGAGEMENT_CANDIDATE_OPEN, candidate_id)])
-    return _inline_markup(rows)
+    return _inline_markup(
+        _with_navigation(rows, back_action=ACTION_ENGAGEMENT_ACTIONS, back_parts=["0"])
+    )
 
 
 def config_edit_confirmation_markup():
@@ -543,20 +540,21 @@ def review_result_markup(community_id: str, job_id: str | None = None):
     rows = [[_button("Community", ACTION_OPEN_COMMUNITY, community_id)]]
     if job_id:
         rows.append([_button("Collection Job", ACTION_JOB_STATUS, job_id)])
-    return _inline_markup(rows)
+    return _inline_markup(
+        _with_navigation(rows, back_action=ACTION_OPEN_COMMUNITY, back_parts=[community_id])
+    )
 
 
 def community_actions_markup(community_id: str):
-    return _inline_markup(
+    rows = [
+        [_button("Collect 90d", ACTION_COLLECT_COMMUNITY, community_id)],
         [
-            [_button("Collect 90d", ACTION_COLLECT_COMMUNITY, community_id)],
-            [
-                _button("Members", ACTION_COMMUNITY_MEMBERS, community_id, "0"),
-                _button("Engagement", ACTION_ENGAGEMENT_SETTINGS_OPEN, community_id),
-            ],
-            [_button("Refresh", ACTION_OPEN_COMMUNITY, community_id)],
-        ]
-    )
+            _button("Members", ACTION_COMMUNITY_MEMBERS, community_id, "0"),
+            _button("Engagement", ACTION_ENGAGEMENT_SETTINGS_OPEN, community_id),
+        ],
+        [_button("Refresh", ACTION_OPEN_COMMUNITY, community_id)],
+    ]
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_DISC_HOME))
 
 
 def member_pager_markup(
@@ -566,7 +564,7 @@ def member_pager_markup(
     total: int,
     page_size: int,
 ):
-    rows = [[_button("Community", ACTION_OPEN_COMMUNITY, community_id)]]
+    rows = []
     pager_row = _pager_row(
         action=ACTION_COMMUNITY_MEMBERS,
         item_id=community_id,
@@ -576,11 +574,14 @@ def member_pager_markup(
     )
     if pager_row:
         rows.append(pager_row)
-    return _inline_markup(rows)
+    return _inline_markup(
+        _with_navigation(rows, back_action=ACTION_OPEN_COMMUNITY, back_parts=[community_id])
+    )
 
 
 def job_actions_markup(job_id: str):
-    return _inline_markup([[_button("Refresh Job", ACTION_JOB_STATUS, job_id)]])
+    rows = [[_button("Refresh Job", ACTION_JOB_STATUS, job_id)]]
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_DISC_ACTIVITY))
 
 
 def parse_callback_data(data: str) -> tuple[str, list[str]]:
@@ -614,6 +615,24 @@ def _inline_markup(rows: Sequence[Sequence[object]]):
     _, InlineKeyboardMarkup = _inline_types()
 
     return InlineKeyboardMarkup(rows)
+
+
+def _with_navigation(
+    rows: Sequence[Sequence[object]],
+    *,
+    back_action: str | None = None,
+    back_parts: Sequence[str] = (),
+    include_home: bool = True,
+) -> list[list[object]]:
+    output = [list(row) for row in rows]
+    nav_row = []
+    if back_action is not None:
+        nav_row.append(_button("Back", back_action, *back_parts))
+    if include_home:
+        nav_row.append(_button("Home", ACTION_OP_HOME))
+    if nav_row:
+        output.append(nav_row)
+    return output
 
 
 def _pager_row(

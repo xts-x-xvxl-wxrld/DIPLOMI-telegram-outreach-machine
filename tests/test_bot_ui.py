@@ -64,6 +64,18 @@ from bot.ui import (
 )
 
 
+def _buttons(markup):
+    return [button for row in markup.inline_keyboard for button in row]
+
+
+def _callbacks(markup) -> list[str]:
+    return [button.callback_data for button in _buttons(markup)]
+
+
+def _labels(markup) -> list[str]:
+    return [button.text for button in _buttons(markup)]
+
+
 def test_encode_and_parse_callback_data_round_trip() -> None:
     data = encode_callback_data(ACTION_SEED_CANDIDATES, "group-1", "10")
 
@@ -179,10 +191,11 @@ def test_community_actions_markup_exposes_members_view() -> None:
 
 def test_member_pager_markup_pages_members() -> None:
     markup = member_pager_markup("community-1", offset=0, total=25, page_size=10)
-    rows = markup.inline_keyboard
+    callbacks = _callbacks(markup)
 
-    assert rows[0][0].text == "Community"
-    assert rows[1][0].callback_data == f"{ACTION_COMMUNITY_MEMBERS}:community-1:10"
+    assert f"{ACTION_COMMUNITY_MEMBERS}:community-1:10" in callbacks
+    assert "Back" in _labels(markup)
+    assert ACTION_OP_HOME in callbacks
 
 
 def test_engagement_candidate_actions_markup_exposes_review_controls() -> None:
@@ -251,13 +264,16 @@ def test_engagement_settings_markup_exposes_presets_and_jobs() -> None:
 def test_engagement_target_list_markup_filters_and_pages() -> None:
     markup = engagement_target_list_markup(status="approved", offset=5, total=12, page_size=5)
     rows = markup.inline_keyboard
+    callbacks = _callbacks(markup)
 
     assert rows[0][0].text == "Add target"
     assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:all:0"
     assert rows[1][3].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:approved:0"
     assert rows[2][2].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:archived:0"
-    assert rows[4][0].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:approved:0"
-    assert rows[4][1].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:approved:10"
+    assert f"{ACTION_ENGAGEMENT_TARGETS}:approved:0" in callbacks
+    assert f"{ACTION_ENGAGEMENT_TARGETS}:approved:10" in callbacks
+    assert ACTION_ENGAGEMENT_ADMIN in callbacks
+    assert ACTION_OP_HOME in callbacks
 
 
 def test_engagement_target_actions_markup_exposes_safe_target_controls() -> None:
@@ -288,9 +304,11 @@ def test_engagement_topic_markup_pages_and_toggles() -> None:
     pager = engagement_topic_pager_markup(offset=0, total=12, page_size=5)
     actions = engagement_topic_actions_markup("topic-1", active=True)
 
-    assert pager.inline_keyboard[0][0].callback_data == ACTION_ENGAGEMENT_HOME
-    assert pager.inline_keyboard[1][0].callback_data == "eng:topic:list:5"
+    assert ACTION_ENGAGEMENT_HOME in _callbacks(pager)
+    assert "eng:topic:list:5" in _callbacks(pager)
     assert actions.inline_keyboard[0][0].callback_data == "eng:topic:toggle:topic-1:0"
+    assert "eng:topic:list:0" in _callbacks(actions)
+    assert ACTION_OP_HOME in _callbacks(actions)
 
 
 def test_engagement_candidate_send_and_filter_markup() -> None:
@@ -308,10 +326,11 @@ def test_engagement_candidate_send_and_filter_markup() -> None:
 
 def test_engagement_action_pager_markup_pages_actions() -> None:
     markup = engagement_action_pager_markup(offset=0, total=12, page_size=5)
-    rows = markup.inline_keyboard
+    callbacks = _callbacks(markup)
 
-    assert rows[0][0].callback_data == ACTION_ENGAGEMENT_HOME
-    assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_ACTIONS}:5"
+    assert ACTION_ENGAGEMENT_HOME in callbacks
+    assert f"{ACTION_ENGAGEMENT_ACTIONS}:5" in callbacks
+    assert ACTION_OP_HOME in callbacks
 
 
 def test_engagement_action_pager_markup_preserves_community_filter() -> None:
@@ -321,10 +340,10 @@ def test_engagement_action_pager_markup_preserves_community_filter() -> None:
         page_size=5,
         community_id="community-1",
     )
-    rows = markup.inline_keyboard
+    callbacks = _callbacks(markup)
 
-    assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_ACTIONS}:community-1:0"
-    assert rows[1][1].callback_data == f"{ACTION_ENGAGEMENT_ACTIONS}:community-1:10"
+    assert f"{ACTION_ENGAGEMENT_ACTIONS}:community-1:0" in callbacks
+    assert f"{ACTION_ENGAGEMENT_ACTIONS}:community-1:10" in callbacks
 
 
 # ---------------------------------------------------------------------------
@@ -373,7 +392,7 @@ def test_discovery_cockpit_markup_exposes_six_navigation_entries_and_back() -> N
 
 def test_discovery_cockpit_markup_button_labels() -> None:
     markup = discovery_cockpit_markup()
-    labels = [button.text for row in markup.inline_keyboard for button in row]
+    labels = _labels(markup)
 
     assert "Start search" in labels
     assert "Needs attention" in labels
@@ -381,7 +400,18 @@ def test_discovery_cockpit_markup_button_labels() -> None:
     assert "Watching" in labels
     assert "Recent activity" in labels
     assert "Help" in labels
-    assert "Cockpit" in labels
+    assert "Home" in labels
+
+
+def test_navigation_footer_adds_back_and_home_buttons_to_child_pages() -> None:
+    markup = community_actions_markup("community-1")
+    callbacks = _callbacks(markup)
+    labels = _labels(markup)
+
+    assert "Back" in labels
+    assert "Home" in labels
+    assert ACTION_DISC_HOME in callbacks
+    assert ACTION_OP_HOME in callbacks
 
 
 def test_discovery_cockpit_callback_data_stays_under_telegram_limit() -> None:

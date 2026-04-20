@@ -6,6 +6,13 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-04-20] code | Added bot back and home navigation
+
+Added shared inline navigation footers across bot discovery, engagement, community, job, member,
+candidate, target, topic, prompt, settings, and pager markups. Child pages now expose `Back` to a
+stable parent screen and `Home` to the top-level operator cockpit, while module cockpits expose
+`Home`. Updated bot UI tests for the new navigation footer contract.
+
 ## [2026-04-20] fix | Fixed operator cockpit lint
 
 Removed stale imports left behind by the operator cockpit reply-keyboard migration so CI Ruff lint

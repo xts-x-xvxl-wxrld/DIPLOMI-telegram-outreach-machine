@@ -101,6 +101,9 @@ Rules:
 - `/help` may show the cockpit plus command help, but it should not restore the persistent reply
   keyboard.
 - Module screens should provide a `Cockpit` or equivalent back button where it helps navigation.
+- Child screens should include a navigation footer with `Back` and `Home` inline buttons whenever a
+  logical parent exists. `Back` routes to the stable parent screen for that card or list; it is not a
+  per-message browser history stack. `Home` routes to the top-level operator cockpit.
 - Existing inline flows for seed groups, communities, jobs, members, engagement candidates, topics,
   settings, targets, prompts, style rules, and audit actions stay intact.
 - State-changing actions continue to use explicit buttons or commands with audit-relevant IDs.

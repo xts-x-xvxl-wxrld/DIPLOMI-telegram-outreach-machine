@@ -139,3 +139,23 @@ Acceptance:
 
 - Docs match shipped behavior.
 - A focused commit contains only related bot cockpit changes.
+
+## Slice 7: Back And Home Navigation Footers
+
+Status: completed.
+
+Work items:
+
+- Add a shared inline navigation footer helper for bot markups.
+- Add `Home` buttons to module cockpits and child pages that route to `op:home`.
+- Add `Back` buttons to discovery, engagement, community, job, member, candidate, target, topic,
+  prompt, settings, and pager screens using stable logical parent callbacks.
+- Preserve existing state-changing action buttons and callback namespaces.
+- Update UI tests to assert footer labels and callback destinations without depending on brittle row
+  indexes.
+
+Acceptance:
+
+- Child pages expose both `Back` and `Home` where a logical parent exists.
+- Module home pages expose `Home`.
+- Focused bot UI tests pass.
