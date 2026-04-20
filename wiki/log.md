@@ -6,6 +6,11 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-04-20] fix | Fixed operator cockpit lint
+
+Removed stale imports left behind by the operator cockpit reply-keyboard migration so CI Ruff lint
+passes on the cockpit branch.
+
 ## [2026-04-20] code | Built operator cockpit and discovery cockpit
 
 Implemented the full bot operator cockpit replacing the persistent reply keyboard. Added `op:*` and
