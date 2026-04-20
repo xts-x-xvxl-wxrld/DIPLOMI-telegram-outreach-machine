@@ -551,3 +551,15 @@ target with the matching `allow_join`, `allow_detect`, or `allow_post` permissio
 OpenAI, or outbound work proceeds. Added focused schema, API, queue, service, and worker tests for
 existing-community intake, public username intake, duplicate targets, target resolution, and
 fail-closed worker gates.
+
+## [2026-04-20] code | Built Telegram account pool separation
+
+Added `telegram_accounts.account_pool` with `search`, `engagement`, and `disabled` values,
+including the Alembic migration, SQLAlchemy model field, enum constants, and lease-selection index.
+The account manager now maps every Telethon purpose to a required pool, includes
+`engagement_target_resolve` as a read-only search purpose, filters both generic and explicit account
+acquisition by pool, and excludes disabled accounts by construction. Engagement settings and joined
+membership lookup now require engagement-pool accounts for public joins/sends, while onboarding
+supports `--account-pool search|engagement` with search as the safe default. Added focused coverage
+for pool defaults, routing, assigned-account validation, and onboarding; the full Python suite
+passes.

@@ -64,6 +64,12 @@ class AccountStatus(StrEnum):
     BANNED = "banned"
 
 
+class AccountPool(StrEnum):
+    SEARCH = "search"
+    ENGAGEMENT = "engagement"
+    DISABLED = "disabled"
+
+
 class ActivityStatus(StrEnum):
     INACTIVE = "inactive"
     PASSIVE = "passive"

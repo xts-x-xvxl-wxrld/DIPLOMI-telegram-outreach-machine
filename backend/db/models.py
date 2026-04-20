@@ -24,6 +24,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.db.base import Base
 from backend.db.enums import (
+    AccountPool,
     AccountStatus,
     ActivityStatus,
     AnalysisStatus,
@@ -368,12 +369,19 @@ class TelegramAccount(Base):
     __tablename__ = "telegram_accounts"
     __table_args__ = (
         Index("ix_telegram_accounts_status", "status"),
+        Index("ix_telegram_accounts_pool_status_last_used", "account_pool", "status", "last_used_at"),
         Index("ix_telegram_accounts_lease_expires", "lease_expires_at"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     phone: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     session_file_path: Mapped[str] = mapped_column(Text, nullable=False)
+    account_pool: Mapped[str] = mapped_column(
+        Text,
+        default=AccountPool.SEARCH.value,
+        server_default=AccountPool.SEARCH.value,
+        nullable=False,
+    )
     status: Mapped[str] = mapped_column(
         Text,
         default=AccountStatus.AVAILABLE.value,

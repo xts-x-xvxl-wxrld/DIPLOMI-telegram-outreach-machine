@@ -14,7 +14,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from backend.core.settings import get_settings  # noqa: E402
-from backend.db.enums import AccountStatus  # noqa: E402
+from backend.db.enums import AccountPool, AccountStatus  # noqa: E402
 from backend.db.models import TelegramAccount  # noqa: E402
 from backend.db.session import AsyncSessionLocal  # noqa: E402
 
@@ -27,6 +27,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--session-name",
         help="Safe session file name to store under SESSIONS_DIR. Defaults to the phone number.",
+    )
+    parser.add_argument(
+        "--account-pool",
+        choices=[AccountPool.SEARCH.value, AccountPool.ENGAGEMENT.value],
+        default=AccountPool.SEARCH.value,
+        help="Telegram account pool to register. Defaults to search.",
     )
     parser.add_argument("--notes", help="Optional operator notes for this account.")
     return parser.parse_args()
@@ -58,11 +64,15 @@ async def main() -> None:
             session,
             phone=phone,
             session_file_path=session_file_path,
+            account_pool=args.account_pool,
             notes=args.notes,
         )
         await session.commit()
 
-    print(f"Registered Telegram account {account.phone} with session {account.session_file_path}.")
+    print(
+        f"Registered Telegram account {account.phone} with session "
+        f"{account.session_file_path} in pool {account.account_pool}."
+    )
 
 
 async def create_or_validate_session(
@@ -91,10 +101,11 @@ async def upsert_telegram_account(
     *,
     phone: str,
     session_file_path: str,
-    notes: str | None,
+    account_pool: str = AccountPool.SEARCH.value,
+    notes: str | None = None,
 ) -> TelegramAccount:
     account = await session.scalar(select(TelegramAccount).where(TelegramAccount.phone == phone))
-    values = account_values(session_file_path=session_file_path, notes=notes)
+    values = account_values(session_file_path=session_file_path, account_pool=account_pool, notes=notes)
     if account is None:
         account = TelegramAccount(id=uuid.uuid4(), phone=phone, **values)
         session.add(account)
@@ -105,9 +116,17 @@ async def upsert_telegram_account(
     return account
 
 
-def account_values(*, session_file_path: str, notes: str | None) -> dict[str, object]:
+def account_values(
+    *,
+    session_file_path: str,
+    account_pool: str = AccountPool.SEARCH.value,
+    notes: str | None = None,
+) -> dict[str, object]:
+    if account_pool not in {AccountPool.SEARCH.value, AccountPool.ENGAGEMENT.value}:
+        raise ValueError("account_pool must be search or engagement")
     return {
         "session_file_path": session_file_path,
+        "account_pool": account_pool,
         "status": AccountStatus.AVAILABLE.value,
         "flood_wait_until": None,
         "lease_owner": None,

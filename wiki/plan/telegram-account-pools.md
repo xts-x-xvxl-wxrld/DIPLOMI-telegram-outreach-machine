@@ -51,7 +51,7 @@ Acceptance:
 
 ## Slice 2: Schema And Model
 
-Status: pending.
+Status: completed.
 
 Tasks:
 
@@ -65,9 +65,15 @@ Acceptance:
 - Migration upgrade/downgrade works.
 - Existing tests continue to create usable search accounts by default.
 
+Implementation notes:
+
+- Added migration `20260420_0009_telegram_account_pools.py`.
+- Added `AccountPool` constants, `TelegramAccount.account_pool`, and the pool/status/last-used
+  index.
+
 ## Slice 3: Account Manager Routing
 
-Status: pending.
+Status: completed.
 
 Tasks:
 
@@ -83,9 +89,15 @@ Acceptance:
 - Engagement join/send never lease search accounts.
 - Explicit account ID selection cannot bypass the pool.
 
+Implementation notes:
+
+- Added `engagement_target_resolve` to account-manager purposes.
+- Added purpose-to-pool routing and applied it to both generic and explicit account acquisition.
+- `disabled` accounts have no purpose mapping and are never selected by lease queries.
+
 ## Slice 4: Engagement Guards
 
-Status: pending.
+Status: completed.
 
 Tasks:
 
@@ -99,9 +111,16 @@ Acceptance:
 - Engagement cannot join or send through search accounts.
 - Existing historical memberships do not authorize sends unless the account is engagement-pool.
 
+Implementation notes:
+
+- `assigned_account_id` now rejects non-engagement accounts.
+- Joined membership lookup now joins `telegram_accounts` and returns only engagement-pool
+  memberships.
+- `engagement_target.resolve` is routed through the search pool by account-manager purpose mapping.
+
 ## Slice 5: Onboarding And Operator UX
 
-Status: pending.
+Status: completed.
 
 Tasks:
 
@@ -115,9 +134,16 @@ Acceptance:
 - Operators can create dedicated accounts for both pools.
 - Search remains the safe default.
 
+Implementation notes:
+
+- `scripts/onboard_telegram_account.py` accepts `--account-pool search|engagement`.
+- Onboarding defaults to `search` and refuses `disabled` as a creation-time pool.
+- Re-running onboarding with `--account-pool engagement` is the first deliberate operator path for
+  marking an account as public-facing.
+
 ## Slice 6: Tests And Release
 
-Status: pending.
+Status: completed.
 
 Tasks:
 
@@ -129,6 +155,12 @@ Acceptance:
 
 - Full account-manager and engagement worker tests pass.
 - Pool separation is enforced by backend tests, not just documented.
+
+Implementation notes:
+
+- Added coverage for pool enum/default/index contracts, purpose-to-pool mapping, disabled-pool
+  exclusion by mapping, assigned-account pool validation, and onboarding pool selection.
+- Full test suite passed on 2026-04-20.
 
 ## Open Questions
 

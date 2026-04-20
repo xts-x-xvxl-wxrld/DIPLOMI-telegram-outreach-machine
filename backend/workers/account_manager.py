@@ -8,13 +8,14 @@ from uuid import UUID
 from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.db.enums import AccountStatus
+from backend.db.enums import AccountPool, AccountStatus
 from backend.db.models import TelegramAccount
 
 AccountPurpose = Literal[
     "expansion",
     "collection",
     "entity_intake",
+    "engagement_target_resolve",
     "engagement_join",
     "engagement_send",
 ]
@@ -22,9 +23,18 @@ ACCOUNT_PURPOSES: tuple[AccountPurpose, ...] = (
     "expansion",
     "collection",
     "entity_intake",
+    "engagement_target_resolve",
     "engagement_join",
     "engagement_send",
 )
+PURPOSE_ACCOUNT_POOLS: dict[AccountPurpose, AccountPool] = {
+    "expansion": AccountPool.SEARCH,
+    "collection": AccountPool.SEARCH,
+    "entity_intake": AccountPool.SEARCH,
+    "engagement_target_resolve": AccountPool.SEARCH,
+    "engagement_join": AccountPool.ENGAGEMENT,
+    "engagement_send": AccountPool.ENGAGEMENT,
+}
 ReleaseOutcome = Literal["success", "error", "rate_limited", "banned"]
 
 
@@ -50,6 +60,7 @@ async def acquire_account(
     now: datetime | None = None,
 ) -> AccountLease:
     validate_account_purpose(purpose)
+    required_pool = account_pool_for_purpose(purpose)
 
     current_time = now or utcnow()
     await recover_stale_leases(session, now=current_time)
@@ -57,6 +68,7 @@ async def acquire_account(
     account = await session.scalar(
         select(TelegramAccount)
         .where(
+            TelegramAccount.account_pool == required_pool.value,
             or_(
                 TelegramAccount.status == AccountStatus.AVAILABLE.value,
                 and_(
@@ -70,7 +82,7 @@ async def acquire_account(
         .limit(1)
     )
     if account is None:
-        raise NoAccountAvailable("No Telegram account is available")
+        raise NoAccountAvailable(f"No Telegram account is available for pool {required_pool.value}")
 
     lease_expires_at = current_time + timedelta(seconds=lease_seconds)
     account.status = AccountStatus.IN_USE.value
@@ -98,6 +110,7 @@ async def acquire_account_by_id(
     now: datetime | None = None,
 ) -> AccountLease:
     validate_account_purpose(purpose)
+    required_pool = account_pool_for_purpose(purpose)
 
     current_time = now or utcnow()
     await recover_stale_leases(session, now=current_time)
@@ -106,6 +119,7 @@ async def acquire_account_by_id(
         select(TelegramAccount)
         .where(
             TelegramAccount.id == account_id,
+            TelegramAccount.account_pool == required_pool.value,
             or_(
                 TelegramAccount.status == AccountStatus.AVAILABLE.value,
                 and_(
@@ -118,7 +132,7 @@ async def acquire_account_by_id(
         .limit(1)
     )
     if account is None:
-        raise NoAccountAvailable("Requested Telegram account is not available")
+        raise NoAccountAvailable(f"Requested Telegram account is not available for pool {required_pool.value}")
 
     lease_expires_at = current_time + timedelta(seconds=lease_seconds)
     account.status = AccountStatus.IN_USE.value
@@ -224,6 +238,11 @@ def validate_account_purpose(purpose: str) -> AccountPurpose:
         allowed = ", ".join(ACCOUNT_PURPOSES)
         raise ValueError(f"purpose must be one of: {allowed}")
     return cast(AccountPurpose, purpose)
+
+
+def account_pool_for_purpose(purpose: str) -> AccountPool:
+    validated = validate_account_purpose(purpose)
+    return PURPOSE_ACCOUNT_POOLS[validated]
 
 
 def mask_phone(phone: str) -> str:

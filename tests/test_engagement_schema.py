@@ -7,6 +7,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.schema import CreateTable
 
 from backend.db.enums import (
+    AccountPool,
     CommunityAccountMembershipStatus,
     EngagementActionStatus,
     EngagementActionType,
@@ -27,10 +28,12 @@ from backend.db.models import (
     EngagementStyleRule,
     EngagementTarget,
     EngagementTopic,
+    TelegramAccount,
 )
 
 
 def test_engagement_status_enums_match_contract() -> None:
+    assert [item.value for item in AccountPool] == ["search", "engagement", "disabled"]
     assert [item.value for item in EngagementMode] == [
         "disabled",
         "observe",
@@ -74,6 +77,10 @@ def test_engagement_status_enums_match_contract() -> None:
 
 
 def test_engagement_model_defaults_are_contract_defaults() -> None:
+    account_columns = TelegramAccount.__table__.c
+    assert account_columns.account_pool.default.arg == AccountPool.SEARCH.value
+    assert account_columns.account_pool.server_default.arg == AccountPool.SEARCH.value
+
     settings_columns = CommunityEngagementSettings.__table__.c
     assert settings_columns.mode.default.arg == EngagementMode.SUGGEST.value
     assert settings_columns.allow_join.default.arg is False
@@ -115,6 +122,7 @@ def test_engagement_uniqueness_constraints_are_declared() -> None:
 
 
 def test_engagement_indexes_are_declared() -> None:
+    assert _has_index(TelegramAccount, ["account_pool", "status", "last_used_at"])
     assert _has_index(CommunityEngagementSettings, ["community_id"])
     assert _has_index(EngagementTarget, ["community_id"])
     assert _has_index(EngagementTarget, ["status"])

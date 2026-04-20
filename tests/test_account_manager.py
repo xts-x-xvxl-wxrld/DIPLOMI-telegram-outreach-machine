@@ -4,9 +4,10 @@ from datetime import datetime, timezone
 
 import pytest
 
-from backend.db.enums import AccountStatus
+from backend.db.enums import AccountPool, AccountStatus
 from backend.workers.account_manager import (
     ACCOUNT_PURPOSES,
+    account_pool_for_purpose,
     mask_phone,
     release_updates,
     validate_account_purpose,
@@ -18,12 +19,14 @@ def test_account_purposes_match_worker_contract() -> None:
         "expansion",
         "collection",
         "entity_intake",
+        "engagement_target_resolve",
         "engagement_join",
         "engagement_send",
     )
 
 
 def test_validate_account_purpose_accepts_engagement_purposes() -> None:
+    assert validate_account_purpose("engagement_target_resolve") == "engagement_target_resolve"
     assert validate_account_purpose("engagement_join") == "engagement_join"
     assert validate_account_purpose("engagement_send") == "engagement_send"
 
@@ -31,6 +34,28 @@ def test_validate_account_purpose_accepts_engagement_purposes() -> None:
 def test_validate_account_purpose_rejects_unknown_purpose() -> None:
     with pytest.raises(ValueError, match="purpose must be one of"):
         validate_account_purpose("engagement_detect")
+
+
+@pytest.mark.parametrize(
+    ("purpose", "expected_pool"),
+    [
+        ("expansion", AccountPool.SEARCH),
+        ("collection", AccountPool.SEARCH),
+        ("entity_intake", AccountPool.SEARCH),
+        ("engagement_target_resolve", AccountPool.SEARCH),
+        ("engagement_join", AccountPool.ENGAGEMENT),
+        ("engagement_send", AccountPool.ENGAGEMENT),
+    ],
+)
+def test_account_purpose_maps_to_required_pool(purpose: str, expected_pool: AccountPool) -> None:
+    assert account_pool_for_purpose(purpose) == expected_pool
+
+
+def test_no_account_purpose_maps_to_disabled_pool() -> None:
+    assert {account_pool_for_purpose(purpose) for purpose in ACCOUNT_PURPOSES} == {
+        AccountPool.SEARCH,
+        AccountPool.ENGAGEMENT,
+    }
 
 
 def test_release_success_clears_lease_and_error() -> None:

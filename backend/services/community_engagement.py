@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from backend.db.enums import (
+    AccountPool,
     AccountStatus,
     CommunityAccountMembershipStatus,
     CommunitySource,
@@ -1486,9 +1487,11 @@ async def get_joined_membership_for_send(
 ) -> CommunityAccountMembership | None:
     return await db.scalar(
         select(CommunityAccountMembership)
+        .join(TelegramAccount, CommunityAccountMembership.telegram_account_id == TelegramAccount.id)
         .where(
             CommunityAccountMembership.community_id == community_id,
             CommunityAccountMembership.status == CommunityAccountMembershipStatus.JOINED.value,
+            TelegramAccount.account_pool == AccountPool.ENGAGEMENT.value,
         )
         .order_by(CommunityAccountMembership.joined_at.asc().nullslast())
         .limit(1)
@@ -1862,6 +1865,11 @@ async def _validate_settings_values(
             raise EngagementValidationError(
                 "assigned_account_banned",
                 "assigned_account_id must not reference a banned Telegram account",
+            )
+        if account.account_pool != AccountPool.ENGAGEMENT.value:
+            raise EngagementValidationError(
+                "assigned_account_wrong_pool",
+                "assigned_account_id must reference an engagement Telegram account",
             )
 
 

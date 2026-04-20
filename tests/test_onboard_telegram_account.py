@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from backend.db.enums import AccountStatus
+from backend.db.enums import AccountPool, AccountStatus
 from scripts.onboard_telegram_account import (
     account_values,
     resolve_session_path,
@@ -31,8 +31,28 @@ def test_resolve_session_path_stays_inside_sessions_dir(tmp_path: Path) -> None:
 def test_account_values_registers_available_account_without_leases() -> None:
     values = account_values(session_file_path="account.session", notes="operator-owned")
 
+    assert values["account_pool"] == AccountPool.SEARCH.value
     assert values["status"] == AccountStatus.AVAILABLE.value
     assert values["session_file_path"] == "account.session"
     assert values["lease_owner"] is None
     assert values["last_error"] is None
     assert values["notes"] == "operator-owned"
+
+
+def test_account_values_accepts_engagement_pool() -> None:
+    values = account_values(
+        session_file_path="engagement.session",
+        account_pool=AccountPool.ENGAGEMENT.value,
+        notes=None,
+    )
+
+    assert values["account_pool"] == AccountPool.ENGAGEMENT.value
+
+
+def test_account_values_rejects_disabled_pool_for_onboarding() -> None:
+    with pytest.raises(ValueError, match="account_pool must be search or engagement"):
+        account_values(
+            session_file_path="disabled.session",
+            account_pool=AccountPool.DISABLED.value,
+            notes=None,
+        )

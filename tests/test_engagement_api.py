@@ -42,6 +42,8 @@ from backend.api.schemas import (
     EngagementTopicUpdate,
 )
 from backend.db.enums import (
+    AccountPool,
+    AccountStatus,
     CommunityStatus,
     EngagementActionStatus,
     EngagementActionType,
@@ -57,6 +59,7 @@ from backend.db.models import (
     EngagementCandidate,
     EngagementTarget,
     EngagementTopic,
+    TelegramAccount,
 )
 from backend.queue.client import QueuedJob, QueueUnavailable
 from backend.services.community_engagement import EngagementActionListResult, EngagementActionView
@@ -179,6 +182,68 @@ async def test_put_engagement_settings_requires_approved_community_for_join() ->
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail["code"] == "community_not_engagement_approved"
+
+
+@pytest.mark.asyncio
+async def test_put_engagement_settings_rejects_assigned_search_account() -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    db = FakeDb(
+        community=Community(
+            id=community_id,
+            tg_id=100,
+            status=CommunityStatus.MONITORING.value,
+            store_messages=False,
+        ),
+        account=TelegramAccount(
+            id=account_id,
+            phone="+123456789",
+            session_file_path="search.session",
+            account_pool=AccountPool.SEARCH.value,
+            status=AccountStatus.AVAILABLE.value,
+        ),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await put_community_engagement_settings(
+            community_id,
+            EngagementSettingsUpdate(assigned_account_id=account_id),
+            db,  # type: ignore[arg-type]
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail["code"] == "assigned_account_wrong_pool"
+    assert db.commits == 0
+
+
+@pytest.mark.asyncio
+async def test_put_engagement_settings_accepts_assigned_engagement_account() -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    db = FakeDb(
+        community=Community(
+            id=community_id,
+            tg_id=100,
+            status=CommunityStatus.MONITORING.value,
+            store_messages=False,
+        ),
+        account=TelegramAccount(
+            id=account_id,
+            phone="+123456789",
+            session_file_path="engagement.session",
+            account_pool=AccountPool.ENGAGEMENT.value,
+            status=AccountStatus.AVAILABLE.value,
+        ),
+    )
+
+    response = await put_community_engagement_settings(
+        community_id,
+        EngagementSettingsUpdate(assigned_account_id=account_id),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.assigned_account_id == account_id
+    assert db.commits == 1
 
 
 @pytest.mark.asyncio
@@ -804,6 +869,7 @@ class FakeDb:
         candidate: EngagementCandidate | None = None,
         candidates: list[EngagementCandidate] | None = None,
         actions: list[EngagementAction] | None = None,
+        account: TelegramAccount | None = None,
         scalar_result: object | None = None,
     ) -> None:
         self.community = community
@@ -813,6 +879,7 @@ class FakeDb:
         self.candidate = candidate
         self.candidates = candidates
         self.actions = actions
+        self.account = account
         self.scalar_result = scalar_result
         self.added: list[object] = []
         self.commits = 0
@@ -827,6 +894,8 @@ class FakeDb:
             return self.target
         if model is EngagementCandidate:
             return self.candidate
+        if model is TelegramAccount:
+            return self.account
         return None
 
     async def scalar(self, statement: object) -> object | None:
