@@ -277,7 +277,7 @@ Payload:
 ```json
 {
   "community_id": "uuid",
-  "reason": "scheduled|manual|initial",
+  "reason": "scheduled|manual|initial|engagement",
   "requested_by": "telegram_user_id_or_operator|null",
   "window_days": 90
 }
@@ -298,10 +298,15 @@ Writes:
 May enqueue:
 
 - `analysis.run` with `{ "collection_run_id": "uuid" }` after message collection
+- `engagement.detect` with `{ "community_id": "uuid", "collection_run_id": "uuid" }` after
+  successful engagement collection
 
 Important:
 
-Collection does not pass raw message batches through Redis. It writes a compact, capped `collection_runs.analysis_input` artifact and enqueues analysis by ID.
+Collection does not pass raw message batches through Redis. It writes durable `collection_runs`
+artifacts and enqueues analysis or detection by ID. For analysis, it writes a compact, capped
+`collection_runs.analysis_input` artifact. For engagement detection, it writes an exact
+new-message batch in the collection artifact or raw `messages` rows and passes `collection_run_id`.
 For the bare seed-import slice, collection fetches metadata and visible members only, writes
 `analysis_status = 'skipped'`, and does not enqueue analysis.
 
@@ -402,14 +407,15 @@ Rules:
 
 ### `engagement.detect`
 
-Optional future job for the engagement module. It detects an approved topic moment and creates a
-candidate reply for operator review.
+Engagement job that detects an approved topic moment and creates a reply opportunity for operator
+review.
 
 Payload:
 
 ```json
 {
   "community_id": "uuid",
+  "collection_run_id": "uuid|null",
   "window_minutes": 60,
   "requested_by": "telegram_user_id_or_operator|null"
 }
@@ -419,10 +425,12 @@ May call OpenAI because it is an engagement worker, not collection. It must not 
 
 Rules:
 
-- Read compact collection artifacts or opt-in stored messages.
+- Prefer the exact engagement message batch from `collection_run_id` when present.
+- Fall back to recent stored messages or compact collection artifacts for manual diagnostics and
+  scheduler sweeps.
 - Do not include unnecessary Telegram user identity in prompts.
 - Do not create person-level scores.
-- Create `engagement_candidates` only when topic fit is strong enough.
+- Create reply opportunities only when topic fit, timing, and usefulness are strong enough.
 
 ### `engagement.send`
 
@@ -483,9 +491,20 @@ scheduler tick
   -> analysis.run for each successful collection run
 ```
 
+Engagement monitored flow:
+
+```text
+engagement collection tick
+  -> collection.run with reason = engagement
+  -> collection writes exact new-message batch
+  -> engagement.detect with collection_run_id
+  -> reply opportunity if a topic moment is strong enough
+```
+
 ## Collection Runs
 
-`collection_runs` is the durable boundary between collection and analysis.
+`collection_runs` is the durable boundary between collection and downstream readers such as analysis
+and engagement detection.
 
 Collection stores:
 
@@ -494,6 +513,7 @@ Collection stores:
 - collection window
 - aggregate counts
 - compact analysis input
+- optional engagement message batch and checkpoint metadata
 - expiration time for the analysis input
 
 The analysis input should be compact and capped:
@@ -597,13 +617,19 @@ Default interval: 60 minutes.
 
 Manual collection uses the `high` queue and bypasses the interval check, but still avoids duplicate active jobs for the same community.
 
+Engagement-enabled communities may use a shorter collection cadence, currently targeted at 10
+minutes. Those collection runs should use `reason = "engagement"` and enqueue detection after commit
+when the batch contains new messages and `allow_detect = true`.
+
 ## Duplicate Prevention
 
 Job IDs should be deterministic where useful:
 
 ```text
 collection:{community_id}:{yyyyMMddHH}
+collection:engagement:{community_id}:{yyyyMMddHHmm}
 analysis:{collection_run_id}
+engagement.detect:{community_id}:{collection_run_id}
 ```
 
 Before enqueueing collection, the scheduler checks whether an active RQ job already exists for the same community.

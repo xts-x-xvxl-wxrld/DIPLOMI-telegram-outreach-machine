@@ -714,3 +714,12 @@ collection-versus-detection distinction, a freshness SLO, reply deadlines, colle
 detection cadence, single-source-post draft input, opportunity-level strength/timeliness/value
 fields, and operator notification rules. Added the timely reply opportunities plan and updated the
 wiki index.
+
+## [2026-04-20] spec | Defined engagement collection batches
+
+Expanded the collection, engagement, and queue specs with an engagement collection mode. Approved
+engagement communities now have a contract for pulling every new visible message since the last
+checkpoint, recording checkpoint ranges, exposing exact `engagement_messages` batches or stored
+message rows for detection, and queueing `engagement.detect` with `collection_run_id` after
+collection commits. Detection now prefers the exact collection-run batch before falling back to
+stored messages or sampled artifacts.

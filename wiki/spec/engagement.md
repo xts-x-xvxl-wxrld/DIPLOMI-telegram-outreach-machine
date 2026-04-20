@@ -703,6 +703,7 @@ Payload:
 ```json
 {
   "community_id": "uuid",
+  "collection_run_id": "uuid|null",
   "window_minutes": 60,
   "requested_by": "telegram_user_id_or_operator|null"
 }
@@ -712,7 +713,8 @@ Reads:
 
 - active engagement settings
 - active engagement topics
-- compact recent message samples from collection artifacts
+- exact new-message engagement batches from collection artifacts
+- compact recent message samples as a fallback or diagnostic source
 - optional community analysis summaries
 
 May call:
@@ -738,9 +740,10 @@ Rules:
 - Do not score or rank people.
 - Prefer no reply opportunity when topic fit is weak.
 - Deduplicate active reply opportunities by community, topic, and source message.
-- Use collection samples to select one or more precise trigger posts, then cap draft-generation
-  input to the selected trigger, optional reply context, topic guidance, style rules, and
-  community-level context.
+- Prefer the exact engagement batch from `collection_run_id` when provided.
+- Use collection message batches to select one or more precise trigger posts, then cap
+  draft-generation input to the selected trigger, optional reply context, topic guidance, style
+  rules, and community-level context.
 - For normal scheduled detection, the model input must contain exactly one selected trigger post as
   `source_post`. Broad recent `messages` arrays are allowed only for observe/debug experiments.
 - Detection should surface reviewable opportunities quickly enough for an operator to respond while
@@ -758,7 +761,8 @@ Worker preflight:
 5. Load joined engagement membership for the community.
 6. Build a detection window using join time, response timing limits, and requested window.
 7. Load active topics.
-8. Load recent compact message samples.
+8. Load the collection-run engagement batch when `collection_run_id` is provided; otherwise load
+   recent stored messages or compact collection artifacts for the requested window.
 9. Select trigger opportunities with deterministic matching and filtering.
 10. Build one lean model input per topic/source trigger.
 11. Call OpenAI only for selected topic/source triggers.
@@ -777,7 +781,8 @@ Scheduled skip reasons should be stable strings:
 | `no_joined_engagement_membership` | No engagement-pool account is joined to the community. |
 | `missing_joined_at` | Joined membership exists but lacks a join timestamp for post-join filtering. |
 | `no_active_topics` | No active engagement topics exist. |
-| `no_recent_samples` | Collection produced no usable samples for the detection window. |
+| `no_recent_samples` | Collection produced no usable messages for the detection window. |
+| `collection_run_not_found` | The referenced collection run does not exist or belongs to another community. |
 | `no_trigger_opportunities` | Samples did not pass deterministic trigger selection. |
 | `outside_response_window` | Matching samples were too new or too old for scheduled drafting. |
 | `quiet_hours` | Detection was suppressed by configured quiet hours. |
@@ -788,8 +793,9 @@ the code-level rename is complete. New code should emit the reply-opportunity na
 
 ### Detection Sample Contract
 
-Detection reads public collection artifacts and normalizes them into bounded samples before any
-matching or model call.
+Detection reads collection artifacts and normalizes them into bounded samples before any matching or
+model call. For scheduled engagement, the preferred source is the exact `engagement_messages` batch
+from a completed `collection_run_id`.
 
 ```json
 {
@@ -799,7 +805,8 @@ matching or model call.
   "reply_to_tg_message_id": 122,
   "reply_context": "truncated parent text or null",
   "is_replyable": true,
-  "source": "collection_run.analysis_input"
+  "source": "collection_run.engagement_messages",
+  "collection_run_id": "uuid"
 }
 ```
 
@@ -818,6 +825,16 @@ Rules:
 - Sender username, sender Telegram user ID, phone number, and private account metadata must not be
   present.
 
+Source priority:
+
+1. `collection_run.engagement_messages` for the collection run that just completed.
+2. Stored `messages` rows inside the detection window when raw storage is enabled.
+3. Compact `collection_runs.analysis_input.sample_messages` only for fallback or manual diagnostic
+   detection.
+
+Normal scheduled detection should not depend on sampled analysis input because sampled artifacts can
+miss the exact source post needed for a timely reply opportunity.
+
 ### Trigger Selection Contract
 
 Trigger selection is deterministic and happens before the drafting model. It chooses specific public
@@ -835,6 +852,7 @@ Recommended configuration constants:
 
 Eligibility for a source post:
 
+- Message belongs to the current collection batch or detection window.
 - Message was posted after the engagement account joined the community.
 - Message age is within the scheduled response window, usually 15 to 60 minutes old.
 - Message is replyable.
@@ -1356,8 +1374,8 @@ Monitoring is a two-stage process:
 
 ```text
 collection watches approved communities
-  -> collection writes compact recent public samples
-  -> engagement.detect is queued from fresh collection completion when engagement is enabled
+  -> collection writes an exact new-message engagement batch
+  -> engagement.detect is queued with collection_run_id when engagement is enabled
   -> engagement scheduler also checks eligible communities as a fallback sweep
   -> engagement.detect finds fresh post-join trigger messages
   -> engagement.detect drafts from the selected trigger and community context
@@ -1365,7 +1383,7 @@ collection watches approved communities
   -> fresh reply opportunities notify the operator
 ```
 
-Collection owns Telegram reads and durable public artifacts. Detection owns engagement decisions.
+Collection owns Telegram reads and durable message artifacts. Detection owns engagement decisions.
 The engagement scheduler does not directly scrape Telegram in the MVP. It reads durable collection
 artifacts or opt-in stored messages. This keeps outbound behavior separate from collection and
 prevents the engagement module from becoming an always-on raw chat listener.
@@ -1375,6 +1393,8 @@ Eligibility for a scheduled detection run:
 - The community has engagement settings in `observe`, `suggest`, or `require_approval` mode.
 - An approved engagement target grants `allow_detect`.
 - A completed collection run exists inside the configured detection window.
+- For collection-triggered detection, the completed collection run provides `engagement_messages` or
+  stored `messages` rows for the new-message batch.
 - There is no active reply opportunity already waiting for the same community review flow.
 - The current time is outside configured quiet hours.
 
@@ -1458,7 +1478,8 @@ Timing behavior should feel sparse and human-supervised:
 Recommended MVP:
 
 - Only run detection for communities with engagement settings enabled.
-- Queue detection after fresh collection completion for engagement-enabled communities.
+- Queue detection after fresh collection completion for engagement-enabled communities, including
+  the completed `collection_run_id`.
 - Keep hourly detection as a fallback sweep, not the primary timely path.
 - Skip if there is already an active reply opportunity for the same community/topic/source.
 - Skip during quiet hours if configured.
@@ -1467,6 +1488,7 @@ Recommended MVP:
 Scheduler contract:
 
 - Job ID for detection: `engagement.detect:{community_id}:{yyyyMMddHH}`.
+- Collection-triggered job ID for detection: `engagement.detect:{community_id}:{collection_run_id}`.
 - Scheduler reads only settings where `mode IN ('observe', 'suggest', 'require_approval')`.
 - Scheduler skips communities without a completed collection run in the last configured window.
 - Scheduler does not create direct send jobs.

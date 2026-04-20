@@ -78,6 +78,29 @@ Acceptance:
 - Send preflight rejects stale reply opportunities based on `reply_deadline_at`.
 - Operator notifications open only after committed fresh or aging opportunities.
 
+## Slice 4: Engagement Collection Mode
+
+Status: completed for spec, planned for code.
+
+Tasks:
+
+- Define engagement collection mode in the collection spec.
+- Require collection to pull every new visible message since the last checkpoint for approved
+  engagement communities.
+- Record checkpoint ranges and expose exact `engagement_messages` batches for detection.
+- Queue `engagement.detect` with `collection_run_id` after successful engagement collection.
+- Clarify that collection still does not perform topic matching, OpenAI calls, reply drafting, or
+  operator notification.
+
+Acceptance:
+
+- The collection spec describes all-new-message incremental intake for engagement-enabled
+  communities.
+- The engagement spec describes detection as consuming exact collection-run batches before falling
+  back to sampled artifacts.
+- Implementation can build checkpointing, batch persistence, and collection-triggered detection
+  against named contracts.
+
 ## Open Questions
 
 - Should the bot expose `/engagement_opportunities` immediately as an alias for
@@ -85,3 +108,5 @@ Acceptance:
 - Should `ENGAGEMENT_ACTIVE_COLLECTION_INTERVAL_SECONDS` be a global setting or per-community
   setting?
 - Should notification delivery use the existing bot chat only, or a separate operator inbox table?
+- Should engagement message batches live only in `collection_runs.analysis_input`, in raw `messages`,
+  or in a dedicated short-retention table?
