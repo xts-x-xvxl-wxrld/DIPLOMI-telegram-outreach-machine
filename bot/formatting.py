@@ -27,8 +27,12 @@ def format_start() -> str:
             "/members <community_id>",
             "/exportmembers <community_id>",
             "/engagement",
+            "/engagement_admin",
             "/engagement_candidates",
+            "/engagement_prompts",
+            "/engagement_style",
             "/approve_reply <candidate_id>",
+            "/edit_reply <candidate_id> | <final_reply>",
             "/reject_reply <candidate_id>",
             "/send_reply <candidate_id>",
             "/entity <intake_id>",
@@ -412,9 +416,113 @@ def format_engagement_home(data: dict[str, Any]) -> str:
             "",
             "Topics: /engagement_topics",
             "Replies: /engagement_candidates",
+            "Admin: /engagement_admin",
             "Audit: /engagement_actions",
         ]
     )
+
+
+def format_engagement_admin_home(data: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            "Engagement admin",
+            f"Targets: {data.get('target_count', 0)}",
+            f"Prompt profiles: {data.get('prompt_profile_count', 0)}",
+            f"Style rules: {data.get('style_rule_count', 0)}",
+            "",
+            "Targets: /engagement_targets",
+            "Prompts: /engagement_prompts",
+            "Style: /engagement_style",
+            "Topic examples: /topic_good_reply or /topic_bad_reply",
+        ]
+    )
+
+
+def format_engagement_targets(data: dict[str, Any], *, offset: int = 0) -> str:
+    items = data.get("items") or []
+    total = data.get("total", len(items))
+    if not items:
+        return "No engagement targets in this view."
+    return f"Engagement targets ({offset + 1}-{offset + len(items)} of {total})"
+
+
+def format_engagement_target_card(item: dict[str, Any], *, index: int | None = None) -> str:
+    target_id = item.get("id", "unknown")
+    label = item.get("community_title") or item.get("submitted_ref") or "Target"
+    heading = f"{index}. {label}" if index is not None else str(label)
+    lines = [
+        heading,
+        f"Target ID: {target_id}",
+        f"Status: {item.get('status', 'unknown')}",
+        f"Permissions: join={_yes_no(item.get('allow_join'))}, detect={_yes_no(item.get('allow_detect'))}, post={_yes_no(item.get('allow_post'))}",
+    ]
+    if item.get("community_id"):
+        lines.append(f"Community ID: {item['community_id']}")
+    if item.get("last_error"):
+        lines.append(f"Error: {_shorten(str(item['last_error']), 240)}")
+    lines.append(f"Approve: /approve_engagement_target {target_id}")
+    return "\n".join(lines)
+
+
+def format_engagement_prompt_profiles(data: dict[str, Any], *, offset: int = 0) -> str:
+    items = data.get("items") or []
+    total = data.get("total", len(items))
+    if not items:
+        return "No engagement prompt profiles configured yet."
+    return f"Engagement prompt profiles ({offset + 1}-{offset + len(items)} of {total})"
+
+
+def format_engagement_prompt_profile_card(item: dict[str, Any], *, index: int | None = None) -> str:
+    profile_id = item.get("id", "unknown")
+    name = item.get("name") or "Prompt profile"
+    heading = f"{index}. {name}" if index is not None else str(name)
+    active = "active" if item.get("active") else "inactive"
+    lines = [
+        heading,
+        f"Profile ID: {profile_id}",
+        f"Status: {active}",
+        f"Version: {item.get('current_version_number') or 'none'}",
+        f"Model: {item.get('model', 'unknown')} | temp {item.get('temperature', 0.2)} | max {item.get('max_output_tokens', 1000)}",
+    ]
+    if item.get("description"):
+        lines.append(f"Description: {_shorten(str(item['description']), 180)}")
+    lines.append(f"Preview: /engagement_prompt_preview {profile_id}")
+    return "\n".join(lines)
+
+
+def format_engagement_prompt_preview(data: dict[str, Any]) -> str:
+    lines = [
+        f"Prompt preview | {data.get('profile_name', 'profile')}",
+        f"Model: {data.get('model', 'unknown')}",
+        "",
+        "System prompt:",
+        _shorten(str(data.get("system_prompt") or ""), 900),
+        "",
+        "Rendered user prompt:",
+        _shorten(str(data.get("rendered_user_prompt") or ""), 2400),
+    ]
+    return "\n".join(lines)
+
+
+def format_engagement_style_rules(data: dict[str, Any], *, offset: int = 0) -> str:
+    items = data.get("items") or []
+    total = data.get("total", len(items))
+    if not items:
+        return "No engagement style rules in this view."
+    return f"Engagement style rules ({offset + 1}-{offset + len(items)} of {total})"
+
+
+def format_engagement_style_rule_card(item: dict[str, Any], *, index: int | None = None) -> str:
+    rule_id = item.get("id", "unknown")
+    heading = f"{index}. {item.get('name') or 'Style rule'}" if index is not None else str(item.get("name") or "Style rule")
+    lines = [
+        heading,
+        f"Rule ID: {rule_id}",
+        f"Scope: {item.get('scope_type', 'global')} {item.get('scope_id') or ''}".rstrip(),
+        f"Status: {'active' if item.get('active') else 'inactive'} | priority {item.get('priority', 100)}",
+        f"Rule: {_shorten(str(item.get('rule_text') or ''), 500)}",
+    ]
+    return "\n".join(lines)
 
 
 def format_engagement_settings(data: dict[str, Any]) -> str:
@@ -564,7 +672,8 @@ def format_engagement_candidate_card(item: dict[str, Any], *, index: int | None 
     candidate_id = item.get("id", "unknown")
     source = _shorten(str(item.get("source_excerpt") or "No source excerpt recorded."), 500)
     reason = _shorten(str(item.get("detected_reason") or "No reason recorded."), 260)
-    reply = str(item.get("suggested_reply") or item.get("final_reply") or "No draft reply recorded.")
+    suggested = str(item.get("suggested_reply") or "No draft reply recorded.")
+    final = item.get("final_reply")
 
     heading = f"{index}. {title}" if index is not None else title
     lines = [
@@ -575,8 +684,17 @@ def format_engagement_candidate_card(item: dict[str, Any], *, index: int | None 
         f"Source: {source}",
         f"Reason: {reason}",
         "",
-        f"Suggested reply: {_shorten(reply, 800)}",
+        f"Suggested reply: {_shorten(suggested, 800)}",
     ]
+    if final and final != suggested:
+        lines.append(f"Final reply: {_shorten(str(final), 800)}")
+    prompt_summary = item.get("prompt_render_summary") or {}
+    if item.get("prompt_profile_version_id"):
+        lines.append(
+            "Prompt: "
+            f"{prompt_summary.get('profile_name', 'profile')}#"
+            f"{prompt_summary.get('version_number', '?')}"
+        )
     risk_notes = item.get("risk_notes") or []
     if risk_notes:
         lines.append(f"Risk notes: {_shorten('; '.join(str(note) for note in risk_notes), 260)}")
@@ -584,6 +702,7 @@ def format_engagement_candidate_card(item: dict[str, Any], *, index: int | None 
         [
             "",
             f"Candidate ID: {candidate_id}",
+            f"Edit: /edit_reply {candidate_id} | <final reply>",
             f"Approve: /approve_reply {candidate_id}",
             f"Reject: /reject_reply {candidate_id}",
         ]

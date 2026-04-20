@@ -81,8 +81,10 @@
 - `backend/workers/telegram_expansion.py` - Telethon seed graph adapter shell
 - `alembic/versions/20260419_0006_engagement_schema.py` - engagement schema foundation migration
 - `alembic/versions/20260419_0007_engagement_targets.py` - manual engagement target permission gate migration
+- `alembic/versions/20260420_0008_engagement_admin_control_plane.py` - prompt profiles, style rules, prompt provenance, and reply revision migration
 - `tests/test_engagement_schema.py` - engagement schema enum/default/constraint/index tests
 - `tests/test_engagement_targets.py` - engagement target resolution and permission gate tests
+- `tests/test_engagement_prompt_controls.py` - prompt template variable privacy tests
 - `tests/test_engagement_detect_worker.py` - engagement detection worker prefiltering, candidate creation, and dedupe tests
 - `tests/test_engagement_send_worker.py` - engagement send worker preflight, rate-limit, idempotency, and Telethon error-mapping tests
 - `tests/test_bot_engagement_handlers.py` - engagement cockpit, candidate status, approve-to-send, and send callback bot tests

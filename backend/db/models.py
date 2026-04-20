@@ -34,6 +34,7 @@ from backend.db.enums import (
     EngagementActionType,
     EngagementCandidateStatus,
     EngagementMode,
+    EngagementStyleRuleScope,
     EngagementTargetRefType,
     EngagementTargetStatus,
     SeedChannelStatus,
@@ -524,6 +525,89 @@ class EngagementTopic(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
+class EngagementPromptProfile(Base):
+    __tablename__ = "engagement_prompt_profiles"
+    __table_args__ = (
+        Index("ix_engagement_prompt_profiles_active", "active"),
+        Index("ix_engagement_prompt_profiles_updated", "updated_at"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    active: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    temperature: Mapped[Decimal] = mapped_column(Numeric(4, 3), default=Decimal("0.2"), server_default="0.2", nullable=False)
+    max_output_tokens: Mapped[int] = mapped_column(Integer, default=1000, server_default="1000", nullable=False)
+    system_prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    user_prompt_template: Mapped[str] = mapped_column(Text, nullable=False)
+    output_schema_name: Mapped[str] = mapped_column(
+        Text,
+        default="engagement_detection_v1",
+        server_default="engagement_detection_v1",
+        nullable=False,
+    )
+    created_by: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_by: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    versions: Mapped[list["EngagementPromptProfileVersion"]] = relationship(
+        back_populates="prompt_profile",
+        cascade="all, delete-orphan",
+    )
+
+
+class EngagementPromptProfileVersion(Base):
+    __tablename__ = "engagement_prompt_profile_versions"
+    __table_args__ = (
+        UniqueConstraint("prompt_profile_id", "version_number"),
+        Index("ix_engagement_prompt_profile_versions_profile", "prompt_profile_id"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    prompt_profile_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("engagement_prompt_profiles.id"),
+        nullable=False,
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    temperature: Mapped[Decimal] = mapped_column(Numeric(4, 3), nullable=False)
+    max_output_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    system_prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    user_prompt_template: Mapped[str] = mapped_column(Text, nullable=False)
+    output_schema_name: Mapped[str] = mapped_column(Text, nullable=False)
+    created_by: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    prompt_profile: Mapped[EngagementPromptProfile] = relationship(back_populates="versions")
+
+
+class EngagementStyleRule(Base):
+    __tablename__ = "engagement_style_rules"
+    __table_args__ = (
+        Index("ix_engagement_style_rules_scope", "scope_type", "scope_id", "active", "priority"),
+        Index("ix_engagement_style_rules_active", "active"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    scope_type: Mapped[str] = mapped_column(
+        Text,
+        default=EngagementStyleRuleScope.GLOBAL.value,
+        server_default=EngagementStyleRuleScope.GLOBAL.value,
+        nullable=False,
+    )
+    scope_id: Mapped[uuid.UUID | None] = mapped_column(postgresql.UUID(as_uuid=True))
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    rule_text: Mapped[str] = mapped_column(Text, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    priority: Mapped[int] = mapped_column(Integer, default=100, server_default="100", nullable=False)
+    created_by: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_by: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class EngagementCandidate(Base):
     __tablename__ = "engagement_candidates"
     __table_args__ = (
@@ -540,6 +624,11 @@ class EngagementCandidate(Base):
     suggested_reply: Mapped[str | None] = mapped_column(Text)
     model: Mapped[str | None] = mapped_column(Text)
     model_output: Mapped[dict[str, Any] | None] = mapped_column(postgresql.JSONB)
+    prompt_profile_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("engagement_prompt_profiles.id"))
+    prompt_profile_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("engagement_prompt_profile_versions.id")
+    )
+    prompt_render_summary: Mapped[dict[str, Any] | None] = mapped_column(postgresql.JSONB)
     risk_notes: Mapped[list[str]] = mapped_column(
         postgresql.ARRAY(Text),
         default=list,
@@ -561,6 +650,28 @@ class EngagementCandidate(Base):
 
     community: Mapped[Community] = relationship()
     topic: Mapped[EngagementTopic] = relationship()
+    prompt_profile: Mapped[EngagementPromptProfile | None] = relationship(foreign_keys=[prompt_profile_id])
+    prompt_profile_version: Mapped[EngagementPromptProfileVersion | None] = relationship(
+        foreign_keys=[prompt_profile_version_id]
+    )
+
+
+class EngagementCandidateRevision(Base):
+    __tablename__ = "engagement_candidate_revisions"
+    __table_args__ = (
+        UniqueConstraint("candidate_id", "revision_number"),
+        Index("ix_engagement_candidate_revisions_candidate", "candidate_id", "revision_number"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    candidate_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("engagement_candidates.id"), nullable=False)
+    revision_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    reply_text: Mapped[str] = mapped_column(Text, nullable=False)
+    edited_by: Mapped[str] = mapped_column(Text, nullable=False)
+    edit_reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    candidate: Mapped[EngagementCandidate] = relationship()
 
 
 class EngagementAction(Base):

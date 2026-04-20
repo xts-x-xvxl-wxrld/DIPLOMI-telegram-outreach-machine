@@ -35,6 +35,12 @@ ACTION_ENGAGEMENT_SETTINGS_POST = "eng:set:post"
 ACTION_ENGAGEMENT_JOIN = "eng:join"
 ACTION_ENGAGEMENT_DETECT = "eng:detect"
 ACTION_ENGAGEMENT_ACTIONS = "eng:actions:list"
+ACTION_ENGAGEMENT_ADMIN = "eng:admin:home"
+ACTION_ENGAGEMENT_TARGETS = "eng:admin:tgt"
+ACTION_ENGAGEMENT_TARGET_APPROVE = "eng:admin:ta"
+ACTION_ENGAGEMENT_PROMPTS = "eng:admin:pr"
+ACTION_ENGAGEMENT_PROMPT_ACTIVATE = "eng:admin:pa"
+ACTION_ENGAGEMENT_STYLE = "eng:admin:sr"
 
 
 @dataclass(frozen=True)
@@ -171,8 +177,52 @@ def engagement_home_markup():
                 _button("Replies", ACTION_ENGAGEMENT_CANDIDATES, "needs_review", "0"),
             ],
             [_button("Audit", ACTION_ENGAGEMENT_ACTIONS, "0")],
+            [_button("Admin", ACTION_ENGAGEMENT_ADMIN)],
         ]
     )
+
+
+def engagement_admin_home_markup():
+    return _inline_markup(
+        [
+            [
+                _button("Targets", ACTION_ENGAGEMENT_TARGETS, "0"),
+                _button("Prompts", ACTION_ENGAGEMENT_PROMPTS, "0"),
+            ],
+            [_button("Style rules", ACTION_ENGAGEMENT_STYLE, "0")],
+            [_button("Engagement", ACTION_ENGAGEMENT_HOME)],
+        ]
+    )
+
+
+def engagement_target_actions_markup(target_id: str, *, status: str):
+    rows = []
+    if status != "approved":
+        rows.append([_button("Approve", ACTION_ENGAGEMENT_TARGET_APPROVE, target_id)])
+    rows.append([_button("Targets", ACTION_ENGAGEMENT_TARGETS, "0")])
+    return _inline_markup(rows)
+
+
+def engagement_prompt_actions_markup(profile_id: str, *, active: bool):
+    rows = []
+    if not active:
+        rows.append([_button("Activate", ACTION_ENGAGEMENT_PROMPT_ACTIVATE, profile_id)])
+    rows.append([_button("Prompts", ACTION_ENGAGEMENT_PROMPTS, "0")])
+    return _inline_markup(rows)
+
+
+def engagement_admin_pager_markup(
+    *,
+    action: str,
+    offset: int,
+    total: int,
+    page_size: int,
+):
+    rows = [[_button("Admin", ACTION_ENGAGEMENT_ADMIN)]]
+    pager_row = _offset_pager_row(action=action, offset=offset, total=total, page_size=page_size)
+    if pager_row:
+        rows.append(pager_row)
+    return _inline_markup(rows)
 
 
 def engagement_settings_markup(community_id: str, *, allow_join: bool, allow_post: bool):
@@ -342,6 +392,8 @@ def job_actions_markup(job_id: str):
 def parse_callback_data(data: str) -> tuple[str, list[str]]:
     parts = data.split(":")
     if parts[0] == "eng":
+        if len(parts) >= 3 and parts[1] == "admin":
+            return ":".join(parts[:3]), parts[3:]
         if len(parts) >= 3 and parts[1] in {"actions", "cand", "set", "topic"}:
             return ":".join(parts[:3]), parts[3:]
         if len(parts) >= 2:

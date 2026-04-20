@@ -38,14 +38,24 @@ Engagement commands are optional and operator-controlled:
 
 ```text
 /engagement
+/engagement_admin
+/engagement_targets
+/add_engagement_target <telegram_link_or_username_or_community_id>
+/approve_engagement_target <target_id>
+/engagement_prompts
+/engagement_prompt_preview <profile_id>
+/engagement_style
 /engagement_topics
 /create_engagement_topic <name> | <guidance> | <comma_keywords>
 /toggle_engagement_topic <topic_id> <on|off>
+/topic_good_reply <topic_id> | <example>
+/topic_bad_reply <topic_id> | <example>
 /engagement_settings <community_id>
 /set_engagement <community_id> <off|observe|suggest|ready>
 /join_community <community_id>
 /detect_engagement <community_id> [window_minutes]
 /engagement_candidates [status]
+/edit_reply <candidate_id> | <new final reply>
 /approve_reply <candidate_id>
 /reject_reply <candidate_id>
 /send_reply <candidate_id>
@@ -294,6 +304,37 @@ Shows a compact engagement cockpit with counts for pending replies, approved rep
 candidates, and active topics. It should offer inline buttons for topics, candidates, settings entry
 points when opened from a community, and recent actions.
 
+### `/engagement_admin`
+
+Shows the admin-only configuration entrypoint for engagement targets, prompt profiles, topic
+examples, and style rules. This surface stays separate from daily candidate review.
+
+### `/engagement_targets`
+
+Lists manual engagement targets and their approval/posting permissions.
+
+### `/add_engagement_target <telegram_link_or_username_or_community_id>`
+
+Calls the engagement target intake API. This must not create seed rows.
+
+### `/approve_engagement_target <target_id>`
+
+Approves a resolved engagement target and enables join/detect/post permissions for the target. The
+worker still enforces settings and target gates before any outbound work.
+
+### `/engagement_prompts`
+
+Lists prompt profile cards with active state, model parameters, current version, and preview command.
+
+### `/engagement_prompt_preview <profile_id>`
+
+Renders a prompt profile preview through the API. The bot displays rendered text only; the preview
+endpoint does not call OpenAI.
+
+### `/engagement_style`
+
+Lists configured style rules with scope, active state, priority, and capped rule text.
+
 ### `/engagement_topics`
 
 Calls `GET /api/engagement/topics` and lists configured topics with active state, trigger keyword
@@ -309,6 +350,14 @@ Validation remains owned by the API and engagement service.
 ### `/toggle_engagement_topic <topic_id> <on|off>`
 
 Calls `PATCH /api/engagement/topics/{topic_id}` with only the `active` field.
+
+### `/topic_good_reply <topic_id> | <example>`
+
+Adds a positive reply example to a topic through the topic examples API.
+
+### `/topic_bad_reply <topic_id> | <example>`
+
+Adds a negative reply example to a topic. Bad examples are avoid-this guidance, not templates.
 
 ### `/engagement_settings <community_id>`
 
@@ -347,12 +396,20 @@ Lists engagement candidates. Default status is `needs_review`; supported operato
 `approved`, `failed`, `sent`, and `rejected` when the API supports them.
 
 Candidate cards should show community title, topic, capped source excerpt, detected reason,
-suggested or final reply text, risk notes, and status. The bot must not show sender identity.
+suggested and edited final reply text, prompt profile/version summary when available, risk notes,
+and status. The bot must not show sender identity.
+
+### `/edit_reply <candidate_id> | <new final reply>`
+
+Edits the candidate's final reply through the API. The edit creates a candidate revision and uses
+the same safety and length validation as generated replies.
 
 ### `/approve_reply <candidate_id>`
 
-Approves a candidate through `POST /api/engagement/candidates/{candidate_id}/approve`. The returned
-card may offer `Queue send`, but approval itself must not enqueue sending.
+Approves a candidate through `POST /api/engagement/candidates/{candidate_id}/approve`. If the
+candidate has an edited final reply, approval uses that text; otherwise it falls back to the
+suggested reply. The returned card may offer `Queue send`, but approval itself must not enqueue
+sending.
 
 ### `/reject_reply <candidate_id>`
 

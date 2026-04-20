@@ -18,6 +18,7 @@ from backend.api.routes.engagement import (
     post_community_join_job,
     post_community_engagement_detect_job,
     post_engagement_candidate_approve,
+    post_engagement_candidate_edit,
     post_engagement_candidate_reject,
     post_engagement_candidate_send_job,
     post_engagement_target,
@@ -28,6 +29,7 @@ from backend.api.routes.engagement import (
 )
 from backend.api.schemas import (
     EngagementCandidateApproveRequest,
+    EngagementCandidateEditRequest,
     EngagementCandidateRejectRequest,
     EngagementDetectJobRequest,
     EngagementJoinJobRequest,
@@ -659,6 +661,48 @@ async def test_approve_engagement_candidate_records_review_metadata() -> None:
     assert response.reviewed_at is not None
     assert response.final_reply == candidate.suggested_reply
     assert db.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_edit_engagement_candidate_creates_final_reply_revision() -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    topic = _topic(uuid4(), name="Open-source CRM")
+    candidate = _candidate(uuid4(), community, topic)
+    db = FakeDb(scalar_result=candidate)
+
+    response = await post_engagement_candidate_edit(
+        candidate.id,
+        EngagementCandidateEditRequest(
+            final_reply="Compare data ownership and export access before choosing.",
+            edited_by="telegram:123",
+        ),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.final_reply == "Compare data ownership and export access before choosing."
+    assert response.status == EngagementCandidateStatus.NEEDS_REVIEW.value
+    assert db.commits == 1
+    assert len(db.added) == 1
+    assert db.added[0].revision_number == 1
+    assert db.added[0].edited_by == "telegram:123"
+
+
+@pytest.mark.asyncio
+async def test_approve_engagement_candidate_uses_edited_final_reply() -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    topic = _topic(uuid4(), name="Open-source CRM")
+    candidate = _candidate(uuid4(), community, topic)
+    candidate.final_reply = "Edited final reply."
+    db = FakeDb(scalar_result=candidate)
+
+    response = await post_engagement_candidate_approve(
+        candidate.id,
+        EngagementCandidateApproveRequest(reviewed_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.status == EngagementCandidateStatus.APPROVED.value
+    assert response.final_reply == "Edited final reply."
 
 
 @pytest.mark.asyncio

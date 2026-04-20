@@ -892,6 +892,52 @@ Creates an engagement topic.
 
 Updates an engagement topic.
 
+### `POST /api/engagement/topics/{topic_id}/examples`
+
+Adds a good or bad reply example to a topic. Good examples are positive guidance; bad examples are
+negative examples only and must not be copied as reply templates.
+
+### `DELETE /api/engagement/topics/{topic_id}/examples/{example_type}/{index}`
+
+Removes a topic example by ordered array index. `example_type` is `good` or `bad`.
+
+### `GET /api/engagement/prompt-profiles`
+
+Lists admin-managed engagement prompt profiles with current immutable version metadata.
+
+### `POST /api/engagement/prompt-profiles`
+
+Creates a prompt profile and version 1. Fields include name, model, temperature,
+max_output_tokens, system_prompt, user_prompt_template, output_schema_name, active, and created_by.
+
+### `PATCH /api/engagement/prompt-profiles/{profile_id}`
+
+Updates editable prompt profile fields and creates a new immutable version row.
+
+### `POST /api/engagement/prompt-profiles/{profile_id}/activate`
+
+Activates one prompt profile and deactivates other active profiles.
+
+### `POST /api/engagement/prompt-profiles/{profile_id}/preview`
+
+Renders the prompt template with approved variables only. This endpoint does not call OpenAI.
+
+### `GET /api/engagement/prompt-profiles/{profile_id}/versions`
+
+Lists immutable prompt profile versions newest first.
+
+### `GET /api/engagement/style-rules`
+
+Lists style rules by optional scope, scope ID, active state, limit, and offset.
+
+### `POST /api/engagement/style-rules`
+
+Creates a global, account, community, or topic style rule.
+
+### `PATCH /api/engagement/style-rules/{rule_id}`
+
+Updates style rule text, priority, scope, or active state.
+
 ### `POST /api/communities/{community_id}/engagement-detect-jobs`
 
 Queues `engagement.detect`.
@@ -912,6 +958,14 @@ Query parameters:
 
 Approves a candidate reply. The API records the reviewer and review timestamp. Sending still happens
 through `engagement.send`.
+
+If an edited `final_reply` already exists, approval uses that text. If no edit exists, approval
+falls back to the generated `suggested_reply`.
+
+### `POST /api/engagement/candidates/{candidate_id}/edit`
+
+Stores an edited final reply, creates an immutable candidate revision row, and keeps the candidate in
+review until explicitly approved.
 
 ### `POST /api/engagement/candidates/{candidate_id}/reject`
 

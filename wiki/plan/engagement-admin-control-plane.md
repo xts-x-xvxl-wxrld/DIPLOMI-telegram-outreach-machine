@@ -61,7 +61,11 @@ Acceptance:
 
 ## Slice 3: Prompt Profiles
 
-Status: planned.
+Status: completed.
+
+Implemented in `alembic/versions/20260420_0008_engagement_admin_control_plane.py`,
+`backend/db/models.py`, `backend/services/community_engagement.py`,
+`backend/api/routes/engagement.py`, and `bot/api_client.py`.
 
 Add prompt profile and prompt profile version tables, service methods, and API endpoints.
 
@@ -81,7 +85,10 @@ Acceptance:
 
 ## Slice 4: Prompt Assembly Refactor
 
-Status: planned.
+Status: completed.
+
+Implemented in `backend/workers/engagement_detect.py` and
+`backend/services/community_engagement.py`.
 
 Refactor `engagement.detect` so it builds model input from:
 
@@ -100,7 +107,9 @@ Acceptance:
 
 ## Slice 5: Topic Examples And Style Rules
 
-Status: planned.
+Status: completed.
+
+Implemented with topic example API/bot commands and scoped style-rule service/API/bot surfaces.
 
 Add bot/API controls for:
 
@@ -117,7 +126,10 @@ Acceptance:
 
 ## Slice 6: Editable Replies
 
-Status: planned.
+Status: completed.
+
+Implemented with `engagement_candidate_revisions`, candidate edit API, bot `/edit_reply`, and
+approval fallback to the latest edited final reply.
 
 Add candidate edit support:
 
@@ -136,7 +148,10 @@ Acceptance:
 
 ## Slice 7: Bot Control Separation
 
-Status: planned.
+Status: completed.
+
+Implemented with `/engagement_admin`, target/prompt/style cards, admin callback namespaces, and
+separate daily review vs. configuration entrypoints.
 
 Split the bot UX into daily engagement review and admin configuration.
 
@@ -158,7 +173,9 @@ Acceptance:
 
 ## Slice 8: Documentation, Tests, And Release
 
-Status: planned.
+Status: completed.
+
+Implemented in this slice. Verification included full pytest, Ruff, and compile checks.
 
 Update after implementation:
 

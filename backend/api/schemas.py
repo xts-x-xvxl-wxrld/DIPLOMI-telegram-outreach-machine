@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from backend.db.enums import CommunityStatus, EngagementMode, EngagementTargetStatus
+from backend.db.enums import CommunityStatus, EngagementMode, EngagementStyleRuleScope, EngagementTargetStatus
 
 
 class JobRef(BaseModel):
@@ -448,6 +448,167 @@ class EngagementTopicListResponse(BaseModel):
     items: list[EngagementTopicOut]
 
 
+class EngagementTopicExampleCreateRequest(BaseModel):
+    example_type: str = Field(pattern="^(good|bad)$")
+    example: str = Field(min_length=1, max_length=800)
+
+
+class EngagementPromptProfileCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+    active: bool = False
+    model: str = Field(min_length=1, max_length=120)
+    temperature: float = Field(default=0.2, ge=0, le=2)
+    max_output_tokens: int = Field(default=1000, ge=128, le=4000)
+    system_prompt: str = Field(min_length=1, max_length=12000)
+    user_prompt_template: str = Field(min_length=1, max_length=24000)
+    output_schema_name: str = Field(default="engagement_detection_v1", min_length=1, max_length=120)
+    created_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class EngagementPromptProfileUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+    active: bool | None = None
+    model: str | None = Field(default=None, min_length=1, max_length=120)
+    temperature: float | None = Field(default=None, ge=0, le=2)
+    max_output_tokens: int | None = Field(default=None, ge=128, le=4000)
+    system_prompt: str | None = Field(default=None, min_length=1, max_length=12000)
+    user_prompt_template: str | None = Field(default=None, min_length=1, max_length=24000)
+    output_schema_name: str | None = Field(default=None, min_length=1, max_length=120)
+    updated_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class EngagementPromptProfileActivateRequest(BaseModel):
+    updated_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class EngagementPromptProfileDuplicateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    created_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class EngagementPromptProfileRollbackRequest(BaseModel):
+    version_id: UUID
+    updated_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class EngagementPromptProfilePreviewRequest(BaseModel):
+    variables: dict[str, Any] | None = None
+
+
+class EngagementPromptProfileOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    description: str | None = None
+    active: bool
+    model: str
+    temperature: float
+    max_output_tokens: int
+    system_prompt: str
+    user_prompt_template: str
+    output_schema_name: str
+    current_version_number: int | None = None
+    current_version_id: UUID | None = None
+    created_by: str
+    updated_by: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class EngagementPromptProfileListResponse(BaseModel):
+    items: list[EngagementPromptProfileOut]
+    limit: int
+    offset: int
+    total: int
+
+
+class EngagementPromptProfileVersionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    prompt_profile_id: UUID
+    version_number: int
+    model: str
+    temperature: float
+    max_output_tokens: int
+    system_prompt: str
+    user_prompt_template: str
+    output_schema_name: str
+    created_by: str
+    created_at: datetime
+
+
+class EngagementPromptProfileVersionListResponse(BaseModel):
+    items: list[EngagementPromptProfileVersionOut]
+
+
+class EngagementPromptPreviewOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    profile_id: UUID | None = None
+    profile_name: str
+    version_id: UUID | None = None
+    version_number: int | None = None
+    model: str
+    temperature: float
+    max_output_tokens: int
+    system_prompt: str
+    rendered_user_prompt: str
+    variables: dict[str, Any]
+
+
+class EngagementStyleRuleCreateRequest(BaseModel):
+    scope_type: EngagementStyleRuleScope = EngagementStyleRuleScope.GLOBAL
+    scope_id: UUID | None = None
+    name: str = Field(min_length=1, max_length=120)
+    rule_text: str = Field(min_length=1, max_length=4000)
+    active: bool = True
+    priority: int = Field(default=100, ge=0, le=1000)
+    created_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class EngagementStyleRuleUpdateRequest(BaseModel):
+    scope_type: EngagementStyleRuleScope | None = None
+    scope_id: UUID | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    rule_text: str | None = Field(default=None, min_length=1, max_length=4000)
+    active: bool | None = None
+    priority: int | None = Field(default=None, ge=0, le=1000)
+    updated_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class EngagementStyleRuleOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    scope_type: str
+    scope_id: UUID | None = None
+    name: str
+    rule_text: str
+    active: bool
+    priority: int
+    created_by: str
+    updated_by: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class EngagementStyleRuleListResponse(BaseModel):
+    items: list[EngagementStyleRuleOut]
+    limit: int
+    offset: int
+    total: int
+
+
+class EngagementCandidateEditRequest(BaseModel):
+    final_reply: str = Field(min_length=1, max_length=800)
+    edited_by: str | None = Field(default=None, min_length=1, max_length=200)
+    edit_reason: str | None = Field(default=None, max_length=500)
+
+
 class EngagementCandidateApproveRequest(BaseModel):
     final_reply: str | None = Field(default=None, max_length=800)
     reviewed_by: str | None = Field(default=None, min_length=1, max_length=200)
@@ -485,6 +646,9 @@ class EngagementCandidateOut(BaseModel):
     detected_reason: str
     suggested_reply: str | None = None
     final_reply: str | None = None
+    prompt_profile_id: UUID | None = None
+    prompt_profile_version_id: UUID | None = None
+    prompt_render_summary: dict[str, Any] | None = None
     risk_notes: list[str]
     status: str
     reviewed_by: str | None = None

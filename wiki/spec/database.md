@@ -461,6 +461,69 @@ created_at            timestamptz NOT NULL DEFAULT now()
 updated_at            timestamptz NOT NULL DEFAULT now()
 ```
 
+### `engagement_prompt_profiles`
+
+Admin-editable prompt profile state used by `engagement.detect`.
+
+```sql
+id                    uuid PRIMARY KEY
+name                  text NOT NULL
+description           text
+active                boolean NOT NULL DEFAULT false
+model                 text NOT NULL
+temperature           numeric NOT NULL DEFAULT 0.2
+max_output_tokens     int NOT NULL DEFAULT 1000
+system_prompt         text NOT NULL
+user_prompt_template  text NOT NULL
+output_schema_name    text NOT NULL DEFAULT 'engagement_detection_v1'
+created_by            text NOT NULL
+updated_by            text NOT NULL
+created_at            timestamptz NOT NULL DEFAULT now()
+updated_at            timestamptz NOT NULL DEFAULT now()
+```
+
+Only one prompt profile should be active in the first implementation. Every profile mutation that
+changes prompt/model fields creates an immutable version row.
+
+### `engagement_prompt_profile_versions`
+
+Immutable prompt profile history.
+
+```sql
+id                    uuid PRIMARY KEY
+prompt_profile_id     uuid NOT NULL REFERENCES engagement_prompt_profiles(id)
+version_number        int NOT NULL
+model                 text NOT NULL
+temperature           numeric NOT NULL
+max_output_tokens     int NOT NULL
+system_prompt         text NOT NULL
+user_prompt_template  text NOT NULL
+output_schema_name    text NOT NULL
+created_by            text NOT NULL
+created_at            timestamptz NOT NULL DEFAULT now()
+
+UNIQUE (prompt_profile_id, version_number)
+```
+
+### `engagement_style_rules`
+
+Scoped admin voice and style rules assembled into engagement prompts.
+
+```sql
+id                    uuid PRIMARY KEY
+scope_type            text NOT NULL DEFAULT 'global'
+                      -- global | account | community | topic
+scope_id              uuid
+name                  text NOT NULL
+rule_text             text NOT NULL
+active                boolean NOT NULL DEFAULT true
+priority              int NOT NULL DEFAULT 100
+created_by            text NOT NULL
+updated_by            text NOT NULL
+created_at            timestamptz NOT NULL DEFAULT now()
+updated_at            timestamptz NOT NULL DEFAULT now()
+```
+
 ### `engagement_candidates`
 
 Detected topic moments and suggested replies awaiting operator review.
@@ -475,6 +538,9 @@ detected_reason          text NOT NULL
 suggested_reply          text
 model                    text
 model_output             jsonb
+prompt_profile_id        uuid REFERENCES engagement_prompt_profiles(id)
+prompt_profile_version_id uuid REFERENCES engagement_prompt_profile_versions(id)
+prompt_render_summary    jsonb
 risk_notes               text[] NOT NULL DEFAULT '{}'
 status                   text NOT NULL DEFAULT 'needs_review'
                          -- needs_review | approved | rejected | sent | expired | failed
@@ -484,6 +550,22 @@ reviewed_at              timestamptz
 expires_at               timestamptz NOT NULL
 created_at               timestamptz NOT NULL DEFAULT now()
 updated_at               timestamptz NOT NULL DEFAULT now()
+```
+
+### `engagement_candidate_revisions`
+
+Immutable edit history for candidate final replies.
+
+```sql
+id                    uuid PRIMARY KEY
+candidate_id          uuid NOT NULL REFERENCES engagement_candidates(id)
+revision_number       int NOT NULL
+reply_text            text NOT NULL
+edited_by             text NOT NULL
+edit_reason           text
+created_at            timestamptz NOT NULL DEFAULT now()
+
+UNIQUE (candidate_id, revision_number)
 ```
 
 ### `engagement_actions`
@@ -551,6 +633,10 @@ CREATE INDEX ON engagement_candidates (status, created_at);
 CREATE INDEX ON engagement_candidates (community_id, topic_id, status);
 CREATE INDEX ON engagement_actions (community_id, created_at);
 CREATE INDEX ON engagement_actions (telegram_account_id, created_at);
+CREATE INDEX ON engagement_prompt_profiles (active);
+CREATE INDEX ON engagement_prompt_profile_versions (prompt_profile_id);
+CREATE INDEX ON engagement_style_rules (scope_type, scope_id, active, priority);
+CREATE INDEX ON engagement_candidate_revisions (candidate_id, revision_number);
 ```
 
 ---

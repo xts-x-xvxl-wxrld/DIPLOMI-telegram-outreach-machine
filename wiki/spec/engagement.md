@@ -24,6 +24,9 @@ a community and account.
 
 Admin prompt controls, engagement-specific target intake, per-community style rules, and editable
 reply review are specified separately in `wiki/spec/engagement-admin-control-plane.md`.
+Those controls are now part of the active engagement implementation: detection records the prompt
+profile/version summary used for drafting, and candidate approval uses the latest validated
+`final_reply` when an operator edits a reply before approval.
 
 ## Non-Goals
 
@@ -441,6 +444,9 @@ detected_reason          text NOT NULL
 suggested_reply          text
 model                    text
 model_output             jsonb
+prompt_profile_id        uuid REFERENCES engagement_prompt_profiles(id)
+prompt_profile_version_id uuid REFERENCES engagement_prompt_profile_versions(id)
+prompt_render_summary    jsonb
 risk_notes               text[] NOT NULL DEFAULT '{}'
 status                   text NOT NULL DEFAULT 'needs_review'
                          -- needs_review | approved | rejected | sent | expired | failed
@@ -466,6 +472,7 @@ Creation contract:
 - `suggested_reply` maximum length is 800 characters in MVP.
 - `detected_reason` must be plain-language and operator-facing.
 - `model_output` stores compact structured output, not full prompts or raw message batches.
+- `prompt_render_summary` stores compact prompt provenance, not full raw prompt text.
 - `risk_notes` stores model or rule-based caveats for operator review.
 - `expires_at` defaults to 24 hours after creation.
 - If raw message storage is disabled, the candidate may reference only source message IDs included

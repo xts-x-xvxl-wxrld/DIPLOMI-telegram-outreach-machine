@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from sqlalchemy import UniqueConstraint
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.schema import CreateTable
@@ -10,6 +12,7 @@ from backend.db.enums import (
     EngagementActionType,
     EngagementCandidateStatus,
     EngagementMode,
+    EngagementStyleRuleScope,
     EngagementTargetRefType,
     EngagementTargetStatus,
 )
@@ -18,6 +21,10 @@ from backend.db.models import (
     CommunityEngagementSettings,
     EngagementAction,
     EngagementCandidate,
+    EngagementCandidateRevision,
+    EngagementPromptProfile,
+    EngagementPromptProfileVersion,
+    EngagementStyleRule,
     EngagementTarget,
     EngagementTopic,
 )
@@ -63,6 +70,7 @@ def test_engagement_status_enums_match_contract() -> None:
     ]
     assert [item.value for item in EngagementActionType] == ["join", "reply", "post", "skip"]
     assert [item.value for item in EngagementActionStatus] == ["queued", "sent", "failed", "skipped"]
+    assert [item.value for item in EngagementStyleRuleScope] == ["global", "account", "community", "topic"]
 
 
 def test_engagement_model_defaults_are_contract_defaults() -> None:
@@ -89,6 +97,12 @@ def test_engagement_model_defaults_are_contract_defaults() -> None:
     assert EngagementCandidate.__table__.c.status.default.arg == EngagementCandidateStatus.NEEDS_REVIEW.value
     assert EngagementAction.__table__.c.action_type.default.arg == EngagementActionType.REPLY.value
     assert EngagementAction.__table__.c.status.default.arg == EngagementActionStatus.QUEUED.value
+    assert EngagementPromptProfile.__table__.c.active.default.arg is False
+    assert EngagementPromptProfile.__table__.c.temperature.default.arg == Decimal("0.2")
+    assert EngagementPromptProfile.__table__.c.max_output_tokens.default.arg == 1000
+    assert EngagementStyleRule.__table__.c.scope_type.default.arg == EngagementStyleRuleScope.GLOBAL.value
+    assert EngagementStyleRule.__table__.c.active.default.arg is True
+    assert EngagementStyleRule.__table__.c.priority.default.arg == 100
 
 
 def test_engagement_uniqueness_constraints_are_declared() -> None:
@@ -96,6 +110,8 @@ def test_engagement_uniqueness_constraints_are_declared() -> None:
     assert _has_unique_constraint(EngagementTarget, ["community_id"])
     assert _has_unique_constraint(CommunityAccountMembership, ["community_id", "telegram_account_id"])
     assert _has_unique_constraint(EngagementAction, ["idempotency_key"])
+    assert _has_unique_constraint(EngagementPromptProfileVersion, ["prompt_profile_id", "version_number"])
+    assert _has_unique_constraint(EngagementCandidateRevision, ["candidate_id", "revision_number"])
 
 
 def test_engagement_indexes_are_declared() -> None:
@@ -109,6 +125,10 @@ def test_engagement_indexes_are_declared() -> None:
     assert _has_index(EngagementCandidate, ["community_id", "topic_id", "status"])
     assert _has_index(EngagementAction, ["community_id", "created_at"])
     assert _has_index(EngagementAction, ["telegram_account_id", "created_at"])
+    assert _has_index(EngagementPromptProfile, ["active"])
+    assert _has_index(EngagementPromptProfileVersion, ["prompt_profile_id"])
+    assert _has_index(EngagementStyleRule, ["scope_type", "scope_id", "active", "priority"])
+    assert _has_index(EngagementCandidateRevision, ["candidate_id", "revision_number"])
 
 
 def test_engagement_tables_compile_for_postgresql() -> None:
@@ -119,7 +139,11 @@ def test_engagement_tables_compile_for_postgresql() -> None:
         EngagementTarget,
         CommunityAccountMembership,
         EngagementTopic,
+        EngagementPromptProfile,
+        EngagementPromptProfileVersion,
+        EngagementStyleRule,
         EngagementCandidate,
+        EngagementCandidateRevision,
         EngagementAction,
     ):
         ddl = str(CreateTable(model.__table__).compile(dialect=dialect))

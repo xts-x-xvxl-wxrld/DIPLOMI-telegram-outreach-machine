@@ -23,8 +23,11 @@ from backend.services.community_engagement import (
     create_engagement_candidate,
     get_engagement_settings,
     has_engagement_target_permission,
+    list_active_style_rules_for_prompt,
     list_active_topics,
+    render_prompt_template,
     sanitize_candidate_excerpt,
+    select_active_prompt_profile,
 )
 
 
@@ -93,24 +96,31 @@ async def detect_with_openai(model_input: dict[str, Any]) -> EngagementDetection
     if not settings.openai_api_key:
         raise RuntimeError("OPENAI_API_KEY is required for engagement.detect")
 
-    model = settings.openai_engagement_model
+    prompt_runtime = model_input.get("_prompt_runtime")
+    if not isinstance(prompt_runtime, dict):
+        prompt_runtime = {}
+    model = str(prompt_runtime.get("model") or settings.openai_engagement_model)
+    instructions = str(prompt_runtime.get("system_prompt") or DETECTION_INSTRUCTIONS)
+    rendered_prompt = str(prompt_runtime.get("rendered_user_prompt") or "")
+    if not rendered_prompt:
+        rendered_prompt = (
+            "Review this compact Telegram community context and decide whether a "
+            "short public reply would be genuinely useful. Return structured output only.\n\n"
+            f"{json.dumps(_public_model_input(model_input), ensure_ascii=True, default=str)}"
+        )
     client = AsyncOpenAI(api_key=settings.openai_api_key)
     response = await client.responses.parse(
         model=model,
-        instructions=DETECTION_INSTRUCTIONS,
+        instructions=instructions,
         input=[
             {
                 "role": "user",
-                "content": (
-                    "Review this compact Telegram community context and decide whether a "
-                    "short public reply would be genuinely useful. Return structured output only.\n\n"
-                    f"{json.dumps(model_input, ensure_ascii=True, default=str)}"
-                ),
+                "content": rendered_prompt,
             }
         ],
         text_format=EngagementDetectionDecision,
-        temperature=0.2,
-        max_output_tokens=1000,
+        temperature=float(prompt_runtime.get("temperature") or 0.2),
+        max_output_tokens=int(prompt_runtime.get("max_output_tokens") or 1000),
     )
     decision = response.output_parsed
     if decision is None:
@@ -168,6 +178,7 @@ async def process_engagement_detect(
                 return _skipped("no_recent_samples", validated_payload.community_id)
 
             community_context = await context_loader(session, community=community)
+            prompt_selection = await select_active_prompt_profile(session)
             summary = DetectionSummary(community_id=validated_payload.community_id)
             for topic in topics:
                 summary.topics_checked += 1
@@ -176,13 +187,26 @@ async def process_engagement_detect(
                     summary.skipped_no_signal += 1
                     continue
 
+                style_rules = await _load_style_bundle(
+                    session,
+                    account_id=engagement_settings.assigned_account_id,
+                    community_id=validated_payload.community_id,
+                    topic_id=topic.id,
+                )
                 model_input = _build_model_input(
                     community=community,
                     topic=topic,
                     messages=matching_messages[:MAX_MESSAGES_PER_MODEL_CALL],
                     community_context=community_context,
+                    style_rules=style_rules,
                 )
                 model_input = _fit_model_input(model_input)
+                prompt_runtime = _build_prompt_runtime(
+                    model_input,
+                    prompt_selection=prompt_selection,
+                    fallback_model=runtime_settings.openai_engagement_model,
+                )
+                model_input["_prompt_runtime"] = prompt_runtime
                 decision = await detector(model_input)
                 decision = EngagementDetectionDecision.model_validate(decision)
                 summary.detector_calls += 1
@@ -205,9 +229,15 @@ async def process_engagement_detect(
                         source_excerpt=source_message.text,
                         detected_reason=decision.reason,
                         suggested_reply=decision.suggested_reply,
-                        model=runtime_settings.openai_engagement_model,
+                        model=str(prompt_runtime["model"]),
                         model_output=decision.model_dump(mode="json", exclude_none=True),
                         risk_notes=decision.risk_notes,
+                        prompt_profile_id=prompt_runtime.get("prompt_profile_id"),
+                        prompt_profile_version_id=prompt_runtime.get("prompt_profile_version_id"),
+                        prompt_render_summary=_prompt_render_summary(
+                            model_input,
+                            prompt_runtime=prompt_runtime,
+                        ),
                     )
                 except EngagementValidationError:
                     summary.skipped_validation += 1
@@ -310,6 +340,7 @@ def _build_model_input(
     topic: EngagementTopic,
     messages: list[DetectionMessage],
     community_context: CommunityContext,
+    style_rules: dict[str, list[str]],
 ) -> dict[str, Any]:
     return {
         "community": {
@@ -340,6 +371,7 @@ def _build_model_input(
             }
             for message in messages[:MAX_MESSAGES_PER_MODEL_CALL]
         ],
+        "style": style_rules,
         "community_context": {
             "latest_summary": _truncate_text(community_context.latest_summary, 2000)
             if community_context.latest_summary
@@ -347,6 +379,88 @@ def _build_model_input(
             "dominant_themes": community_context.dominant_themes[:20],
         },
     }
+
+
+async def _load_style_bundle(
+    session: AsyncSession,
+    *,
+    account_id: Any,
+    community_id: Any,
+    topic_id: Any,
+) -> dict[str, list[str]]:
+    try:
+        bundle = await list_active_style_rules_for_prompt(
+            session,
+            account_id=account_id,
+            community_id=community_id,
+            topic_id=topic_id,
+        )
+    except AttributeError:
+        return {"global": [], "account": [], "community": [], "topic": []}
+    return bundle.to_dict()
+
+
+def _build_prompt_runtime(
+    model_input: dict[str, Any],
+    *,
+    prompt_selection: Any,
+    fallback_model: str,
+) -> dict[str, Any]:
+    profile = prompt_selection.profile
+    version = prompt_selection.version
+    fallback = prompt_selection.fallback
+    if profile is None:
+        assert fallback is not None
+        template = fallback.user_prompt_template
+        rendered = render_prompt_template(template, model_input)
+        return {
+            "prompt_profile_id": None,
+            "prompt_profile_version_id": None,
+            "profile_name": fallback.profile_name,
+            "version_number": None,
+            "model": fallback_model,
+            "temperature": fallback.temperature,
+            "max_output_tokens": fallback.max_output_tokens,
+            "system_prompt": DETECTION_INSTRUCTIONS,
+            "rendered_user_prompt": rendered,
+        }
+
+    rendered = render_prompt_template(profile.user_prompt_template, model_input)
+    return {
+        "prompt_profile_id": profile.id,
+        "prompt_profile_version_id": version.id if version is not None else None,
+        "profile_name": profile.name,
+        "version_number": version.version_number if version is not None else None,
+        "model": profile.model,
+        "temperature": profile.temperature,
+        "max_output_tokens": profile.max_output_tokens,
+        "system_prompt": profile.system_prompt,
+        "rendered_user_prompt": rendered,
+    }
+
+
+def _prompt_render_summary(
+    model_input: dict[str, Any],
+    *,
+    prompt_runtime: dict[str, Any],
+) -> dict[str, Any]:
+    style = model_input.get("style") if isinstance(model_input.get("style"), dict) else {}
+    return {
+        "profile_name": prompt_runtime.get("profile_name"),
+        "version_number": prompt_runtime.get("version_number"),
+        "style_rule_counts": {
+            "global": len(style.get("global") or []),
+            "account": len(style.get("account") or []),
+            "community": len(style.get("community") or []),
+            "topic": len(style.get("topic") or []),
+        },
+        "message_count": len(model_input.get("messages") or []),
+        "serialized_input_bytes": _serialized_size(_public_model_input(model_input)),
+    }
+
+
+def _public_model_input(model_input: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in model_input.items() if not key.startswith("_")}
 
 
 def _fit_model_input(model_input: dict[str, Any]) -> dict[str, Any]:

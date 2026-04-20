@@ -170,6 +170,49 @@ class BotApiClient:
             params=params,
         )
 
+    async def list_engagement_targets(
+        self,
+        *,
+        status: str | None = None,
+        limit: int = 5,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        params: dict[str, object] = {"limit": limit, "offset": offset}
+        if status is not None:
+            params["status"] = status
+        return await self._request("GET", "/engagement/targets", params=params)
+
+    async def create_engagement_target(
+        self,
+        *,
+        target_ref: str,
+        added_by: str,
+        notes: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"target_ref": target_ref, "added_by": added_by}
+        if notes is not None:
+            payload["notes"] = notes
+        return await self._request("POST", "/engagement/targets", json=payload)
+
+    async def update_engagement_target(
+        self,
+        target_id: str,
+        **updates: Any,
+    ) -> dict[str, Any]:
+        return await self._request("PATCH", f"/engagement/targets/{target_id}", json=updates)
+
+    async def resolve_engagement_target(
+        self,
+        target_id: str,
+        *,
+        requested_by: str | None = None,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            f"/engagement/targets/{target_id}/resolve-jobs",
+            json={"requested_by": requested_by},
+        )
+
     async def approve_engagement_candidate(
         self,
         candidate_id: str,
@@ -295,6 +338,139 @@ class BotApiClient:
             "PATCH",
             f"/engagement/topics/{topic_id}",
             json=updates,
+        )
+
+    async def add_engagement_topic_example(
+        self,
+        topic_id: str,
+        *,
+        example_type: str,
+        example: str,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            f"/engagement/topics/{topic_id}/examples",
+            json={"example_type": example_type, "example": example},
+        )
+
+    async def remove_engagement_topic_example(
+        self,
+        topic_id: str,
+        *,
+        example_type: str,
+        index: int,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "DELETE",
+            f"/engagement/topics/{topic_id}/examples/{example_type}/{index}",
+        )
+
+    async def list_engagement_prompt_profiles(
+        self,
+        *,
+        limit: int = 5,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            "/engagement/prompt-profiles",
+            params={"limit": limit, "offset": offset},
+        )
+
+    async def create_engagement_prompt_profile(
+        self,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return await self._request("POST", "/engagement/prompt-profiles", json=payload)
+
+    async def update_engagement_prompt_profile(
+        self,
+        profile_id: str,
+        **updates: Any,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "PATCH",
+            f"/engagement/prompt-profiles/{profile_id}",
+            json=updates,
+        )
+
+    async def activate_engagement_prompt_profile(
+        self,
+        profile_id: str,
+        *,
+        updated_by: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if updated_by is not None:
+            payload["updated_by"] = updated_by
+        return await self._request(
+            "POST",
+            f"/engagement/prompt-profiles/{profile_id}/activate",
+            json=payload,
+        )
+
+    async def preview_engagement_prompt_profile(
+        self,
+        profile_id: str,
+        *,
+        variables: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            f"/engagement/prompt-profiles/{profile_id}/preview",
+            json={"variables": variables},
+        )
+
+    async def list_engagement_style_rules(
+        self,
+        *,
+        scope_type: str | None = None,
+        scope_id: str | None = None,
+        active: bool | None = None,
+        limit: int = 5,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        params: dict[str, object] = {"limit": limit, "offset": offset}
+        if scope_type is not None:
+            params["scope_type"] = scope_type
+        if scope_id is not None:
+            params["scope_id"] = scope_id
+        if active is not None:
+            params["active"] = str(active).lower()
+        return await self._request("GET", "/engagement/style-rules", params=params)
+
+    async def create_engagement_style_rule(
+        self,
+        **payload: Any,
+    ) -> dict[str, Any]:
+        return await self._request("POST", "/engagement/style-rules", json=payload)
+
+    async def update_engagement_style_rule(
+        self,
+        rule_id: str,
+        **updates: Any,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "PATCH",
+            f"/engagement/style-rules/{rule_id}",
+            json=updates,
+        )
+
+    async def edit_engagement_candidate(
+        self,
+        candidate_id: str,
+        *,
+        final_reply: str,
+        edited_by: str,
+        edit_reason: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"final_reply": final_reply, "edited_by": edited_by}
+        if edit_reason is not None:
+            payload["edit_reason"] = edit_reason
+        return await self._request(
+            "POST",
+            f"/engagement/candidates/{candidate_id}/edit",
+            json=payload,
         )
 
     async def start_community_join(

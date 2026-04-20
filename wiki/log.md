@@ -6,6 +6,15 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-04-20] code | Built engagement admin control plane
+
+Completed the remaining engagement admin control-plane slices. Added prompt profile/version
+storage, render-only prompt previews, scoped style rules, topic good/bad example APIs, candidate
+reply revisions, prompt provenance on engagement candidates, and detection prompt assembly from the
+active profile plus style/topic/message/community context. Expanded the Telegram bot with
+`/engagement_admin`, target cards, prompt profile cards, style-rule cards, topic example commands,
+and `/edit_reply`. Updated API, bot, database, engagement specs, and tests.
+
 ## [2026-04-19] plan | Engagement operator controls
 
 Planned a Telegram-native engagement control surface covering settings presets, topic controls,

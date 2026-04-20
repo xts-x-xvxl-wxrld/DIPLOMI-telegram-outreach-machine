@@ -18,12 +18,20 @@ from bot.formatting import (
     format_created_brief,
     format_engagement_action_card,
     format_engagement_actions,
+    format_engagement_admin_home,
     format_engagement_candidate_card,
     format_engagement_candidate_review,
     format_engagement_candidates,
     format_engagement_home,
     format_engagement_job_response,
+    format_engagement_prompt_preview,
+    format_engagement_prompt_profile_card,
+    format_engagement_prompt_profiles,
     format_engagement_settings,
+    format_engagement_style_rule_card,
+    format_engagement_style_rules,
+    format_engagement_target_card,
+    format_engagement_targets,
     format_engagement_topic_card,
     format_engagement_topics,
     format_job_status,
@@ -47,17 +55,23 @@ from bot.ui import (
     ACTION_COLLECT_COMMUNITY,
     ACTION_COMMUNITY_MEMBERS,
     ACTION_ENGAGEMENT_ACTIONS,
+    ACTION_ENGAGEMENT_ADMIN,
     ACTION_ENGAGEMENT_APPROVE,
     ACTION_ENGAGEMENT_CANDIDATES,
     ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_JOIN,
+    ACTION_ENGAGEMENT_PROMPT_ACTIVATE,
+    ACTION_ENGAGEMENT_PROMPTS,
     ACTION_ENGAGEMENT_REJECT,
     ACTION_ENGAGEMENT_SEND,
     ACTION_ENGAGEMENT_SETTINGS_JOIN,
     ACTION_ENGAGEMENT_SETTINGS_OPEN,
     ACTION_ENGAGEMENT_SETTINGS_POST,
     ACTION_ENGAGEMENT_SETTINGS_PRESET,
+    ACTION_ENGAGEMENT_STYLE,
+    ACTION_ENGAGEMENT_TARGET_APPROVE,
+    ACTION_ENGAGEMENT_TARGETS,
     ACTION_ENGAGEMENT_TOPIC_LIST,
     ACTION_ENGAGEMENT_TOPIC_TOGGLE,
     ACTION_JOB_STATUS,
@@ -73,13 +87,17 @@ from bot.ui import (
     candidate_actions_markup,
     community_actions_markup,
     engagement_action_pager_markup,
+    engagement_admin_home_markup,
+    engagement_admin_pager_markup,
     engagement_candidate_actions_markup,
     engagement_candidate_filter_markup,
     engagement_candidate_pager_markup,
     engagement_candidate_send_markup,
     engagement_home_markup,
+    engagement_prompt_actions_markup,
     engagement_job_markup,
     engagement_settings_markup,
+    engagement_target_actions_markup,
     engagement_topic_actions_markup,
     engagement_topic_pager_markup,
     job_actions_markup,
@@ -100,6 +118,7 @@ MEMBER_EXPORT_PAGE_SIZE = 1000
 ENGAGEMENT_CANDIDATE_PAGE_SIZE = 5
 ENGAGEMENT_TOPIC_PAGE_SIZE = 5
 ENGAGEMENT_ACTION_PAGE_SIZE = 5
+ENGAGEMENT_ADMIN_PAGE_SIZE = 5
 ENGAGEMENT_CANDIDATE_STATUSES = {"needs_review", "approved", "failed", "sent", "rejected"}
 ENGAGEMENT_SETTING_PRESETS = {"off", "observe", "suggest", "ready"}
 
@@ -310,6 +329,83 @@ async def engagement_command(update: Any, context: Any) -> None:
         await _reply(update, format_api_error(exc.message))
 
 
+async def engagement_admin_command(update: Any, context: Any) -> None:
+    try:
+        await _send_engagement_admin(update, context)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def engagement_targets_command(update: Any, context: Any) -> None:
+    try:
+        await _send_engagement_targets(update, context, offset=0)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def add_engagement_target_command(update: Any, context: Any) -> None:
+    target_ref = _first_arg(context)
+    if target_ref is None:
+        await _reply(update, "Usage: /add_engagement_target <telegram_link_or_username_or_community_id>")
+        return
+    client = _api_client(context)
+    try:
+        data = await client.create_engagement_target(
+            target_ref=target_ref,
+            added_by=_reviewer_label(update),
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+        return
+    await _reply(
+        update,
+        "Engagement target added.\n\n" + format_engagement_target_card(data),
+        reply_markup=engagement_target_actions_markup(
+            str(data.get("id", "unknown")),
+            status=str(data.get("status") or "pending"),
+        ),
+    )
+
+
+async def approve_engagement_target_command(update: Any, context: Any) -> None:
+    target_id = _first_arg(context)
+    if target_id is None:
+        await _reply(update, "Usage: /approve_engagement_target <target_id>")
+        return
+    try:
+        await _approve_engagement_target(update, context, target_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def engagement_prompts_command(update: Any, context: Any) -> None:
+    try:
+        await _send_engagement_prompts(update, context, offset=0)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def engagement_prompt_preview_command(update: Any, context: Any) -> None:
+    profile_id = _first_arg(context)
+    if profile_id is None:
+        await _reply(update, "Usage: /engagement_prompt_preview <profile_id>")
+        return
+    client = _api_client(context)
+    try:
+        data = await client.preview_engagement_prompt_profile(profile_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+        return
+    await _reply(update, format_engagement_prompt_preview(data))
+
+
+async def engagement_style_command(update: Any, context: Any) -> None:
+    try:
+        await _send_engagement_style_rules(update, context, offset=0)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
 async def engagement_settings_command(update: Any, context: Any) -> None:
     community_id = _first_arg(context)
     if community_id is None:
@@ -427,6 +523,14 @@ async def toggle_engagement_topic_command(update: Any, context: Any) -> None:
         await _reply(update, format_api_error(exc.message))
 
 
+async def topic_good_reply_command(update: Any, context: Any) -> None:
+    await _topic_example_command(update, context, example_type="good")
+
+
+async def topic_bad_reply_command(update: Any, context: Any) -> None:
+    await _topic_example_command(update, context, example_type="bad")
+
+
 async def approve_reply_command(update: Any, context: Any) -> None:
     candidate_id = _first_arg(context)
     if candidate_id is None:
@@ -471,6 +575,29 @@ async def send_reply_command(update: Any, context: Any) -> None:
         await _send_engagement_reply(update, context, candidate_id)
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
+
+
+async def edit_reply_command(update: Any, context: Any) -> None:
+    parsed = _parse_edit_reply_args(context)
+    if parsed is None:
+        await _reply(update, "Usage: /edit_reply <candidate_id> | <new final reply>")
+        return
+    candidate_id, final_reply = parsed
+    client = _api_client(context)
+    try:
+        data = await client.edit_engagement_candidate(
+            candidate_id,
+            final_reply=final_reply,
+            edited_by=_reviewer_label(update),
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+        return
+    await _reply(
+        update,
+        "Reply edited.\n\n" + format_engagement_candidate_card(data),
+        reply_markup=engagement_candidate_actions_markup(candidate_id),
+    )
 
 
 async def seed_csv_document(update: Any, context: Any) -> None:
@@ -580,6 +707,24 @@ async def callback_query(update: Any, context: Any) -> None:
             return
         if action == ACTION_ENGAGEMENT_HOME:
             await _send_engagement_home(update, context)
+            return
+        if action == ACTION_ENGAGEMENT_ADMIN:
+            await _send_engagement_admin(update, context)
+            return
+        if action == ACTION_ENGAGEMENT_TARGETS and parts:
+            await _send_engagement_targets(update, context, offset=_parse_offset(parts[0]))
+            return
+        if action == ACTION_ENGAGEMENT_TARGET_APPROVE and len(parts) == 1:
+            await _approve_engagement_target(update, context, parts[0], edit_callback=True)
+            return
+        if action == ACTION_ENGAGEMENT_PROMPTS and parts:
+            await _send_engagement_prompts(update, context, offset=_parse_offset(parts[0]))
+            return
+        if action == ACTION_ENGAGEMENT_PROMPT_ACTIVATE and len(parts) == 1:
+            await _activate_engagement_prompt(update, context, parts[0], edit_callback=True)
+            return
+        if action == ACTION_ENGAGEMENT_STYLE and parts:
+            await _send_engagement_style_rules(update, context, offset=_parse_offset(parts[0]))
             return
         if action == ACTION_ENGAGEMENT_CANDIDATES and parts:
             status, offset = _engagement_callback_status_and_offset(parts)
@@ -869,6 +1014,135 @@ async def _send_engagement_home(update: Any, context: Any) -> None:
         "active_topic_count": active_topic_count,
     }
     await _callback_reply(update, format_engagement_home(data), reply_markup=engagement_home_markup())
+
+
+async def _send_engagement_admin(update: Any, context: Any) -> None:
+    client = _api_client(context)
+    targets = await client.list_engagement_targets(limit=1, offset=0)
+    prompts = await client.list_engagement_prompt_profiles(limit=1, offset=0)
+    styles = await client.list_engagement_style_rules(limit=1, offset=0)
+    data = {
+        "target_count": targets.get("total", 0),
+        "prompt_profile_count": prompts.get("total", 0),
+        "style_rule_count": styles.get("total", 0),
+    }
+    await _callback_reply(
+        update,
+        format_engagement_admin_home(data),
+        reply_markup=engagement_admin_home_markup(),
+    )
+
+
+async def _send_engagement_targets(update: Any, context: Any, *, offset: int) -> None:
+    client = _api_client(context)
+    data = await client.list_engagement_targets(limit=ENGAGEMENT_ADMIN_PAGE_SIZE, offset=offset)
+    await _callback_reply(
+        update,
+        format_engagement_targets(data, offset=offset),
+        reply_markup=engagement_admin_pager_markup(
+            action=ACTION_ENGAGEMENT_TARGETS,
+            offset=offset,
+            total=data.get("total", 0),
+            page_size=ENGAGEMENT_ADMIN_PAGE_SIZE,
+        ),
+    )
+    for index, item in enumerate(data.get("items") or [], start=offset + 1):
+        await _callback_reply(
+            update,
+            format_engagement_target_card(item, index=index),
+            reply_markup=engagement_target_actions_markup(
+                str(item.get("id", "unknown")),
+                status=str(item.get("status") or "pending"),
+            ),
+        )
+
+
+async def _approve_engagement_target(
+    update: Any,
+    context: Any,
+    target_id: str,
+    *,
+    edit_callback: bool = False,
+) -> None:
+    client = _api_client(context)
+    data = await client.update_engagement_target(
+        target_id,
+        status="approved",
+        allow_join=True,
+        allow_detect=True,
+        allow_post=True,
+        updated_by=_reviewer_label(update),
+    )
+    message = format_engagement_target_card(data)
+    markup = engagement_target_actions_markup(target_id, status=str(data.get("status") or "approved"))
+    if edit_callback:
+        await _edit_callback_message(update, message, reply_markup=markup)
+        return
+    await _reply(update, message, reply_markup=markup)
+
+
+async def _send_engagement_prompts(update: Any, context: Any, *, offset: int) -> None:
+    client = _api_client(context)
+    data = await client.list_engagement_prompt_profiles(
+        limit=ENGAGEMENT_ADMIN_PAGE_SIZE,
+        offset=offset,
+    )
+    await _callback_reply(
+        update,
+        format_engagement_prompt_profiles(data, offset=offset),
+        reply_markup=engagement_admin_pager_markup(
+            action=ACTION_ENGAGEMENT_PROMPTS,
+            offset=offset,
+            total=data.get("total", 0),
+            page_size=ENGAGEMENT_ADMIN_PAGE_SIZE,
+        ),
+    )
+    for index, item in enumerate(data.get("items") or [], start=offset + 1):
+        await _callback_reply(
+            update,
+            format_engagement_prompt_profile_card(item, index=index),
+            reply_markup=engagement_prompt_actions_markup(
+                str(item.get("id", "unknown")),
+                active=bool(item.get("active")),
+            ),
+        )
+
+
+async def _activate_engagement_prompt(
+    update: Any,
+    context: Any,
+    profile_id: str,
+    *,
+    edit_callback: bool = False,
+) -> None:
+    client = _api_client(context)
+    data = await client.activate_engagement_prompt_profile(
+        profile_id,
+        updated_by=_reviewer_label(update),
+    )
+    message = format_engagement_prompt_profile_card(data)
+    markup = engagement_prompt_actions_markup(profile_id, active=bool(data.get("active")))
+    if edit_callback:
+        await _edit_callback_message(update, message, reply_markup=markup)
+        return
+    await _reply(update, message, reply_markup=markup)
+
+
+async def _send_engagement_style_rules(update: Any, context: Any, *, offset: int) -> None:
+    client = _api_client(context)
+    data = await client.list_engagement_style_rules(limit=ENGAGEMENT_ADMIN_PAGE_SIZE, offset=offset)
+    await _callback_reply(
+        update,
+        format_engagement_style_rules(data, offset=offset),
+        reply_markup=engagement_admin_pager_markup(
+            action=ACTION_ENGAGEMENT_STYLE,
+            offset=offset,
+            total=data.get("total", 0),
+            page_size=ENGAGEMENT_ADMIN_PAGE_SIZE,
+        ),
+    )
+    for index, item in enumerate(data.get("items") or [], start=offset + 1):
+        await _callback_reply(update, format_engagement_style_rule_card(item, index=index))
 
 
 async def _send_engagement_candidates(
@@ -1211,6 +1485,13 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("members", members_command))
     application.add_handler(CommandHandler("exportmembers", exportmembers_command))
     application.add_handler(CommandHandler("engagement", engagement_command))
+    application.add_handler(CommandHandler("engagement_admin", engagement_admin_command))
+    application.add_handler(CommandHandler("engagement_targets", engagement_targets_command))
+    application.add_handler(CommandHandler("add_engagement_target", add_engagement_target_command))
+    application.add_handler(CommandHandler("approve_engagement_target", approve_engagement_target_command))
+    application.add_handler(CommandHandler("engagement_prompts", engagement_prompts_command))
+    application.add_handler(CommandHandler("engagement_prompt_preview", engagement_prompt_preview_command))
+    application.add_handler(CommandHandler("engagement_style", engagement_style_command))
     application.add_handler(CommandHandler("engagement_settings", engagement_settings_command))
     application.add_handler(CommandHandler("set_engagement", set_engagement_command))
     application.add_handler(CommandHandler("join_community", join_community_command))
@@ -1219,8 +1500,11 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("engagement_topics", engagement_topics_command))
     application.add_handler(CommandHandler("create_engagement_topic", create_engagement_topic_command))
     application.add_handler(CommandHandler("toggle_engagement_topic", toggle_engagement_topic_command))
+    application.add_handler(CommandHandler("topic_good_reply", topic_good_reply_command))
+    application.add_handler(CommandHandler("topic_bad_reply", topic_bad_reply_command))
     application.add_handler(CommandHandler("engagement_candidates", engagement_candidates_command))
     application.add_handler(CommandHandler("approve_reply", approve_reply_command))
+    application.add_handler(CommandHandler("edit_reply", edit_reply_command))
     application.add_handler(CommandHandler("reject_reply", reject_reply_command))
     application.add_handler(CommandHandler("send_reply", send_reply_command))
     application.add_handler(CallbackQueryHandler(callback_query))
@@ -1350,6 +1634,52 @@ def _parse_create_engagement_topic_args(context: Any) -> tuple[str, str, list[st
     if not name or not guidance or not keywords:
         return None
     return name, guidance, keywords
+
+
+async def _topic_example_command(update: Any, context: Any, *, example_type: str) -> None:
+    parsed = _parse_topic_example_args(context)
+    if parsed is None:
+        command = "topic_good_reply" if example_type == "good" else "topic_bad_reply"
+        await _reply(update, f"Usage: /{command} <topic_id> | <example>")
+        return
+    topic_id, example = parsed
+    client = _api_client(context)
+    try:
+        data = await client.add_engagement_topic_example(
+            topic_id,
+            example_type=example_type,
+            example=example,
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+        return
+    await _reply(
+        update,
+        "Topic example added.\n\n" + format_engagement_topic_card(data),
+        reply_markup=engagement_topic_actions_markup(topic_id, active=bool(data.get("active"))),
+    )
+
+
+def _parse_topic_example_args(context: Any) -> tuple[str, str] | None:
+    raw_value = " ".join(str(arg) for arg in context.args).strip()
+    parts = [part.strip() for part in raw_value.split("|", maxsplit=1)]
+    if len(parts) != 2:
+        return None
+    topic_id, example = parts
+    if not topic_id or not example:
+        return None
+    return topic_id, example
+
+
+def _parse_edit_reply_args(context: Any) -> tuple[str, str] | None:
+    raw_value = " ".join(str(arg) for arg in context.args).strip()
+    parts = [part.strip() for part in raw_value.split("|", maxsplit=1)]
+    if len(parts) != 2:
+        return None
+    candidate_id, final_reply = parts
+    if not candidate_id or not final_reply:
+        return None
+    return candidate_id, final_reply
 
 
 def _create_engagement_topic_usage() -> str:

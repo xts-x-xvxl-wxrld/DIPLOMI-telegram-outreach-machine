@@ -124,3 +124,10 @@ class EngagementActionStatus(StrEnum):
     SENT = "sent"
     FAILED = "failed"
     SKIPPED = "skipped"
+
+
+class EngagementStyleRuleScope(StrEnum):
+    GLOBAL = "global"
+    ACCOUNT = "account"
+    COMMUNITY = "community"
+    TOPIC = "topic"
