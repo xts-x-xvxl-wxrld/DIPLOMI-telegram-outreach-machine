@@ -635,3 +635,11 @@ Updated the Discovery cockpit proposal to use `Needs attention` and `Recent acti
 action-biased `Next:` line for the Discovery home card, and expanded `Start search` into a small hub
 with New search, Add examples to existing search, All searches, and CSV format. Adjusted the
 `disc:*` callback guidance and tests to match the refined labels.
+
+## [2026-04-20] spec | Expanded bot engagement slice contracts
+
+Expanded the bot engagement controls spec with detailed implementation contracts for slices 4
+through 10: config editing foundation, candidate detail and revisions, prompt profile admin
+controls, topic examples and style rules, advanced community settings, admin permission boundaries,
+and release documentation with broader test wrap-up. Aligned the matching plan heading for the
+release slice.

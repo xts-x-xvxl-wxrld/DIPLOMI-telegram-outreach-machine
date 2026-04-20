@@ -170,6 +170,7 @@ Completed notes:
 Status: planned.
 
 Add a reusable bot editing foundation for admin/settings configuration.
+The behavioral contract for this slice lives in `wiki/spec/bot-engagement-controls.md`.
 
 Work items:
 
@@ -330,7 +331,7 @@ Acceptance:
 - Unauthorized attempts produce clear bot messages without calling protected API mutations.
 - Backend auth remains the source of truth.
 
-## Slice 10: Release Documentation And Tests
+## Slice 10: Release Documentation And Broader Test Wrap-Up
 
 Status: planned.
 

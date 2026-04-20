@@ -445,6 +445,463 @@ The next implementation slice should prioritize:
 - Keep permission changes and target approval ready for explicit confirmation instead of direct
   mutation in a later hardening pass.
 
+## Implementation Slice Contracts
+
+This section defines the remaining bot engagement control slices. The plan file tracks execution
+status; this spec defines the behavior that must be true when each slice is shipped.
+
+Each slice should keep the bot as a Telegram-native control surface over explicit backend APIs. The
+bot may parse operator input, render current state, collect confirmation, and call the API. It must
+not bypass API validation, mutate storage directly, or make outbound Telethon/OpenAI calls.
+
+### Slice 4: Config Editing Foundation
+
+Purpose:
+
+Build one shared editing model for the long-text and risky configuration flows used by later slices.
+This slice should make edits predictable before adding more editable surfaces.
+
+Required bot capabilities:
+
+- Maintain pending edit state by Telegram operator ID, edit type, object ID, field name, started
+  timestamp, and expected value type.
+- Expose reusable Save and Cancel callbacks for pending edits.
+- Expire pending edits after a short timeout, recommended 15 minutes.
+- Cancel or supersede an operator's pending edit when they start another command or edit flow.
+- Render before/after confirmations for risky changes.
+- Render preview cards for long instruction values before saving.
+- Keep callback data compact enough for Telegram's 64-byte callback limit.
+
+Editable field metadata must be explicit and allowlisted. The minimum metadata is:
+
+```text
+entity
+field
+label
+value_type
+requires_confirmation
+admin_only
+api_method
+```
+
+Supported value types:
+
+- `text`
+- `long_text`
+- `int`
+- `float`
+- `bool`
+- `enum`
+- `time`
+- `uuid`
+- `keyword_list`
+
+Rules:
+
+- The editing foundation must not expose a generic database-column editor.
+- Each save must dispatch to an entity-specific API-client method.
+- Risky changes include posting permission, target approval, prompt activation, prompt rollback,
+  assigned account changes, and long instruction updates.
+- Backend validation remains authoritative for prompt variables, unsafe guidance, account pool
+  eligibility, numeric bounds, and state transitions.
+- The bot should pre-check malformed values only to produce clearer operator feedback.
+
+Tests:
+
+- Pending edits are scoped to one operator and cannot be saved by another.
+- Save without a matching pending edit is rejected.
+- Cancel removes only the caller's pending edit.
+- Expired edits cannot be saved.
+- Long text previews show the submitted value without calling send, generation, Telethon, or worker
+  endpoints.
+- Risky edits require a confirmation callback before the API mutation is called.
+
+Done when:
+
+- Candidate reply, prompt field, topic guidance, and style rule edit flows can share the same
+  pending-edit and confirmation machinery.
+- Later slices can register editable fields without adding new state-machine code.
+
+### Slice 5: Candidate Detail, Editing, And Revisions
+
+Purpose:
+
+Make candidate review inspectable and editable before approval. Operators should be able to see the
+full safe candidate context, revise final reply text, inspect revision history, and manage failed or
+stale candidates.
+
+Required commands:
+
+```text
+/engagement_candidate <candidate_id>
+/edit_reply <candidate_id> | <new final reply>
+/candidate_revisions <candidate_id>
+/expire_candidate <candidate_id>
+/retry_candidate <candidate_id>
+```
+
+Required inline controls:
+
+- Open candidate detail from candidate list cards.
+- Start reply edit.
+- Save or cancel reply edit preview.
+- Approve only after the operator can see the current final reply.
+- Send only for approved candidates.
+- View audit or revisions from terminal and non-terminal candidates.
+
+Candidate detail cards should show:
+
+- send readiness summary
+- candidate ID
+- community title and username when available
+- topic name
+- status and expiry
+- capped source excerpt
+- detected reason
+- suggested reply
+- current final reply
+- prompt profile and version when available
+- risk notes
+- revision count when available
+- next safe actions
+
+Rules:
+
+- Source excerpts must be capped.
+- Sender identity, phone numbers, private account metadata, and person-level scores must never be
+  shown.
+- The exact final reply must not be truncated in approval or send confirmations. Split long
+  confirmations across messages if needed.
+- Sent, rejected, and expired candidates are read-only in normal controls.
+- Approval and send remain separate.
+- Retry is available only when the backend says the failed state is retryable.
+- Expire is an explicit operator action and should leave an audit trail when the API supports it.
+
+API dependencies:
+
+```http
+GET  /api/engagement/candidates/{candidate_id}
+GET  /api/engagement/candidates/{candidate_id}/revisions
+POST /api/engagement/candidates/{candidate_id}/edit
+POST /api/engagement/candidates/{candidate_id}/expire
+POST /api/engagement/candidates/{candidate_id}/retry
+```
+
+If detail, revisions, expire, or retry endpoints are missing, hide the related inline control and
+return a clear command response instead of approximating behavior from list data.
+
+Tests:
+
+- Candidate detail formatting omits sender identity and private metadata.
+- Editing creates a revision through the API and refreshes the candidate card.
+- Approval uses the latest valid final reply.
+- Send controls appear only for approved candidates.
+- Terminal candidates do not expose edit controls.
+- Failed non-retryable candidates do not expose retry controls.
+
+### Slice 6: Prompt Profile Admin Controls
+
+Purpose:
+
+Expose prompt profile inspection and administration from the engagement admin cockpit without making
+prompt editing part of daily candidate review.
+
+Required commands:
+
+```text
+/engagement_prompts
+/engagement_prompt <profile_id>
+/engagement_prompt_versions <profile_id>
+/engagement_prompt_preview <profile_id>
+/activate_engagement_prompt <profile_id>
+/duplicate_engagement_prompt <profile_id> <new_name>
+/edit_engagement_prompt <profile_id> <field>
+/rollback_engagement_prompt <profile_id> <version_number>
+```
+
+Editable fields:
+
+- `name`
+- `description`
+- `model`
+- `temperature`
+- `max_output_tokens`
+- `system_prompt`
+- `user_prompt_template`
+
+Required inline controls:
+
+- Open profile detail.
+- Preview rendered prompt.
+- View versions.
+- Edit allowlisted fields.
+- Duplicate profile when supported by the API.
+- Activate profile with confirmation.
+- Roll back to a version with confirmation.
+
+Rules:
+
+- Prompt profile controls belong under `Engagement Admin -> Advanced`.
+- Preview is render-only unless a later spec introduces an explicitly named test-generation route.
+- Prompt activation must show profile name, version, model, temperature, token limit, and output
+  schema before confirmation.
+- Prompt edits must create immutable backend versions.
+- The bot may reject unknown field names and obvious unsupported prompt variables before calling the
+  API, but backend validation remains authoritative.
+- The bot must never display sender identity or private account metadata in prompt previews.
+- Prompt profile changes are admin-only once the permission boundary exists.
+
+API dependencies:
+
+```http
+GET  /api/engagement/prompt-profiles
+POST /api/engagement/prompt-profiles
+GET  /api/engagement/prompt-profiles/{profile_id}
+PATCH /api/engagement/prompt-profiles/{profile_id}
+POST /api/engagement/prompt-profiles/{profile_id}/activate
+POST /api/engagement/prompt-profiles/{profile_id}/preview
+GET  /api/engagement/prompt-profiles/{profile_id}/versions
+POST /api/engagement/prompt-profiles/{profile_id}/duplicate
+POST /api/engagement/prompt-profiles/{profile_id}/rollback
+```
+
+Duplicate and rollback controls may be hidden until the backend exposes first-class routes.
+
+Tests:
+
+- Prompt preview does not call generation or send endpoints.
+- Long prompt edits use the shared edit preview/save/cancel flow.
+- Activation requires explicit confirmation.
+- Unknown prompt fields are rejected.
+- Unsupported prompt variables are rejected or surfaced from API validation.
+- Version cards show enough metadata to explain what would activate or roll back.
+
+### Slice 7: Topic Examples And Style Rules
+
+Purpose:
+
+Let admins tune what the system notices and how replies should sound through topic examples,
+keyword edits, topic guidance, and style rules.
+
+Required topic commands:
+
+```text
+/engagement_topic <topic_id>
+/topic_good_reply <topic_id> | <example>
+/topic_bad_reply <topic_id> | <example>
+/topic_remove_example <topic_id> <good|bad> <index>
+/topic_keywords <topic_id> <trigger|negative> <comma_keywords>
+/edit_topic_guidance <topic_id>
+```
+
+Required style commands:
+
+```text
+/engagement_style [scope] [scope_id]
+/engagement_style_rule <rule_id>
+/create_style_rule <scope> <scope_id_or_dash> | <name> | <priority> | <rule_text>
+/edit_style_rule <rule_id>
+/toggle_style_rule <rule_id> <on|off>
+```
+
+Required inline controls:
+
+- Open topic detail from topic lists.
+- Add good example.
+- Add bad example.
+- Remove good or bad example by index until examples have stable IDs.
+- Edit trigger and negative keywords.
+- Edit topic guidance with the shared long-text flow.
+- Open style rule detail.
+- Filter style rules by scope.
+- Create, edit, activate, and deactivate style rules.
+
+Rules:
+
+- Topic screens should use operator language: what to notice, what to avoid, and what useful replies
+  sound like.
+- Good examples are desired-shape guidance, not templates to copy word for word.
+- Bad examples are avoid-this guidance and must never be presented as candidate text.
+- Keyword edits replace the selected keyword list unless a later API exposes add/remove operations.
+- Style rules may make replies stricter, shorter, clearer, or more contextual.
+- Style rules may not permit DMs, impersonation, hidden sponsorship, fake consensus, harassment,
+  moderation evasion, unsafe link behavior, or disabling approval.
+- Style rule scope and priority must be visible in every style rule card.
+
+API dependencies:
+
+```http
+GET    /api/engagement/topics/{topic_id}
+PATCH  /api/engagement/topics/{topic_id}
+POST   /api/engagement/topics/{topic_id}/examples
+DELETE /api/engagement/topics/{topic_id}/examples/{example_type}/{index}
+
+GET    /api/engagement/style-rules
+POST   /api/engagement/style-rules
+GET    /api/engagement/style-rules/{rule_id}
+PATCH  /api/engagement/style-rules/{rule_id}
+```
+
+Tests:
+
+- Good and bad examples are labeled distinctly in cards and previews.
+- Bad examples are not surfaced as reusable reply text.
+- Topic keyword parsing handles commas, whitespace, and empty lists consistently.
+- Topic guidance edits use preview/save/cancel.
+- Style rule scope filters call the API with explicit scope parameters.
+- Unsafe guidance remains blocked by backend validation.
+
+### Slice 8: Advanced Community Settings
+
+Purpose:
+
+Expose rate limits, quiet hours, and engagement account assignment in the admin cockpit while
+preserving reply-only, approval-required engagement.
+
+Required commands:
+
+```text
+/set_engagement_limits <community_id> <max_posts_per_day> <min_minutes_between_posts>
+/set_engagement_quiet_hours <community_id> <HH:MM> <HH:MM>
+/clear_engagement_quiet_hours <community_id>
+/assign_engagement_account <community_id> <telegram_account_id>
+/clear_engagement_account <community_id>
+```
+
+Required inline controls:
+
+- Open limits/accounts from community settings.
+- Edit max posts per day.
+- Edit minimum minutes between posts.
+- Set quiet hours.
+- Clear quiet hours.
+- Assign engagement account.
+- Clear assigned account.
+
+Rules:
+
+- Settings cards should show a readiness summary before raw numeric fields.
+- Updates must preserve `reply_only=true` and `require_approval=true`.
+- The bot may pre-check time format and positive integers but must rely on API bounds.
+- Quiet hours are interpreted in the configured app/user locale.
+- Assigned accounts must be engagement-pool accounts.
+- Bot messages must use account IDs or masked display labels only. Full phone numbers must never be
+  shown.
+- Account assignment changes require confirmation because they affect outbound identity.
+
+API dependencies:
+
+```http
+GET /api/communities/{community_id}/engagement-settings
+PUT /api/communities/{community_id}/engagement-settings
+GET /api/debug/accounts
+```
+
+The account list dependency may be replaced by a dedicated engagement-account lookup endpoint later.
+If only debug account data is available, the API must provide masked phone numbers before the bot
+renders them.
+
+Tests:
+
+- Limit updates preserve hard safety fields.
+- Quiet-hour parsing accepts valid `HH:MM` values and rejects malformed ones before API calls.
+- Wrong-pool account assignment failures are surfaced from the API.
+- Full phone numbers are absent from account selection and settings messages.
+- Assignment confirmation displays before/after account labels.
+
+### Slice 9: Admin Permission Boundary
+
+Purpose:
+
+Separate ordinary daily engagement review from configuration that changes outbound permissions,
+prompt behavior, style behavior, account assignment, or target approval.
+
+Permission model:
+
+- Regular operator: may use daily review controls when allowed by the backend.
+- Engagement admin: may mutate engagement targets, prompt profiles, style rules, topic guidance,
+  advanced community settings, and account assignment.
+- Backend authorization is the source of truth.
+- Bot-side gating is a UX and early-rejection layer, not a security boundary by itself.
+
+Admin-only actions:
+
+- target approval, rejection, archive, and posting permission changes
+- prompt profile create, edit, activate, duplicate, rollback
+- style rule create, edit, toggle
+- topic guidance, keyword, and example mutation
+- community rate limits, quiet hours, and account assignment
+- any future control that can change outbound behavior
+
+Rules:
+
+- Unauthorized users should receive a clear bot message or callback alert.
+- Unauthorized attempts must not call protected mutation endpoints when the bot can identify the
+  user as non-admin locally.
+- If the bot cannot determine admin status locally, it may call the API and surface the API's
+  authorization error.
+- Daily candidate review may remain available to non-admin allowlisted operators if the backend
+  permits it.
+- Permission checks must apply to slash commands and inline callbacks.
+- Hidden buttons are not sufficient; handlers must check permissions again.
+
+Implementation options:
+
+- Preferred: backend exposes operator/admin capabilities in the existing bot auth context or a
+  dedicated capability endpoint.
+- Transitional: bot maintains a separate admin allowlist, while still treating API authorization as
+  authoritative.
+
+Tests:
+
+- Non-admin operators cannot mutate prompt profiles, style rules, target approvals, posting
+  permissions, topic guidance, or account assignment.
+- Unauthorized inline callbacks do not call mutation API-client methods.
+- Authorized admins can still reach the same flows.
+- Ordinary operators can still use permitted daily review controls.
+- Permission checks cover both commands and callbacks.
+
+### Slice 10: Release Documentation And Broader Test Wrap-Up
+
+Purpose:
+
+Close the bot engagement controls feature by updating the wiki, broadening regression coverage, and
+documenting shipped behavior across the bot, API, and engagement control-plane specs.
+
+Required documentation updates:
+
+- Update this spec's Current Menu Gap Inventory so shipped controls move from missing to exposed.
+- Update `wiki/plan/bot-engagement-controls.md` with completed notes for slices 4 through 9.
+- Update `wiki/spec/bot.md` with final command behavior and admin boundary notes.
+- Update `wiki/spec/api.md` when API routes or authorization behavior changed.
+- Update `wiki/spec/engagement-admin-control-plane.md` when prompt, style, topic, revision, or
+  permission behavior changed.
+- Update `wiki/spec/database.md` if schema, revision, version, audit, or permission fields changed.
+- Update `wiki/index.md` for new implementation roots, migrations, or tests.
+- Append `wiki/log.md` entries for each completed change slice.
+
+Required release checks:
+
+- Run focused bot API-client tests.
+- Run bot formatting tests.
+- Run callback parser tests, including callback length checks.
+- Run bot handler tests for command and inline flows.
+- Run backend API/service tests for new or changed endpoints.
+- Run candidate edit/revision tests.
+- Run prompt profile/version tests.
+- Run topic example and style rule tests.
+- Run admin permission tests.
+- Run privacy regressions proving messages omit sender identity, full phone numbers, private account
+  metadata, and person-level scores.
+- Run the repo's relevant full suite command before final release documentation is marked complete.
+
+Acceptance:
+
+- The shipped bot surface matches this spec and the plan status.
+- Missing route controls are hidden or documented as future work.
+- Tests cover daily review, admin mutation, confirmation, privacy, and API-client routing.
+- The final feature commit is pushed when the remote is configured.
+
 ## Command Surface
 
 ### Daily Review Commands
