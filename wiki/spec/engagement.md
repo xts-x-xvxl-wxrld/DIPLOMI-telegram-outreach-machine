@@ -277,6 +277,8 @@ Validation contract:
 - `min_minutes_between_posts` must be at least 60 in MVP.
 - If one quiet-hour value is provided, both must be provided.
 - `assigned_account_id`, when provided, must reference an account that is not banned.
+- `assigned_account_id`, when provided, must reference an account in the `engagement` account pool
+  defined by `wiki/spec/telegram-account-pools.md`.
 - Only communities with `status IN ('approved', 'monitoring')` may enable `allow_join` or
   `allow_post`.
 
@@ -331,9 +333,11 @@ Rules:
 
 Selection contract:
 
-1. If `community_engagement_settings.assigned_account_id` is set, use that account.
-2. Else if a `joined` membership already exists for the community, use that account.
-3. Else acquire any healthy account through the account manager.
+1. If `community_engagement_settings.assigned_account_id` is set, use that account only if it is in
+   the `engagement` account pool.
+2. Else if a `joined` membership already exists for the community with an `engagement` account, use
+   that account.
+3. Else acquire any healthy `engagement` account through the account manager.
 4. After a successful join, write or update the membership row.
 
 The first implementation should prefer one joined account per community. Multiple joined accounts
@@ -758,6 +762,7 @@ Rules:
 - An approved engagement target with `allow_post = true` must exist for the community.
 - `require_approval` must be satisfied.
 - The account must have joined the community.
+- The joined membership account must be in the `engagement` account pool.
 - Daily and spacing limits must pass for the account and community.
 - MVP sends replies only; top-level posts are future/optional.
 - Store an `engagement_actions` row whether the result is sent, failed, or skipped.

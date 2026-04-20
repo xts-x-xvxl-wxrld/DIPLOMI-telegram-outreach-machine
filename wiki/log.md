@@ -6,6 +6,14 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-04-20] spec | Designed Telegram account pool separation
+
+Added a dedicated Telegram account pool separation spec and implementation plan. The design splits
+managed accounts into `search`, `engagement`, and `disabled` pools, maps every Telethon job purpose
+to exactly one pool, defaults existing accounts to read-only search, and requires engagement joins
+and sends to use only engagement-pool accounts. Updated account-manager, database, engagement, queue,
+and wiki index docs with the new contract.
+
 ## [2026-04-20] code | Built engagement admin control plane
 
 Completed the remaining engagement admin control-plane slices. Added prompt profile/version

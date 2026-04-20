@@ -2,15 +2,19 @@
 
 ## Purpose
 
-The account manager coordinates a small pool of Telegram user accounts used by Telethon-based workers.
+The account manager coordinates small pools of Telegram user accounts used by Telethon-based workers.
 
 It is a Python utility module, not a separate service. Expansion, collection, entity-intake, and
 future engagement workers call it directly before making Telegram API calls.
+
+Account pool separation is specified in `wiki/spec/telegram-account-pools.md`. Search/read-only work
+and public engagement work must use separate Telegram identities.
 
 ## Responsibilities
 
 - Lease one healthy Telegram account to one worker job at a time.
 - Prevent concurrent use of the same account.
+- Enforce account pool separation for search/read-only work and engagement work.
 - Track account health and rate-limit state.
 - Convert Telegram account failures into deterministic worker outcomes.
 - Recover stale leases left behind by crashed workers.
@@ -25,6 +29,13 @@ future engagement workers call it directly before making Telegram API calls.
 ## Database Table
 
 Uses `telegram_accounts`.
+
+Required account pools:
+
+- `search` - read-only account for seed resolution, expansion, entity intake, target resolution, and
+  collection.
+- `engagement` - public-facing account for approved engagement joins and approved public replies.
+- `disabled` - never leased automatically.
 
 Required statuses:
 
@@ -49,7 +60,14 @@ class AccountLease:
 def acquire_account(
     *,
     job_id: str,
-    purpose: Literal["expansion", "collection", "entity_intake", "engagement_join", "engagement_send"],
+    purpose: Literal[
+        "expansion",
+        "collection",
+        "entity_intake",
+        "engagement_target_resolve",
+        "engagement_join",
+        "engagement_send",
+    ],
     lease_seconds: int = 900,
 ) -> AccountLease:
     ...
@@ -88,14 +106,18 @@ It then selects one account:
 ```sql
 SELECT *
 FROM telegram_accounts
-WHERE (
+WHERE account_pool = :required_pool
+  AND (
     status = 'available'
     OR (status = 'rate_limited' AND flood_wait_until <= now())
-)
+  )
 ORDER BY last_used_at NULLS FIRST, added_at ASC
 FOR UPDATE SKIP LOCKED
 LIMIT 1;
 ```
+
+The required pool is derived from the account purpose. Read-only purposes use `search`; engagement
+join/send purposes use `engagement`. There is no fallback between pools.
 
 If an account is found, it is marked:
 
@@ -143,12 +165,14 @@ Long collection jobs may extend leases by calling a future `heartbeat_account_le
 
 ## No Account Available
 
-`NoAccountAvailable` means all accounts are currently leased, banned, or rate-limited.
+`NoAccountAvailable` means all accounts in the required pool are currently leased, banned,
+rate-limited, disabled, or missing.
 
 The worker must not busy-loop. Queue behavior:
 
 - expansion: retry later with backoff.
 - collection: retry later or let the next scheduler tick pick it up.
+- engagement join/send: retry later or alert the operator that no engagement account is available.
 
 ## Operator Alerts
 
@@ -169,6 +193,8 @@ Telegram user accounts are onboarded manually by the operator. The MVP provides
 2. Prompt for or accept a phone number.
 3. Create or validate a Telethon `.session` file under `SESSIONS_DIR`.
 4. Upsert the matching `telegram_accounts` row with `status = 'available'`.
+5. Store the intended `account_pool`; default to `search` unless the operator explicitly chooses
+   `engagement`.
 
 The script stores only the operational account phone and session path in `telegram_accounts`.
 It must not collect Telegram community member phone numbers.
@@ -189,7 +215,9 @@ not be used for spam, flooding, fake subscriber/view activity, or unauthorized d
 Baseline operating rules:
 
 - Use dedicated Telegram accounts, never the operator's main personal account.
-- Keep accounts read-only for discovery, expansion, entity intake, and collection.
+- Keep search-pool accounts read-only for discovery, expansion, entity intake, target resolution,
+  and collection.
+- Keep engagement-pool accounts out of broad search and collection work.
 - Engagement is the only planned exception to read-only use. It must be explicitly enabled through
   the engagement module, stay public, require operator approval in the MVP, and write audit logs.
 - No outreach DMs, promotional mass joins, vote manipulation, or subscriber/view inflation.
@@ -229,9 +257,10 @@ Manual recovery:
 
 Recommended pool size for the beginning:
 
-- Start with two dedicated accounts: one active account and one warm spare.
-- Add both through `scripts/onboard_telegram_account.py` so both have sessions and rows in
-  `telegram_accounts`.
+- Start with at least one search account and one warm spare search account for read-only work.
+- Add at least one separate engagement account before enabling joins or sends.
+- Add all accounts through `scripts/onboard_telegram_account.py` so each has a session, a row in
+  `telegram_accounts`, and the correct `account_pool`.
 - Keep worker concurrency low enough that the pool normally has at least one account not `in_use`.
 - Scale only after observing several successful seed-resolution and collection cycles without
   `rate_limited` or account-level auth errors.
@@ -239,6 +268,8 @@ Recommended pool size for the beginning:
 ## Safety Rules
 
 - Never lease banned accounts automatically.
+- Never lease an account from the wrong pool for a job purpose.
+- Never lease disabled accounts automatically.
 - Never collect phone numbers.
 - Never share a Telethon session across concurrent jobs.
 - Never mark a Telegram account healthy after account-level auth errors.

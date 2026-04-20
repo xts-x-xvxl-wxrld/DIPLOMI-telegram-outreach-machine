@@ -350,6 +350,8 @@ Managed Telegram accounts used by Telethon workers.
 id                  uuid PRIMARY KEY
 phone               text UNIQUE NOT NULL
 session_file_path   text NOT NULL           -- path inside /sessions volume
+account_pool        text NOT NULL DEFAULT 'search'
+                    -- 'search' | 'engagement' | 'disabled'
 status              text NOT NULL DEFAULT 'available'
                     -- 'available' | 'in_use' | 'rate_limited' | 'banned'
 flood_wait_until    timestamptz             -- set when rate_limited
@@ -360,6 +362,10 @@ added_at            timestamptz NOT NULL DEFAULT now()
 last_error          text
 notes               text
 ```
+
+`account_pool` separates read-only search identities from public engagement identities. Existing
+accounts should default to `search` when the column is introduced; accounts must be explicitly marked
+`engagement` before they can join communities or send public replies.
 
 ---
 
@@ -609,6 +615,7 @@ CREATE INDEX ON community_members (community_id, activity_status);
 CREATE INDEX ON community_members (user_id);
 CREATE INDEX ON analysis_summaries (community_id, analyzed_at DESC);
 CREATE INDEX ON telegram_accounts (status);
+CREATE INDEX ON telegram_accounts (account_pool, status, last_used_at);
 CREATE INDEX ON telegram_accounts (lease_expires_at);
 CREATE INDEX ON community_discovery_edges (seed_group_id);
 CREATE INDEX ON community_discovery_edges (seed_channel_id);

@@ -354,6 +354,7 @@ Payload:
 Uses:
 
 - `account_manager.acquire_account(purpose="engagement_join")`
+- The account manager must lease only an `engagement` pool account for this purpose.
 
 Rules:
 
@@ -379,6 +380,7 @@ Payload:
 Uses:
 
 - `account_manager.acquire_account(purpose="engagement_target_resolve")`
+- This purpose is read-only and must lease only a `search` pool account.
 
 Reads:
 
@@ -438,6 +440,7 @@ Payload:
 Uses:
 
 - `account_manager.acquire_account(purpose="engagement_send")`
+- The account manager must lease only the joined `engagement` pool account for this purpose.
 
 Rules:
 
