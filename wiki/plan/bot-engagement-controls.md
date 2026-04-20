@@ -36,6 +36,22 @@ Backend/API concepts already specified:
 - editable candidate replies and revisions
 - Telegram account pool separation
 
+Known menu gaps:
+
+- Daily engagement still lacks direct `Approved queue`, `Settings lookup`, candidate detail,
+  revisions, expire, retry, and button-led reply editing flows.
+- Target controls list and approve targets, but lack detail, resolve, reject, archive, permission
+  toggles, target-scoped join/detect, status filters, and add-target menu buttons.
+- Prompt controls list, preview, and activate profiles, but lack detail, versions, creation,
+  duplication, editing, rollback, inline preview, and activation confirmation.
+- Topic controls lack admin-menu placement, detail, example removal, keyword editing, guidance
+  editing, and inline example controls.
+- Style controls are currently read-only and lack detail, create, edit, toggle, and scope-filter
+  flows.
+- Community controls lack rate-limit, quiet-hours, and assigned-account commands and menu entries.
+- Cross-cutting admin permission, confirmation, and conversation-state editing flows are still
+  missing.
+
 ## Slice 1: Documentation Baseline
 
 Status: completed.
@@ -56,6 +72,11 @@ Acceptance:
 - The new spec describes command, callback, formatting, API, safety, and testing contracts.
 - The plan is linked from the wiki index.
 - No code is changed in this slice.
+
+Completed notes:
+
+- Added a current menu gap inventory to the spec so later slices can work from the real bot menu
+  state instead of only the target command list.
 
 ## Slice 2: Engagement Target Bot Controls
 

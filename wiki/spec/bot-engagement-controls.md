@@ -124,6 +124,123 @@ reachable through an explicit command for traceability and testing.
 Inline callback data must stay under Telegram's 64-byte limit. UUID-heavy actions should use short
 prefixes and compact action segments.
 
+## Current Menu Gap Inventory
+
+This inventory records the gap between the current bot engagement menu and the target control
+surface in this spec. It should be updated as implementation slices ship.
+
+### Currently Exposed
+
+The current main engagement menu exposes:
+
+- `/engagement` cockpit.
+- Inline `Topics`, `Replies`, `Audit`, and `Admin` buttons.
+- Candidate queue filters for `needs_review`, `approved`, `failed`, `sent`, and `rejected`.
+- Candidate approve, reject, and queue-send controls.
+- `/edit_reply <candidate_id> | <new final reply>` as a pipe-command edit path.
+- `/engagement_actions [community_id]`.
+- `/engagement_settings <community_id>`.
+- `/set_engagement <community_id> <off|observe|suggest|ready>`.
+- `/join_community <community_id>`.
+- `/detect_engagement <community_id> [window_minutes]`.
+- `/engagement_topics`, topic creation, topic active-state toggles, and good/bad topic examples.
+- `/engagement_admin` with inline `Targets`, `Prompts`, `Style rules`, and back-to-engagement
+  buttons.
+- `/engagement_targets`, `/add_engagement_target`, and `/approve_engagement_target`.
+- `/engagement_prompts`, `/engagement_prompt_preview`, and direct prompt activation.
+- `/engagement_style` as a read-only style-rule list.
+
+### Missing From Daily Engagement
+
+- Direct `Approved queue` menu item.
+- `Settings lookup` menu item.
+- Candidate detail/open command: `/engagement_candidate <candidate_id>`.
+- Inline candidate open/details handler. `ACTION_ENGAGEMENT_CANDIDATE_OPEN` exists in bot UI code,
+  but the callback is not handled yet.
+- Candidate revisions command: `/candidate_revisions <candidate_id>`.
+- Candidate expire command: `/expire_candidate <candidate_id>`.
+- Candidate retry command: `/retry_candidate <candidate_id>`.
+- Inline or conversation-state edit-reply flow. The pipe command exists, but there is no button-led
+  preview and confirmation flow.
+
+### Missing From Engagement Targets
+
+- Add-target menu button. `/add_engagement_target` exists, but the admin menu only lists targets.
+- Target detail/open command: `/engagement_target <target_id>`.
+- Resolve target command: `/resolve_engagement_target <target_id>`.
+- Reject target command: `/reject_engagement_target <target_id>`.
+- Archive target command: `/archive_engagement_target <target_id>`.
+- Permission toggle command:
+  `/target_permission <target_id> <join|detect|post> <on|off>`.
+- Target-scoped join command: `/target_join <target_id>`.
+- Target-scoped detect command: `/target_detect <target_id> [window_minutes]`.
+- Target status filters in target list navigation.
+- Inline target detail, resolve, reject, archive, permission, join, and detect controls.
+
+### Missing From Prompt Profiles
+
+- Prompt detail/open command: `/engagement_prompt <profile_id>`.
+- Prompt version list command: `/engagement_prompt_versions <profile_id>`.
+- Inline prompt preview button. `/engagement_prompt_preview` exists, but prompt cards only show it as
+  command text.
+- Prompt profile creation.
+- Prompt profile duplication: `/duplicate_engagement_prompt <profile_id> <new_name>`.
+- Prompt profile field editing: `/edit_engagement_prompt <profile_id> <field>`.
+- Prompt profile rollback: `/rollback_engagement_prompt <profile_id> <version_number>`.
+- Activation confirmation. Current prompt activation is direct.
+- Conversation-state editing for long prompt fields.
+
+### Missing From Topics And Examples
+
+- Admin menu button for `Topics and examples`; topics currently live in the main engagement menu.
+- Topic detail/open command: `/engagement_topic <topic_id>`.
+- Remove topic example command: `/topic_remove_example <topic_id> <good|bad> <index>`.
+- Topic keyword editing command:
+  `/topic_keywords <topic_id> <trigger|negative> <comma_keywords>`.
+- Topic guidance editing command: `/edit_topic_guidance <topic_id>`.
+- Inline buttons for adding and removing examples.
+- Conversation-state editing for topic guidance.
+
+### Missing From Style Rules
+
+- Style rule detail/open command: `/engagement_style_rule <rule_id>`.
+- Style rule creation:
+  `/create_style_rule <scope> <scope_id_or_dash> | <name> | <priority> | <rule_text>`.
+- Style rule editing: `/edit_style_rule <rule_id>`.
+- Style rule active-state toggles: `/toggle_style_rule <rule_id> <on|off>`.
+- Scope filters for style-rule lists. The API client supports scope filters, but the menu does not
+  expose them.
+- Inline style-rule detail, create, edit, and toggle controls.
+- Conversation-state editing for long style rule text.
+
+### Missing From Community Controls
+
+- `Community controls` menu entry under engagement admin.
+- Rate-limit command:
+  `/set_engagement_limits <community_id> <max_posts_per_day> <min_minutes_between_posts>`.
+- Quiet-hours command: `/set_engagement_quiet_hours <community_id> <HH:MM> <HH:MM>`.
+- Clear quiet-hours command: `/clear_engagement_quiet_hours <community_id>`.
+- Assigned-account command: `/assign_engagement_account <community_id> <telegram_account_id>`.
+- Clear assigned-account command: `/clear_engagement_account <community_id>`.
+- Inline community controls for rate limits, quiet hours, and account assignment.
+
+### Missing Cross-Cutting UX
+
+- Conversation-state editing for long prompt, topic guidance, style rule, and reply edits.
+- Save/cancel confirmation buttons for long edits.
+- Admin permission boundary in the bot UI.
+- Confirmation flows for risky admin mutations, including prompt activation, posting permission
+  changes, target approval, and account assignment.
+
+### Recommended Next Menu Slice
+
+The next implementation slice should prioritize:
+
+- Add `Approved queue` and `Settings lookup` to `/engagement`.
+- Add `Topics and examples` and `Community controls` to `/engagement_admin`.
+- Expand target cards with resolve, reject, archive, permission toggles, target join, and target
+  detect controls.
+
 ## Command Surface
 
 ### Daily Review Commands

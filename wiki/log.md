@@ -571,3 +571,10 @@ engagement layer. The design covers engagement target management, prompt profile
 rules, topic examples, editable reply revisions, advanced community settings, conversation-state
 editing, callback namespaces, API dependencies, and safety/testing contracts. Updated the bot spec
 and wiki index to point to the new docs.
+
+## [2026-04-20] spec | Listed missing engagement menu controls
+
+Updated the bot engagement controls spec with a current menu gap inventory. The inventory separates
+already exposed engagement controls from missing daily review, target, prompt, topic, style,
+community, and cross-cutting admin UX controls, then names the recommended next menu slice.
+Updated the matching implementation plan with the same known gaps.
