@@ -383,6 +383,18 @@ def get_joined_membership_for_send(
 
 Engagement topics define when the app should consider a public reply.
 
+Operator-facing topic guidance has two required parts:
+
+| Field | Question it answers | Stored in MVP |
+|---|---|---|
+| Conversation target | What kind of conversation are we looking for? | `description`, `trigger_keywords`, and `negative_keywords` |
+| Position guidance | What position should we take? | `stance_guidance` |
+
+The UI should present these as two distinct topic-guidance values even if the first implementation
+stores the conversation target across the existing description and keyword fields. The conversation
+target is used to identify opportunities; the position guidance is used when deciding what a useful
+reply would say.
+
 Recommended table: `engagement_topics`
 
 ```sql
@@ -399,13 +411,17 @@ created_at            timestamptz NOT NULL DEFAULT now()
 updated_at            timestamptz NOT NULL DEFAULT now()
 ```
 
-Topic guidance should describe how to be useful, not how to manipulate the group.
+Topic guidance should describe the desired conversation and how to be useful inside it, not how to
+manipulate the group.
 
 Good guidance:
 
 ```text
-Support thoughtful discussion of open-source CRM tools. Be factual, brief, and non-salesy.
-Mention tradeoffs and practical evaluation criteria.
+Conversation target: People comparing open-source CRM tools, asking about CRM migration, or
+discussing practical CRM evaluation criteria.
+
+Position guidance: Be factual, brief, and non-salesy. Mention tradeoffs such as setup effort,
+integrations, export access, team adoption, and data quality.
 ```
 
 Bad guidance:
@@ -726,6 +742,9 @@ Rules for input:
 - No sender username.
 - No sender Telegram user ID.
 - No phone numbers.
+- Scheduled detection must ignore messages older than the engagement account's join time when a
+  joined membership timestamp is available. The app should not create fresh engagement
+  opportunities from messages that were posted before the account joined the community.
 - Maximum 20 messages per model call.
 - Maximum 500 characters per message.
 - Maximum serialized model input target: 64 KB.
@@ -835,26 +854,40 @@ reply and to draft that reply.
 ### Instruction Model
 
 The message-generation agent must be instructed through durable admin configuration, not ad hoc
-worker code. The worker assembles the final prompt from these layers:
+worker code. The active prompt profile is editable through the engagement bot controls, and every
+edit should create an immutable prompt-profile version before activation.
+
+Draft generation should use a lean prompt. The worker assembles the final drafting prompt from
+these layers:
 
 ```text
 immutable safety floor
   + active prompt profile
   + topic guidance and examples
   + global/account/community/topic style rules
-  + recent public message context
-  + community-level analysis context
+  + community-level summary
+  + selected source post or trigger excerpt
+  + reply target context, when needed
 ```
+
+Recent public message batches may be used for opportunity detection, but they should not be dumped
+into the draft-generation prompt by default. The draft prompt should receive the minimum context
+needed to write a focused public reply.
 
 The operator-facing instruction controls should answer five questions:
 
 | Question | Stored as | Example |
 |---|---|---|
-| What should the agent notice? | topic trigger and negative keywords | notice discussions about CRM migrations; ignore hiring posts |
-| What stance should it take? | topic `stance_guidance` | be practical, compare tradeoffs, avoid sales pressure |
+| What kind of conversation are we looking for? | topic conversation target, trigger keywords, negative keywords | notice CRM migration discussions; ignore hiring posts |
+| What position should it take? | topic `stance_guidance` | be practical, compare tradeoffs, avoid sales pressure |
 | How should it sound here? | style rules | brief, transparent, no links unless asked |
 | What is allowed to be claimed? | prompt profile and account/community style rules | may say "we maintain a tool"; must not claim to be a customer |
 | What should it avoid? | bad examples, validation, and safety floor | no DMs, no urgency, no fake consensus, no personal profiling |
+
+Style rules answer one primary user question: how should this account sound in this community?
+They belong in the rendered user prompt alongside topic guidance and examples, not in the immutable
+safety floor. Community, account, and topic style rules may make replies shorter, calmer, more
+transparent, or more specific to the local discussion.
 
 The editable prompt profile can tune the model's role, reasoning rubric, output format, and tone.
 It cannot override hard product rules. If a prompt profile, topic, or style rule conflicts with
@@ -884,20 +917,21 @@ does not sound like an advertisement
 ```
 
 The model must always be allowed to return `should_engage = false`. A "no reply" decision is a
-successful outcome when the moment is weak, stale, risky, or already well answered.
+successful outcome when the moment is weak, stale, risky, off-topic, already answered, or too old to
+join naturally.
 
-System rules:
+Immutable safety floor:
 
 ```text
-You draft transparent, helpful public replies for an approved operator account.
-Do not impersonate a normal community member.
-Do not create urgency, deception, fake consensus, or claims of personal experience.
-Do not target, profile, rank, or evaluate individual people.
-Do not suggest direct messages.
-Do not mention private/internal analysis.
-Only produce a reply when it is genuinely useful and relevant.
-Prefer no reply over a weak reply.
+No DMs.
+No fake consensus.
+No impersonation.
+No auto-send.
 ```
+
+Other research and product boundaries, such as no person-level scores and no hidden collection
+internals, remain enforced by database design, analysis boundaries, validation, and worker preflight
+rather than being expanded into a noisy immutable drafting prompt.
 
 Structured output:
 
@@ -1085,7 +1119,8 @@ Monitoring is a two-stage process:
 collection watches approved communities
   -> collection writes compact recent public samples
   -> engagement scheduler checks which communities are eligible
-  -> engagement.detect evaluates recent samples against active topics
+  -> engagement.detect finds fresh post-join trigger messages
+  -> engagement.detect drafts from the selected trigger and community context
   -> candidate replies wait for operator review
 ```
 
@@ -1100,6 +1135,33 @@ Eligibility for a scheduled detection run:
 - A completed collection run exists inside the configured detection window.
 - There is no active candidate already waiting for the same community review flow.
 - The current time is outside configured quiet hours.
+
+Opportunity detection should be precise before invoking the drafting model. The first-pass selector
+should use deterministic signals such as:
+
+- topic trigger keyword or phrase matches
+- negative keyword exclusions
+- message age
+- whether the message was posted after the engagement account joined
+- whether the message is a replyable group message
+- dedupe against active candidates and recent sent actions
+
+Keyword matches are a trigger candidate, not a send decision. A match should identify a source post
+for review, then the drafting model decides whether the moment is strong enough to create a
+candidate.
+
+Messages posted before the engagement account joined the community must not trigger new engagement
+candidates. They may inform a community-level summary, but the bot should not join a group and
+reply to old pre-join discussions as if it had been organically present.
+
+Target response timing:
+
+- Prefer opportunities where the trigger message is 15 to 60 minutes old.
+- Skip or downgrade messages younger than 15 minutes unless the operator manually forces detection;
+  this avoids instant bot-like replies.
+- Skip scheduled draft creation for trigger messages older than 60 minutes by default.
+- Manual detection may inspect a wider window for diagnosis, but send preflight should still treat
+  stale candidates conservatively.
 
 Default cadence:
 

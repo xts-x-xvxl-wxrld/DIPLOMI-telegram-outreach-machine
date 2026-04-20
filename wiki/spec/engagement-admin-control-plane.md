@@ -165,9 +165,15 @@ immutable safety floor
   + account style rules
   + community style rules
   + topic guidance and examples
-  + recent public message context
-  + community-level analysis context
+  + community-level summary
+  + selected source post or trigger excerpt
+  + reply target context, when needed
 ```
+
+Recent public message batches may be used by detection to find an opportunity, but the drafting
+prompt should not include broad past-message history by default. Drafting should receive only the
+selected source post or capped trigger excerpt, optional reply context, topic guidance, style rules,
+and community-level summary.
 
 Admin access:
 
@@ -207,6 +213,11 @@ Required variables:
 {{style.global}}
 {{style.account}}
 {{style.community}}
+{{style.topic}}
+{{source_post.text}}
+{{source_post.tg_message_id}}
+{{source_post.message_date}}
+{{reply_context}}
 {{messages}}
 {{community_context.latest_summary}}
 {{community_context.dominant_themes}}
@@ -217,8 +228,12 @@ Rules:
 - Templates must render with missing optional fields as empty strings or empty arrays.
 - Templates must not expose sender username, sender Telegram user ID, phone number, or private
   account metadata.
-- Rendered prompt input must keep existing caps: maximum 20 messages, 500 characters per message,
-  and 64 KB target serialized input unless a future plan changes those limits.
+- Draft-generation templates should prefer `source_post` and `reply_context` over `messages`.
+  `messages` is retained for detection/debug compatibility and should not be used to dump broad
+  recent chat history into normal drafting prompts.
+- Rendered prompt input must keep existing caps: maximum 500 characters for the selected source
+  post or reply-context excerpt, maximum 20 messages when detection/debug templates still use
+  `messages`, and 64 KB target serialized input unless a future plan changes those limits.
 - Candidate rows should store `prompt_profile_id`, `prompt_profile_version_id`, and a compact prompt
   render summary. Full raw prompt storage may be behind a debug flag because prompts can become
   large.

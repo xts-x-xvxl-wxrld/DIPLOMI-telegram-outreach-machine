@@ -335,17 +335,21 @@ Status: completed.
 Clarified the operator-facing product contract for:
 
 - how admin instructions are assembled for the message-generation agent
-- what durable configuration answers: what to notice, what stance to take, how to sound, what may be
-  claimed, and what to avoid
+- what durable configuration answers: what kind of conversation to look for, what position to take,
+  how the account should sound in the community, what may be claimed, and what to avoid
 - how the scheduler monitors recent public discussion through collection artifacts rather than a
   separate always-on chat listener
-- how detection cadence, quiet hours, candidate expiry, human review, and send spacing fit together
+- how post-join trigger detection, 15-to-60-minute response timing, quiet hours, candidate expiry,
+  human review, and send spacing fit together
+- how broad recent message batches can support opportunity detection without being dumped into the
+  normal draft-generation prompt
 
 Acceptance:
 
 - Future implementation work has a single spec section for prompt instruction assembly.
 - Monitoring is documented as collection-driven detection, not direct outbound-worker scraping.
 - Send timing remains sparse, approval-gated, reply-only, and rate-limited.
+- Topic guidance and style rules have user-facing editing questions that the bot should expose.
 
 ## Open Questions
 

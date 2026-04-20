@@ -286,8 +286,8 @@ The admin cockpit should expose these editable areas.
 | Engagement targets | `notes`, status transitions, `allow_join`, `allow_detect`, `allow_post` | Approval and permission changes require confirmation and before/after display. |
 | Community settings | `mode`, `max_posts_per_day`, `min_minutes_between_posts`, quiet hours, assigned engagement account, allowed join/post flags where supported | MVP edits must preserve `reply_only=true` and `require_approval=true`. |
 | Prompt profiles | `name`, `description`, `model`, `temperature`, `max_output_tokens`, `system_prompt`, `user_prompt_template` | Prompt edits create immutable backend versions. Activation is separate and confirmed. |
-| Topics | `name`, `description`, `stance_guidance`, `trigger_keywords`, `negative_keywords`, good examples, bad examples, `active` | Guidance and examples are admin-authored instruction inputs. Bad examples are never templates to copy. |
-| Style rules | `name`, `priority`, `rule_text`, `active` | Scope may be immutable after creation in the first implementation. |
+| Topics | `name`, `description`, `stance_guidance`, `trigger_keywords`, `negative_keywords`, good examples, bad examples, `active` | The bot should present two topic-guidance prompts: "What kind of conversation are we looking for?" and "What position should we take?" Bad examples are never templates to copy. |
+| Style rules | `name`, `priority`, `rule_text`, `active` | The bot should frame style rules as: "How should this account sound in this community?" Scope may be immutable after creation in the first implementation. |
 | Candidates | `final_reply`, approval/rejection/send state | Final replies are editable only before terminal states. Sending remains separate from approval. |
 | Account assignment | assigned engagement account for a community | Only engagement-pool accounts are valid. Bot output must not expose full phone numbers. |
 
@@ -303,10 +303,12 @@ not become active until an admin reviews it and explicitly saves it.
 The bot should label instruction fields clearly:
 
 - Prompt profile text controls the detection/drafting prompt.
-- Topic guidance controls when and how the system should be useful for one subject.
+- Topic guidance has two operator-facing values: what kind of conversation to look for, and what
+  position to take when that conversation appears.
 - Good examples show desired reply shape.
 - Bad examples show what to avoid and must be passed to the model only as negative examples.
-- Style rules tune voice, brevity, disclosure, and community/topic-specific constraints.
+- Style rules tune how the account should sound in this community, including voice, brevity,
+  disclosure, and community/topic-specific constraints.
 - Candidate final reply is the exact text eligible for approval and eventual sending.
 
 ### Safety Floor

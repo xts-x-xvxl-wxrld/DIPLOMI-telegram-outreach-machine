@@ -689,3 +689,12 @@ engagement watches approved public surfaces through collection artifacts, drafts
 profiles/topics/style rules, prefers no reply when the moment is weak, and sends only through
 approval, quiet-hour, membership, reply-only, and rate-limit preflights. Updated the community
 engagement plan with the completed documentation slice.
+
+## [2026-04-20] spec | Refined engagement prompt inputs and timing
+
+Refined engagement instructions so topic guidance has two user-facing values: what conversation to
+look for and what position to take. Style rules now answer how the account should sound in the
+community. Draft generation should avoid broad past-message batches and use community summary,
+topic guidance, style rules, selected source post or trigger excerpt, and reply context when needed.
+Monitoring now prefers post-join trigger messages that are 15 to 60 minutes old, with keyword and
+negative-keyword matching treated as opportunity selection rather than authorization to send.
