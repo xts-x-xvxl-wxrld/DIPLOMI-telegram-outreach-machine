@@ -563,3 +563,11 @@ membership lookup now require engagement-pool accounts for public joins/sends, w
 supports `--account-pool search|engagement` with search as the safe default. Added focused coverage
 for pool defaults, routing, assigned-account validation, and onboarding; the full Python suite
 passes.
+
+## [2026-04-20] spec | Drafted bot engagement controls spec
+
+Added a dedicated bot engagement controls spec and implementation plan for the next Telegram bot
+engagement layer. The design covers engagement target management, prompt profile admin flows, style
+rules, topic examples, editable reply revisions, advanced community settings, conversation-state
+editing, callback namespaces, API dependencies, and safety/testing contracts. Updated the bot spec
+and wiki index to point to the new docs.

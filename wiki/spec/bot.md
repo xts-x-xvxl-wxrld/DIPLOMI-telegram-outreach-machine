@@ -298,6 +298,10 @@ new human researcher can message the bot and send the ID to the operator.
 Engagement is an optional bot surface for the module in `wiki/spec/engagement.md`. It must keep
 approval and sending separate.
 
+The expanded bot-specific control contract for engagement targets, prompt profiles, style rules,
+candidate editing, and admin workflows lives in `wiki/spec/bot-engagement-controls.md`. This section
+keeps the core command behavior visible in the main bot spec.
+
 ### `/engagement`
 
 Shows a compact engagement cockpit with counts for pending replies, approved replies, failed
