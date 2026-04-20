@@ -201,10 +201,10 @@ Recommended Discovery cockpit:
 ```text
 Discovery
   Start search
-  Needs setup
+  Needs attention
   Review communities
   Watching
-  Recent jobs
+  Recent activity
   Help
 ```
 
@@ -213,10 +213,10 @@ This cockpit reframes the core search workflow around what the operator is tryin
 | Button | Operator meaning | Backend concepts behind it |
 |---|---|---|
 | `Start search` | Add example communities for a new or existing search. | seed groups, seed channels, CSV import, direct Telegram entity intake |
-| `Needs setup` | Show searches that cannot produce reviewable communities yet. | unresolved seeds, failed seed resolution, queued/failed setup jobs |
+| `Needs attention` | Show searches or communities that need operator attention before they can move forward. | unresolved seeds, failed seed resolution, failed collection, queued/stuck jobs |
 | `Review communities` | Decide which suggested communities should be watched. | candidate communities, seed-group candidate lists, review decisions |
 | `Watching` | Inspect communities already approved for monitoring. | communities with `monitoring` status, collection runs, latest snapshots |
-| `Recent jobs` | Inspect background work and failures. | seed resolution, collection, expansion/future jobs |
+| `Recent activity` | Inspect recent background work, job outcomes, and operational events. | seed resolution, collection, expansion/future jobs |
 | `Help` | Show discovery-specific input guidance. | CSV shape, public link rules, direct commands |
 
 The first implementation should reuse existing backend routes where possible. It should not
@@ -249,16 +249,26 @@ Recommended copy:
 ```text
 Discovery
 
-Start with example communities, then review what the system finds.
+Next: Review 24 suggested communities.
 
-Needs setup: 3 searches
+Needs attention: 3 searches
 Review communities: 24
 Watching: 11 communities
-Recent jobs needing attention: 2
+Recent activity: 2 jobs need attention
 ```
 
-The exact counts may be omitted in the first slice if the API does not expose them cheaply. The
-buttons should still use the six-entry cockpit shape.
+The home card should be action-biased. The `Next:` line should name the most useful next step based
+on current state, for example:
+
+```text
+Next: Start a search with example communities.
+Next: Check 3 searches that need attention.
+Next: Review 24 suggested communities.
+Next: Inspect 2 failed jobs.
+```
+
+The exact counts may be omitted in the first slice if the API does not expose them cheaply, but the
+card should still preserve the `Next:` line and the six-entry cockpit shape.
 
 ### Discovery Callback Namespace
 
@@ -267,11 +277,12 @@ Use a compact discovery-specific namespace under the top-level operator cockpit:
 ```text
 disc:home
 disc:start
-disc:setup
+disc:attention
 disc:review
 disc:watching
-disc:jobs
+disc:activity
 disc:help
+disc:all
 disc:search:<search_id>
 disc:examples:<search_id>:<offset>
 disc:check:<search_id>
@@ -286,30 +297,58 @@ navigation should use `disc:*`.
 
 ### Start Search
 
-`Start search` should explain how to add examples:
+`Start search` should be a small search hub rather than only an upload hint.
+
+Recommended hub:
+
+```text
+Start search
+  New search
+  Add examples to existing search
+  All searches
+  CSV format
+```
+
+Button meanings:
+
+| Button | Operator meaning | Backend concepts behind it |
+|---|---|---|
+| `New search` | Start a discovery set from fresh example communities. | create/import seed group |
+| `Add examples to existing search` | Add more example communities to a known search. | append seed channels to seed group |
+| `All searches` | Browse every search, including searches with no current alert or review queue. | list seed groups |
+| `CSV format` | Show import format and public-link rules. | seed CSV documentation |
+
+The first implementation may keep `New search` and `Add examples to existing search` as guidance
+around the current CSV/direct-intake flow rather than a full multi-step conversation.
+
+`Start search` should explain these input paths:
 
 - upload a CSV with `group_name,channel`
 - send one public `@username` or `t.me` link for direct classification
 - use an existing community as an example when that workflow is added
 
-The first implementation may show guidance and route to existing CSV/direct-intake behavior instead
-of implementing a multi-step conversation.
+The `All searches` path is important even when it is not a top-level cockpit button. It prevents
+searches from disappearing when they are not currently in `Needs attention`, `Review communities`,
+or `Watching`.
 
-### Needs Setup
+### Needs Attention
 
-`Needs setup` should show searches that need operator attention before review:
+`Needs attention` should show searches or communities that need operator attention before they can
+move forward:
 
 - searches with unresolved example communities
 - searches with failed example checks
 - searches with setup jobs that failed or are stuck
 - searches with no usable examples
+- watched communities whose collection jobs failed
+- any discovery job that needs inspection or retry
 
 Cards should explain the next safe action before raw counts:
 
 ```text
 Search: Hungarian SaaS founders
 
-Readiness: Needs setup
+Readiness: Needs attention
 Examples checked: 21 of 24
 Needs attention: 3 failed examples
 
@@ -371,9 +410,9 @@ Recommended buttons:
 - `Members`
 - `Engagement`
 
-### Recent Jobs
+### Recent Activity
 
-`Recent jobs` should collect background work into one operational view:
+`Recent activity` should collect background work and outcomes into one operational view:
 
 - seed/example checks
 - collection jobs
@@ -382,6 +421,9 @@ Recommended buttons:
 
 The view should provide refresh controls and short failure messages. It should avoid exposing noisy
 worker internals until the operator opens a job detail card.
+
+The operator-facing label should be `Recent activity`; individual rows may still be job cards when
+the underlying object is a job.
 
 ### Discovery Help
 
@@ -522,8 +564,8 @@ Minimum tests:
 - UI test for `operator_cockpit_markup()` labels and callback data.
 - Callback parser test for `op:home`, `op:discovery`, `op:accounts`, and `op:help`.
 - UI test for `discovery_cockpit_markup()` labels and `disc:*` callback data.
-- Callback parser test for `disc:home`, `disc:start`, `disc:setup`, `disc:review`,
-  `disc:watching`, `disc:jobs`, and `disc:help`.
+- Callback parser test for `disc:home`, `disc:start`, `disc:attention`, `disc:review`,
+  `disc:watching`, `disc:activity`, `disc:help`, and `disc:all`.
 - Handler test proving `/start` opens the operator cockpit and does not attach the old reply
   keyboard.
 - Handler test proving `op:discovery` opens the Discovery cockpit.
@@ -567,3 +609,5 @@ API calls.
   until cheap read models exist?
 - Should `Start search` become a multi-step conversation for naming a search and adding examples, or
   stay as guidance plus CSV/direct-link intake for the first slice?
+- Should `Needs attention` include collection failures from already watched communities in the first
+  slice, or should it initially focus only on search/example setup issues?

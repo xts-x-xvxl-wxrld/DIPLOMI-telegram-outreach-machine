@@ -628,3 +628,10 @@ target-scoped join jobs, and target-scoped detection jobs. Target approval and p
 show before/after permission state, while rejected and archived targets display all permissions off.
 Added `GET /api/engagement/targets/{target_id}` plus focused API-client, UI parser, formatting,
 handler, and engagement API tests.
+
+## [2026-04-20] spec | Refined discovery cockpit labels
+
+Updated the Discovery cockpit proposal to use `Needs attention` and `Recent activity`, added an
+action-biased `Next:` line for the Discovery home card, and expanded `Start search` into a small hub
+with New search, Add examples to existing search, All searches, and CSV format. Adjusted the
+`disc:*` callback guidance and tests to match the refined labels.
