@@ -9,6 +9,28 @@ ENGAGEMENT_MENU_LABEL = "Engagement"
 ACCOUNTS_MENU_LABEL = "Accounts"
 HELP_MENU_LABEL = "Help"
 
+# Operator cockpit callbacks
+ACTION_OP_HOME = "op:home"
+ACTION_OP_DISCOVERY = "op:discovery"
+ACTION_OP_ACCOUNTS = "op:accounts"
+ACTION_OP_HELP = "op:help"
+
+# Discovery cockpit callbacks
+ACTION_DISC_HOME = "disc:home"
+ACTION_DISC_START = "disc:start"
+ACTION_DISC_ATTENTION = "disc:attention"
+ACTION_DISC_REVIEW = "disc:review"
+ACTION_DISC_WATCHING = "disc:watching"
+ACTION_DISC_ACTIVITY = "disc:activity"
+ACTION_DISC_HELP = "disc:help"
+ACTION_DISC_ALL = "disc:all"
+ACTION_DISC_SEARCH = "disc:search"
+ACTION_DISC_EXAMPLES = "disc:examples"
+ACTION_DISC_CHECK = "disc:check"
+ACTION_DISC_CANDIDATES = "disc:candidates"
+ACTION_DISC_WATCH = "disc:watch"
+ACTION_DISC_SKIP = "disc:skip"
+
 ACTION_OPEN_SEED_GROUP = "sg"
 ACTION_RESOLVE_SEED_GROUP = "sr"
 ACTION_SEED_CHANNELS = "sl"
@@ -76,6 +98,52 @@ class _FallbackReplyKeyboardMarkup:
     keyboard: Sequence[Sequence[object]]
     resize_keyboard: bool
     is_persistent: bool
+
+
+@dataclass(frozen=True)
+class _FallbackReplyKeyboardRemove:
+    pass
+
+
+def operator_cockpit_markup():
+    return _inline_markup(
+        [
+            [_button("Discovery", ACTION_OP_DISCOVERY)],
+            [_button("Engagement", ACTION_ENGAGEMENT_HOME)],
+            [_button("Accounts", ACTION_OP_ACCOUNTS)],
+            [_button("Help", ACTION_OP_HELP)],
+        ]
+    )
+
+
+def discovery_cockpit_markup():
+    return _inline_markup(
+        [
+            [_button("Start search", ACTION_DISC_START)],
+            [_button("Needs attention", ACTION_DISC_ATTENTION)],
+            [_button("Review communities", ACTION_DISC_REVIEW)],
+            [_button("Watching", ACTION_DISC_WATCHING)],
+            [_button("Recent activity", ACTION_DISC_ACTIVITY)],
+            [_button("Help", ACTION_DISC_HELP)],
+            [_button("Cockpit", ACTION_OP_HOME)],
+        ]
+    )
+
+
+def discovery_seeds_markup():
+    return _inline_markup(
+        [
+            [_button("Discovery", ACTION_DISC_HOME)],
+        ]
+    )
+
+
+def reply_keyboard_remove():
+    try:
+        from telegram import ReplyKeyboardRemove
+    except ImportError:
+        return _FallbackReplyKeyboardRemove()
+    return ReplyKeyboardRemove()
 
 
 def main_menu_markup():
@@ -524,6 +592,8 @@ def parse_callback_data(data: str) -> tuple[str, list[str]]:
             return ":".join(parts[:3]), parts[3:]
         if len(parts) >= 2:
             return ":".join(parts[:2]), parts[2:]
+    if parts[0] in {"op", "disc"} and len(parts) >= 2:
+        return ":".join(parts[:2]), parts[2:]
     return parts[0], parts[1:]
 
 

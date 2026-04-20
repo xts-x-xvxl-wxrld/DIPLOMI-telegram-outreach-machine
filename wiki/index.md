@@ -96,6 +96,7 @@
 - `tests/test_engagement_prompt_controls.py` - prompt template variable privacy tests
 - `tests/test_engagement_detect_worker.py` - engagement detection worker prefiltering, candidate creation, and dedupe tests
 - `tests/test_engagement_send_worker.py` - engagement send worker preflight, rate-limit, idempotency, and Telethon error-mapping tests
+- `tests/test_bot_handlers.py` - operator cockpit, discovery cockpit, /start, /help, /accounts, /seeds, and op:/disc: callback routing tests
 - `tests/test_bot_engagement_handlers.py` - engagement cockpit, candidate status, approve-to-send, and send callback bot tests
 - `tests/test_bot_config_editing.py` - config-edit field registry, typed parser, pending-state, and expiry tests
 - `scripts/` - local developer workflow helpers

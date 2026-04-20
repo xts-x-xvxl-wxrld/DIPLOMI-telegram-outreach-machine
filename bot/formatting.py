@@ -3,6 +3,96 @@ from __future__ import annotations
 from typing import Any
 
 
+def format_operator_cockpit() -> str:
+    return "\n".join(
+        [
+            "Operator cockpit",
+            "",
+            "Discovery: import and review communities.",
+            "Engagement: review replies and participation readiness.",
+            "Accounts: check Telegram account health.",
+            "Help: commands and upload format.",
+        ]
+    )
+
+
+def format_discovery_cockpit(
+    *,
+    attention_count: int | None = None,
+    review_count: int | None = None,
+    watching_count: int | None = None,
+    activity_count: int | None = None,
+) -> str:
+    lines = ["Discovery", ""]
+    if review_count:
+        lines.append(f"Next: Review {review_count} suggested communities.")
+    elif attention_count:
+        lines.append(f"Next: Check {attention_count} searches that need attention.")
+    elif activity_count:
+        lines.append(f"Next: Inspect {activity_count} jobs.")
+    else:
+        lines.append("Next: Start a search with example communities.")
+    lines.append("")
+    lines.append(f"Needs attention: {attention_count if attention_count is not None else '—'}")
+    lines.append(f"Review communities: {review_count if review_count is not None else '—'}")
+    if watching_count is not None:
+        lines.append(f"Watching: {watching_count} communities")
+    else:
+        lines.append("Watching: —")
+    if activity_count is not None:
+        lines.append(f"Recent activity: {activity_count} jobs")
+    else:
+        lines.append("Recent activity: —")
+    return "\n".join(lines)
+
+
+def format_discovery_help() -> str:
+    return "\n".join(
+        [
+            "Discovery help",
+            "",
+            "CSV upload columns: group_name, channel",
+            "Optional CSV columns: title, notes",
+            "Only public Telegram references are accepted.",
+            "Private invite links are rejected.",
+            "Direct handle intake: send @username or a public t.me link.",
+            "No people search and no person-level scores.",
+            "",
+            "Commands:",
+            "/seeds",
+            "/seed <seed_group_id>",
+            "/channels <seed_group_id>",
+            "/candidates <seed_group_id>",
+            "/community <community_id>",
+            "/collect <community_id>",
+            "/job <job_id>",
+        ]
+    )
+
+
+def format_help() -> str:
+    return "\n".join(
+        [
+            "Operator help",
+            "",
+            "CSV upload: group_name,channel",
+            "Direct add: send @username or a public t.me link.",
+            "",
+            "Commands:",
+            "/seeds — browse searches",
+            "/seed <id> — open a search",
+            "/engagement — engagement cockpit",
+            "/engagement_admin — admin controls",
+            "/accounts — account pool health",
+            "/whoami — show your Telegram ID for allowlist onboarding",
+            "/job <id> — check a background job",
+            "",
+            "Optional:",
+            "/brief <description>",
+        ]
+    )
+
+
 def format_start() -> str:
     return "\n".join(
         [

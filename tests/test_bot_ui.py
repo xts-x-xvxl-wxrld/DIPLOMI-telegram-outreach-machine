@@ -7,6 +7,14 @@ from bot.ui import (
     ACTION_COMMUNITY_MEMBERS,
     ACTION_CONFIG_EDIT_CANCEL,
     ACTION_CONFIG_EDIT_SAVE,
+    ACTION_DISC_ACTIVITY,
+    ACTION_DISC_ALL,
+    ACTION_DISC_ATTENTION,
+    ACTION_DISC_HELP,
+    ACTION_DISC_HOME,
+    ACTION_DISC_REVIEW,
+    ACTION_DISC_START,
+    ACTION_DISC_WATCHING,
     ACTION_ENGAGEMENT_ACTIONS,
     ACTION_ENGAGEMENT_ADMIN,
     ACTION_ENGAGEMENT_ADMIN_ADVANCED,
@@ -25,11 +33,16 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TARGET_PERMISSION,
     ACTION_ENGAGEMENT_TARGETS,
     ACTION_ENGAGEMENT_TOPIC_LIST,
+    ACTION_OP_ACCOUNTS,
+    ACTION_OP_DISCOVERY,
+    ACTION_OP_HELP,
+    ACTION_OP_HOME,
     ACTION_SEED_CANDIDATES,
     ENGAGEMENT_MENU_LABEL,
     candidate_actions_markup,
     community_actions_markup,
     config_edit_confirmation_markup,
+    discovery_cockpit_markup,
     engagement_action_pager_markup,
     engagement_candidate_actions_markup,
     engagement_candidate_filter_markup,
@@ -45,6 +58,7 @@ from bot.ui import (
     encode_callback_data,
     main_menu_markup,
     member_pager_markup,
+    operator_cockpit_markup,
     parse_callback_data,
     seed_group_pager_markup,
 )
@@ -311,3 +325,115 @@ def test_engagement_action_pager_markup_preserves_community_filter() -> None:
 
     assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_ACTIONS}:community-1:0"
     assert rows[1][1].callback_data == f"{ACTION_ENGAGEMENT_ACTIONS}:community-1:10"
+
+
+# ---------------------------------------------------------------------------
+# Operator cockpit UI
+# ---------------------------------------------------------------------------
+
+
+def test_operator_cockpit_markup_exposes_four_top_level_buttons() -> None:
+    markup = operator_cockpit_markup()
+    rows = markup.inline_keyboard
+
+    all_callbacks = [button.callback_data for row in rows for button in row]
+    assert ACTION_OP_DISCOVERY in all_callbacks
+    assert ACTION_ENGAGEMENT_HOME in all_callbacks
+    assert ACTION_OP_ACCOUNTS in all_callbacks
+    assert ACTION_OP_HELP in all_callbacks
+
+
+def test_operator_cockpit_markup_button_labels() -> None:
+    markup = operator_cockpit_markup()
+    labels = [button.text for row in markup.inline_keyboard for button in row]
+
+    assert "Discovery" in labels
+    assert "Engagement" in labels
+    assert "Accounts" in labels
+    assert "Help" in labels
+
+
+def test_operator_cockpit_callback_data_stays_under_telegram_limit() -> None:
+    for action in (ACTION_OP_HOME, ACTION_OP_DISCOVERY, ACTION_OP_ACCOUNTS, ACTION_OP_HELP):
+        assert len(action) <= 64
+
+
+def test_discovery_cockpit_markup_exposes_six_navigation_entries_and_back() -> None:
+    markup = discovery_cockpit_markup()
+    all_callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
+
+    assert ACTION_DISC_START in all_callbacks
+    assert ACTION_DISC_ATTENTION in all_callbacks
+    assert ACTION_DISC_REVIEW in all_callbacks
+    assert ACTION_DISC_WATCHING in all_callbacks
+    assert ACTION_DISC_ACTIVITY in all_callbacks
+    assert ACTION_DISC_HELP in all_callbacks
+    assert ACTION_OP_HOME in all_callbacks
+
+
+def test_discovery_cockpit_markup_button_labels() -> None:
+    markup = discovery_cockpit_markup()
+    labels = [button.text for row in markup.inline_keyboard for button in row]
+
+    assert "Start search" in labels
+    assert "Needs attention" in labels
+    assert "Review communities" in labels
+    assert "Watching" in labels
+    assert "Recent activity" in labels
+    assert "Help" in labels
+    assert "Cockpit" in labels
+
+
+def test_discovery_cockpit_callback_data_stays_under_telegram_limit() -> None:
+    for action in (
+        ACTION_DISC_HOME,
+        ACTION_DISC_START,
+        ACTION_DISC_ATTENTION,
+        ACTION_DISC_REVIEW,
+        ACTION_DISC_WATCHING,
+        ACTION_DISC_ACTIVITY,
+        ACTION_DISC_HELP,
+        ACTION_DISC_ALL,
+    ):
+        assert len(action) <= 64
+
+
+# ---------------------------------------------------------------------------
+# op:* and disc:* callback parser
+# ---------------------------------------------------------------------------
+
+
+def test_parse_op_callbacks() -> None:
+    cases = {
+        "op:home": (ACTION_OP_HOME, []),
+        "op:discovery": (ACTION_OP_DISCOVERY, []),
+        "op:accounts": (ACTION_OP_ACCOUNTS, []),
+        "op:help": (ACTION_OP_HELP, []),
+    }
+    for raw_data, expected in cases.items():
+        assert parse_callback_data(raw_data) == expected
+
+
+def test_parse_disc_callbacks() -> None:
+    cases = {
+        "disc:home": (ACTION_DISC_HOME, []),
+        "disc:start": (ACTION_DISC_START, []),
+        "disc:attention": (ACTION_DISC_ATTENTION, []),
+        "disc:review": (ACTION_DISC_REVIEW, []),
+        "disc:watching": (ACTION_DISC_WATCHING, []),
+        "disc:activity": (ACTION_DISC_ACTIVITY, []),
+        "disc:help": (ACTION_DISC_HELP, []),
+        "disc:all": (ACTION_DISC_ALL, []),
+        "disc:search:sg-1": ("disc:search", ["sg-1"]),
+        "disc:examples:sg-1:10": ("disc:examples", ["sg-1", "10"]),
+        "disc:watch:comm-1": ("disc:watch", ["comm-1"]),
+        "disc:skip:comm-1": ("disc:skip", ["comm-1"]),
+    }
+    for raw_data, expected in cases.items():
+        assert parse_callback_data(raw_data) == expected
+
+
+def test_parse_op_disc_do_not_break_eng_namespace() -> None:
+    assert parse_callback_data("eng:home") == (ACTION_ENGAGEMENT_HOME, [])
+    assert parse_callback_data("eng:cand:list:needs_review:0") == ("eng:cand:list", ["needs_review", "0"])
+    assert parse_callback_data("eng:admin:to:target-1") == (ACTION_ENGAGEMENT_TARGET_OPEN, ["target-1"])

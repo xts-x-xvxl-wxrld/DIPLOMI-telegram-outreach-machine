@@ -50,13 +50,17 @@ Acceptance:
 
 ## Slice 2: Cockpit UI And Parser
 
-Status: planned.
+Status: completed.
 
 Work items:
 
 - Add `op:*` callback constants.
+- Add `disc:*` callback constants.
 - Add `operator_cockpit_markup()`.
+- Add `discovery_cockpit_markup()`.
+- Add `reply_keyboard_remove()`.
 - Parse `op:home`, `op:discovery`, `op:accounts`, and `op:help`.
+- Parse all `disc:*` callbacks.
 - Add tests for labels, callback data, and Telegram callback length.
 
 Acceptance:
@@ -66,14 +70,15 @@ Acceptance:
 
 ## Slice 3: Shared Send Helpers
 
-Status: planned.
+Status: completed.
 
 Work items:
 
 - Add `_send_operator_cockpit()`.
+- Add `_send_discovery_cockpit()`.
 - Split seed-group overview into a reusable `_send_seed_groups()` helper.
 - Split account health into a reusable `_send_accounts()` helper.
-- Add a reusable help sender that can attach cockpit markup.
+- Add a reusable `_send_help()` helper.
 
 Acceptance:
 
@@ -82,14 +87,14 @@ Acceptance:
 
 ## Slice 4: Remove Persistent Reply Keyboard
 
-Status: planned.
+Status: completed.
 
 Work items:
 
 - Stop sending `main_menu_markup()` from `/start`, `/help`, `/seeds`, `/accounts`, CSV import, and
   brief-unavailable responses.
 - Send `ReplyKeyboardRemove` when opening the new cockpit from message commands.
-- Remove old reply-keyboard label handlers, or keep them as hidden aliases for one short release.
+- Old reply-keyboard label handlers kept as hidden compatibility aliases.
 
 Acceptance:
 
@@ -99,16 +104,19 @@ Acceptance:
 
 ## Slice 5: Callback Routing And Tests
 
-Status: planned.
+Status: completed.
 
 Work items:
 
-- Route `op:home` to the cockpit.
-- Route `op:discovery` to seed groups.
+- Route `op:home` to the operator cockpit.
+- Route `op:discovery` / `disc:home` to the discovery cockpit.
 - Route `op:accounts` to account health.
 - Route `op:help` to help.
-- Add handler tests for all four callbacks.
-- Add regression tests for existing engagement cockpit callbacks.
+- Route `disc:all`, `disc:attention`, `disc:review`, `disc:watching` to seed groups.
+- Route `disc:start`, `disc:activity`, `disc:help` to guidance cards.
+- Added `tests/test_bot_handlers.py` with handler tests for all new cockpit callbacks.
+- Added cockpit markup and parser tests to `tests/test_bot_ui.py`.
+- Regression tests proving engagement cockpit callbacks still parse and route.
 
 Acceptance:
 

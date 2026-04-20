@@ -6,6 +6,22 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-04-20] code | Built operator cockpit and discovery cockpit
+
+Implemented the full bot operator cockpit replacing the persistent reply keyboard. Added `op:*` and
+`disc:*` callback constants, `operator_cockpit_markup()`, `discovery_cockpit_markup()`,
+`discovery_seeds_markup()`, and `reply_keyboard_remove()` to `bot/ui.py`. Added
+`format_operator_cockpit()`, `format_discovery_cockpit()`, `format_discovery_help()`, and
+`format_help()` to `bot/formatting.py`. Updated `bot/main.py` with `_send_operator_cockpit()`,
+`_send_discovery_cockpit()`, `_send_accounts()`, `_send_seed_groups()`, and `_send_help()` helpers.
+Switched `/start` to clear the old keyboard and open the inline cockpit. Switched `/help` to show
+help with cockpit navigation. Removed `main_menu_markup()` from all command responses. Routed
+`op:home`, `op:discovery`, `op:accounts`, `op:help`, `disc:home`, `disc:all`, `disc:attention`,
+`disc:review`, `disc:watching`, `disc:start`, `disc:activity`, and `disc:help` callbacks. Created
+`tests/test_bot_handlers.py` with `/start`, `/help`, `/accounts`, `/seeds`, and all new cockpit
+callback handler tests. Extended `tests/test_bot_ui.py` with cockpit markup and parser tests.
+Updated `wiki/plan/bot-operator-cockpit.md` slices 2–5 to completed.
+
 ## [2026-04-20] spec | Reframed engagement cockpit around operator intent
 
 Updated the bot engagement controls spec so the Telegram cockpit prioritizes operator intentions

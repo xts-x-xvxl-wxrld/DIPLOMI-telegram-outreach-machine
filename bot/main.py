@@ -26,6 +26,8 @@ from bot.formatting import (
     format_collection_job,
     format_community_detail,
     format_created_brief,
+    format_discovery_cockpit,
+    format_discovery_help,
     format_engagement_action_card,
     format_engagement_actions,
     format_engagement_admin_advanced_home,
@@ -47,9 +49,11 @@ from bot.formatting import (
     format_engagement_targets,
     format_engagement_topic_card,
     format_engagement_topics,
+    format_help,
     format_job_status,
     format_member_export,
     format_members,
+    format_operator_cockpit,
     format_review,
     format_seed_channels,
     format_seed_group,
@@ -69,6 +73,19 @@ from bot.ui import (
     ACTION_COMMUNITY_MEMBERS,
     ACTION_CONFIG_EDIT_CANCEL,
     ACTION_CONFIG_EDIT_SAVE,
+    ACTION_DISC_ACTIVITY,
+    ACTION_DISC_ALL,
+    ACTION_DISC_ATTENTION,
+    ACTION_DISC_CANDIDATES,
+    ACTION_DISC_CHECK,
+    ACTION_DISC_HELP,
+    ACTION_DISC_HOME,
+    ACTION_DISC_REVIEW,
+    ACTION_DISC_SEARCH,
+    ACTION_DISC_SKIP,
+    ACTION_DISC_START,
+    ACTION_DISC_WATCH,
+    ACTION_DISC_WATCHING,
     ACTION_ENGAGEMENT_ACTIONS,
     ACTION_ENGAGEMENT_ADMIN,
     ACTION_ENGAGEMENT_ADMIN_ADVANCED,
@@ -100,6 +117,10 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TOPIC_LIST,
     ACTION_ENGAGEMENT_TOPIC_TOGGLE,
     ACTION_JOB_STATUS,
+    ACTION_OP_ACCOUNTS,
+    ACTION_OP_DISCOVERY,
+    ACTION_OP_HELP,
+    ACTION_OP_HOME,
     ACTION_OPEN_COMMUNITY,
     ACTION_OPEN_SEED_GROUP,
     ACTION_REJECT_COMMUNITY,
@@ -112,6 +133,8 @@ from bot.ui import (
     candidate_actions_markup,
     community_actions_markup,
     config_edit_confirmation_markup,
+    discovery_cockpit_markup,
+    discovery_seeds_markup,
     engagement_action_pager_markup,
     engagement_admin_advanced_markup,
     engagement_admin_home_markup,
@@ -132,7 +155,9 @@ from bot.ui import (
     job_actions_markup,
     main_menu_markup,
     member_pager_markup,
+    operator_cockpit_markup,
     parse_callback_data,
+    reply_keyboard_remove,
     review_result_markup,
     seed_group_actions_markup,
     seed_group_pager_markup,
@@ -157,11 +182,12 @@ ENGAGEMENT_SETTING_PRESETS = {"off", "observe", "suggest", "ready"}
 
 
 async def start_command(update: Any, context: Any) -> None:
-    await _reply(update, format_start(), reply_markup=main_menu_markup())
+    await _reply(update, "Opening the operator cockpit.", reply_markup=reply_keyboard_remove())
+    await _reply(update, format_operator_cockpit(), reply_markup=operator_cockpit_markup())
 
 
 async def help_command(update: Any, context: Any) -> None:
-    await _reply(update, format_start(), reply_markup=main_menu_markup())
+    await _send_help(update)
 
 
 async def whoami_command(update: Any, context: Any) -> None:
@@ -175,7 +201,7 @@ async def whoami_command(update: Any, context: Any) -> None:
 
 
 async def briefs_command(update: Any, context: Any) -> None:
-    await _reply(update, format_briefs_unavailable(), reply_markup=main_menu_markup())
+    await _reply(update, format_briefs_unavailable())
 
 
 async def brief_command(update: Any, context: Any) -> None:
@@ -237,34 +263,17 @@ async def reject_command(update: Any, context: Any) -> None:
 
 
 async def accounts_command(update: Any, context: Any) -> None:
-    client = _api_client(context)
     try:
-        data = await client.get_accounts()
+        await _send_accounts(update, context)
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
-        return
-
-    await _reply(update, format_accounts(data), reply_markup=main_menu_markup())
 
 
 async def seeds_command(update: Any, context: Any) -> None:
-    client = _api_client(context)
     try:
-        data = await client.list_seed_groups()
+        await _send_seed_groups(update, context)
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
-        return
-
-    await _reply(update, format_seed_groups(data), reply_markup=main_menu_markup())
-    for group in (data.get("items") or [])[:10]:
-        await _reply(
-            update,
-            format_seed_group_card(group),
-            reply_markup=seed_group_actions_markup(str(group.get("id", "unknown"))),
-        )
-    remaining = max((data.get("total", 0) or 0) - 10, 0)
-    if remaining:
-        await _reply(update, f"...and {remaining} more seed groups. Open one with /seed <seed_group_id>.")
 
 
 async def seed_command(update: Any, context: Any) -> None:
@@ -783,7 +792,7 @@ async def seed_csv_document(update: Any, context: Any) -> None:
         await _reply(update, format_api_error(exc.message))
         return
 
-    await _reply(update, format_seed_import(response), reply_markup=main_menu_markup())
+    await _reply(update, format_seed_import(response))
     for group in (response.get("groups") or [])[:5]:
         await _reply(
             update,
@@ -1048,6 +1057,49 @@ async def callback_query(update: Any, context: Any) -> None:
             decision = "approve" if action == ACTION_APPROVE_COMMUNITY else "reject"
             await _review_callback(update, context, parts[0], decision=decision)
             return
+        if action == ACTION_OP_HOME:
+            await _send_operator_cockpit(update)
+            return
+        if action in {ACTION_OP_DISCOVERY, ACTION_DISC_HOME}:
+            await _send_discovery_cockpit(update)
+            return
+        if action == ACTION_OP_ACCOUNTS:
+            await _send_accounts(update, context)
+            return
+        if action == ACTION_OP_HELP:
+            await _send_help(update)
+            return
+        if action in {ACTION_DISC_ALL, ACTION_DISC_ATTENTION, ACTION_DISC_WATCHING}:
+            await _send_seed_groups(update, context)
+            return
+        if action == ACTION_DISC_REVIEW:
+            await _send_seed_groups(update, context)
+            return
+        if action == ACTION_DISC_START:
+            await _callback_reply(
+                update,
+                "Start search\n\n"
+                "Upload a CSV with group_name,channel columns.\n"
+                "Or send @username or a public t.me link directly.",
+                reply_markup=discovery_cockpit_markup(),
+            )
+            return
+        if action == ACTION_DISC_ACTIVITY:
+            await _callback_reply(
+                update,
+                "Recent activity\n\n"
+                "Check background jobs with /job <job_id>.\n"
+                "Seed resolution, collection, and expansion jobs appear here when available.",
+                reply_markup=discovery_cockpit_markup(),
+            )
+            return
+        if action == ACTION_DISC_HELP:
+            await _callback_reply(
+                update,
+                format_discovery_help(),
+                reply_markup=discovery_cockpit_markup(),
+            )
+            return
     except BotApiError as exc:
         await _callback_reply(update, format_api_error(exc.message))
         return
@@ -1215,6 +1267,42 @@ async def _send_community_members(
             page_size=MEMBER_PAGE_SIZE,
         ),
     )
+
+
+async def _send_operator_cockpit(update: Any) -> None:
+    await _callback_reply(update, format_operator_cockpit(), reply_markup=operator_cockpit_markup())
+
+
+async def _send_discovery_cockpit(update: Any) -> None:
+    await _callback_reply(update, format_discovery_cockpit(), reply_markup=discovery_cockpit_markup())
+
+
+async def _send_accounts(update: Any, context: Any) -> None:
+    client = _api_client(context)
+    data = await client.get_accounts()
+    await _callback_reply(update, format_accounts(data), reply_markup=operator_cockpit_markup())
+
+
+async def _send_seed_groups(update: Any, context: Any) -> None:
+    client = _api_client(context)
+    data = await client.list_seed_groups()
+    await _callback_reply(update, format_seed_groups(data), reply_markup=discovery_seeds_markup())
+    for group in (data.get("items") or [])[:10]:
+        await _callback_reply(
+            update,
+            format_seed_group_card(group),
+            reply_markup=seed_group_actions_markup(str(group.get("id", "unknown"))),
+        )
+    remaining = max((data.get("total", 0) or 0) - 10, 0)
+    if remaining:
+        await _callback_reply(
+            update,
+            f"...and {remaining} more seed groups. Open one with /seed <seed_group_id>.",
+        )
+
+
+async def _send_help(update: Any) -> None:
+    await _callback_reply(update, format_help(), reply_markup=operator_cockpit_markup())
 
 
 async def _send_engagement_home(update: Any, context: Any) -> None:
