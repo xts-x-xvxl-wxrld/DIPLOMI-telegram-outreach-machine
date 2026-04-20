@@ -604,3 +604,11 @@ controls, with small landing cards for limits/account lookup and advanced prompt
 Candidate, engagement target, and community settings cards now show readiness summaries before raw
 IDs and fields, and candidate cards list state-relevant next actions. Added focused bot UI,
 formatting, and handler tests.
+
+## [2026-04-20] spec | Drafted bot operator cockpit spec
+
+Added a dedicated top-level bot operator cockpit spec and implementation plan. The design replaces
+the persistent reply-keyboard menu with an inline `/start` cockpit for Discovery, Engagement,
+Accounts, and Help, adds an `op:*` callback namespace, keeps slash commands as durable shortcuts,
+and documents how to clear the old Telegram reply keyboard during rollout. Updated the bot spec and
+wiki index to point to the new docs.

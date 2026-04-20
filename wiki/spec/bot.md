@@ -13,6 +13,10 @@ to classify it as a channel, group, user, or bot.
 The bot talks only to the backend API over HTTP. It never imports backend internals and never talks
 directly to Redis, workers, Postgres, web-search providers, Telethon, or OpenAI.
 
+The top-level operator cockpit is specified in `wiki/spec/bot-operator-cockpit.md`. That cockpit
+replaces the old persistent reply-keyboard menu with inline navigation while preserving slash
+commands as durable shortcuts.
+
 ## MVP Commands
 
 ```text
@@ -467,7 +471,7 @@ The current MVP bot uses approve-as-monitoring to keep the first workflow short.
 ## UX Rules
 
 - Messages should be concise and operational.
-- The top-level bot entry should expose a persistent Telegram reply keyboard for the main actions.
+- The top-level bot entry should expose an inline operator cockpit for the main actions.
 - Candidate cards must not expose raw message history.
 - Candidate cards should explain graph evidence, such as linked discussion, forwarded source,
   Telegram link, or repeated discovery from multiple seeds.
