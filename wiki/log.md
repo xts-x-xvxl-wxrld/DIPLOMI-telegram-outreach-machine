@@ -705,3 +705,12 @@ Expanded the engagement spec with concrete detection contracts for the next impl
 stable skip reasons, normalized detection samples, deterministic trigger selection, timing gates,
 post-join filtering, bounded trigger records, lean draft model input, and structured output
 validation. Updated the community engagement plan with a completed detection-contract slice.
+
+## [2026-04-20] spec | Strengthened timely reply opportunities
+
+Renamed the engagement-domain concept from vague candidates to reply opportunities while preserving
+legacy `engagement_candidates` and `candidate_id` implementation names for compatibility. Added the
+collection-versus-detection distinction, a freshness SLO, reply deadlines, collection-completion
+detection cadence, single-source-post draft input, opportunity-level strength/timeliness/value
+fields, and operator notification rules. Added the timely reply opportunities plan and updated the
+wiki index.

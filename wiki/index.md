@@ -9,7 +9,7 @@
 - [Expansion](spec/expansion.md) - Telethon seed-group graph expansion and provenance
 - [Collection](spec/collection.md) - public message and member collection from approved communities
 - [Analysis](spec/analysis.md) - community summarization and relevance scoring via OpenAI
-- [Engagement](spec/engagement.md) - optional operator-approved community joining, topic detection, reply drafting, sending, and audit logs
+- [Engagement](spec/engagement.md) - optional operator-approved community joining, topic detection, reply opportunities, sending, and audit logs
 - [Engagement Admin Control Plane](spec/engagement-admin-control-plane.md) - separated engagement target intake, prompt profiles, style rules, examples, and editable replies
 - [Bot Engagement Controls](spec/bot-engagement-controls.md) - expanded Telegram bot controls for targets, prompts, style rules, reply editing, and admin workflows
 - [Bot Operator Cockpit](spec/bot-operator-cockpit.md) - top-level inline Telegram bot cockpit replacing the old persistent reply-keyboard menu
@@ -41,9 +41,10 @@
 - [Bot Operator Access](plan/bot-operator-access.md) - allowlisted Telegram bot operators and `/whoami` onboarding
 - [VPS Agent Ops Context](plan/vps-agent-ops.md) - redacted VPS map, helper commands, and staging deploy gates
 - [Community Engagement](plan/community-engagement.md) - human-in-the-loop Telethon joining and public reply workflow
-- [Engagement Operator Controls](plan/engagement-operator-controls.md) - Telegram bot control surface for settings, topics, joins, detection, candidate sends, and audit views
+- [Timely Reply Opportunities](plan/timely-reply-opportunities.md) - freshness SLO, reply opportunity terminology, detection cadence, and operator notification contract
+- [Engagement Operator Controls](plan/engagement-operator-controls.md) - Telegram bot control surface for settings, topics, joins, detection, reply opportunity sends, and audit views
 - [Engagement Admin Control Plane](plan/engagement-admin-control-plane.md) - manual engagement targets, prompt/profile admin, style rules, and editable reply implementation plan
-- [Bot Engagement Controls](plan/bot-engagement-controls.md) - next bot slices for target admin, prompt/style controls, candidate editing, and advanced settings
+- [Bot Engagement Controls](plan/bot-engagement-controls.md) - next bot slices for target admin, prompt/style controls, reply opportunity editing, and advanced settings
 - [Bot Operator Cockpit](plan/bot-operator-cockpit.md) - inline top-level bot cockpit, callback namespace, and reply-keyboard removal rollout
 - [Telegram Account Pool Separation](plan/telegram-account-pools.md) - schema, account-manager routing, engagement guards, and onboarding plan for dedicated account pools
 
