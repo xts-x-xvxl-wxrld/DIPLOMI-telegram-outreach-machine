@@ -351,6 +351,30 @@ Acceptance:
 - Send timing remains sparse, approval-gated, reply-only, and rate-limited.
 - Topic guidance and style rules have user-facing editing questions that the bot should expose.
 
+## Slice 13: Concrete Detection Contracts
+
+Status: completed.
+
+Clarified the implementable detection contract before the next code slices:
+
+- candidate-creating scheduled detection requires an approved target and a joined engagement
+  membership with a usable `joined_at`
+- post-join filtering prevents pre-join messages from creating fresh engagement candidates
+- deterministic trigger selection runs before any model call
+- trigger selection uses keyword/phrase matches, negative exclusions, message age, replyability,
+  dedupe, and recent sent-action cooldowns
+- scheduled triggers should normally be 15 to 60 minutes old
+- draft-generation model input is one selected `source_post`, optional `reply_context`, topic
+  guidance, style rules, and community summary
+- stable skip reasons, detection sample shape, trigger record shape, and structured model output
+  validation are documented
+
+Acceptance:
+
+- Implementation slices can build selector code and tests against named contracts.
+- Broad recent message batches remain out of normal draft-generation prompts.
+- Keyword matches are treated as model-call authorization only, not candidate/send authorization.
+
 ## Open Questions
 
 - Should engagement settings be available only for `status = monitoring` communities, or also for

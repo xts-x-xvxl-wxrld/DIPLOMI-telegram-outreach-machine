@@ -698,3 +698,10 @@ community. Draft generation should avoid broad past-message batches and use comm
 topic guidance, style rules, selected source post or trigger excerpt, and reply context when needed.
 Monitoring now prefers post-join trigger messages that are 15 to 60 minutes old, with keyword and
 negative-keyword matching treated as opportunity selection rather than authorization to send.
+
+## [2026-04-20] spec | Defined engagement detection contracts
+
+Expanded the engagement spec with concrete detection contracts for the next implementation slices:
+stable skip reasons, normalized detection samples, deterministic trigger selection, timing gates,
+post-join filtering, bounded trigger records, lean draft model input, and structured output
+validation. Updated the community engagement plan with a completed detection-contract slice.

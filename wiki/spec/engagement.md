@@ -683,10 +683,15 @@ Rules:
 
 - Do not send messages.
 - An approved engagement target with `allow_detect = true` must exist for the community.
+- Candidate-creating scheduled detection requires a joined engagement account membership with
+  `joined_at` available. Manual diagnostic detection may explain that a community has signal before
+  joining, but it must not create a sendable candidate from pre-join messages.
 - Do not score or rank people.
 - Prefer no candidate when topic fit is weak.
 - Deduplicate active candidates by community, topic, and source message.
-- Cap model input to compact samples and community-level context.
+- Use collection samples to select one or more precise trigger posts, then cap draft-generation
+  input to the selected trigger, optional reply context, topic guidance, style rules, and
+  community-level context.
 
 Worker preflight:
 
@@ -694,14 +699,123 @@ Worker preflight:
 2. Load settings; skip if mode is `disabled` or settings are missing.
 3. Skip if mode is `observe` after writing optional debug logs only; no candidate is created in MVP.
 4. Verify an approved engagement target with `allow_detect = true`.
-5. Load active topics.
-6. Load recent compact message samples.
-7. Apply keyword prefilter.
-8. Call OpenAI only for prefiltered topic/sample pairs.
-9. Validate structured output.
-10. Create candidate when `should_engage = true`.
+5. Load joined engagement membership for the community.
+6. Build a detection window using join time, response timing limits, and requested window.
+7. Load active topics.
+8. Load recent compact message samples.
+9. Select trigger candidates with deterministic matching and filtering.
+10. Build one lean model input per topic/source trigger.
+11. Call OpenAI only for selected topic/source triggers.
+12. Validate structured output.
+13. Create candidate when `should_engage = true`.
 
-Detection input contract:
+Scheduled skip reasons should be stable strings:
+
+| Reason | Meaning |
+|---|---|
+| `community_not_found` | The community row does not exist. |
+| `engagement_disabled` | Settings are missing or disabled. |
+| `observe_mode` | Settings are observe-only, so no candidate should be created. |
+| `engagement_target_detect_not_approved` | The target does not grant detection permission. |
+| `no_joined_engagement_membership` | No engagement-pool account is joined to the community. |
+| `missing_joined_at` | Joined membership exists but lacks a join timestamp for post-join filtering. |
+| `no_active_topics` | No active engagement topics exist. |
+| `no_recent_samples` | Collection produced no usable samples for the detection window. |
+| `no_trigger_candidates` | Samples did not pass deterministic trigger selection. |
+| `outside_response_window` | Matching samples were too new or too old for scheduled drafting. |
+| `quiet_hours` | Detection was suppressed by configured quiet hours. |
+| `active_candidate_exists` | A reviewable candidate already exists for the same source/topic/community flow. |
+
+### Detection Sample Contract
+
+Detection reads public collection artifacts and normalizes them into bounded samples before any
+matching or model call.
+
+```json
+{
+  "tg_message_id": 123,
+  "text": "truncated public message text",
+  "message_date": "iso_datetime",
+  "reply_to_tg_message_id": 122,
+  "reply_context": "truncated parent text or null",
+  "is_replyable": true,
+  "source": "collection_run.analysis_input"
+}
+```
+
+Rules:
+
+- `tg_message_id`, `text`, and `message_date` are required for candidate-creating scheduled
+  detection.
+- Samples without text are ignored.
+- Samples without `tg_message_id` may be used only for observe/debug summaries, not reply
+  candidates.
+- Samples without `message_date` are ignored for scheduled candidate creation because timing cannot
+  be enforced.
+- `is_replyable` defaults to true only for group message samples with a Telegram message ID; channel
+  or system-message samples should be treated as not replyable unless collection marks otherwise.
+- `reply_context` is optional and capped like source text.
+- Sender username, sender Telegram user ID, phone number, and private account metadata must not be
+  present.
+
+### Trigger Selection Contract
+
+Trigger selection is deterministic and happens before the drafting model. It chooses specific public
+posts that are worth asking the model about.
+
+Recommended configuration constants:
+
+| Setting | Default | Meaning |
+|---|---:|---|
+| `ENGAGEMENT_TRIGGER_MIN_AGE_MINUTES` | 15 | Skip or downgrade posts newer than this in scheduled detection. |
+| `ENGAGEMENT_TRIGGER_MAX_AGE_MINUTES` | 60 | Skip posts older than this in scheduled detection. |
+| `ENGAGEMENT_MAX_TRIGGER_CANDIDATES_PER_TOPIC` | 3 | Maximum source posts sent to the model per topic per run. |
+| `ENGAGEMENT_MAX_CANDIDATES_PER_COMMUNITY_RUN` | 3 | Maximum candidates created for one community detection job. |
+
+Eligibility for a source post:
+
+- Message was posted after the engagement account joined the community.
+- Message age is within the scheduled response window, usually 15 to 60 minutes old.
+- Message is replyable.
+- Message text contains at least one trigger keyword or phrase for the topic.
+- Message text contains no negative keyword or phrase for the topic.
+- Message does not duplicate an active candidate for `(community_id, topic_id, tg_message_id)`.
+- Message is not in a thread that already received a sent engagement reply in the recent cooldown
+  window.
+
+Keyword and phrase matching rules:
+
+- Normalize by case-folding and trimming whitespace.
+- Match multi-word phrases on normalized substring boundaries.
+- Match single-word keywords on word boundaries when practical.
+- Treat trigger keywords as OR conditions.
+- Treat negative keywords as hard exclusions.
+- Prefer the newest eligible message that is at least 15 minutes old.
+- If multiple topics match the same message, create at most one model prompt for the highest-priority
+  topic when topic priority exists; otherwise use deterministic topic ordering by name then ID.
+
+The selector returns bounded trigger records:
+
+```json
+{
+  "topic_id": "uuid",
+  "source_tg_message_id": 123,
+  "source_excerpt": "truncated public message text",
+  "message_date": "iso_datetime",
+  "age_minutes": 37,
+  "matched_triggers": ["crm migration"],
+  "matched_negatives": [],
+  "reply_context": "truncated parent text or null",
+  "selection_reason": "Matched topic trigger 'crm migration' 37 minutes after posting."
+}
+```
+
+Trigger records are not candidates. They only authorize a model call to decide whether drafting is
+useful.
+
+### Draft Model Input Contract
+
+Draft-generation input should be lean and centered on one selected trigger post.
 
 ```json
 {
@@ -722,14 +836,20 @@ Detection input contract:
     "example_good_replies": ["string"],
     "example_bad_replies": ["string"]
   },
-  "messages": [
-    {
-      "tg_message_id": 123,
-      "text": "truncated text",
-      "message_date": "iso_datetime",
-      "reply_context": "truncated parent text or null"
-    }
-  ],
+  "source_post": {
+    "tg_message_id": 123,
+    "text": "truncated text",
+    "message_date": "iso_datetime",
+    "age_minutes": 37,
+    "matched_triggers": ["crm migration"]
+  },
+  "reply_context": "truncated parent text or null",
+  "style": {
+    "global": ["string"],
+    "account": ["string"],
+    "community": ["string"],
+    "topic": ["string"]
+  },
   "community_context": {
     "latest_summary": "string|null",
     "dominant_themes": ["string"]
@@ -745,8 +865,13 @@ Rules for input:
 - Scheduled detection must ignore messages older than the engagement account's join time when a
   joined membership timestamp is available. The app should not create fresh engagement
   opportunities from messages that were posted before the account joined the community.
-- Maximum 20 messages per model call.
-- Maximum 500 characters per message.
+- Exactly one `source_post` should be present for normal draft generation.
+- `source_post.text` maximum length is 500 characters.
+- `reply_context` maximum length is 500 characters.
+- `community_context.latest_summary` should be capped to 2,000 characters and must remain
+  community-level.
+- The legacy `messages` array may be used only for observe/debug or later experiments; normal
+  candidate drafting should not include broad recent message batches.
 - Maximum serialized model input target: 64 KB.
 
 Structured output contract:
@@ -757,10 +882,23 @@ Structured output contract:
   "topic_match": "topic name",
   "source_tg_message_id": 123,
   "reason": "The group is discussing CRM alternatives.",
+  "reply_strategy": "Add a short tradeoff-focused reply about migration effort.",
   "suggested_reply": "Short public reply text.",
   "risk_notes": []
 }
 ```
+
+Output validation:
+
+- `source_tg_message_id` must equal the selected trigger post ID.
+- `topic_match` must match the selected topic name or be omitted.
+- `reason` must be operator-facing and must not mention private/internal analysis.
+- `reply_strategy` is optional but useful for audit; it must describe why the reply is useful, not
+  how to persuade a person.
+- `suggested_reply` is required only when `should_engage = true`.
+- `suggested_reply` must pass normal reply validation before candidate creation.
+- `risk_notes` should include caveats such as "topic fit is weak", "reply may sound promotional",
+  or "source post may already be answered".
 
 ### `engagement.send`
 
@@ -1257,6 +1395,19 @@ Minimum tests for the first implementation:
   no joined membership, and rate limits
 - join worker success, already joined, inaccessible community, FloodWait, and banned account paths
 - detect worker no-signal and candidate-created paths with fake LLM output
+- detect worker skip reasons for missing joined engagement membership, missing `joined_at`,
+  disabled settings, observe mode, missing target permission, no recent samples, no trigger
+  candidates, active candidate dedupe, and quiet hours
+- trigger selection rejects pre-join messages, too-new messages, too-old messages, non-replyable
+  messages, negative-keyword matches, missing IDs, missing timestamps, and duplicate source/topic
+  candidates
+- trigger selection accepts keyword and phrase matches with deterministic ordering and caps model
+  calls per topic and per community run
+- draft model input contains one `source_post`, optional `reply_context`, topic guidance, style
+  rules, and community summary, and does not include broad recent message batches in normal
+  candidate drafting
+- model output validation rejects mismatched `source_tg_message_id`, missing suggested replies for
+  `should_engage = true`, unsafe suggested replies, and private/internal reasons
 - send worker idempotency and no duplicate send on retry
 - API auth and schema tests
 - bot formatting/callback tests for candidate cards
