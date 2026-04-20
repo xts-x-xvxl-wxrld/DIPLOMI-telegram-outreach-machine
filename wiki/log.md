@@ -612,3 +612,10 @@ the persistent reply-keyboard menu with an inline `/start` cockpit for Discovery
 Accounts, and Help, adds an `op:*` callback namespace, keeps slash commands as durable shortcuts,
 and documents how to clear the old Telegram reply keyboard during rollout. Updated the bot spec and
 wiki index to point to the new docs.
+
+## [2026-04-20] spec | Expanded discovery cockpit navigation
+
+Updated the bot operator cockpit spec with a nested Discovery cockpit: Start search, Needs setup,
+Review communities, Watching, Recent jobs, and Help. The update adds operator-facing discovery
+vocabulary, `disc:*` callback guidance, readiness summaries for searches, example communities, and
+suggested communities, plus first-slice implementation and testing expectations.
