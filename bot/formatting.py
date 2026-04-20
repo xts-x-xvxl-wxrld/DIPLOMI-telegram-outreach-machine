@@ -408,16 +408,19 @@ def format_engagement_home(data: dict[str, Any]) -> str:
     active_topic_count = counts.get("active_topic_count", counts.get("active_topics", 0))
     return "\n".join(
         [
-            "Engagement controls",
-            f"Needs review: {pending_count}",
-            f"Approved, not sent: {approved_count}",
-            f"Failed candidates: {failed_count}",
+            "Engagement today",
+            f"Review replies: {pending_count}",
+            f"Approved to send: {approved_count}",
+            f"Needs attention: {failed_count}",
             f"Active topics: {active_topic_count}",
             "",
+            "Today: /engagement",
+            "Review replies: /engagement_candidates needs_review",
+            "Approved to send: /engagement_candidates approved",
+            "Communities: /engagement_targets",
             "Topics: /engagement_topics",
-            "Replies: /engagement_candidates",
+            "Recent actions: /engagement_actions",
             "Admin: /engagement_admin",
-            "Audit: /engagement_actions",
         ]
     )
 
@@ -426,14 +429,40 @@ def format_engagement_admin_home(data: dict[str, Any]) -> str:
     return "\n".join(
         [
             "Engagement admin",
-            f"Targets: {data.get('target_count', 0)}",
+            f"Communities: {data.get('target_count', 0)}",
+            f"Topics: {data.get('topic_count', data.get('active_topic_count', 0))}",
             f"Prompt profiles: {data.get('prompt_profile_count', 0)}",
-            f"Style rules: {data.get('style_rule_count', 0)}",
+            f"Voice rules: {data.get('style_rule_count', 0)}",
             "",
-            "Targets: /engagement_targets",
-            "Prompts: /engagement_prompts",
-            "Style: /engagement_style",
-            "Topic examples: /topic_good_reply or /topic_bad_reply",
+            "Communities: /engagement_targets",
+            "Topics: /engagement_topics",
+            "Voice rules: /engagement_style",
+            "Limits and accounts: /engagement_settings <community_id>",
+            "Advanced prompts: /engagement_prompts",
+        ]
+    )
+
+
+def format_engagement_admin_limits_home() -> str:
+    return "\n".join(
+        [
+            "Limits and accounts",
+            "Open a community first, then tune its posting limits and engagement account.",
+            "",
+            "Settings lookup: /engagement_settings <community_id>",
+            "Communities: /engagement_targets",
+        ]
+    )
+
+
+def format_engagement_admin_advanced_home() -> str:
+    return "\n".join(
+        [
+            "Advanced engagement",
+            "Use these controls when you need prompt profiles, diagnostics, or audit detail.",
+            "",
+            "Prompt profiles: /engagement_prompts",
+            "Audit and diagnostics: /engagement_actions",
         ]
     )
 
@@ -452,9 +481,16 @@ def format_engagement_target_card(item: dict[str, Any], *, index: int | None = N
     heading = f"{index}. {label}" if index is not None else str(label)
     lines = [
         heading,
+        f"Readiness: {_engagement_target_readiness(item)}",
+        "",
         f"Target ID: {target_id}",
         f"Status: {item.get('status', 'unknown')}",
-        f"Permissions: join={_yes_no(item.get('allow_join'))}, detect={_yes_no(item.get('allow_detect'))}, post={_yes_no(item.get('allow_post'))}",
+        (
+            "Permissions: "
+            f"join={_yes_no(item.get('allow_join'))}, "
+            f"detect={_yes_no(item.get('allow_detect'))}, "
+            f"post={_yes_no(item.get('allow_post'))}"
+        ),
     ]
     if item.get("community_id"):
         lines.append(f"Community ID: {item['community_id']}")
@@ -529,6 +565,8 @@ def format_engagement_settings(data: dict[str, Any]) -> str:
     community_id = data.get("community_id", "unknown")
     lines = [
         "Engagement settings",
+        f"Readiness: {_engagement_settings_readiness(data)}",
+        "",
         f"Community ID: {community_id}",
         f"Mode: {data.get('mode', 'disabled')}",
         f"Join allowed: {_yes_no(data.get('allow_join'))}",
@@ -670,6 +708,7 @@ def format_engagement_candidate_card(item: dict[str, Any], *, index: int | None 
     title = item.get("community_title") or "Community"
     topic = item.get("topic_name") or "Topic"
     candidate_id = item.get("id", "unknown")
+    status = str(item.get("status", "unknown"))
     source = _shorten(str(item.get("source_excerpt") or "No source excerpt recorded."), 500)
     reason = _shorten(str(item.get("detected_reason") or "No reason recorded."), 260)
     suggested = str(item.get("suggested_reply") or "No draft reply recorded.")
@@ -678,8 +717,9 @@ def format_engagement_candidate_card(item: dict[str, Any], *, index: int | None 
     heading = f"{index}. {title}" if index is not None else title
     lines = [
         heading,
+        f"Readiness: {_engagement_candidate_readiness(item)}",
         f"Topic: {topic}",
-        f"Status: {item.get('status', 'unknown')}",
+        f"Status: {status}",
         "",
         f"Source: {source}",
         f"Reason: {reason}",
@@ -702,11 +742,9 @@ def format_engagement_candidate_card(item: dict[str, Any], *, index: int | None 
         [
             "",
             f"Candidate ID: {candidate_id}",
-            f"Edit: /edit_reply {candidate_id} | <final reply>",
-            f"Approve: /approve_reply {candidate_id}",
-            f"Reject: /reject_reply {candidate_id}",
         ]
     )
+    lines.extend(_engagement_candidate_next_actions(candidate_id, status))
     return "\n".join(lines)
 
 
@@ -826,6 +864,102 @@ def format_access_denied(user_id: int | None, username: str | None = None) -> st
     if user_id is not None:
         lines.append("Ask the operator to add this ID to TELEGRAM_ALLOWED_USER_IDS.")
     return "\n".join(lines)
+
+
+def _engagement_candidate_readiness(item: dict[str, Any]) -> str:
+    readiness = item.get("readiness") or item.get("send_readiness")
+    if readiness:
+        return str(readiness)
+
+    status = str(item.get("status") or "unknown")
+    if status == "needs_review":
+        return "Needs review"
+    if status == "approved":
+        return "Approved, ready to send"
+    if status == "failed":
+        return "Failed, retry may be available"
+    if status == "sent":
+        return "Sent"
+    if status == "rejected":
+        return "Rejected"
+    if status == "expired":
+        return "Blocked: reply expired"
+    return status.replace("_", " ").title()
+
+
+def _engagement_candidate_next_actions(candidate_id: str, status: str) -> list[str]:
+    if status == "needs_review":
+        return [
+            f"Edit: /edit_reply {candidate_id} | <final reply>",
+            f"Approve: /approve_reply {candidate_id}",
+            f"Reject: /reject_reply {candidate_id}",
+        ]
+    if status == "approved":
+        return [
+            f"Send: /send_reply {candidate_id}",
+            f"Edit: /edit_reply {candidate_id} | <final reply>",
+            f"Reject: /reject_reply {candidate_id}",
+        ]
+    if status == "failed":
+        return [
+            f"Edit: /edit_reply {candidate_id} | <final reply>",
+            f"Reject: /reject_reply {candidate_id}",
+        ]
+    if status in {"sent", "rejected", "expired"}:
+        return ["Audit: /engagement_actions"]
+    return [
+        f"Edit: /edit_reply {candidate_id} | <final reply>",
+        f"Reject: /reject_reply {candidate_id}",
+    ]
+
+
+def _engagement_target_readiness(item: dict[str, Any]) -> str:
+    readiness = item.get("readiness") or item.get("community_readiness")
+    if readiness:
+        return str(readiness)
+
+    status = str(item.get("status") or "unknown")
+    allow_detect = bool(item.get("allow_detect"))
+    allow_post = bool(item.get("allow_post"))
+    allow_join = bool(item.get("allow_join"))
+
+    if status in {"pending", "resolved"}:
+        return "Not approved"
+    if status == "failed":
+        return "Blocked: target failed to resolve"
+    if status in {"rejected", "archived"}:
+        return "Paused"
+    if status != "approved":
+        return status.replace("_", " ").title()
+    if allow_post:
+        return "Ready to post with review"
+    if allow_detect:
+        return "Drafting replies"
+    if allow_join:
+        return "Approved, not joined"
+    return "Watching only"
+
+
+def _engagement_settings_readiness(data: dict[str, Any]) -> str:
+    readiness = data.get("readiness") or data.get("community_readiness")
+    if readiness:
+        return str(readiness)
+
+    mode = str(data.get("mode") or "disabled")
+    allow_post = bool(data.get("allow_post"))
+    allow_join = bool(data.get("allow_join"))
+
+    if mode == "disabled":
+        return "Paused"
+    if mode == "observe":
+        return "Watching only"
+    if allow_post:
+        return "Ready to post with review"
+    if mode in {"suggest", "require_approval"}:
+        return "Drafting replies"
+    if allow_join:
+        return "Approved, not joined"
+    return "Blocked: posting permission off"
 
 
 def _candidate_community(item: dict[str, Any]) -> dict[str, Any]:

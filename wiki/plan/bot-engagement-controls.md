@@ -84,7 +84,7 @@ Completed notes:
 
 ## Slice 2: Operator Intention Navigation And Readiness Summaries
 
-Status: planned.
+Status: completed.
 
 Reorganize the engagement cockpit around what the operator is trying to do.
 
@@ -106,6 +106,17 @@ Acceptance:
 - Candidate cards show only state-relevant primary actions by default.
 - Backend identifiers and raw fields remain available in detail cards but are not the first thing an
   operator has to interpret.
+
+Completed notes:
+
+- `/engagement` now exposes `Today`, `Review replies`, `Approved to send`, `Communities`, `Topics`,
+  `Recent actions`, and `Admin` inline entries.
+- `/engagement_admin` now exposes `Communities`, `Topics`, `Voice rules`, `Limits/accounts`, and
+  `Advanced` entries, with small landing cards for limits/account lookup and advanced controls.
+- Candidate, engagement target, and community settings cards now show derived readiness summaries
+  before lower-level IDs, modes, and permission fields.
+- Candidate cards now list state-relevant command hints: needs-review candidates do not show send,
+  approved candidates show send, and terminal candidates point to audit.
 
 ## Slice 3: Engagement Target Bot Controls
 

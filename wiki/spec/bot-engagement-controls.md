@@ -336,25 +336,29 @@ surface in this spec. It should be updated as implementation slices ship.
 The current main engagement menu exposes:
 
 - `/engagement` cockpit.
-- Inline `Topics`, `Replies`, `Audit`, and `Admin` buttons.
+- Inline intention-first `Today`, `Review replies`, `Approved to send`, `Communities`, `Topics`,
+  `Recent actions`, and `Admin` buttons.
 - Candidate queue filters for `needs_review`, `approved`, `failed`, `sent`, and `rejected`.
-- Candidate approve, reject, and queue-send controls.
+- Candidate cards with readiness summaries and state-relevant approve, reject, edit, audit, and
+  queue-send command hints.
 - `/edit_reply <candidate_id> | <new final reply>` as a pipe-command edit path.
 - `/engagement_actions [community_id]`.
 - `/engagement_settings <community_id>`.
+- Community settings cards with readiness summaries before raw mode, permission, and rate-limit
+  fields.
 - `/set_engagement <community_id> <off|observe|suggest|ready>`.
 - `/join_community <community_id>`.
 - `/detect_engagement <community_id> [window_minutes]`.
 - `/engagement_topics`, topic creation, topic active-state toggles, and good/bad topic examples.
-- `/engagement_admin` with inline `Targets`, `Prompts`, `Style rules`, and back-to-engagement
-  buttons.
+- `/engagement_admin` with inline `Communities`, `Topics`, `Voice rules`, `Limits/accounts`,
+  `Advanced`, and back-to-engagement buttons.
 - `/engagement_targets`, `/add_engagement_target`, and `/approve_engagement_target`.
+- Target cards with readiness summaries before raw target status and permission fields.
 - `/engagement_prompts`, `/engagement_prompt_preview`, and direct prompt activation.
 - `/engagement_style` as a read-only style-rule list.
 
 ### Missing From Daily Engagement
 
-- Direct `Approved queue` menu item.
 - `Settings lookup` menu item.
 - Candidate detail/open command: `/engagement_candidate <candidate_id>`.
 - Inline candidate open/details handler. `ACTION_ENGAGEMENT_CANDIDATE_OPEN` exists in bot UI code,
@@ -394,7 +398,6 @@ The current main engagement menu exposes:
 
 ### Missing From Topics And Examples
 
-- Admin menu button for `Topics and examples`; topics currently live in the main engagement menu.
 - Topic detail/open command: `/engagement_topic <topic_id>`.
 - Remove topic example command: `/topic_remove_example <topic_id> <good|bad> <index>`.
 - Topic keyword editing command:
@@ -417,7 +420,6 @@ The current main engagement menu exposes:
 
 ### Missing From Community Controls
 
-- `Community controls` menu entry under engagement admin.
 - Rate-limit command:
   `/set_engagement_limits <community_id> <max_posts_per_day> <min_minutes_between_posts>`.
 - Quiet-hours command: `/set_engagement_quiet_hours <community_id> <HH:MM> <HH:MM>`.
@@ -428,29 +430,24 @@ The current main engagement menu exposes:
 
 ### Missing Cross-Cutting UX
 
-- Operator-intention navigation for Today, Communities, Topics, Voice rules, Limits/accounts, and
-  Advanced.
-- Readiness summaries that collapse target permissions, community settings, membership, candidate
-  status, expiry, and rate limits into one operator-facing state.
-- Progressive disclosure so cards show only the next safe actions by default.
-- Human labels for backend fields, especially target permissions and community settings.
+- Full readiness summaries for membership, account assignment, expiry, rate limits, and quiet-hour
+  blocks when those backend fields are exposed to the bot.
+- Detail/open views that keep raw IDs and backend fields behind progressive disclosure.
 - Conversation-state editing for long prompt, topic guidance, style rule, and reply edits.
 - Save/cancel confirmation buttons for long edits.
 - Admin permission boundary in the bot UI.
 - Confirmation flows for risky admin mutations, including prompt activation, posting permission
   changes, target approval, and account assignment.
 
-### Recommended Next Menu Slice
+### Recommended Next Slice
 
 The next implementation slice should prioritize:
 
-- Add `Today`, `Review replies`, `Approved to send`, `Communities`, `Topics`, and `Recent actions`
-  entries to `/engagement`.
-- Add `Communities`, `Topics`, `Voice rules`, `Limits and accounts`, and `Advanced` entries to
-  `/engagement_admin`.
-- Add readiness summaries to community and candidate cards before adding more low-level controls.
 - Expand target cards with resolve, reject, archive, permission toggles, target join, and target
   detect controls, but label them as watch/draft/post readiness where possible.
+- Add target detail/open commands and callbacks before exposing more prompt or style editing.
+- Keep target controls separate from seed APIs and preserve before/after visibility for permission
+  changes.
 
 ## Command Surface
 

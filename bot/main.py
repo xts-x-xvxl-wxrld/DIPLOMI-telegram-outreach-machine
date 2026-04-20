@@ -18,7 +18,9 @@ from bot.formatting import (
     format_created_brief,
     format_engagement_action_card,
     format_engagement_actions,
+    format_engagement_admin_advanced_home,
     format_engagement_admin_home,
+    format_engagement_admin_limits_home,
     format_engagement_candidate_card,
     format_engagement_candidate_review,
     format_engagement_candidates,
@@ -56,6 +58,8 @@ from bot.ui import (
     ACTION_COMMUNITY_MEMBERS,
     ACTION_ENGAGEMENT_ACTIONS,
     ACTION_ENGAGEMENT_ADMIN,
+    ACTION_ENGAGEMENT_ADMIN_ADVANCED,
+    ACTION_ENGAGEMENT_ADMIN_LIMITS,
     ACTION_ENGAGEMENT_APPROVE,
     ACTION_ENGAGEMENT_CANDIDATES,
     ACTION_ENGAGEMENT_DETECT,
@@ -87,7 +91,9 @@ from bot.ui import (
     candidate_actions_markup,
     community_actions_markup,
     engagement_action_pager_markup,
+    engagement_admin_advanced_markup,
     engagement_admin_home_markup,
+    engagement_admin_limits_markup,
     engagement_admin_pager_markup,
     engagement_candidate_actions_markup,
     engagement_candidate_filter_markup,
@@ -711,6 +717,12 @@ async def callback_query(update: Any, context: Any) -> None:
         if action == ACTION_ENGAGEMENT_ADMIN:
             await _send_engagement_admin(update, context)
             return
+        if action == ACTION_ENGAGEMENT_ADMIN_LIMITS:
+            await _send_engagement_admin_limits(update)
+            return
+        if action == ACTION_ENGAGEMENT_ADMIN_ADVANCED:
+            await _send_engagement_admin_advanced(update)
+            return
         if action == ACTION_ENGAGEMENT_TARGETS and parts:
             await _send_engagement_targets(update, context, offset=_parse_offset(parts[0]))
             return
@@ -1021,15 +1033,35 @@ async def _send_engagement_admin(update: Any, context: Any) -> None:
     targets = await client.list_engagement_targets(limit=1, offset=0)
     prompts = await client.list_engagement_prompt_profiles(limit=1, offset=0)
     styles = await client.list_engagement_style_rules(limit=1, offset=0)
+    topics = await client.list_engagement_topics()
+    topic_items = topics.get("items") or []
     data = {
         "target_count": targets.get("total", 0),
         "prompt_profile_count": prompts.get("total", 0),
         "style_rule_count": styles.get("total", 0),
+        "topic_count": topics.get("total", len(topic_items)),
+        "active_topic_count": sum(1 for item in topic_items if item.get("active")),
     }
     await _callback_reply(
         update,
         format_engagement_admin_home(data),
         reply_markup=engagement_admin_home_markup(),
+    )
+
+
+async def _send_engagement_admin_limits(update: Any) -> None:
+    await _callback_reply(
+        update,
+        format_engagement_admin_limits_home(),
+        reply_markup=engagement_admin_limits_markup(),
+    )
+
+
+async def _send_engagement_admin_advanced(update: Any) -> None:
+    await _callback_reply(
+        update,
+        format_engagement_admin_advanced_home(),
+        reply_markup=engagement_admin_advanced_markup(),
     )
 
 

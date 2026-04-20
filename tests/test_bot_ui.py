@@ -6,12 +6,18 @@ from bot.ui import (
     ACTION_APPROVE_COMMUNITY,
     ACTION_COMMUNITY_MEMBERS,
     ACTION_ENGAGEMENT_ACTIONS,
+    ACTION_ENGAGEMENT_ADMIN,
+    ACTION_ENGAGEMENT_ADMIN_ADVANCED,
+    ACTION_ENGAGEMENT_ADMIN_LIMITS,
     ACTION_ENGAGEMENT_APPROVE,
     ACTION_ENGAGEMENT_CANDIDATES,
     ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_JOIN,
     ACTION_ENGAGEMENT_SETTINGS_OPEN,
+    ACTION_ENGAGEMENT_STYLE,
+    ACTION_ENGAGEMENT_TARGETS,
+    ACTION_ENGAGEMENT_TOPIC_LIST,
     ACTION_SEED_CANDIDATES,
     ENGAGEMENT_MENU_LABEL,
     candidate_actions_markup,
@@ -21,6 +27,7 @@ from bot.ui import (
     engagement_candidate_filter_markup,
     engagement_candidate_pager_markup,
     engagement_candidate_send_markup,
+    engagement_admin_home_markup,
     engagement_home_markup,
     engagement_settings_markup,
     engagement_topic_actions_markup,
@@ -147,9 +154,35 @@ def test_engagement_home_markup_links_core_surfaces() -> None:
     markup = engagement_home_markup()
     rows = markup.inline_keyboard
 
-    assert rows[0][0].callback_data == "eng:topic:list:0"
-    assert rows[0][1].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:needs_review:0"
-    assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_ACTIONS}:0"
+    assert rows[0][0].text == "Today"
+    assert rows[0][0].callback_data == ACTION_ENGAGEMENT_HOME
+    assert rows[1][0].text == "Review replies"
+    assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:needs_review:0"
+    assert rows[1][1].text == "Approved to send"
+    assert rows[1][1].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:approved:0"
+    assert rows[2][0].text == "Communities"
+    assert rows[2][0].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:0"
+    assert rows[2][1].text == "Topics"
+    assert rows[2][1].callback_data == f"{ACTION_ENGAGEMENT_TOPIC_LIST}:0"
+    assert rows[3][0].text == "Recent actions"
+    assert rows[3][0].callback_data == f"{ACTION_ENGAGEMENT_ACTIONS}:0"
+    assert rows[4][0].callback_data == ACTION_ENGAGEMENT_ADMIN
+
+
+def test_engagement_admin_home_markup_links_setup_and_advanced_surfaces() -> None:
+    markup = engagement_admin_home_markup()
+    rows = markup.inline_keyboard
+
+    assert rows[0][0].text == "Communities"
+    assert rows[0][0].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:0"
+    assert rows[0][1].text == "Topics"
+    assert rows[0][1].callback_data == f"{ACTION_ENGAGEMENT_TOPIC_LIST}:0"
+    assert rows[1][0].text == "Voice rules"
+    assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_STYLE}:0"
+    assert rows[1][1].text == "Limits/accounts"
+    assert rows[1][1].callback_data == ACTION_ENGAGEMENT_ADMIN_LIMITS
+    assert rows[2][0].text == "Advanced"
+    assert rows[2][0].callback_data == ACTION_ENGAGEMENT_ADMIN_ADVANCED
 
 
 def test_engagement_settings_markup_exposes_presets_and_jobs() -> None:

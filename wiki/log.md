@@ -594,3 +594,13 @@ Updated the bot engagement controls spec with a current menu gap inventory. The 
 already exposed engagement controls from missing daily review, target, prompt, topic, style,
 community, and cross-cutting admin UX controls, then names the recommended next menu slice.
 Updated the matching implementation plan with the same known gaps.
+
+## [2026-04-20] code | Built bot engagement intention navigation
+
+Completed bot engagement controls Slice 2. `/engagement` now exposes intention-first entries for
+today, review replies, approved-to-send replies, communities, topics, recent actions, and admin.
+`/engagement_admin` now exposes communities, topics, voice rules, limits/accounts, and advanced
+controls, with small landing cards for limits/account lookup and advanced prompt/audit routes.
+Candidate, engagement target, and community settings cards now show readiness summaries before raw
+IDs and fields, and candidate cards list state-relevant next actions. Added focused bot UI,
+formatting, and handler tests.

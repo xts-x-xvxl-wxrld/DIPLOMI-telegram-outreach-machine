@@ -10,6 +10,7 @@ from bot.main import (
     callback_query,
     create_engagement_topic_command,
     detect_engagement_command,
+    engagement_admin_command,
     engagement_actions_command,
     engagement_candidates_command,
     engagement_command,
@@ -55,6 +56,9 @@ class _FakeApiClient:
         self.update_topic_calls: list[dict[str, Any]] = []
         self.get_settings_calls: list[str] = []
         self.update_settings_calls: list[dict[str, Any]] = []
+        self.target_list_calls: list[dict[str, Any]] = []
+        self.prompt_list_calls: list[dict[str, Any]] = []
+        self.style_list_calls: list[dict[str, Any]] = []
         self.join_calls: list[dict[str, Any]] = []
         self.detect_calls: list[dict[str, Any]] = []
         self.action_calls: list[dict[str, Any]] = []
@@ -149,6 +153,36 @@ class _FakeApiClient:
             },
             "failed": {"items": [], "total": 3},
         }
+
+    async def list_engagement_targets(
+        self,
+        *,
+        limit: int = 5,
+        offset: int = 0,
+        **_: Any,
+    ) -> dict[str, Any]:
+        self.target_list_calls.append({"limit": limit, "offset": offset})
+        return {"items": [], "total": 2, "limit": limit, "offset": offset}
+
+    async def list_engagement_prompt_profiles(
+        self,
+        *,
+        limit: int = 5,
+        offset: int = 0,
+        **_: Any,
+    ) -> dict[str, Any]:
+        self.prompt_list_calls.append({"limit": limit, "offset": offset})
+        return {"items": [], "total": 1, "limit": limit, "offset": offset}
+
+    async def list_engagement_style_rules(
+        self,
+        *,
+        limit: int = 5,
+        offset: int = 0,
+        **_: Any,
+    ) -> dict[str, Any]:
+        self.style_list_calls.append({"limit": limit, "offset": offset})
+        return {"items": [], "total": 4, "limit": limit, "offset": offset}
 
     async def list_engagement_candidates(
         self,
@@ -321,6 +355,17 @@ def _callback_data_values(markup: Any | None) -> list[str]:
     ]
 
 
+def _button_labels(markup: Any | None) -> list[str]:
+    if markup is None:
+        return []
+    return [
+        button.text
+        for row in markup.inline_keyboard
+        for button in row
+        if getattr(button, "text", None)
+    ]
+
+
 @pytest.mark.asyncio
 async def test_engagement_command_builds_home_counts_from_api_client() -> None:
     client = _FakeApiClient()
@@ -328,15 +373,71 @@ async def test_engagement_command_builds_home_counts_from_api_client() -> None:
 
     await engagement_command(update, _context(client))
 
-    assert "Needs review: 1" in update.message.replies[0]["text"]
-    assert "Approved, not sent: 1" in update.message.replies[0]["text"]
-    assert "Failed candidates: 3" in update.message.replies[0]["text"]
+    assert "Review replies: 1" in update.message.replies[0]["text"]
+    assert "Approved to send: 1" in update.message.replies[0]["text"]
+    assert "Needs attention: 3" in update.message.replies[0]["text"]
     assert "Active topics: 1" in update.message.replies[0]["text"]
+    labels = _button_labels(update.message.replies[0]["reply_markup"])
+    assert labels == [
+        "Today",
+        "Review replies",
+        "Approved to send",
+        "Communities",
+        "Topics",
+        "Recent actions",
+        "Admin",
+    ]
+    callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
+    assert "eng:cand:list:needs_review:0" in callbacks
+    assert "eng:cand:list:approved:0" in callbacks
+    assert "eng:admin:tgt:0" in callbacks
     assert [call["status"] for call in client.list_candidate_calls] == [
         "needs_review",
         "approved",
         "failed",
     ]
+
+
+@pytest.mark.asyncio
+async def test_engagement_admin_command_uses_setup_navigation() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await engagement_admin_command(update, _context(client))
+
+    assert "Communities: 2" in update.message.replies[0]["text"]
+    assert "Topics: 2" in update.message.replies[0]["text"]
+    assert "Voice rules: 4" in update.message.replies[0]["text"]
+    assert _button_labels(update.message.replies[0]["reply_markup"]) == [
+        "Communities",
+        "Topics",
+        "Voice rules",
+        "Limits/accounts",
+        "Advanced",
+        "Engagement",
+    ]
+    callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
+    assert "eng:admin:lim" in callbacks
+    assert "eng:admin:adv" in callbacks
+
+
+@pytest.mark.asyncio
+async def test_engagement_admin_limit_and_advanced_callbacks_have_destinations() -> None:
+    client = _FakeApiClient()
+    limits_update = _callback_update("eng:admin:lim")
+    advanced_update = _callback_update("eng:admin:adv")
+
+    await callback_query(limits_update, _context(client))
+    await callback_query(advanced_update, _context(client))
+
+    assert "Limits and accounts" in limits_update.callback_query.message.replies[0]["text"]
+    assert "Settings lookup: /engagement_settings <community_id>" in (
+        limits_update.callback_query.message.replies[0]["text"]
+    )
+    assert "Advanced engagement" in advanced_update.callback_query.message.replies[0]["text"]
+    assert "Prompt profiles: /engagement_prompts" in (
+        advanced_update.callback_query.message.replies[0]["text"]
+    )
 
 
 @pytest.mark.asyncio

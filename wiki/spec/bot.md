@@ -304,18 +304,21 @@ keeps the core command behavior visible in the main bot spec.
 
 ### `/engagement`
 
-Shows a compact engagement cockpit with counts for pending replies, approved replies, failed
-candidates, and active topics. It should offer inline buttons for topics, candidates, settings entry
-points when opened from a community, and recent actions.
+Shows a compact engagement cockpit with counts for replies needing review, approved replies waiting
+to send, failed candidates needing attention, and active topics. It offers intention-first inline
+buttons for today, review replies, approved-to-send replies, communities, topics, recent actions,
+and engagement admin.
 
 ### `/engagement_admin`
 
-Shows the admin-only configuration entrypoint for engagement targets, prompt profiles, topic
-examples, and style rules. This surface stays separate from daily candidate review.
+Shows the admin-only configuration entrypoint for communities, topics, voice rules,
+limits/accounts, and advanced prompt/audit controls. This surface stays separate from daily
+candidate review.
 
 ### `/engagement_targets`
 
-Lists manual engagement targets and their approval/posting permissions.
+Lists manual engagement targets and their approval/posting permissions. Target cards start with a
+human-readable readiness summary before raw target IDs and permission fields.
 
 ### `/add_engagement_target <telegram_link_or_username_or_community_id>`
 
@@ -401,7 +404,9 @@ Lists engagement candidates. Default status is `needs_review`; supported operato
 
 Candidate cards should show community title, topic, capped source excerpt, detected reason,
 suggested and edited final reply text, prompt profile/version summary when available, risk notes,
-and status. The bot must not show sender identity.
+status, and a send-readiness summary. The bot must not show sender identity. Cards should list only
+state-relevant primary action hints, such as approve/reject for `needs_review` and send for
+`approved`.
 
 ### `/edit_reply <candidate_id> | <new final reply>`
 

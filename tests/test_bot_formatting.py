@@ -16,6 +16,7 @@ from bot.formatting import (
     format_engagement_home,
     format_engagement_job_response,
     format_engagement_settings,
+    format_engagement_target_card,
     format_engagement_topic_card,
     format_engagement_topics,
     format_job_status,
@@ -326,8 +327,8 @@ def test_format_engagement_home_reports_operational_counts() -> None:
         }
     )
 
-    assert "Needs review: 2" in message
-    assert "Approved, not sent: 1" in message
+    assert "Review replies: 2" in message
+    assert "Approved to send: 1" in message
     assert "/engagement_topics" in message
     assert "score" not in message.lower()
 
@@ -349,10 +350,30 @@ def test_format_engagement_settings_shows_safe_controls() -> None:
     )
 
     assert "Mode: suggest" in message
+    assert "Readiness: Drafting replies" in message
     assert "Join allowed: no" in message
     assert "Reply only: yes" in message
     assert "/set_engagement community-1" in message
     assert "phone" not in message.lower()
+
+
+def test_format_engagement_target_card_starts_with_readiness() -> None:
+    message = format_engagement_target_card(
+        {
+            "id": "target-1",
+            "submitted_ref": "username:founders",
+            "status": "approved",
+            "community_id": "community-1",
+            "allow_join": True,
+            "allow_detect": True,
+            "allow_post": False,
+        },
+        index=1,
+    )
+
+    assert "1. username:founders" in message
+    assert "Readiness: Drafting replies" in message
+    assert message.index("Readiness: Drafting replies") < message.index("Target ID: target-1")
 
 
 def test_format_engagement_topics_and_card_truncate_guidance() -> None:
@@ -439,11 +460,31 @@ def test_format_engagement_candidate_card_keeps_review_context() -> None:
     )
 
     assert "1. Founder Circle" in message
+    assert "Readiness: Needs review" in message
     assert "Topic: Open-source CRM" in message
     assert "Source: The group is comparing CRM tools." in message
     assert "Suggested reply: Compare ownership" in message
     assert "/approve_reply candidate-1" in message
+    assert "/send_reply candidate-1" not in message
     assert "score" not in message.lower()
+
+
+def test_format_engagement_candidate_card_uses_state_relevant_actions() -> None:
+    message = format_engagement_candidate_card(
+        {
+            "id": "candidate-1",
+            "community_title": "Founder Circle",
+            "topic_name": "Open-source CRM",
+            "status": "approved",
+            "source_excerpt": "The group is comparing CRM tools.",
+            "detected_reason": "The group is discussing alternatives.",
+            "suggested_reply": "Compare ownership, integrations, and exit paths first.",
+        }
+    )
+
+    assert "Readiness: Approved, ready to send" in message
+    assert "Send: /send_reply candidate-1" in message
+    assert "Approve: /approve_reply candidate-1" not in message
 
 
 def test_format_engagement_candidate_review_reports_audit_fields() -> None:

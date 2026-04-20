@@ -41,6 +41,8 @@ ACTION_ENGAGEMENT_TARGET_APPROVE = "eng:admin:ta"
 ACTION_ENGAGEMENT_PROMPTS = "eng:admin:pr"
 ACTION_ENGAGEMENT_PROMPT_ACTIVATE = "eng:admin:pa"
 ACTION_ENGAGEMENT_STYLE = "eng:admin:sr"
+ACTION_ENGAGEMENT_ADMIN_LIMITS = "eng:admin:lim"
+ACTION_ENGAGEMENT_ADMIN_ADVANCED = "eng:admin:adv"
 
 
 @dataclass(frozen=True)
@@ -172,11 +174,16 @@ def engagement_candidate_pager_markup(
 def engagement_home_markup():
     return _inline_markup(
         [
+            [_button("Today", ACTION_ENGAGEMENT_HOME)],
             [
-                _button("Topics", ACTION_ENGAGEMENT_TOPIC_LIST, "0"),
-                _button("Replies", ACTION_ENGAGEMENT_CANDIDATES, "needs_review", "0"),
+                _button("Review replies", ACTION_ENGAGEMENT_CANDIDATES, "needs_review", "0"),
+                _button("Approved to send", ACTION_ENGAGEMENT_CANDIDATES, "approved", "0"),
             ],
-            [_button("Audit", ACTION_ENGAGEMENT_ACTIONS, "0")],
+            [
+                _button("Communities", ACTION_ENGAGEMENT_TARGETS, "0"),
+                _button("Topics", ACTION_ENGAGEMENT_TOPIC_LIST, "0"),
+            ],
+            [_button("Recent actions", ACTION_ENGAGEMENT_ACTIONS, "0")],
             [_button("Admin", ACTION_ENGAGEMENT_ADMIN)],
         ]
     )
@@ -186,11 +193,34 @@ def engagement_admin_home_markup():
     return _inline_markup(
         [
             [
-                _button("Targets", ACTION_ENGAGEMENT_TARGETS, "0"),
-                _button("Prompts", ACTION_ENGAGEMENT_PROMPTS, "0"),
+                _button("Communities", ACTION_ENGAGEMENT_TARGETS, "0"),
+                _button("Topics", ACTION_ENGAGEMENT_TOPIC_LIST, "0"),
             ],
-            [_button("Style rules", ACTION_ENGAGEMENT_STYLE, "0")],
+            [
+                _button("Voice rules", ACTION_ENGAGEMENT_STYLE, "0"),
+                _button("Limits/accounts", ACTION_ENGAGEMENT_ADMIN_LIMITS),
+            ],
+            [_button("Advanced", ACTION_ENGAGEMENT_ADMIN_ADVANCED)],
             [_button("Engagement", ACTION_ENGAGEMENT_HOME)],
+        ]
+    )
+
+
+def engagement_admin_limits_markup():
+    return _inline_markup(
+        [
+            [_button("Communities", ACTION_ENGAGEMENT_TARGETS, "0")],
+            [_button("Admin", ACTION_ENGAGEMENT_ADMIN)],
+        ]
+    )
+
+
+def engagement_admin_advanced_markup():
+    return _inline_markup(
+        [
+            [_button("Prompt profiles", ACTION_ENGAGEMENT_PROMPTS, "0")],
+            [_button("Audit and diagnostics", ACTION_ENGAGEMENT_ACTIONS, "0")],
+            [_button("Admin", ACTION_ENGAGEMENT_ADMIN)],
         ]
     )
 
