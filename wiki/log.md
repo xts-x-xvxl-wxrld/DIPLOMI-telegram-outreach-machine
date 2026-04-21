@@ -772,3 +772,12 @@ Added aggregate semantic selector and detector observability for cache hits/miss
 embedding rows, deterministic rejections, below-threshold skips, selected semantic matches, avoided
 detector calls, and semantic-created reply opportunities. Added structured selector/detector log
 records and a sanitized JSONL evaluation fixture with validation tests for threshold tuning.
+
+## [2026-04-21] code | Added semantic rollout review surface
+
+Added the Slice 5b aggregate rollout surface for semantic matching. The backend now summarizes
+semantic-created reply opportunity outcomes by similarity band through
+`GET /api/engagement/semantic-rollout`, and the bot exposes `/engagement_rollout [window_days]` for
+operator review. The surface reports aggregate approval, rejection, pending, and expired counts
+without exposing source messages, candidate IDs, sender identity, phone numbers, or person-level
+scores.

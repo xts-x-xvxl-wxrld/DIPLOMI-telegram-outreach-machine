@@ -196,6 +196,35 @@ class EngagementActionListResult:
 
 
 @dataclass(frozen=True)
+class EngagementSemanticRolloutBand:
+    label: str
+    min_similarity: float
+    max_similarity: float
+    total: int
+    pending: int
+    approved: int
+    rejected: int
+    expired: int
+    approval_rate: float | None
+    average_similarity: float | None
+
+
+@dataclass(frozen=True)
+class EngagementSemanticRolloutSummary:
+    window_days: int
+    community_id: UUID | None
+    topic_id: UUID | None
+    total_semantic_candidates: int
+    reviewed_semantic_candidates: int
+    pending: int
+    approved: int
+    rejected: int
+    expired: int
+    approval_rate: float | None
+    bands: list[EngagementSemanticRolloutBand]
+
+
+@dataclass(frozen=True)
 class EngagementPromptProfileView:
     id: UUID
     name: str
@@ -1311,6 +1340,60 @@ async def list_engagement_actions(
     )
 
 
+async def summarize_semantic_rollout(
+    db: AsyncSession,
+    *,
+    window_days: int = 14,
+    community_id: UUID | None = None,
+    topic_id: UUID | None = None,
+    now: datetime | None = None,
+) -> EngagementSemanticRolloutSummary:
+    safe_window_days = max(min(int(window_days), 90), 1)
+    cutoff = (now or _utcnow()) - timedelta(days=safe_window_days)
+    filters = [EngagementCandidate.created_at >= cutoff]
+    if community_id is not None:
+        filters.append(EngagementCandidate.community_id == community_id)
+    if topic_id is not None:
+        filters.append(EngagementCandidate.topic_id == topic_id)
+
+    rows = await db.scalars(
+        select(EngagementCandidate)
+        .where(*filters)
+        .order_by(EngagementCandidate.created_at.desc())
+    )
+    candidates = [
+        candidate
+        for candidate in rows
+        if _semantic_similarity(candidate) is not None
+    ]
+    band_stats = [_new_semantic_band_stats(*band) for band in _SEMANTIC_ROLLOUT_BANDS]
+    overall = _new_rollout_stats()
+
+    for candidate in candidates:
+        similarity = _semantic_similarity(candidate)
+        if similarity is None:
+            continue
+        _record_rollout_candidate(overall, candidate.status, similarity)
+        for band in band_stats:
+            if _similarity_in_band(similarity, band):
+                _record_rollout_candidate(band, candidate.status, similarity)
+                break
+
+    return EngagementSemanticRolloutSummary(
+        window_days=safe_window_days,
+        community_id=community_id,
+        topic_id=topic_id,
+        total_semantic_candidates=overall["total"],
+        reviewed_semantic_candidates=overall["approved"] + overall["rejected"],
+        pending=overall["pending"],
+        approved=overall["approved"],
+        rejected=overall["rejected"],
+        expired=overall["expired"],
+        approval_rate=_approval_rate(overall),
+        bands=[_semantic_band_view(band) for band in band_stats],
+    )
+
+
 async def approve_candidate(
     db: AsyncSession,
     *,
@@ -2024,6 +2107,105 @@ def _action_view(action: EngagementAction) -> EngagementActionView:
     )
 
 
+def _semantic_similarity(candidate: EngagementCandidate) -> float | None:
+    for container in (candidate.model_output, candidate.prompt_render_summary):
+        if not isinstance(container, dict):
+            continue
+        semantic = container.get("semantic_match")
+        if not isinstance(semantic, dict):
+            continue
+        value = semantic.get("similarity")
+        try:
+            similarity = float(value)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= similarity <= 1:
+            return similarity
+    return None
+
+
+def _new_rollout_stats() -> dict[str, Any]:
+    return {
+        "total": 0,
+        "pending": 0,
+        "approved": 0,
+        "rejected": 0,
+        "expired": 0,
+        "similarity_total": 0.0,
+    }
+
+
+def _new_semantic_band_stats(
+    label: str,
+    min_similarity: float,
+    max_similarity: float,
+) -> dict[str, Any]:
+    stats = _new_rollout_stats()
+    stats.update(
+        {
+            "label": label,
+            "min_similarity": min_similarity,
+            "max_similarity": max_similarity,
+        }
+    )
+    return stats
+
+
+def _record_rollout_candidate(stats: dict[str, Any], status: str, similarity: float) -> None:
+    stats["total"] += 1
+    stats["similarity_total"] += similarity
+    if status == EngagementCandidateStatus.REJECTED.value:
+        stats["rejected"] += 1
+    elif status == EngagementCandidateStatus.EXPIRED.value:
+        stats["expired"] += 1
+    elif status == EngagementCandidateStatus.NEEDS_REVIEW.value:
+        stats["pending"] += 1
+    elif status in {
+        EngagementCandidateStatus.APPROVED.value,
+        EngagementCandidateStatus.SENT.value,
+        EngagementCandidateStatus.FAILED.value,
+    }:
+        stats["approved"] += 1
+    else:
+        stats["pending"] += 1
+
+
+def _approval_rate(stats: dict[str, Any]) -> float | None:
+    reviewed = stats["approved"] + stats["rejected"]
+    if reviewed <= 0:
+        return None
+    return round(stats["approved"] / reviewed, 4)
+
+
+def _average_similarity(stats: dict[str, Any]) -> float | None:
+    if stats["total"] <= 0:
+        return None
+    return round(stats["similarity_total"] / stats["total"], 4)
+
+
+def _similarity_in_band(similarity: float, band: dict[str, Any]) -> bool:
+    lower = float(band["min_similarity"])
+    upper = float(band["max_similarity"])
+    if upper >= 1.0:
+        return lower <= similarity <= upper
+    return lower <= similarity < upper
+
+
+def _semantic_band_view(band: dict[str, Any]) -> EngagementSemanticRolloutBand:
+    return EngagementSemanticRolloutBand(
+        label=str(band["label"]),
+        min_similarity=float(band["min_similarity"]),
+        max_similarity=float(band["max_similarity"]),
+        total=int(band["total"]),
+        pending=int(band["pending"]),
+        approved=int(band["approved"]),
+        rejected=int(band["rejected"]),
+        expired=int(band["expired"]),
+        approval_rate=_approval_rate(band),
+        average_similarity=_average_similarity(band),
+    )
+
+
 async def _prompt_profile_view(
     db: AsyncSession,
     profile: EngagementPromptProfile,
@@ -2499,6 +2681,13 @@ def _utcnow() -> datetime:
 
 _PHONE_RE = re.compile(r"(?<!\w)(?:\+?\d[\d\s().-]{7,}\d)(?!\w)")
 _TEMPLATE_RE = re.compile(r"\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}")
+_SEMANTIC_ROLLOUT_BANDS = (
+    ("0.90-1.00", 0.90, 1.0),
+    ("0.80-0.89", 0.80, 0.90),
+    ("0.70-0.79", 0.70, 0.80),
+    ("0.62-0.69", 0.62, 0.70),
+    ("0.00-0.61", 0.00, 0.62),
+)
 _ALLOWED_PROMPT_VARIABLES = {
     "community.title",
     "community.username",

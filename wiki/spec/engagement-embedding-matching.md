@@ -332,6 +332,11 @@ emits structured log records:
 The logs must not include sender identity, phone numbers, raw broad prompt batches, or person-level
 scores. Similarity values remain compact candidate metadata only for selected source posts.
 
+The rollout review surface summarizes semantic-created reply opportunities by similarity band from
+stored candidate metadata. It is aggregate-only: it may show counts, approval rates, pending counts,
+expired counts, and average similarity per band, but it must not show candidate IDs, source message
+text, sender identity, phone numbers, or person-level scores.
+
 ## Threshold Evaluation
 
 Maintain a small evaluation set outside production user identity data:
@@ -354,6 +359,11 @@ Use the eval set to tune:
 
 Operator approval rate is useful feedback, but it is not the only metric. A low approval rate may
 mean the draft model is weak, the topic is vague, or the threshold is too loose.
+
+`GET /api/engagement/semantic-rollout` and `/engagement_rollout [window_days]` provide the first
+operator review surface for this tuning loop. Approved, sent, and failed-after-approval reply
+opportunities count as approved operator outcomes; rejected rows count as rejected outcomes; pending
+and expired rows are shown separately as operational context.
 
 The initial fixture lives at `tests/fixtures/engagement_semantic_eval.jsonl`. It is intentionally
 small and synthetic/sanitized: topic profile, sanitized message text, human label, similarity score,

@@ -15,6 +15,7 @@ from bot.formatting import (
     format_engagement_home,
     format_engagement_job_response,
     format_engagement_settings,
+    format_engagement_semantic_rollout,
     format_engagement_target_card,
     format_engagement_target_mutation,
     format_engagement_topic_card,
@@ -530,6 +531,50 @@ def test_format_engagement_candidate_review_reports_audit_fields() -> None:
     assert "Status: approved" in message
     assert "Reviewed by: telegram:123" in message
     assert "Queue send: /send_reply candidate-1" in message
+
+
+def test_format_engagement_semantic_rollout_is_aggregate_only() -> None:
+    message = format_engagement_semantic_rollout(
+        {
+            "window_days": 14,
+            "total_semantic_candidates": 3,
+            "reviewed_semantic_candidates": 2,
+            "approved": 1,
+            "rejected": 1,
+            "pending": 1,
+            "expired": 0,
+            "approval_rate": 0.5,
+            "bands": [
+                {
+                    "label": "0.80-0.89",
+                    "total": 1,
+                    "approved": 1,
+                    "rejected": 0,
+                    "pending": 0,
+                    "expired": 0,
+                    "approval_rate": 1.0,
+                },
+                {
+                    "label": "0.70-0.79",
+                    "total": 1,
+                    "approved": 0,
+                    "rejected": 1,
+                    "pending": 0,
+                    "expired": 0,
+                    "approval_rate": 0.0,
+                },
+            ],
+        }
+    )
+
+    assert "Semantic rollout | 14 days" in message
+    assert "approved 1, rejected 1, pending 1" in message
+    assert "0.80-0.89: 1" in message
+    assert "approval 100%" in message
+    assert "Candidate ID" not in message
+    assert "Source:" not in message
+    assert "sender" not in message.lower()
+    assert "score" not in message.lower()
 
 
 def test_format_community_detail_includes_snapshot_run_and_analysis() -> None:

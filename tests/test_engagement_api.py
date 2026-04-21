@@ -13,6 +13,7 @@ from backend.api.deps import settings_dep
 from backend.api.routes.engagement import (
     get_engagement_actions,
     get_engagement_candidates,
+    get_engagement_semantic_rollout,
     get_engagement_target_detail,
     get_community_engagement_settings,
     patch_engagement_topic,
@@ -844,6 +845,42 @@ async def test_list_engagement_actions_passes_filters_and_pagination(monkeypatch
         "limit": 7,
         "offset": 14,
     }
+
+
+@pytest.mark.asyncio
+async def test_semantic_rollout_summary_groups_operator_outcomes_by_similarity_band() -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    topic = _topic(uuid4(), name="Open-source CRM")
+    approved = _candidate(uuid4(), community, topic)
+    approved.status = EngagementCandidateStatus.APPROVED.value
+    approved.model_output = {"semantic_match": {"similarity": 0.83}}
+    rejected = _candidate(uuid4(), community, topic)
+    rejected.status = EngagementCandidateStatus.REJECTED.value
+    rejected.model_output = {"semantic_match": {"similarity": 0.76}}
+    pending = _candidate(uuid4(), community, topic)
+    pending.status = EngagementCandidateStatus.NEEDS_REVIEW.value
+    pending.prompt_render_summary = {"semantic_match": {"similarity": 0.65}}
+    non_semantic = _candidate(uuid4(), community, topic)
+    non_semantic.model_output = {}
+    db = FakeDb(candidates=[approved, rejected, pending, non_semantic])
+
+    response = await get_engagement_semantic_rollout(
+        db,  # type: ignore[arg-type]
+        window_days=14,
+        community_id=None,
+        topic_id=None,
+    )
+
+    assert response.total_semantic_candidates == 3
+    assert response.reviewed_semantic_candidates == 2
+    assert response.approved == 1
+    assert response.rejected == 1
+    assert response.pending == 1
+    assert response.approval_rate == 0.5
+    bands = {band.label: band for band in response.bands}
+    assert bands["0.80-0.89"].approved == 1
+    assert bands["0.70-0.79"].rejected == 1
+    assert bands["0.62-0.69"].pending == 1
 
 
 @pytest.mark.asyncio

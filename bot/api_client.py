@@ -561,6 +561,20 @@ class BotApiClient:
             params["action_type"] = action_type
         return await self._request("GET", "/engagement/actions", params=params)
 
+    async def get_engagement_semantic_rollout(
+        self,
+        *,
+        window_days: int = 14,
+        community_id: str | None = None,
+        topic_id: str | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, object] = {"window_days": window_days}
+        if community_id is not None:
+            params["community_id"] = community_id
+        if topic_id is not None:
+            params["topic_id"] = topic_id
+        return await self._request("GET", "/engagement/semantic-rollout", params=params)
+
     async def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         try:
             response = await self._client.request(method, path, **kwargs)

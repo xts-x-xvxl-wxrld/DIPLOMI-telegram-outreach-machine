@@ -29,6 +29,7 @@ from backend.api.schemas import (
     EngagementSendJobRequest,
     EngagementSettingsOut,
     EngagementSettingsUpdate,
+    EngagementSemanticRolloutSummaryOut,
     EngagementStyleRuleCreateRequest,
     EngagementStyleRuleListResponse,
     EngagementStyleRuleOut,
@@ -81,6 +82,7 @@ from backend.services.community_engagement import (
     reject_candidate,
     remove_topic_example,
     rollback_prompt_profile,
+    summarize_semantic_rollout,
     update_prompt_profile,
     update_style_rule,
     update_engagement_target,
@@ -695,6 +697,28 @@ async def get_engagement_actions(
         offset=result.offset,
         total=result.total,
     )
+
+
+@router.get(
+    "/engagement/semantic-rollout",
+    response_model=EngagementSemanticRolloutSummaryOut,
+)
+async def get_engagement_semantic_rollout(
+    db: DbSession,
+    window_days: int = Query(default=14, ge=1, le=90),
+    community_id: UUID | None = None,
+    topic_id: UUID | None = None,
+) -> EngagementSemanticRolloutSummaryOut:
+    try:
+        summary = await summarize_semantic_rollout(
+            db,
+            window_days=window_days,
+            community_id=community_id,
+            topic_id=topic_id,
+        )
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+    return EngagementSemanticRolloutSummaryOut.model_validate(summary)
 
 
 @router.post(

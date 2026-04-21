@@ -41,6 +41,7 @@ from bot.formatting import (
     format_engagement_prompt_profile_card,
     format_engagement_prompt_profiles,
     format_engagement_settings,
+    format_engagement_semantic_rollout,
     format_engagement_style_rule_card,
     format_engagement_style_rules,
     format_engagement_target_card,
@@ -608,6 +609,17 @@ async def engagement_actions_command(update: Any, context: Any) -> None:
         await _send_engagement_actions(update, context, community_id=community_id, offset=0)
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
+
+
+async def engagement_rollout_command(update: Any, context: Any) -> None:
+    window_days = _positive_int_arg(context, default=14)
+    client = _api_client(context)
+    try:
+        data = await client.get_engagement_semantic_rollout(window_days=window_days)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+        return
+    await _reply(update, format_engagement_semantic_rollout(data))
 
 
 async def engagement_topics_command(update: Any, context: Any) -> None:
@@ -1954,6 +1966,7 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("join_community", join_community_command))
     application.add_handler(CommandHandler("detect_engagement", detect_engagement_command))
     application.add_handler(CommandHandler("engagement_actions", engagement_actions_command))
+    application.add_handler(CommandHandler("engagement_rollout", engagement_rollout_command))
     application.add_handler(CommandHandler("engagement_topics", engagement_topics_command))
     application.add_handler(CommandHandler("create_engagement_topic", create_engagement_topic_command))
     application.add_handler(CommandHandler("toggle_engagement_topic", toggle_engagement_topic_command))
@@ -2168,6 +2181,13 @@ def _second_arg_as_offset(context: Any) -> int:
     if len(context.args) < 2:
         return 0
     return _parse_offset(context.args[1])
+
+
+def _positive_int_arg(context: Any, *, default: int) -> int:
+    value = _first_arg(context)
+    if value is None:
+        return default
+    return _parse_positive_int(value, default=default)
 
 
 def _engagement_candidate_status_arg(context: Any) -> str:

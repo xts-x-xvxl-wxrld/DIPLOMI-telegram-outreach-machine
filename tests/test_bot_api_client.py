@@ -598,6 +598,45 @@ async def test_join_detect_and_action_methods_use_engagement_routes() -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_engagement_semantic_rollout_uses_rollout_endpoint() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path.endswith("/engagement/semantic-rollout")
+        assert request.url.params["window_days"] == "21"
+        assert request.url.params["community_id"] == "community-1"
+        assert request.url.params["topic_id"] == "topic-1"
+        return httpx.Response(
+            200,
+            json={
+                "window_days": 21,
+                "total_semantic_candidates": 0,
+                "reviewed_semantic_candidates": 0,
+                "pending": 0,
+                "approved": 0,
+                "rejected": 0,
+                "expired": 0,
+                "approval_rate": None,
+                "bands": [],
+            },
+        )
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    response = await client.get_engagement_semantic_rollout(
+        window_days=21,
+        community_id="community-1",
+        topic_id="topic-1",
+    )
+    await client.aclose()
+
+    assert response["window_days"] == 21
+
+
+@pytest.mark.asyncio
 async def test_api_error_uses_fastapi_detail_message() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(404, json={"detail": {"message": "Job not found"}})

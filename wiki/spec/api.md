@@ -1030,6 +1030,53 @@ Rules:
   join/detect/post permission.
 - Audit rows should remain available for operator review.
 
+### `GET /api/engagement/semantic-rollout`
+
+Returns aggregate semantic-selector rollout outcomes for threshold tuning.
+
+Query parameters:
+
+- `window_days` - default `14`, range `1..90`
+- `community_id` - optional community filter
+- `topic_id` - optional topic filter
+
+Response:
+
+```json
+{
+  "window_days": 14,
+  "community_id": null,
+  "topic_id": null,
+  "total_semantic_candidates": 3,
+  "reviewed_semantic_candidates": 2,
+  "pending": 1,
+  "approved": 1,
+  "rejected": 1,
+  "expired": 0,
+  "approval_rate": 0.5,
+  "bands": [
+    {
+      "label": "0.80-0.89",
+      "min_similarity": 0.8,
+      "max_similarity": 0.9,
+      "total": 1,
+      "pending": 0,
+      "approved": 1,
+      "rejected": 0,
+      "expired": 0,
+      "approval_rate": 1.0,
+      "average_similarity": 0.83
+    }
+  ]
+}
+```
+
+Rules:
+
+- The endpoint reads compact semantic metadata already stored on reply opportunities.
+- Output is aggregate-only. It must not expose source excerpts, sender identity, candidate IDs,
+  phone numbers, or person-level scores.
+
 ## Jobs and Debug
 
 ### `GET /api/jobs/{job_id}`

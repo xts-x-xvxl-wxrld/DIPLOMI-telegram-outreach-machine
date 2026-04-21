@@ -17,6 +17,7 @@ from bot.main import (
     engagement_actions_command,
     engagement_candidates_command,
     engagement_command,
+    engagement_rollout_command,
     engagement_settings_command,
     engagement_target_command,
     engagement_targets_command,
@@ -83,6 +84,7 @@ class _FakeApiClient:
         self.join_calls: list[dict[str, Any]] = []
         self.detect_calls: list[dict[str, Any]] = []
         self.action_calls: list[dict[str, Any]] = []
+        self.rollout_calls: list[dict[str, Any]] = []
         self.settings = {
             "community_id": "community-1",
             "mode": "disabled",
@@ -217,6 +219,27 @@ class _FakeApiClient:
                 "total": 1,
             },
             "failed": {"items": [], "total": 3},
+        }
+        self.rollout = {
+            "window_days": 14,
+            "total_semantic_candidates": 2,
+            "reviewed_semantic_candidates": 2,
+            "approved": 1,
+            "rejected": 1,
+            "pending": 0,
+            "expired": 0,
+            "approval_rate": 0.5,
+            "bands": [
+                {
+                    "label": "0.80-0.89",
+                    "total": 1,
+                    "approved": 1,
+                    "rejected": 0,
+                    "pending": 0,
+                    "expired": 0,
+                    "approval_rate": 1.0,
+                }
+            ],
         }
 
     async def list_engagement_targets(
@@ -442,6 +465,15 @@ class _FakeApiClient:
             "limit": limit,
             "offset": offset,
         }
+
+    async def get_engagement_semantic_rollout(
+        self,
+        *,
+        window_days: int = 14,
+        **_: Any,
+    ) -> dict[str, Any]:
+        self.rollout_calls.append({"window_days": window_days})
+        return {**self.rollout, "window_days": window_days}
 
     async def approve_engagement_candidate(
         self,
@@ -879,6 +911,22 @@ async def test_engagement_actions_command_filters_by_community_and_renders_audit
         "eng:home",
         "op:home",
     ]
+
+
+@pytest.mark.asyncio
+async def test_engagement_rollout_command_renders_aggregate_similarity_bands() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await engagement_rollout_command(update, _context(client, "21"))
+
+    assert client.rollout_calls == [{"window_days": 21}]
+    message = update.message.replies[0]["text"]
+    assert "Semantic rollout | 21 days" in message
+    assert "Approval rate: 50%" in message
+    assert "0.80-0.89: 1" in message
+    assert "Candidate ID" not in message
+    assert "Source:" not in message
 
 
 @pytest.mark.asyncio

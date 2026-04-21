@@ -129,8 +129,8 @@ Acceptance:
 
 ## Slice 5: Evaluation And Rollout
 
-Status: in progress. Slice 5a completed observability counters/logs and sanitized evaluation
-fixtures on 2026-04-21.
+Status: completed on 2026-04-21. Slice 5a completed observability counters/logs and sanitized
+evaluation fixtures; Slice 5b added the aggregate rollout review surface.
 
 Add lightweight evaluation fixtures and metrics for threshold tuning.
 
@@ -150,6 +150,18 @@ Completed in Slice 5a:
 - Selector and detector emit structured log records with aggregate-only counter payloads.
 - `tests/fixtures/engagement_semantic_eval.jsonl` provides sanitized `match`/`no_match` examples
   for threshold tuning.
+
+Completed in Slice 5b:
+
+- `GET /api/engagement/semantic-rollout` summarizes semantic-created reply opportunity outcomes by
+  similarity band over a bounded review window.
+- `/engagement_rollout [window_days]` renders the same aggregate rollout summary in the Telegram
+  bot.
+- Approved, sent, and failed-after-approval reply opportunities count as approved operator
+  outcomes; rejected rows count as rejected outcomes; pending and expired rows remain visible as
+  operational context.
+- The review surface is aggregate-only and does not expose source messages, candidate IDs, sender
+  identity, phone numbers, or person-level scores.
 
 ## Open Questions
 

@@ -687,3 +687,34 @@ class EngagementActionListResponse(BaseModel):
     limit: int
     offset: int
     total: int
+
+
+class EngagementSemanticRolloutBandOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    label: str
+    min_similarity: float
+    max_similarity: float
+    total: int
+    pending: int
+    approved: int
+    rejected: int
+    expired: int
+    approval_rate: float | None = None
+    average_similarity: float | None = None
+
+
+class EngagementSemanticRolloutSummaryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    window_days: int
+    community_id: UUID | None = None
+    topic_id: UUID | None = None
+    total_semantic_candidates: int
+    reviewed_semantic_candidates: int
+    pending: int
+    approved: int
+    rejected: int
+    expired: int
+    approval_rate: float | None = None
+    bands: list[EngagementSemanticRolloutBandOut]

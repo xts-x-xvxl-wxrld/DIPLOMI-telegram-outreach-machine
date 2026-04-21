@@ -123,6 +123,7 @@ def format_start() -> str:
             "/engagement_target <target_id>",
             "/engagement_prompts",
             "/engagement_style",
+            "/engagement_rollout",
             "/approve_reply <candidate_id>",
             "/edit_reply <candidate_id> | <final_reply>",
             "/reject_reply <candidate_id>",
@@ -554,6 +555,7 @@ def format_engagement_admin_advanced_home() -> str:
             "Use these controls when you need prompt profiles, diagnostics, or audit detail.",
             "",
             "Prompt profiles: /engagement_prompts",
+            "Semantic rollout: /engagement_rollout",
             "Audit and diagnostics: /engagement_actions",
         ]
     )
@@ -809,6 +811,48 @@ def format_engagement_action_card(item: dict[str, Any], *, index: int | None = N
         lines.append(f"Created: {item['created_at']}")
     if item.get("sent_at"):
         lines.append(f"Sent: {item['sent_at']}")
+    return "\n".join(lines)
+
+
+def format_engagement_semantic_rollout(data: dict[str, Any]) -> str:
+    bands = data.get("bands") or []
+    lines = [
+        f"Semantic rollout | {data.get('window_days', 14)} days",
+        f"Semantic replies: {data.get('total_semantic_candidates', 0)}",
+        f"Reviewed: {data.get('reviewed_semantic_candidates', 0)}",
+        (
+            "Outcomes: "
+            f"approved {data.get('approved', 0)}, "
+            f"rejected {data.get('rejected', 0)}, "
+            f"pending {data.get('pending', 0)}, "
+            f"expired {data.get('expired', 0)}"
+        ),
+        f"Approval rate: {_percent(data.get('approval_rate'))}",
+    ]
+    if data.get("community_id"):
+        lines.append(f"Community filter: {data['community_id']}")
+    if data.get("topic_id"):
+        lines.append(f"Topic filter: {data['topic_id']}")
+    lines.extend(["", "Similarity bands"])
+
+    populated = False
+    for band in bands:
+        total = int(band.get("total") or 0)
+        if total <= 0:
+            continue
+        populated = True
+        lines.append(
+            (
+                f"{band.get('label', 'band')}: {total} | "
+                f"approved {band.get('approved', 0)}, "
+                f"rejected {band.get('rejected', 0)}, "
+                f"pending {band.get('pending', 0)}, "
+                f"expired {band.get('expired', 0)} | "
+                f"approval {_percent(band.get('approval_rate'))}"
+            )
+        )
+    if not populated:
+        lines.append("No semantic reply opportunities in this window.")
     return "\n".join(lines)
 
 
@@ -1135,3 +1179,12 @@ def _shorten(value: str, limit: int) -> str:
 
 def _yes_no(value: Any) -> str:
     return "yes" if bool(value) else "no"
+
+
+def _percent(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    try:
+        return f"{float(value) * 100:.0f}%"
+    except (TypeError, ValueError):
+        return "n/a"
