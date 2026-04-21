@@ -863,3 +863,10 @@ current menu-gap inventory, main bot command spec, API prompt-profile route spec
 control-plane notes, and wiki implementation roots. Focused bot/engagement release coverage passed
 with 281 tests, and the full repo suite passed with 385 tests after rerunning outside the sandbox's
 Windows temp-directory restriction.
+
+## [2026-04-21] plan | Added bot engagement controls follow-up slices
+
+Updated `wiki/plan/bot-engagement-controls.md` with the remaining bot engagement control gaps after
+the semantic engagement work. Added planned follow-up slices for risky-action confirmations, guided
+edit entrypoints, prompt/topic/style creation flows, menu/progressive-disclosure polish, and the
+deferred backend capability boundary.

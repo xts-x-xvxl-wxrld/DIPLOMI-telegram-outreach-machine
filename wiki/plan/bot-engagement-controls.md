@@ -38,23 +38,25 @@ Backend/API concepts already specified:
 
 Known menu gaps:
 
-- Daily engagement still lacks direct `Approved queue`, `Settings lookup`, candidate detail,
-  revisions, expire, retry, and button-led reply editing flows.
-- Target controls list and approve targets, but lack detail, resolve, reject, archive, permission
-  toggles, target-scoped join/detect, status filters, and add-target menu buttons.
-- Prompt controls list, preview, and activate profiles, but lack detail, versions, creation,
-  duplication, editing, rollback, inline preview, and activation confirmation.
-- Topic controls lack admin-menu placement, detail, example removal, keyword editing, guidance
-  editing, and inline example controls.
-- Style controls are currently read-only and lack detail, create, edit, toggle, and scope-filter
-  flows.
-- Community controls lack rate-limit, quiet-hours, and assigned-account commands and menu entries.
-- Cross-cutting admin permission, confirmation, and conversation-state editing flows are still
-  missing.
-- Config editing should use an explicit field allowlist and typed edit flow, not generic database
-  column editing.
-- The bot engagement surfaces should be reorganized around operator intentions before exposing
-  backend entities and raw permission fields.
+- Daily engagement lacks a direct `Settings lookup` menu item.
+- Target approval and posting-permission changes still mutate immediately; they need explicit
+  confirmation cards before the API update.
+- Target notes have edit metadata, but the bot still needs a target-note save dispatch and
+  button-led guided edit entrypoints.
+- Prompt profile creation has backend/API-client support, but the bot needs a dedicated creation
+  command and a visible create entrypoint.
+- Topic examples can be added by command, but topic cards need inline `Add good example` and
+  `Add bad example` buttons that start conversation-state input.
+- Style rules can be created by command, but the inline `Create` button only shows command help; it
+  needs a bot-led creation flow.
+- Community settings cards expose command hints for rate limits, quiet hours, and account
+  assignment, but they need inline edit controls and account-assignment confirmation.
+- Readiness summaries should use richer backend-provided membership, account, rate-limit,
+  quiet-hour, and expiry details when those fields are available.
+- Default cards still expose more raw IDs and backend fields than ideal; details must remain
+  reachable for audit/debug, but default views should become more operator-intention first.
+- Long-term admin authorization still depends on the transitional bot allowlist; backend
+  capabilities or roles remain the preferred authority.
 
 ## Slice 1: Documentation Baseline
 
@@ -453,10 +455,187 @@ Completed:
   pytest temp-directory setup; the full suite passed with 385 tests and one existing datetime
   deprecation warning.
 
+## Follow-Up Slice 11: Safety Confirmations
+
+Status: planned.
+
+Purpose:
+
+Close the remaining risky-action UX gaps before adding more creation surfaces.
+
+Work items:
+
+- Add explicit confirmation callbacks and confirmation cards before target approval.
+- Add explicit confirmation callbacks before target posting-permission changes.
+- Add explicit confirmation before assigning or clearing a community engagement account.
+- Keep command paths available, but make commands render the confirmation card instead of mutating
+  immediately.
+- Keep the final mutation in the confirm callback, with the same backend validation and admin
+  gating as the existing direct update path.
+- Render before/after permission or account state using masked account labels only.
+
+Acceptance:
+
+- `/approve_engagement_target <target_id>` shows a confirmation card and does not call the target
+  update API until the admin confirms.
+- Inline target approval shows the same confirmation card before mutation.
+- `/target_permission <target_id> post <on|off>` and the inline posting toggle require
+  confirmation before saving.
+- Join/detect target permission toggles may remain direct unless later product review marks them
+  risky, but posting permission must be confirmed.
+- `/assign_engagement_account` and `/clear_engagement_account` show before/after account state and
+  require confirmation before saving.
+- Non-admin confirm callbacks are rejected before protected API methods are called.
+- Bot messages never expose full phone numbers or account secrets.
+
+Tests:
+
+- Handler tests prove target approval, posting-permission changes, and account assignment do not
+  call mutation APIs until the confirm callback.
+- Callback parser tests cover the new confirmation callback shapes and the 64-byte Telegram limit.
+- Admin permission tests cover command and callback confirmation paths.
+- Formatting/privacy tests cover before/after cards and masked account labels.
+
+## Follow-Up Slice 12: Guided Edit Entrypoints
+
+Status: planned.
+
+Purpose:
+
+Use the existing config-editing foundation for the remaining long or awkward edit paths.
+
+Work items:
+
+- Add target save dispatch for `target.notes` in the guided config-edit save path.
+- Add `Edit notes` buttons to target detail cards.
+- Add settings-card buttons for rate limit, quiet hours, and account assignment edit entrypoints.
+- Reuse the existing per-operator pending edit state, preview, save, cancel, and expiry behavior.
+- Preserve `reply_only=true` and `require_approval=true` on all community settings saves.
+
+Acceptance:
+
+- Target note editing can be started from a button-led target detail flow.
+- Saving target notes calls only the engagement target API.
+- Settings-card edit buttons start guided edits for allowed settings fields.
+- Settings saves preserve hard safety fields and rely on backend validation for bounds and account
+  pool checks.
+
+Tests:
+
+- Guided target-note edit tests cover start, preview, save, cancel, expiry, and admin-only gating.
+- Settings guided edit tests cover rate-limit, quiet-hour, and account-assignment entrypoints.
+- API-client route tests prove target note saves use `PATCH /api/engagement/targets/{target_id}`.
+
+## Follow-Up Slice 13: Creation Flows
+
+Status: planned.
+
+Purpose:
+
+Add bot-native creation entrypoints for prompt profiles, topic examples, and style rules without
+requiring operators to compose long slash commands from memory.
+
+Prompt profile work items:
+
+- Add `/create_engagement_prompt` as the dedicated prompt profile creation command.
+- Use the existing prompt profile create API-client method.
+- Start with a pipe-delimited command syntax for traceability and testability.
+- Add an inline `Create profile` button from the prompt profile list or advanced prompt screen.
+- Ensure unsupported prompt variables are rejected before the API call when possible.
+
+Topic example work items:
+
+- Add `Add good example` and `Add bad example` buttons on topic cards.
+- Start a conversation-state flow where the admin sends the example text as the next message.
+- Preview the example and save through `POST /api/engagement/topics/{topic_id}/examples`.
+- Keep bad examples clearly labeled as avoid-copy guidance.
+
+Style rule work items:
+
+- Replace the current inline style-rule `Create` help-only response with a bot-led create flow.
+- Use a compact guided input format for the first implementation, then preview and confirm before
+  creating.
+- Continue supporting `/create_style_rule` as the command-led path.
+
+Acceptance:
+
+- Prompt profiles can be created from a dedicated command and from a visible inline entrypoint.
+- Topic examples can be added without using `/topic_good_reply` or `/topic_bad_reply`.
+- Style-rule creation from inline controls creates a real pending flow, not just command help.
+- All creation mutations remain admin-only and use backend API routes.
+
+Tests:
+
+- Bot API-client tests cover prompt profile creation payloads.
+- Handler tests cover prompt profile command creation and inline create entrypoints.
+- Conversation-state tests cover good example, bad example, and style-rule create flows.
+- Privacy tests prove created prompt/style/topic output does not expose sender identity, full phone
+  numbers, or person-level scores.
+
+## Follow-Up Slice 14: Menu And Progressive Disclosure Polish
+
+Status: planned.
+
+Purpose:
+
+Make daily engagement and admin cards easier to navigate after the safety and creation gaps are
+closed.
+
+Work items:
+
+- Add a direct `Settings lookup` item to the daily engagement menu.
+- Add button-led settings lookup entrypoints that reuse `/engagement_settings <community_id>` where
+  practical.
+- Prefer operator-facing labels before backend field names on default cards.
+- Move raw IDs and diagnostic backend fields lower in default cards while keeping detail views
+  audit-friendly.
+- Improve readiness summaries when backend responses expose enough membership, account,
+  rate-limit, quiet-hour, or expiry detail to explain blocks accurately.
+
+Acceptance:
+
+- `/engagement` exposes a direct route to settings lookup.
+- Default target, settings, topic, style, and prompt cards are compact and intention-first.
+- Detail views still expose IDs and audit-relevant state.
+- Readiness summaries do not invent precision when the backend does not expose a concrete reason.
+
+Tests:
+
+- UI tests assert the Settings lookup button exists and callback data stays within Telegram limits.
+- Formatting tests cover compact default cards and detail-card ID visibility.
+- Readiness formatting tests cover backend-provided readiness strings and fallback behavior.
+
+## Follow-Up Slice 15: Backend Capability Boundary
+
+Status: deferred.
+
+Purpose:
+
+Move the admin permission source from the transitional Telegram bot allowlist toward backend-owned
+operator capabilities or roles.
+
+Work items:
+
+- Add or identify a backend endpoint that exposes engagement operator/admin capabilities for the
+  current bot auth context.
+- Update the bot to use backend capabilities when available.
+- Keep `TELEGRAM_ADMIN_USER_IDS` as a transitional fallback during rollout.
+- Make backend authorization the primary contract for prompt, style, topic, target, and advanced
+  community-setting mutations.
+
+Acceptance:
+
+- The bot can hide or reject admin-only controls based on backend capabilities.
+- Protected backend routes remain authoritative even if bot-side checks are misconfigured.
+- Tests cover both backend-capability and transitional-allowlist behavior.
+
 ## Open Questions
 
 - Prompt duplicate and rollback are first-class API routes in the shipped implementation.
 - Admin permission currently uses a transitional bot allowlist through `TELEGRAM_ADMIN_USER_IDS`;
   a backend capability or role model remains the preferred long-term authority.
-- Should target approval also create default engagement settings?
-- Should conversation-state edits survive bot restarts?
+- Should target approval also create default engagement settings? Current recommendation: keep
+  approval and settings separate until product review chooses otherwise.
+- Should conversation-state edits survive bot restarts? Current recommendation: keep short-lived
+  in-process drafts for the next slices and revisit durable drafts only if operators lose work in
+  practice.
