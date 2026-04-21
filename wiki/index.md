@@ -36,6 +36,7 @@
 - [Seed Batch Expansion](plan/seed-batch-expansion.md) - first-class expansion from resolved manual seed groups
 - [Seed-First Discovery](plan/seed-first-discovery.md) - active MVP plan replacing briefs with example-community seed groups
 - [Search Rebuild](plan/search-rebuild.md) - standalone clean-sheet spec for stronger Telegram search
+- [Search Rebuild Implementation](plan/search-rebuild-implementation.md) - staged implementation path for first-class query-driven search
 - [Telegram Bot UX Control Surface](plan/tg-bot-ux-control-surface.md) - richer Telegram-native operator controls for seed-group review and snapshots
 - [Member Access + Account Onboarding](plan/member-access-onboarding.md) - API/bot member visibility and local Telethon session setup
 - [TGStat Removal](plan/tgstat-removal.md) - retire TGStat and replace it with seed, web-search, and graph discovery

@@ -6,6 +6,14 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-04-21] plan | Added search rebuild implementation plan
+
+Added `wiki/plan/search-rebuild-implementation.md` to turn the open contract gaps in the search
+rebuild spec into a staged implementation path. The plan sequences contract resolution, schema,
+API, deterministic planning, Telegram entity search, normalization/ranking, bot review, seed
+conversion, rerank/replay, controlled graph expansion, deferred post/web search, and later frontend
+work. Linked the new plan from the wiki index.
+
 ## [2026-04-20] code | Added bot back and home navigation
 
 Added shared inline navigation footers across bot discovery, engagement, community, job, member,
