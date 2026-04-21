@@ -619,6 +619,14 @@ class EngagementCandidateRejectRequest(BaseModel):
     reviewed_by: str | None = Field(default=None, min_length=1, max_length=200)
 
 
+class EngagementCandidateExpireRequest(BaseModel):
+    expired_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class EngagementCandidateRetryRequest(BaseModel):
+    retried_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
 class EngagementDetectJobRequest(BaseModel):
     window_minutes: int = Field(default=60, ge=1, le=1440)
     requested_by: str | None = Field(default=None, min_length=1, max_length=200)
@@ -661,6 +669,23 @@ class EngagementCandidateListResponse(BaseModel):
     items: list[EngagementCandidateOut]
     limit: int
     offset: int
+    total: int
+
+
+class EngagementCandidateRevisionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    candidate_id: UUID
+    revision_number: int
+    reply_text: str
+    edited_by: str
+    edit_reason: str | None = None
+    created_at: datetime
+
+
+class EngagementCandidateRevisionListResponse(BaseModel):
+    items: list[EngagementCandidateRevisionOut]
     total: int
 
 

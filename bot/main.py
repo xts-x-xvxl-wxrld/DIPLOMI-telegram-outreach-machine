@@ -34,6 +34,7 @@ from bot.formatting import (
     format_engagement_admin_limits_home,
     format_engagement_candidate_card,
     format_engagement_candidate_review,
+    format_engagement_candidate_revisions,
     format_engagement_candidates,
     format_engagement_home,
     format_engagement_job_response,
@@ -86,6 +87,11 @@ from bot.ui import (
     ACTION_ENGAGEMENT_ADMIN_LIMITS,
     ACTION_ENGAGEMENT_APPROVE,
     ACTION_ENGAGEMENT_CANDIDATES,
+    ACTION_ENGAGEMENT_CANDIDATE_EDIT,
+    ACTION_ENGAGEMENT_CANDIDATE_EXPIRE,
+    ACTION_ENGAGEMENT_CANDIDATE_OPEN,
+    ACTION_ENGAGEMENT_CANDIDATE_RETRY,
+    ACTION_ENGAGEMENT_CANDIDATE_REVISIONS,
     ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_JOIN,
@@ -136,8 +142,10 @@ from bot.ui import (
     engagement_admin_limits_markup,
     engagement_admin_pager_markup,
     engagement_candidate_actions_markup,
+    engagement_candidate_detail_markup,
     engagement_candidate_filter_markup,
     engagement_candidate_pager_markup,
+    engagement_candidate_revisions_markup,
     engagement_candidate_send_markup,
     engagement_home_markup,
     engagement_prompt_actions_markup,
@@ -354,6 +362,17 @@ async def engagement_candidates_command(update: Any, context: Any) -> None:
     status = _engagement_candidate_status_arg(context)
     try:
         await _send_engagement_candidates(update, context, status=status, offset=0)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def engagement_candidate_command(update: Any, context: Any) -> None:
+    candidate_id = _first_arg(context)
+    if candidate_id is None:
+        await _reply(update, "Usage: /engagement_candidate <candidate_id>")
+        return
+    try:
+        await _send_engagement_candidate_detail(update, context, candidate_id)
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
 
@@ -727,6 +746,39 @@ async def send_reply_command(update: Any, context: Any) -> None:
         await _reply(update, format_api_error(exc.message))
 
 
+async def candidate_revisions_command(update: Any, context: Any) -> None:
+    candidate_id = _first_arg(context)
+    if candidate_id is None:
+        await _reply(update, "Usage: /candidate_revisions <candidate_id>")
+        return
+    try:
+        await _send_engagement_candidate_revisions(update, context, candidate_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def expire_candidate_command(update: Any, context: Any) -> None:
+    candidate_id = _first_arg(context)
+    if candidate_id is None:
+        await _reply(update, "Usage: /expire_candidate <candidate_id>")
+        return
+    try:
+        await _expire_engagement_candidate(update, context, candidate_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def retry_candidate_command(update: Any, context: Any) -> None:
+    candidate_id = _first_arg(context)
+    if candidate_id is None:
+        await _reply(update, "Usage: /retry_candidate <candidate_id>")
+        return
+    try:
+        await _retry_engagement_candidate(update, context, candidate_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
 async def edit_reply_command(update: Any, context: Any) -> None:
     parsed = _parse_edit_reply_args(context)
     if parsed is None and len(context.args) == 1:
@@ -759,7 +811,7 @@ async def edit_reply_command(update: Any, context: Any) -> None:
     await _reply(
         update,
         "Reply edited.\n\n" + format_engagement_candidate_card(data),
-        reply_markup=engagement_candidate_actions_markup(candidate_id),
+        reply_markup=_engagement_candidate_detail_markup(candidate_id, data),
     )
 
 
@@ -1034,6 +1086,37 @@ async def callback_query(update: Any, context: Any) -> None:
                 context,
                 parts[0],
                 active=parts[1] == "1",
+                edit_callback=True,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_CANDIDATE_OPEN and len(parts) == 1:
+            await _send_engagement_candidate_detail(update, context, parts[0])
+            return
+        if action == ACTION_ENGAGEMENT_CANDIDATE_EDIT and len(parts) == 1:
+            await _start_config_edit(
+                update,
+                context,
+                entity="candidate",
+                object_id=parts[0],
+                field="final_reply",
+            )
+            return
+        if action == ACTION_ENGAGEMENT_CANDIDATE_REVISIONS and len(parts) == 1:
+            await _send_engagement_candidate_revisions(update, context, parts[0])
+            return
+        if action == ACTION_ENGAGEMENT_CANDIDATE_EXPIRE and len(parts) == 1:
+            await _expire_engagement_candidate(
+                update,
+                context,
+                parts[0],
+                edit_callback=True,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_CANDIDATE_RETRY and len(parts) == 1:
+            await _retry_engagement_candidate(
+                update,
+                context,
+                parts[0],
                 edit_callback=True,
             )
             return
@@ -1630,8 +1713,10 @@ async def _send_engagement_candidates(
         reply_markup = None
         if candidate_status == "approved":
             reply_markup = engagement_candidate_send_markup(candidate_id)
-        elif candidate_status in {"needs_review", "failed"}:
+        elif candidate_status == "needs_review":
             reply_markup = engagement_candidate_actions_markup(candidate_id)
+        elif candidate_status == "failed":
+            reply_markup = engagement_candidate_detail_markup(candidate_id, status=candidate_status)
         await _callback_reply(
             update,
             format_engagement_candidate_card(item, index=index),
@@ -1645,6 +1730,74 @@ async def _send_engagement_candidates(
     )
     if pager_markup is not None:
         await _callback_reply(update, "Reply page controls", reply_markup=pager_markup)
+
+
+async def _send_engagement_candidate_detail(
+    update: Any,
+    context: Any,
+    candidate_id: str,
+) -> None:
+    client = _api_client(context)
+    data = await client.get_engagement_candidate(candidate_id)
+    await _callback_reply(
+        update,
+        format_engagement_candidate_card(data),
+        reply_markup=_engagement_candidate_detail_markup(candidate_id, data),
+    )
+
+
+async def _send_engagement_candidate_revisions(
+    update: Any,
+    context: Any,
+    candidate_id: str,
+) -> None:
+    client = _api_client(context)
+    data = await client.list_engagement_candidate_revisions(candidate_id)
+    await _callback_reply(
+        update,
+        format_engagement_candidate_revisions(data, candidate_id=candidate_id),
+        reply_markup=engagement_candidate_revisions_markup(candidate_id),
+    )
+
+
+async def _expire_engagement_candidate(
+    update: Any,
+    context: Any,
+    candidate_id: str,
+    *,
+    edit_callback: bool = False,
+) -> None:
+    client = _api_client(context)
+    data = await client.expire_engagement_candidate(
+        candidate_id,
+        expired_by=_reviewer_label(update),
+    )
+    message = "Candidate expired.\n\n" + format_engagement_candidate_card(data)
+    reply_markup = _engagement_candidate_detail_markup(candidate_id, data)
+    if edit_callback:
+        await _edit_callback_message(update, message, reply_markup=reply_markup)
+        return
+    await _reply(update, message, reply_markup=reply_markup)
+
+
+async def _retry_engagement_candidate(
+    update: Any,
+    context: Any,
+    candidate_id: str,
+    *,
+    edit_callback: bool = False,
+) -> None:
+    client = _api_client(context)
+    data = await client.retry_engagement_candidate(
+        candidate_id,
+        retried_by=_reviewer_label(update),
+    )
+    message = "Candidate reopened for review.\n\n" + format_engagement_candidate_card(data)
+    reply_markup = _engagement_candidate_detail_markup(candidate_id, data)
+    if edit_callback:
+        await _edit_callback_message(update, message, reply_markup=reply_markup)
+        return
+    await _reply(update, message, reply_markup=reply_markup)
 
 
 async def _send_engagement_settings(update: Any, context: Any, community_id: str) -> None:
@@ -1973,8 +2126,12 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("topic_good_reply", topic_good_reply_command))
     application.add_handler(CommandHandler("topic_bad_reply", topic_bad_reply_command))
     application.add_handler(CommandHandler("engagement_candidates", engagement_candidates_command))
+    application.add_handler(CommandHandler("engagement_candidate", engagement_candidate_command))
     application.add_handler(CommandHandler("approve_reply", approve_reply_command))
     application.add_handler(CommandHandler("edit_reply", edit_reply_command))
+    application.add_handler(CommandHandler("candidate_revisions", candidate_revisions_command))
+    application.add_handler(CommandHandler("expire_candidate", expire_candidate_command))
+    application.add_handler(CommandHandler("retry_candidate", retry_candidate_command))
     application.add_handler(CommandHandler("cancel_edit", cancel_edit_command))
     application.add_handler(CommandHandler("reject_reply", reject_reply_command))
     application.add_handler(CommandHandler("send_reply", send_reply_command))
@@ -2028,21 +2185,21 @@ async def _start_config_edit(
 ) -> None:
     operator_id = _telegram_user_id(update)
     if operator_id is None:
-        await _reply(update, "Telegram did not include a user ID on this update.")
+        await _callback_reply(update, "Telegram did not include a user ID on this update.")
         return
     if not object_id:
-        await _reply(update, "Missing item ID for this edit.")
+        await _callback_reply(update, "Missing item ID for this edit.")
         return
     editable = editable_field(entity, field)
     if editable is None:
-        await _reply(update, "That field is not editable from the bot.")
+        await _callback_reply(update, "That field is not editable from the bot.")
         return
     pending = _config_edit_store(context).start(
         operator_id=operator_id,
         field=editable,
         object_id=object_id,
     )
-    await _reply(update, render_edit_request(pending))
+    await _callback_reply(update, render_edit_request(pending))
 
 
 async def _handle_config_edit_text(update: Any, context: Any, raw_text: str) -> bool:
@@ -2143,7 +2300,7 @@ def _saved_config_edit_response(pending: PendingEdit, data: dict[str, Any]) -> t
     if pending.entity == "candidate":
         return (
             prefix + "\n\n" + format_engagement_candidate_card(data),
-            engagement_candidate_actions_markup(pending.object_id),
+            _engagement_candidate_detail_markup(pending.object_id, data),
         )
     if pending.entity == "target":
         return (
@@ -2243,6 +2400,13 @@ def _engagement_target_markup(target_id: str, data: dict[str, Any]) -> Any:
         allow_join=bool(data.get("allow_join")),
         allow_detect=bool(data.get("allow_detect")),
         allow_post=bool(data.get("allow_post")),
+    )
+
+
+def _engagement_candidate_detail_markup(candidate_id: str, data: dict[str, Any]) -> Any:
+    return engagement_candidate_detail_markup(
+        candidate_id,
+        status=str(data.get("status") or "needs_review"),
     )
 
 

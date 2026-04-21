@@ -124,8 +124,12 @@ def format_start() -> str:
             "/engagement_prompts",
             "/engagement_style",
             "/engagement_rollout",
+            "/engagement_candidate <candidate_id>",
             "/approve_reply <candidate_id>",
             "/edit_reply <candidate_id> | <final_reply>",
+            "/candidate_revisions <candidate_id>",
+            "/expire_candidate <candidate_id>",
+            "/retry_candidate <candidate_id>",
             "/reject_reply <candidate_id>",
             "/send_reply <candidate_id>",
             "/entity <intake_id>",
@@ -929,6 +933,31 @@ def format_engagement_candidate_review(action: str, item: dict[str, Any]) -> str
     return "\n".join(lines)
 
 
+def format_engagement_candidate_revisions(data: dict[str, Any], *, candidate_id: str) -> str:
+    items = data.get("items") or []
+    total = data.get("total", len(items))
+    if not items:
+        return f"No reply revisions for candidate {candidate_id} yet."
+
+    lines = [f"Candidate revisions ({total})", f"Candidate ID: {candidate_id}"]
+    for item in items[:10]:
+        lines.extend(
+            [
+                "",
+                f"Revision {item.get('revision_number', '?')}",
+                f"Edited by: {item.get('edited_by') or 'operator'}",
+            ]
+        )
+        if item.get("edit_reason"):
+            lines.append(f"Reason: {_shorten(str(item['edit_reason']), 160)}")
+        if item.get("created_at"):
+            lines.append(f"Created: {item['created_at']}")
+        lines.append(f"Reply: {_shorten(str(item.get('reply_text') or ''), 800)}")
+    if len(items) > 10:
+        lines.append(f"...and {len(items) - 10} more")
+    return "\n".join(lines)
+
+
 def format_community_detail(
     detail: dict[str, Any],
     snapshot_runs: dict[str, Any] | None = None,
@@ -1056,24 +1085,36 @@ def _engagement_candidate_readiness(item: dict[str, Any]) -> str:
 def _engagement_candidate_next_actions(candidate_id: str, status: str) -> list[str]:
     if status == "needs_review":
         return [
+            f"Open: /engagement_candidate {candidate_id}",
             f"Edit: /edit_reply {candidate_id} | <final reply>",
             f"Approve: /approve_reply {candidate_id}",
             f"Reject: /reject_reply {candidate_id}",
+            f"Expire: /expire_candidate {candidate_id}",
         ]
     if status == "approved":
         return [
+            f"Open: /engagement_candidate {candidate_id}",
             f"Send: /send_reply {candidate_id}",
             f"Edit: /edit_reply {candidate_id} | <final reply>",
             f"Reject: /reject_reply {candidate_id}",
+            f"Expire: /expire_candidate {candidate_id}",
         ]
     if status == "failed":
         return [
+            f"Open: /engagement_candidate {candidate_id}",
+            f"Retry: /retry_candidate {candidate_id}",
             f"Edit: /edit_reply {candidate_id} | <final reply>",
             f"Reject: /reject_reply {candidate_id}",
+            f"Expire: /expire_candidate {candidate_id}",
         ]
     if status in {"sent", "rejected", "expired"}:
-        return ["Audit: /engagement_actions"]
+        return [
+            f"Open: /engagement_candidate {candidate_id}",
+            f"Revisions: /candidate_revisions {candidate_id}",
+            "Audit: /engagement_actions",
+        ]
     return [
+        f"Open: /engagement_candidate {candidate_id}",
         f"Edit: /edit_reply {candidate_id} | <final reply>",
         f"Reject: /reject_reply {candidate_id}",
     ]

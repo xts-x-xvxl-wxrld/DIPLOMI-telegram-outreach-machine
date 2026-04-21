@@ -170,6 +170,12 @@ class BotApiClient:
             params=params,
         )
 
+    async def get_engagement_candidate(self, candidate_id: str) -> dict[str, Any]:
+        return await self._request("GET", f"/engagement/candidates/{candidate_id}")
+
+    async def list_engagement_candidate_revisions(self, candidate_id: str) -> dict[str, Any]:
+        return await self._request("GET", f"/engagement/candidates/{candidate_id}/revisions")
+
     async def list_engagement_targets(
         self,
         *,
@@ -505,6 +511,36 @@ class BotApiClient:
         return await self._request(
             "POST",
             f"/engagement/candidates/{candidate_id}/edit",
+            json=payload,
+        )
+
+    async def expire_engagement_candidate(
+        self,
+        candidate_id: str,
+        *,
+        expired_by: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if expired_by is not None:
+            payload["expired_by"] = expired_by
+        return await self._request(
+            "POST",
+            f"/engagement/candidates/{candidate_id}/expire",
+            json=payload,
+        )
+
+    async def retry_engagement_candidate(
+        self,
+        candidate_id: str,
+        *,
+        retried_by: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if retried_by is not None:
+            payload["retried_by"] = retried_by
+        return await self._request(
+            "POST",
+            f"/engagement/candidates/{candidate_id}/retry",
             json=payload,
         )
 

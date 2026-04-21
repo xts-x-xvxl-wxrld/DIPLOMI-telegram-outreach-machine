@@ -47,6 +47,10 @@ ACTION_ENGAGEMENT_APPROVE = "eng:cand:approve"
 ACTION_ENGAGEMENT_REJECT = "eng:cand:reject"
 ACTION_ENGAGEMENT_SEND = "eng:cand:send"
 ACTION_ENGAGEMENT_CANDIDATE_OPEN = "eng:cand:open"
+ACTION_ENGAGEMENT_CANDIDATE_EDIT = "eng:cand:edit"
+ACTION_ENGAGEMENT_CANDIDATE_REVISIONS = "eng:cand:rev"
+ACTION_ENGAGEMENT_CANDIDATE_EXPIRE = "eng:cand:exp"
+ACTION_ENGAGEMENT_CANDIDATE_RETRY = "eng:cand:retry"
 ACTION_ENGAGEMENT_TOPIC_LIST = "eng:topic:list"
 ACTION_ENGAGEMENT_TOPIC_OPEN = "eng:topic:open"
 ACTION_ENGAGEMENT_TOPIC_TOGGLE = "eng:topic:toggle"
@@ -203,7 +207,9 @@ def candidate_actions_markup(community_id: str):
 
 def engagement_candidate_actions_markup(candidate_id: str):
     rows = [
+        [_button("Open", ACTION_ENGAGEMENT_CANDIDATE_OPEN, candidate_id)],
         [
+            _button("Edit", ACTION_ENGAGEMENT_CANDIDATE_EDIT, candidate_id),
             _button("Approve", ACTION_ENGAGEMENT_APPROVE, candidate_id),
             _button("Reject", ACTION_ENGAGEMENT_REJECT, candidate_id),
         ],
@@ -221,6 +227,7 @@ def engagement_candidate_actions_markup(candidate_id: str):
 def engagement_candidate_send_markup(candidate_id: str):
     rows = [
         [_button("Queue send", ACTION_ENGAGEMENT_SEND, candidate_id)],
+        [_button("Open", ACTION_ENGAGEMENT_CANDIDATE_OPEN, candidate_id)],
         [_button("Approved replies", ACTION_ENGAGEMENT_CANDIDATES, "approved", "0")],
     ]
     return _inline_markup(
@@ -228,6 +235,58 @@ def engagement_candidate_send_markup(candidate_id: str):
             rows,
             back_action=ACTION_ENGAGEMENT_CANDIDATES,
             back_parts=["approved", "0"],
+        )
+    )
+
+
+def engagement_candidate_detail_markup(candidate_id: str, *, status: str):
+    rows = [[_button("Revisions", ACTION_ENGAGEMENT_CANDIDATE_REVISIONS, candidate_id)]]
+    if status == "needs_review":
+        rows.insert(
+            0,
+            [
+                _button("Edit", ACTION_ENGAGEMENT_CANDIDATE_EDIT, candidate_id),
+                _button("Approve", ACTION_ENGAGEMENT_APPROVE, candidate_id),
+                _button("Reject", ACTION_ENGAGEMENT_REJECT, candidate_id),
+            ],
+        )
+        rows.append([_button("Expire", ACTION_ENGAGEMENT_CANDIDATE_EXPIRE, candidate_id)])
+    elif status == "approved":
+        rows.insert(0, [_button("Queue send", ACTION_ENGAGEMENT_SEND, candidate_id)])
+        rows.insert(
+            1,
+            [
+                _button("Edit", ACTION_ENGAGEMENT_CANDIDATE_EDIT, candidate_id),
+                _button("Reject", ACTION_ENGAGEMENT_REJECT, candidate_id),
+            ],
+        )
+        rows.append([_button("Expire", ACTION_ENGAGEMENT_CANDIDATE_EXPIRE, candidate_id)])
+    elif status == "failed":
+        rows.insert(
+            0,
+            [
+                _button("Retry", ACTION_ENGAGEMENT_CANDIDATE_RETRY, candidate_id),
+                _button("Edit", ACTION_ENGAGEMENT_CANDIDATE_EDIT, candidate_id),
+                _button("Reject", ACTION_ENGAGEMENT_REJECT, candidate_id),
+            ],
+        )
+        rows.append([_button("Expire", ACTION_ENGAGEMENT_CANDIDATE_EXPIRE, candidate_id)])
+    return _inline_markup(
+        _with_navigation(
+            rows,
+            back_action=ACTION_ENGAGEMENT_CANDIDATES,
+            back_parts=[status if status in {"approved", "failed", "sent", "rejected"} else "needs_review", "0"],
+        )
+    )
+
+
+def engagement_candidate_revisions_markup(candidate_id: str):
+    rows = [[_button("Open", ACTION_ENGAGEMENT_CANDIDATE_OPEN, candidate_id)]]
+    return _inline_markup(
+        _with_navigation(
+            rows,
+            back_action=ACTION_ENGAGEMENT_CANDIDATES,
+            back_parts=["needs_review", "0"],
         )
     )
 

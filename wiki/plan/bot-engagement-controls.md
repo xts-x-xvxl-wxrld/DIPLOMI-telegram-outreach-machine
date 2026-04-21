@@ -210,7 +210,7 @@ Completed notes:
 
 ## Slice 5: Candidate Detail, Editing, And Revisions
 
-Status: planned.
+Status: completed.
 
 Add bot support for:
 
@@ -235,6 +235,17 @@ Acceptance:
 - Sent candidates cannot be edited through normal bot controls.
 - Send buttons appear only for approved candidates.
 - Source excerpts are capped and sender identity is never shown.
+
+Completed notes:
+
+- Added backend candidate detail, revision list, explicit expire, and failed-candidate retry routes.
+- Added bot API-client methods and commands for `/engagement_candidate`,
+  `/candidate_revisions`, `/expire_candidate`, and `/retry_candidate`.
+- Candidate list cards now expose open/detail controls; detail cards expose state-aware edit,
+  approve, reject, send, expire, retry, and revisions buttons.
+- Candidate detail edit buttons reuse the Slice 4 guided preview/save flow for final replies.
+- Added focused API-client, formatting, UI callback, handler, and backend API tests covering detail,
+  revisions, expire/retry transitions, and send-button visibility.
 
 ## Slice 6: Prompt Profile Admin Controls
 

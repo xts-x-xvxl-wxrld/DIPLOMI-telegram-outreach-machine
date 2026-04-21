@@ -9,6 +9,7 @@ from bot.formatting import (
     format_created_brief,
     format_engagement_candidate_card,
     format_engagement_candidate_review,
+    format_engagement_candidate_revisions,
     format_engagement_candidates,
     format_engagement_action_card,
     format_engagement_actions,
@@ -516,6 +517,24 @@ def test_format_engagement_candidate_card_uses_state_relevant_actions() -> None:
     assert "Approve: /approve_reply candidate-1" not in message
 
 
+def test_format_engagement_candidate_card_shows_retry_without_send_for_failed() -> None:
+    message = format_engagement_candidate_card(
+        {
+            "id": "candidate-1",
+            "community_title": "Founder Circle",
+            "topic_name": "Open-source CRM",
+            "status": "failed",
+            "source_excerpt": "The group is comparing CRM tools.",
+            "detected_reason": "The group is discussing alternatives.",
+            "suggested_reply": "Compare ownership, integrations, and exit paths first.",
+        }
+    )
+
+    assert "Readiness: Failed, retry may be available" in message
+    assert "Retry: /retry_candidate candidate-1" in message
+    assert "Send: /send_reply candidate-1" not in message
+
+
 def test_format_engagement_candidate_review_reports_audit_fields() -> None:
     message = format_engagement_candidate_review(
         "approve",
@@ -531,6 +550,31 @@ def test_format_engagement_candidate_review_reports_audit_fields() -> None:
     assert "Status: approved" in message
     assert "Reviewed by: telegram:123" in message
     assert "Queue send: /send_reply candidate-1" in message
+
+
+def test_format_engagement_candidate_revisions_caps_history_and_keeps_editor_metadata() -> None:
+    message = format_engagement_candidate_revisions(
+        {
+            "items": [
+                {
+                    "id": "revision-1",
+                    "candidate_id": "candidate-1",
+                    "revision_number": 1,
+                    "reply_text": "Edited final reply.",
+                    "edited_by": "telegram:123",
+                    "edit_reason": "manual edit",
+                    "created_at": "2026-04-21T10:00:00Z",
+                }
+            ],
+            "total": 1,
+        },
+        candidate_id="candidate-1",
+    )
+
+    assert "Candidate revisions (1)" in message
+    assert "Revision 1" in message
+    assert "Edited by: telegram:123" in message
+    assert "Reply: Edited final reply." in message
 
 
 def test_format_engagement_semantic_rollout_is_aggregate_only() -> None:

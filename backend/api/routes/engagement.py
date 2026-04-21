@@ -10,9 +10,13 @@ from backend.api.schemas import (
     EngagementActionOut,
     EngagementCandidateApproveRequest,
     EngagementCandidateEditRequest,
+    EngagementCandidateExpireRequest,
     EngagementCandidateListResponse,
     EngagementCandidateOut,
     EngagementCandidateRejectRequest,
+    EngagementCandidateRetryRequest,
+    EngagementCandidateRevisionListResponse,
+    EngagementCandidateRevisionOut,
     EngagementDetectJobRequest,
     EngagementJoinJobRequest,
     EngagementPromptPreviewOut,
@@ -68,8 +72,11 @@ from backend.services.community_engagement import (
     create_topic,
     duplicate_prompt_profile,
     edit_candidate_reply,
+    expire_candidate,
+    get_engagement_candidate,
     get_engagement_target,
     get_engagement_settings,
+    list_candidate_revisions,
     get_prompt_profile,
     list_engagement_actions,
     list_engagement_candidates,
@@ -81,6 +88,7 @@ from backend.services.community_engagement import (
     preview_prompt_profile,
     reject_candidate,
     remove_topic_example,
+    retry_candidate,
     rollback_prompt_profile,
     summarize_semantic_rollout,
     update_prompt_profile,
@@ -668,6 +676,42 @@ async def get_engagement_candidates(
     )
 
 
+@router.get(
+    "/engagement/candidates/{candidate_id}",
+    response_model=EngagementCandidateOut,
+)
+async def get_engagement_candidate_detail(
+    candidate_id: UUID,
+    db: DbSession,
+) -> EngagementCandidateOut:
+    try:
+        candidate = await get_engagement_candidate(db, candidate_id=candidate_id)
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+    return EngagementCandidateOut.model_validate(candidate)
+
+
+@router.get(
+    "/engagement/candidates/{candidate_id}/revisions",
+    response_model=EngagementCandidateRevisionListResponse,
+)
+async def get_engagement_candidate_revisions(
+    candidate_id: UUID,
+    db: DbSession,
+) -> EngagementCandidateRevisionListResponse:
+    try:
+        revisions = await list_candidate_revisions(db, candidate_id=candidate_id)
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+    return EngagementCandidateRevisionListResponse(
+        items=[
+            EngagementCandidateRevisionOut.model_validate(revision)
+            for revision in revisions
+        ],
+        total=len(revisions),
+    )
+
+
 @router.get("/engagement/actions", response_model=EngagementActionListResponse)
 async def get_engagement_actions(
     db: DbSession,
@@ -782,6 +826,50 @@ async def post_engagement_candidate_reject(
             candidate_id=candidate_id,
             rejected_by=payload.reviewed_by or "operator",
             reason=payload.reason,
+        )
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+
+    await db.commit()
+    return EngagementCandidateOut.model_validate(candidate)
+
+
+@router.post(
+    "/engagement/candidates/{candidate_id}/expire",
+    response_model=EngagementCandidateOut,
+)
+async def post_engagement_candidate_expire(
+    candidate_id: UUID,
+    payload: EngagementCandidateExpireRequest,
+    db: DbSession,
+) -> EngagementCandidateOut:
+    try:
+        candidate = await expire_candidate(
+            db,
+            candidate_id=candidate_id,
+            expired_by=payload.expired_by or "operator",
+        )
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+
+    await db.commit()
+    return EngagementCandidateOut.model_validate(candidate)
+
+
+@router.post(
+    "/engagement/candidates/{candidate_id}/retry",
+    response_model=EngagementCandidateOut,
+)
+async def post_engagement_candidate_retry(
+    candidate_id: UUID,
+    payload: EngagementCandidateRetryRequest,
+    db: DbSession,
+) -> EngagementCandidateOut:
+    try:
+        candidate = await retry_candidate(
+            db,
+            candidate_id=candidate_id,
+            retried_by=payload.retried_by or "operator",
         )
     except EngagementServiceError as exc:
         raise _http_error(exc) from exc

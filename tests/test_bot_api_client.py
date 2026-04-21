@@ -407,6 +407,45 @@ async def test_approve_engagement_candidate_posts_reviewer() -> None:
 
 
 @pytest.mark.asyncio
+async def test_candidate_detail_revision_expire_and_retry_methods_use_candidate_routes() -> None:
+    seen: list[tuple[str, str, dict[str, object] | None]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content) if request.content else None
+        seen.append((request.method, request.url.path, payload))
+        if request.url.path.endswith("/revisions"):
+            return httpx.Response(200, json={"items": [], "total": 0})
+        return httpx.Response(200, json={"id": "candidate-1", "status": "needs_review"})
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    await client.get_engagement_candidate("candidate-1")
+    await client.list_engagement_candidate_revisions("candidate-1")
+    await client.expire_engagement_candidate("candidate-1", expired_by="telegram:123")
+    await client.retry_engagement_candidate("candidate-1", retried_by="telegram:123")
+    await client.aclose()
+
+    assert seen == [
+        ("GET", "/api/engagement/candidates/candidate-1", None),
+        ("GET", "/api/engagement/candidates/candidate-1/revisions", None),
+        (
+            "POST",
+            "/api/engagement/candidates/candidate-1/expire",
+            {"expired_by": "telegram:123"},
+        ),
+        (
+            "POST",
+            "/api/engagement/candidates/candidate-1/retry",
+            {"retried_by": "telegram:123"},
+        ),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_reject_engagement_candidate_posts_reviewer() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"

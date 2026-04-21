@@ -12,6 +12,8 @@ from backend.api.app import create_app
 from backend.api.deps import settings_dep
 from backend.api.routes.engagement import (
     get_engagement_actions,
+    get_engagement_candidate_detail,
+    get_engagement_candidate_revisions,
     get_engagement_candidates,
     get_engagement_semantic_rollout,
     get_engagement_target_detail,
@@ -21,7 +23,9 @@ from backend.api.routes.engagement import (
     post_community_engagement_detect_job,
     post_engagement_candidate_approve,
     post_engagement_candidate_edit,
+    post_engagement_candidate_expire,
     post_engagement_candidate_reject,
+    post_engagement_candidate_retry,
     post_engagement_candidate_send_job,
     post_engagement_target,
     post_engagement_target_detect_job,
@@ -34,7 +38,9 @@ from backend.api.routes.engagement import (
 from backend.api.schemas import (
     EngagementCandidateApproveRequest,
     EngagementCandidateEditRequest,
+    EngagementCandidateExpireRequest,
     EngagementCandidateRejectRequest,
+    EngagementCandidateRetryRequest,
     EngagementDetectJobRequest,
     EngagementJoinJobRequest,
     EngagementSendJobRequest,
@@ -61,6 +67,7 @@ from backend.db.models import (
     CommunityEngagementSettings,
     EngagementAction,
     EngagementCandidate,
+    EngagementCandidateRevision,
     EngagementTarget,
     EngagementTopic,
     TelegramAccount,
@@ -928,6 +935,43 @@ async def test_edit_engagement_candidate_creates_final_reply_revision() -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_candidate_detail_returns_one_candidate() -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    topic = _topic(uuid4(), name="Open-source CRM")
+    candidate = _candidate(uuid4(), community, topic)
+    db = FakeDb(scalar_result=candidate)
+
+    response = await get_engagement_candidate_detail(candidate.id, db)  # type: ignore[arg-type]
+
+    assert response.id == candidate.id
+    assert response.community_title == "Founder Circle"
+    assert response.topic_name == "Open-source CRM"
+
+
+@pytest.mark.asyncio
+async def test_candidate_revisions_route_returns_revision_history() -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    topic = _topic(uuid4(), name="Open-source CRM")
+    candidate = _candidate(uuid4(), community, topic)
+    revision = EngagementCandidateRevision(
+        id=uuid4(),
+        candidate_id=candidate.id,
+        revision_number=2,
+        reply_text="Edited final reply.",
+        edited_by="telegram:123",
+        edit_reason="manual edit",
+        created_at=datetime(2026, 4, 21, tzinfo=timezone.utc),
+    )
+    db = FakeDb(scalar_result=candidate, revisions=[revision])
+
+    response = await get_engagement_candidate_revisions(candidate.id, db)  # type: ignore[arg-type]
+
+    assert response.total == 1
+    assert response.items[0].revision_number == 2
+    assert response.items[0].reply_text == "Edited final reply."
+
+
+@pytest.mark.asyncio
 async def test_approve_engagement_candidate_uses_edited_final_reply() -> None:
     community = _community(uuid4(), title="Founder Circle")
     topic = _topic(uuid4(), name="Open-source CRM")
@@ -943,6 +987,64 @@ async def test_approve_engagement_candidate_uses_edited_final_reply() -> None:
 
     assert response.status == EngagementCandidateStatus.APPROVED.value
     assert response.final_reply == "Edited final reply."
+
+
+@pytest.mark.asyncio
+async def test_expire_engagement_candidate_moves_review_candidate_to_expired() -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    topic = _topic(uuid4(), name="Open-source CRM")
+    candidate = _candidate(uuid4(), community, topic)
+    db = FakeDb(scalar_result=candidate)
+
+    response = await post_engagement_candidate_expire(
+        candidate.id,
+        EngagementCandidateExpireRequest(expired_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.status == EngagementCandidateStatus.EXPIRED.value
+    assert db.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_engagement_candidate_reopens_failed_candidate() -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    topic = _topic(uuid4(), name="Open-source CRM")
+    candidate = _candidate(uuid4(), community, topic)
+    candidate.status = EngagementCandidateStatus.FAILED.value
+    candidate.reviewed_by = "telegram:123"
+    candidate.reviewed_at = datetime(2026, 4, 20, tzinfo=timezone.utc)
+    db = FakeDb(scalar_result=candidate)
+
+    response = await post_engagement_candidate_retry(
+        candidate.id,
+        EngagementCandidateRetryRequest(retried_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.status == EngagementCandidateStatus.NEEDS_REVIEW.value
+    assert response.reviewed_by is None
+    assert response.reviewed_at is None
+    assert db.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_engagement_candidate_rejects_non_failed_candidate() -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    topic = _topic(uuid4(), name="Open-source CRM")
+    candidate = _candidate(uuid4(), community, topic)
+    db = FakeDb(scalar_result=candidate)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await post_engagement_candidate_retry(
+            candidate.id,
+            EngagementCandidateRetryRequest(retried_by="telegram:123"),
+            db,  # type: ignore[arg-type]
+        )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail["code"] == "candidate_not_retryable"
+    assert db.commits == 0
 
 
 @pytest.mark.asyncio
@@ -1043,6 +1145,7 @@ class FakeDb:
         target: EngagementTarget | None = None,
         candidate: EngagementCandidate | None = None,
         candidates: list[EngagementCandidate] | None = None,
+        revisions: list[EngagementCandidateRevision] | None = None,
         actions: list[EngagementAction] | None = None,
         account: TelegramAccount | None = None,
         scalar_result: object | None = None,
@@ -1053,6 +1156,7 @@ class FakeDb:
         self.target = target
         self.candidate = candidate
         self.candidates = candidates
+        self.revisions = revisions
         self.actions = actions
         self.account = account
         self.scalar_result = scalar_result
@@ -1086,6 +1190,8 @@ class FakeDb:
 
     async def scalars(self, statement: object) -> list[object]:
         del statement
+        if self.revisions is not None:
+            return list(self.revisions)
         if self.actions is not None:
             return list(self.actions)
         return list(self.candidates or [])

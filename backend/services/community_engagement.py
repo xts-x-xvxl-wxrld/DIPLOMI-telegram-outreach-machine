@@ -163,6 +163,17 @@ class EngagementCandidateView:
 
 
 @dataclass(frozen=True)
+class EngagementCandidateRevisionView:
+    id: UUID
+    candidate_id: UUID
+    revision_number: int
+    reply_text: str
+    edited_by: str
+    edit_reason: str | None
+    created_at: datetime
+
+
+@dataclass(frozen=True)
 class EngagementCandidateListResult:
     items: list[EngagementCandidateView]
     limit: int
@@ -1239,6 +1250,29 @@ async def edit_candidate_reply(
     return _candidate_view(candidate)
 
 
+async def get_engagement_candidate(
+    db: AsyncSession,
+    *,
+    candidate_id: UUID,
+) -> EngagementCandidateView:
+    candidate = await _get_candidate_for_review(db, candidate_id)
+    return _candidate_view(candidate)
+
+
+async def list_candidate_revisions(
+    db: AsyncSession,
+    *,
+    candidate_id: UUID,
+) -> list[EngagementCandidateRevisionView]:
+    await _get_candidate_for_review(db, candidate_id)
+    rows = await db.scalars(
+        select(EngagementCandidateRevision)
+        .where(EngagementCandidateRevision.candidate_id == candidate_id)
+        .order_by(EngagementCandidateRevision.revision_number.desc())
+    )
+    return [_candidate_revision_view(revision) for revision in rows]
+
+
 async def list_engagement_candidates(
     db: AsyncSession,
     *,
@@ -1461,6 +1495,56 @@ async def reject_candidate(
     candidate.status = EngagementCandidateStatus.REJECTED.value
     candidate.reviewed_by = _required_text(rejected_by, field="rejected_by")
     candidate.reviewed_at = now
+    candidate.updated_at = now
+    await db.flush()
+    return _candidate_view(candidate)
+
+
+async def expire_candidate(
+    db: AsyncSession,
+    *,
+    candidate_id: UUID,
+    expired_by: str,
+) -> EngagementCandidateView:
+    del expired_by
+    candidate = await _get_candidate_for_review(db, candidate_id)
+    if candidate.status in {
+        EngagementCandidateStatus.SENT.value,
+        EngagementCandidateStatus.REJECTED.value,
+        EngagementCandidateStatus.EXPIRED.value,
+    }:
+        raise EngagementConflict(
+            "candidate_not_expirable",
+            "Sent, rejected, and already expired candidates cannot be expired",
+        )
+
+    now = _utcnow()
+    candidate.status = EngagementCandidateStatus.EXPIRED.value
+    candidate.updated_at = now
+    await db.flush()
+    return _candidate_view(candidate)
+
+
+async def retry_candidate(
+    db: AsyncSession,
+    *,
+    candidate_id: UUID,
+    retried_by: str,
+) -> EngagementCandidateView:
+    del retried_by
+    candidate = await _get_candidate_for_review(db, candidate_id)
+    if candidate.status != EngagementCandidateStatus.FAILED.value:
+        raise EngagementConflict(
+            "candidate_not_retryable",
+            "Only failed candidates can be retried",
+        )
+    if _candidate_is_expired(candidate, _utcnow()):
+        raise EngagementConflict("candidate_expired", "Expired candidates cannot be retried")
+
+    now = _utcnow()
+    candidate.status = EngagementCandidateStatus.NEEDS_REVIEW.value
+    candidate.reviewed_by = None
+    candidate.reviewed_at = None
     candidate.updated_at = now
     await db.flush()
     return _candidate_view(candidate)
@@ -2086,6 +2170,20 @@ def _candidate_view(candidate: EngagementCandidate) -> EngagementCandidateView:
         reviewed_at=candidate.reviewed_at,
         expires_at=candidate.expires_at,
         created_at=candidate.created_at,
+    )
+
+
+def _candidate_revision_view(
+    revision: EngagementCandidateRevision,
+) -> EngagementCandidateRevisionView:
+    return EngagementCandidateRevisionView(
+        id=revision.id,
+        candidate_id=revision.candidate_id,
+        revision_number=revision.revision_number,
+        reply_text=revision.reply_text,
+        edited_by=revision.edited_by,
+        edit_reason=revision.edit_reason,
+        created_at=revision.created_at,
     )
 
 

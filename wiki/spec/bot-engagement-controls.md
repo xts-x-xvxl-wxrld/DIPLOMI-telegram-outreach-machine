@@ -343,10 +343,18 @@ The current main engagement menu exposes:
 - Candidate queue filters for `needs_review`, `approved`, `failed`, `sent`, and `rejected`.
 - Candidate cards with readiness summaries and state-relevant approve, reject, edit, audit, and
   queue-send command hints.
+- `/engagement_candidate <candidate_id>` detail cards with capped source excerpt, prompt provenance,
+  risk notes, current final reply, revision entrypoint, and state-aware controls.
 - `/edit_reply <candidate_id> | <new final reply>` as a pipe-command edit path.
 - `/edit_reply <candidate_id>` as a guided reply-edit flow: the bot stores a pending edit by
   Telegram operator ID, accepts the next text message as the proposed final reply, shows a
   preview, and saves or cancels through `eng:edit:save` / `eng:edit:cancel`.
+- Candidate detail buttons can start the same guided reply-edit preview/save flow.
+- `/candidate_revisions <candidate_id>` shows immutable reply revision history.
+- `/expire_candidate <candidate_id>` explicitly moves a reviewable candidate out of the queue when
+  the backend permits it.
+- `/retry_candidate <candidate_id>` reopens failed candidates for review when the backend permits
+  the transition.
 - Shared config-editing foundation with explicit editable field metadata, typed parsers for
   text/long-text/int/float/bool/enum/time/UUID/keyword-list values, per-operator pending state,
   15-minute expiry, and entity-specific API save dispatch.
@@ -376,14 +384,6 @@ The current main engagement menu exposes:
 ### Missing From Daily Engagement
 
 - `Settings lookup` menu item.
-- Candidate detail/open command: `/engagement_candidate <candidate_id>`.
-- Inline candidate open/details handler. `ACTION_ENGAGEMENT_CANDIDATE_OPEN` exists in bot UI code,
-  but the callback is not handled yet.
-- Candidate revisions command: `/candidate_revisions <candidate_id>`.
-- Candidate expire command: `/expire_candidate <candidate_id>`.
-- Candidate retry command: `/retry_candidate <candidate_id>`.
-- Inline or conversation-state edit-reply flow. The pipe command exists, but there is no button-led
-  preview and confirmation flow.
 
 ### Missing From Engagement Targets
 

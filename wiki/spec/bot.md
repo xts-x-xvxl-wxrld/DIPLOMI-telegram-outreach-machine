@@ -66,7 +66,11 @@ Engagement commands are optional and operator-controlled:
 /join_community <community_id>
 /detect_engagement <community_id> [window_minutes]
 /engagement_candidates [status]
+/engagement_candidate <candidate_id>
 /edit_reply <candidate_id> | <new final reply>
+/candidate_revisions <candidate_id>
+/expire_candidate <candidate_id>
+/retry_candidate <candidate_id>
 /cancel_edit
 /approve_reply <candidate_id>
 /reject_reply <candidate_id>
@@ -460,6 +464,13 @@ status, and a send-readiness summary. The bot must not show sender identity. Car
 state-relevant primary action hints, such as approve/reject for `needs_review` and send for
 `approved`.
 
+### `/engagement_candidate <candidate_id>`
+
+Calls `GET /api/engagement/candidates/{candidate_id}` and shows one full candidate detail card with
+capped source excerpt, detected reason, suggested reply, current final reply, prompt profile/version
+summary, risk notes, status, expiry, and state-aware controls. The card must not show sender
+identity, phone numbers, private account metadata, or person-level scores.
+
 ### `/edit_reply <candidate_id> | <new final reply>`
 
 Edits the candidate's final reply through the API. The edit creates a candidate revision and uses
@@ -474,6 +485,24 @@ Operators may also start a guided edit with only:
 In that mode, the bot stores a pending edit for the caller's Telegram user ID, accepts the next text
 message as the proposed final reply, shows a preview, and saves or cancels through inline controls.
 Pending edits are in-process, expire after a short timeout, and are not shared between operators.
+
+### `/candidate_revisions <candidate_id>`
+
+Calls `GET /api/engagement/candidates/{candidate_id}/revisions` and shows immutable manual reply
+revision history with revision number, edited-by label, optional edit reason, timestamp, and capped
+reply text.
+
+### `/expire_candidate <candidate_id>`
+
+Calls `POST /api/engagement/candidates/{candidate_id}/expire` to explicitly remove a reviewable or
+approved candidate from active review when the operator decides it is stale. Sent, rejected, and
+already expired candidates remain read-only.
+
+### `/retry_candidate <candidate_id>`
+
+Calls `POST /api/engagement/candidates/{candidate_id}/retry` to reopen a failed candidate for review
+when the backend permits the transition. Retry does not send anything; it only returns the candidate
+to review.
 
 ### `/cancel_edit`
 

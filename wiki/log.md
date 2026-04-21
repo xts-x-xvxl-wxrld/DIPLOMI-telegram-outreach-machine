@@ -781,3 +781,11 @@ semantic-created reply opportunity outcomes by similarity band through
 operator review. The surface reports aggregate approval, rejection, pending, and expired counts
 without exposing source messages, candidate IDs, sender identity, phone numbers, or person-level
 scores.
+
+## [2026-04-21] code | Added bot candidate detail and revision controls
+
+Completed Bot Engagement Controls Slice 5. The backend now exposes engagement candidate detail,
+revision history, explicit expire, and failed-candidate retry routes. The Telegram bot exposes
+`/engagement_candidate`, `/candidate_revisions`, `/expire_candidate`, and `/retry_candidate`, plus
+inline candidate detail, guided edit, revision, expire, and retry controls. Candidate send buttons
+remain limited to approved candidates, and revision/detail views keep source excerpts capped.

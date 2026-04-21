@@ -21,6 +21,11 @@ from bot.ui import (
     ACTION_ENGAGEMENT_ADMIN_LIMITS,
     ACTION_ENGAGEMENT_APPROVE,
     ACTION_ENGAGEMENT_CANDIDATES,
+    ACTION_ENGAGEMENT_CANDIDATE_EDIT,
+    ACTION_ENGAGEMENT_CANDIDATE_EXPIRE,
+    ACTION_ENGAGEMENT_CANDIDATE_OPEN,
+    ACTION_ENGAGEMENT_CANDIDATE_RETRY,
+    ACTION_ENGAGEMENT_CANDIDATE_REVISIONS,
     ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_JOIN,
@@ -45,8 +50,10 @@ from bot.ui import (
     discovery_cockpit_markup,
     engagement_action_pager_markup,
     engagement_candidate_actions_markup,
+    engagement_candidate_detail_markup,
     engagement_candidate_filter_markup,
     engagement_candidate_pager_markup,
+    engagement_candidate_revisions_markup,
     engagement_candidate_send_markup,
     engagement_admin_home_markup,
     engagement_home_markup,
@@ -202,9 +209,31 @@ def test_engagement_candidate_actions_markup_exposes_review_controls() -> None:
     markup = engagement_candidate_actions_markup("candidate-1")
     rows = markup.inline_keyboard
 
-    assert rows[0][0].callback_data == f"{ACTION_ENGAGEMENT_APPROVE}:candidate-1"
-    assert rows[0][1].text == "Reject"
-    assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:needs_review:0"
+    assert rows[0][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATE_OPEN}:candidate-1"
+    assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATE_EDIT}:candidate-1"
+    assert rows[1][1].callback_data == f"{ACTION_ENGAGEMENT_APPROVE}:candidate-1"
+    assert rows[1][2].text == "Reject"
+    assert rows[2][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:needs_review:0"
+
+
+def test_engagement_candidate_detail_markup_is_state_aware() -> None:
+    approved = engagement_candidate_detail_markup("candidate-1", status="approved")
+    failed = engagement_candidate_detail_markup("candidate-2", status="failed")
+    sent = engagement_candidate_detail_markup("candidate-3", status="sent")
+
+    assert "eng:cand:send:candidate-1" in _callbacks(approved)
+    assert f"{ACTION_ENGAGEMENT_CANDIDATE_EXPIRE}:candidate-1" in _callbacks(approved)
+    assert f"{ACTION_ENGAGEMENT_CANDIDATE_RETRY}:candidate-2" in _callbacks(failed)
+    assert f"{ACTION_ENGAGEMENT_CANDIDATE_REVISIONS}:candidate-3" in _callbacks(sent)
+    assert "eng:cand:send:candidate-3" not in _callbacks(sent)
+
+
+def test_engagement_candidate_revisions_markup_only_reopens_candidate_detail() -> None:
+    markup = engagement_candidate_revisions_markup("candidate-1")
+
+    assert f"{ACTION_ENGAGEMENT_CANDIDATE_OPEN}:candidate-1" in _callbacks(markup)
+    assert f"{ACTION_ENGAGEMENT_CANDIDATE_EDIT}:candidate-1" not in _callbacks(markup)
+    assert "eng:cand:send:candidate-1" not in _callbacks(markup)
 
 
 def test_engagement_candidate_pager_markup_pages_candidates() -> None:
@@ -316,7 +345,8 @@ def test_engagement_candidate_send_and_filter_markup() -> None:
     filter_markup = engagement_candidate_filter_markup(status="approved")
 
     assert send_markup.inline_keyboard[0][0].callback_data == "eng:cand:send:candidate-1"
-    assert send_markup.inline_keyboard[1][0].callback_data == "eng:cand:list:approved:0"
+    assert send_markup.inline_keyboard[1][0].callback_data == "eng:cand:open:candidate-1"
+    assert send_markup.inline_keyboard[2][0].callback_data == "eng:cand:list:approved:0"
     assert any(
         button.callback_data == "eng:cand:list:failed:0"
         for row in filter_markup.inline_keyboard

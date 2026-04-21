@@ -15,6 +15,7 @@ from bot.main import (
     detect_engagement_command,
     engagement_admin_command,
     engagement_actions_command,
+    engagement_candidate_command,
     engagement_candidates_command,
     engagement_command,
     engagement_rollout_command,
@@ -23,10 +24,13 @@ from bot.main import (
     engagement_targets_command,
     engagement_topics_command,
     edit_reply_command,
+    expire_candidate_command,
     join_community_command,
     reject_engagement_target_command,
+    retry_candidate_command,
     resolve_engagement_target_command,
     send_reply_command,
+    candidate_revisions_command,
     approve_reply_command,
     target_detect_command,
     target_join_command,
@@ -64,9 +68,13 @@ class _FakeCallbackQuery:
 class _FakeApiClient:
     def __init__(self) -> None:
         self.list_candidate_calls: list[dict[str, Any]] = []
+        self.get_candidate_calls: list[str] = []
+        self.revision_calls: list[str] = []
         self.send_calls: list[dict[str, Any]] = []
         self.approve_calls: list[dict[str, Any]] = []
         self.edit_candidate_calls: list[dict[str, Any]] = []
+        self.expire_candidate_calls: list[dict[str, Any]] = []
+        self.retry_candidate_calls: list[dict[str, Any]] = []
         self.create_topic_calls: list[dict[str, Any]] = []
         self.update_topic_calls: list[dict[str, Any]] = []
         self.get_settings_calls: list[str] = []
@@ -366,6 +374,42 @@ class _FakeApiClient:
         page = self.candidates_by_status.get(status, {"items": [], "total": 0})
         return {"items": page["items"], "total": page["total"], "limit": limit, "offset": offset}
 
+    async def get_engagement_candidate(self, candidate_id: str) -> dict[str, Any]:
+        self.get_candidate_calls.append(candidate_id)
+        for page in self.candidates_by_status.values():
+            for candidate in page["items"]:
+                if candidate["id"] == candidate_id:
+                    return dict(candidate)
+        return {
+            "id": candidate_id,
+            "community_title": "Founder Circle",
+            "topic_name": "Open CRM",
+            "status": "needs_review",
+            "source_excerpt": "Discussing CRM tools.",
+            "detected_reason": "Relevant CRM discussion.",
+            "suggested_reply": "Compare ownership and integrations first.",
+            "prompt_render_summary": {"profile_name": "Default", "version_number": 3},
+            "prompt_profile_version_id": "version-3",
+            "risk_notes": ["Keep it factual."],
+        }
+
+    async def list_engagement_candidate_revisions(self, candidate_id: str) -> dict[str, Any]:
+        self.revision_calls.append(candidate_id)
+        return {
+            "items": [
+                {
+                    "id": "revision-1",
+                    "candidate_id": candidate_id,
+                    "revision_number": 1,
+                    "reply_text": "Edited reply text.",
+                    "edited_by": "telegram:123",
+                    "edit_reason": "manual edit",
+                    "created_at": "2026-04-21T10:00:00Z",
+                }
+            ],
+            "total": 1,
+        }
+
     async def list_engagement_topics(self) -> dict[str, Any]:
         return {"items": self.topics, "total": len(self.topics)}
 
@@ -523,6 +567,40 @@ class _FakeApiClient:
             "detected_reason": "Relevant CRM discussion.",
             "suggested_reply": "Compare ownership and integrations first.",
             "final_reply": final_reply,
+        }
+
+    async def expire_engagement_candidate(
+        self,
+        candidate_id: str,
+        *,
+        expired_by: str | None = None,
+    ) -> dict[str, Any]:
+        self.expire_candidate_calls.append({"candidate_id": candidate_id, "expired_by": expired_by})
+        return {
+            "id": candidate_id,
+            "community_title": "Founder Circle",
+            "topic_name": "Open CRM",
+            "status": "expired",
+            "source_excerpt": "Discussing CRM tools.",
+            "detected_reason": "Relevant CRM discussion.",
+            "suggested_reply": "Compare ownership and integrations first.",
+        }
+
+    async def retry_engagement_candidate(
+        self,
+        candidate_id: str,
+        *,
+        retried_by: str | None = None,
+    ) -> dict[str, Any]:
+        self.retry_candidate_calls.append({"candidate_id": candidate_id, "retried_by": retried_by})
+        return {
+            "id": candidate_id,
+            "community_title": "Founder Circle",
+            "topic_name": "Open CRM",
+            "status": "needs_review",
+            "source_excerpt": "Discussing CRM tools.",
+            "detected_reason": "Relevant CRM discussion.",
+            "suggested_reply": "Compare ownership and integrations first.",
         }
 
 
@@ -1056,6 +1134,86 @@ async def test_engagement_candidates_approved_status_exposes_send_not_review() -
     assert "eng:cand:send:candidate-approved" in callbacks
     assert "eng:cand:approve:candidate-approved" not in callbacks
     assert client.list_candidate_calls[0]["status"] == "approved"
+
+
+@pytest.mark.asyncio
+async def test_engagement_candidate_command_opens_detail_with_revision_and_edit_controls() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await engagement_candidate_command(update, _context(client, "candidate-review"))
+
+    assert client.get_candidate_calls == ["candidate-review"]
+    text = update.message.replies[0]["text"]
+    assert "Candidate ID: candidate-review" in text
+    assert "Source: Discussing CRM tools." in text
+    callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
+    assert "eng:cand:edit:candidate-review" in callbacks
+    assert "eng:cand:rev:candidate-review" in callbacks
+    assert "eng:cand:send:candidate-review" not in callbacks
+
+
+@pytest.mark.asyncio
+async def test_candidate_open_and_edit_callbacks_use_detail_and_guided_edit() -> None:
+    client = _FakeApiClient()
+    open_update = _callback_update("eng:cand:open:candidate-review")
+    edit_update = _callback_update("eng:cand:edit:candidate-review")
+    context = _context(client)
+
+    await callback_query(open_update, context)
+    await callback_query(edit_update, context)
+
+    assert client.get_candidate_calls == ["candidate-review"]
+    assert "Candidate ID: candidate-review" in open_update.callback_query.message.replies[0]["text"]
+    assert "Editing Final reply" in edit_update.callback_query.message.replies[0]["text"]
+    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
+    assert pending.object_id == "candidate-review"
+
+
+@pytest.mark.asyncio
+async def test_candidate_revisions_command_lists_revision_history() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await candidate_revisions_command(update, _context(client, "candidate-review"))
+
+    assert client.revision_calls == ["candidate-review"]
+    message = update.message.replies[0]["text"]
+    assert "Candidate revisions (1)" in message
+    assert "Revision 1" in message
+    assert "Edited reply text." in message
+
+
+@pytest.mark.asyncio
+async def test_expire_and_retry_candidate_commands_call_candidate_routes() -> None:
+    client = _FakeApiClient()
+    expire_update = _message_update()
+    retry_update = _message_update()
+
+    await expire_candidate_command(expire_update, _context(client, "candidate-review"))
+    await retry_candidate_command(retry_update, _context(client, "candidate-failed"))
+
+    assert client.expire_candidate_calls == [
+        {"candidate_id": "candidate-review", "expired_by": "telegram:123:@operator"}
+    ]
+    assert client.retry_candidate_calls == [
+        {"candidate_id": "candidate-failed", "retried_by": "telegram:123:@operator"}
+    ]
+    assert "Candidate expired." in expire_update.message.replies[0]["text"]
+    assert "Candidate reopened for review." in retry_update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_expire_and_retry_candidate_callbacks_edit_current_card() -> None:
+    client = _FakeApiClient()
+    expire_update = _callback_update("eng:cand:exp:candidate-review")
+    retry_update = _callback_update("eng:cand:retry:candidate-failed")
+
+    await callback_query(expire_update, _context(client))
+    await callback_query(retry_update, _context(client))
+
+    assert "Candidate expired." in expire_update.callback_query.edits[0]["text"]
+    assert "Candidate reopened for review." in retry_update.callback_query.edits[0]["text"]
 
 
 @pytest.mark.asyncio

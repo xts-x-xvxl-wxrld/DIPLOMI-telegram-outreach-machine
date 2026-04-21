@@ -960,6 +960,36 @@ Query parameters:
 - `limit`
 - `offset`
 
+### `GET /api/engagement/candidates/{candidate_id}`
+
+Returns one candidate reply detail for bot review. The response uses the same safe candidate fields
+as the candidate list: community/topic labels, capped source excerpt, detected reason, suggested
+reply, final reply, prompt provenance, risk notes, status, review metadata, expiry, and timestamps.
+It must not expose sender identity, phone numbers, private account metadata, or person-level scores.
+
+### `GET /api/engagement/candidates/{candidate_id}/revisions`
+
+Returns immutable manual reply revision history newest first.
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "candidate_id": "uuid",
+      "revision_number": 1,
+      "reply_text": "edited final public reply",
+      "edited_by": "telegram:123",
+      "edit_reason": "manual edit",
+      "created_at": "iso_datetime"
+    }
+  ],
+  "total": 1
+}
+```
+
 ### `POST /api/engagement/candidates/{candidate_id}/approve`
 
 Approves a candidate reply. The API records the reviewer and review timestamp. Sending still happens
@@ -976,6 +1006,15 @@ review until explicitly approved.
 ### `POST /api/engagement/candidates/{candidate_id}/reject`
 
 Rejects a candidate reply.
+
+### `POST /api/engagement/candidates/{candidate_id}/expire`
+
+Explicitly expires a reviewable candidate so it leaves the active review/send queue. Sent, rejected,
+and already expired candidates are not expirable.
+
+### `POST /api/engagement/candidates/{candidate_id}/retry`
+
+Reopens a failed candidate for review when it has not expired. Other statuses are rejected.
 
 ### `POST /api/engagement/candidates/{candidate_id}/send-jobs`
 
