@@ -797,3 +797,12 @@ detail, immutable version history, render-only preview, guided field editing, du
 activation confirmation, and rollback confirmation. Prompt template edits reject unapproved
 variables such as sender identity before calling the API when possible, and focused bot API-client,
 handler, and config-editing tests cover the new control surface.
+
+## [2026-04-21] spec | Added clean-sheet Telegram search rebuild design
+
+Added a new `wiki/spec/search-rebuild.md` page to capture a stronger future search architecture for
+Telegram community discovery. The spec defines first-class search runs, structured query planning,
+multi-surface retrieval across entity search, post search, graph expansion, and optional public web
+search, plus evidence-based normalization, ranking, review, and promotion of strong hits into
+seeds. Added the corresponding `wiki/plan/search-rebuild.md` planning page and linked both from the
+wiki index.
