@@ -300,161 +300,258 @@ improvements.
 - Query planning may extract search terms, but it must not decide final relevance without evidence.
 - Telegram account-backed retrieval must use managed accounts with rate-limit and flood-wait safety.
 
-## Open Contract Gaps and Uncertainties
+## Implementation Contract
 
-This spec is not implementation-ready until the following contracts are resolved.
+This section locks the first implementation contract for query-driven search. Deferred surfaces are
+explicitly marked and do not block the core schema, API skeleton, deterministic planner, Telegram
+entity search adapter, ranking, or bot review slices.
 
-### Database Contract
+### Durable Objects
 
-The durable search tables are named but not fully specified. Before implementation, define exact
-columns, indexes, uniqueness rules, status values, and retention rules for:
+The first implementation uses five tables:
 
-- `search_runs`
-- `search_queries`
-- `search_candidates`
-- `search_candidate_evidence`
-- `search_reviews`
+- `search_runs` - one operator query-driven search intent.
+- `search_queries` - deterministic planner outputs for one run and one adapter.
+- `search_candidates` - run-scoped candidate rows. `community_id` is nullable so unresolved raw
+  public hits can be preserved until Telegram resolution succeeds.
+- `search_candidate_evidence` - compact append-style evidence rows for why a candidate matched.
+- `search_reviews` - operator review audit rows.
 
-Key uncertainty: whether `search_candidates` stores only a run-scoped link to an existing
-`communities` row, or whether it can also hold unresolved raw hits before Telegram resolution.
+`communities` remains the canonical durable community identity after a candidate resolves through
+Telegram. Search candidates may hold `normalized_username` and `canonical_url` before resolution.
 
-### Search Run Contract
+Exact columns, indexes, and uniqueness rules live in `wiki/spec/database.md`.
 
-Define what a run stores and how it moves through state. Minimum fields likely include raw operator
-query, normalized title, requested-by operator, enabled adapters, per-adapter caps, status,
-started/completed timestamps, error summary, and replay/rerank metadata.
+### Statuses
 
-Open question: should a search run be allowed to rerun retrieval, rerank existing evidence only, or
-both?
+Search run statuses:
 
-### Query Planning Contract
+- `draft` - created but not yet planned.
+- `planning` - planner is creating `search_queries`.
+- `retrieving` - one or more adapter queries are running.
+- `ranking` - scores are being computed from stored candidates and evidence.
+- `completed` - retrieval and ranking finished with usable output.
+- `failed` - the run cannot continue. `last_error` must be populated.
+- `cancelled` - operator or system stopped the run before completion.
 
-Define the shape of `search_queries`, including query text, language/locale hints, adapter target,
-include terms, exclusion terms, planner source, and validation rules.
+Search query statuses:
 
-Open question: whether the existing `audience_briefs` and `brief.process` flow is reused for search
-planning, replaced by `search.plan`, or kept as a separate legacy path.
+- `pending`
+- `running`
+- `completed`
+- `failed`
+- `skipped`
+
+Search candidate statuses:
+
+- `candidate` - visible for review.
+- `promoted` - run-scoped positive review.
+- `rejected` - run-scoped rejection unless paired with a `global_reject` review.
+- `archived` - run-scoped hide/defer action.
+- `converted_to_seed` - candidate has been converted into a seed row.
+
+Review actions:
+
+- `promote` - sets candidate status to `promoted`; does not mutate `communities.status`.
+- `reject` - sets candidate status to `rejected` for this run only.
+- `archive` - sets candidate status to `archived` for this run only.
+- `global_reject` - explicit separate action that may set the resolved community to
+  `communities.status = 'rejected'` and applies a future-run ranking penalty.
+- `convert_to_seed` - creates or reuses a seed row and sets candidate status to
+  `converted_to_seed`.
+
+The API skeleton starts with `promote`, `reject`, and `archive`. `global_reject` and
+`convert_to_seed` are specified here for schema and audit compatibility but are enabled in later
+slices.
+
+### Planner Contract
+
+`search.plan` replaces brief-driven planning for query-driven search. It lives beside the optional
+`brief.process` path and does not require `audience_briefs`.
+
+The first planner is `deterministic_v1`:
+
+- trim and normalize the operator query
+- reject empty or whitespace-only queries
+- casefold duplicate generated query texts
+- preserve API-supplied `language_hints` and `locale_hints`
+- create one or more `search_queries` with `adapter = 'telegram_entity_search'`
+- store `include_terms`, `exclusion_terms`, and `planner_metadata`
+
+OpenAI-assisted expansion and audience-brief reuse are deferred.
 
 ### Retrieval Adapter Contract
 
-Every adapter needs the same input and output shape. Adapters should return raw hits plus structured
-evidence and should not write final relevance decisions.
+All adapters receive:
 
-Each adapter contract must define:
+- `search_run_id`
+- `search_query_id`
+- `adapter`
+- `query_text`
+- caps from `search_runs.per_adapter_caps`
+- `requested_by`
 
-- required input fields
-- output hit identity fields
-- evidence fields
-- caps and rate limits
-- retry and partial-failure behavior
-- whether the adapter needs a Telegram search-pool account
-- whether the adapter may cache raw results
+All adapters emit raw public community hits with:
 
-Largest uncertainty: `telegram_post_search`. The spec still needs to define the Telegram capability
-or adapter used for public post/message search, the exact caps, the evidence snippet length, and
-what message text may be stored without becoming raw message-history collection.
+- optional Telegram `tg_id`
+- optional public `username`
+- optional canonical public Telegram URL
+- title
+- description
+- member count when available
+- compact evidence rows
+- adapter metadata, excluding secrets and full raw message history
 
-### Candidate Normalization Contract
+Adapters never make final relevance decisions. They may resolve public channel/group identities into
+`communities`; inaccessible and non-community hits remain query-level outcomes or unresolved
+candidate evidence depending on what was safely known.
 
-Define the boundary between raw adapter hits, unresolved candidates, and durable `communities` rows.
-The implementation needs clear rules for:
+First active adapter:
 
-- deduping by `tg_id`, username, and public URL
-- resolving public identifiers through Telegram
-- handling inaccessible or non-community hits
-- preserving existing operator decisions on reused communities
-- merging new evidence without overwriting older review state
+- `telegram_entity_search` - uses only search-pool Telegram accounts and writes title, username,
+  and description evidence.
+
+Deferred adapters:
+
+- `telegram_post_search` - blocked until Telegram capability, source post identifiers, snippet
+  limits, sender privacy, and retention are specified.
+- `web_search_tme` - blocked until provider, query caps, result cache policy, and URL normalization
+  are specified.
+- `seed_graph_expand` - blocked until the graph expansion gate slice.
 
 ### Evidence Contract
 
-The evidence model needs exact allowed evidence types, required fields by type, truncation rules,
-and retention rules.
+First active evidence types:
 
-Post/message evidence needs special limits. Search may store a short proof snippet, source
-community, source post ID or URL when safe, and matched query terms, but it must not store full raw
-message history by default.
+- `entity_title_match`
+- `entity_username_match`
+- `description_match`
+- `handle_resolution`
+- `manual_seed`
+- `linked_discussion`
+- `forward_source`
+- `telegram_link`
+- `mention`
+
+Reserved/deferred evidence types:
+
+- `post_text_match`
+- `web_result`
+
+Evidence value rules:
+
+- store compact proof text only
+- truncate `evidence_value` to 500 characters before persistence
+- store adapter-specific structured details in `evidence_metadata`
+- do not store sender identity, phone numbers, full raw message history, or person-level scores
+- treat evidence rows as append-style audit facts; corrections should write new evidence or update
+  candidate score fields, not overwrite the original proof row
+
+### Candidate Normalization
+
+Candidate identity is merged within a run in this order:
+
+1. `community_id`, when Telegram resolution succeeds
+2. normalized public username
+3. canonical public Telegram URL
+
+Resolution may create or update `communities` metadata, but it must preserve existing operator
+decisions on `communities.status`. A rejected, monitoring, approved, or dropped community must not
+be reset to `candidate` by search retrieval.
+
+Run-scoped search review state lives on `search_candidates` and `search_reviews`; it must not be
+inferred from global community status except for explicit `global_reject` penalties.
 
 ### Ranking Contract
 
-The ranking formula is only sketched. Before building, define:
+Ranking version `search_rank_v1` persists a numeric `score` and JSON `score_components` on each
+candidate. Scores are community-level review sorting signals only.
 
-- score component names and weights
-- how spam and prior rejection penalties work
-- whether scores are persisted or recomputed
-- whether ranking versions are stored for replay
-- deterministic tie-breakers
-- how much evidence detail the API must return for explanations
+Component names and first weights:
 
-Scores must remain community-level sorting signals, not outreach priority or person-level scores.
+```text
++ title_username_match:      40
++ description_match:        25
++ cross_query_confirmation: 15
++ cross_adapter_confirmation: 10
++ activity_hint:            10
+- prior_run_rejection_penalty: -25
+- spam_penalty:              -30
+```
 
-### Review Contract
+Component rules:
 
-Define exactly what each operator action does:
+- `title_username_match` uses `entity_title_match` and `entity_username_match` evidence.
+- `description_match` uses `description_match` evidence.
+- `cross_query_confirmation` applies when distinct search queries found the same candidate.
+- `cross_adapter_confirmation` is usually zero until multiple adapters are active.
+- `activity_hint` uses public member count or safe adapter-level activity hints when available.
+- `prior_run_rejection_penalty` applies to future runs after prior run-scoped rejections.
+- `spam_penalty` applies to deterministic low-quality patterns, never to people.
 
-- `promote`
-- `reject`
-- `archive`
-- `convert_to_seed`
-- `approve_for_monitoring`
+Tie-breakers, in order:
 
-Key uncertainty: which actions are scoped only to one search run and which mutate the global
-`communities.status`. For example, a search-run reject may need to hide the result only for that
-run, while a global reject should affect future searches.
+1. score descending
+2. status order: `promoted`, `candidate`, `archived`, `rejected`, `converted_to_seed`
+3. evidence count descending
+4. title ascending, nulls last
+5. candidate creation time ascending
 
-### Seed Conversion Contract
+`search.rank` must be replayable from stored candidates, evidence, and review history without
+running Telegram retrieval again.
 
-Define how strong search hits become seeds. The contract should say whether conversion creates a
-new `seed_group`, appends `seed_channels` to an existing group, writes `manual_seed` evidence, or
-all of the above.
+### Caps and Retention
 
-Open question: if the community already exists and has a public username, should conversion create a
-seed row from the username, the canonical URL, or the resolved `community_id`?
+First defaults:
 
-### API Contract
+- per-run candidate cap: 100
+- `telegram_entity_search` per-query hit cap: 25
+- maximum generated queries per run in `deterministic_v1`: 5
+- evidence value cap: 500 characters
+- candidate evidence metadata cap: 8 KB per row
 
-The API needs concrete endpoints before implementation starts. Likely endpoints include:
+Raw adapter output is not stored in the first implementation except as compact candidate fields,
+evidence rows, and capped metadata. RQ result metadata follows the queue retention policy. Search
+run/candidate/evidence/review rows are durable until an explicit pruning policy is added.
 
-- create a search run
-- get search run status
-- list search run queries
-- list ranked candidates with evidence summaries
-- review a candidate
-- rerank a run
-- expand from promoted candidates
-- convert candidates to seed groups
+### API and Queue Boundaries
 
-Open question: whether search endpoints live under `/api/search-runs` as a new module or extend the
-older brief/discovery endpoints.
+Search endpoints live under `/api/search-runs` and `/api/search-candidates`; they do not extend the
+legacy brief endpoints.
 
-### Job and Queue Contract
-
-The proposed job family is not yet defined in the queue spec. Before building, define payloads,
-queue names, retry policy, idempotency keys, and job metadata for:
+Search jobs live beside seed-first jobs:
 
 - `search.plan`
 - `search.retrieve`
-- `search.normalize`
+- `search.normalize` (reserved until retrieval/normalization are split)
 - `search.rank`
-- `search.expand`
+- `search.expand` (deferred until the graph expansion gate)
 
-Open question: whether these replace `discovery.run`, wrap it, or live beside it as the new
-query-driven search path.
+The API must not call Telethon or OpenAI directly.
 
 ### Graph Expansion Gate
 
-The phrase "promising early hits" is too vague for implementation. The safer default contract should
-be that second-wave graph expansion can start only from manual seeds or operator-promoted search
-results.
+Second-wave expansion may start only from:
 
-Define per-run, per-community, and per-adapter caps before enabling expansion from search results.
+- resolved manual seed communities
+- operator-promoted, resolved search candidates
 
-### Bot and Frontend Contract
+It must not start from arbitrary high-scoring candidates, unresolved raw hits, archived candidates,
+run-scoped rejected candidates, or globally rejected communities.
 
-The current bot is built around seed groups and community review. Search needs its own operator
-surface for starting a run, viewing progress, inspecting evidence, promoting/rejecting/archiving
-results, launching expansion, and converting results to seeds.
+### First Operator Surface
 
-Open question: whether the first search UI is Telegram-bot-only, frontend-only, or both.
+The first implementation is Telegram-bot-first:
+
+- `/search <plain language query>`
+- `/searches`
+- `/search_run <search_run_id>`
+- `/search_candidates <search_run_id>`
+- `/promote_search <candidate_id>`
+- `/reject_search <candidate_id>`
+- `/archive_search <candidate_id>`
+
+The web frontend is deferred until the bot workflow exposes real review needs.
 
 ## MVP Recommendation
 

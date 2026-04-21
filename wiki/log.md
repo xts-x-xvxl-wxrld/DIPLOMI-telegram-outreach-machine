@@ -870,3 +870,11 @@ Updated `wiki/plan/bot-engagement-controls.md` with the remaining bot engagement
 the semantic engagement work. Added planned follow-up slices for risky-action confirmations, guided
 edit entrypoints, prompt/topic/style creation flows, menu/progressive-disclosure polish, and the
 deferred backend capability boundary.
+
+## [2026-04-21] spec | Completed search rebuild contract resolution
+
+Completed Search Rebuild Implementation Slice 0. Replaced the blocking open-contract section in
+`wiki/spec/search-rebuild.md` with concrete first-slice contracts for statuses, reviews, evidence,
+normalization, ranking, caps, API boundaries, queue jobs, graph-expansion gating, and bot-first
+operator controls. Updated database, API, queue, bot, and plan docs so Slice 1 can start from a
+locked core search schema.

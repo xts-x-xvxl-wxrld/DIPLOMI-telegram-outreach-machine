@@ -18,7 +18,7 @@ The API enqueues jobs. Workers consume jobs, write durable state to Postgres, an
 | Queue | Job types | Priority |
 |---|---|---|
 | `high` | manual collection, manual analysis, operator-requested retries | Highest |
-| `default` | seed resolution, seed batch expansion, direct handle classification, optional brief processing, optional discovery, expansion | Normal |
+| `default` | seed resolution, seed batch expansion, direct handle classification, query-driven search planning/retrieval/ranking, optional brief processing, optional discovery, expansion | Normal |
 | `scheduled` | recurring collection | Lower |
 | `analysis` | analysis jobs | Normal, isolated from Telegram account usage |
 | `engagement` | engagement target resolution, optional topic detection, and operator-approved sends | Conservative, isolated outbound behavior |
@@ -97,6 +97,158 @@ MVP default:
 
 - `discovery.run` is not on the primary MVP path.
 - `auto_expand = false`.
+
+### `search.plan`
+
+Triggered after the API creates a query-driven search run.
+
+Payload:
+
+```json
+{
+  "search_run_id": "uuid",
+  "requested_by": "telegram_user_id_or_operator"
+}
+```
+
+Reads:
+
+- `search_runs`
+
+Writes:
+
+- `search_runs.status`
+- `search_runs.planner_source`
+- `search_runs.planner_metadata`
+- `search_queries`
+
+May enqueue:
+
+- `search.retrieve` for each valid pending query after planner writes commit
+
+Rules:
+- First planner source is `deterministic_v1`.
+- The planner rejects empty normalized queries and marks the run `failed` with `last_error`.
+- Planning is idempotent for one run by using `(search_run_id, adapter, normalized_query_key)`.
+- OpenAI-assisted query expansion is deferred; this job does not call OpenAI in the first
+  implementation.
+- The job must not call Telethon or retrieval adapters directly.
+
+### `search.retrieve`
+
+Triggered by `search.plan` for each valid search query.
+
+Payload:
+
+```json
+{
+  "search_run_id": "uuid",
+  "search_query_id": "uuid",
+  "adapter": "telegram_entity_search",
+  "requested_by": "telegram_user_id_or_operator"
+}
+```
+
+Uses:
+
+- `account_manager.acquire_account(purpose="search_retrieve")`
+- The account manager must lease only a `search` pool account for Telegram-backed search retrieval.
+
+Reads:
+
+- `search_runs`
+- `search_queries`
+- existing `communities`
+- existing `search_candidates` for the same run
+
+Writes:
+
+- `search_queries.status`
+- `communities` for resolved public channels/groups
+- `search_candidates`
+- `search_candidate_evidence`
+- `search_runs.status`
+
+May enqueue:
+
+- `search.rank` when all queries for the run are completed, failed, or skipped
+
+Rules:
+- First active adapter is `telegram_entity_search`.
+- Retrieval adapters emit raw public community hits plus compact evidence; they do not assign final
+  relevance.
+- Duplicate hits merge by `community_id`, then normalized username, then canonical public URL.
+- Existing operator decisions on `communities.status` must be preserved.
+- Query-level partial failures mark only that query failed when other queries can still complete.
+- No raw message collection, no full message-history storage, and no person-level scores.
+
+### `search.normalize`
+
+Reserved job type for a later split between raw adapter output and candidate persistence.
+
+The first implementation lets `search.retrieve` normalize hits directly into candidates and
+evidence, because raw adapter-output storage is intentionally deferred.
+
+### `search.rank`
+
+Triggered after retrieval finishes or when the operator requests a rerank.
+
+Payload:
+
+```json
+{
+  "search_run_id": "uuid",
+  "requested_by": "telegram_user_id_or_operator",
+  "reason": "retrieval_complete|manual_rerank"
+}
+```
+
+Reads:
+
+- `search_runs`
+- `search_candidates`
+- `search_candidate_evidence`
+- `search_reviews`
+
+Writes:
+
+- `search_candidates.score`
+- `search_candidates.score_components`
+- `search_candidates.ranking_version`
+- `search_runs.status`
+- `search_runs.ranking_version`
+- `search_runs.ranking_metadata`
+
+Rules:
+- Ranking version starts as `search_rank_v1`.
+- Ranking is deterministic, replayable, and community-level.
+- Reranking does not call Telegram, OpenAI, web-search providers, or retrieval adapters.
+- Reranking does not create, update, or delete evidence rows.
+- If at least one query completed, a ranking failure may mark the run `failed`; otherwise the run
+  should already carry query-level failures.
+
+### `search.expand`
+
+Deferred second-wave graph expansion job for query-driven search.
+
+Payload:
+
+```json
+{
+  "search_run_id": "uuid",
+  "root_candidate_ids": ["uuid"],
+  "depth": 1,
+  "requested_by": "telegram_user_id_or_operator"
+}
+```
+
+Rules:
+- Expansion can start only from resolved manual seeds or operator-promoted, resolved search
+  candidates.
+- Unresolved candidates, arbitrary high-scoring candidates, archived candidates, run-scoped
+  rejected candidates, and globally rejected communities are not valid roots.
+- Search expansion is read-only discovery. It must not join communities, send messages, or create
+  engagement targets.
 
 ### `seed.resolve`
 
@@ -668,6 +820,9 @@ collection:{community_id}:{yyyyMMddHH}
 collection:engagement:{community_id}:{yyyyMMddHHmm}
 analysis:{collection_run_id}
 engagement.detect:{community_id}:{collection_run_id}
+search.plan:{search_run_id}
+search.retrieve:{search_run_id}:{search_query_id}
+search.rank:{search_run_id}:{ranking_version_or_reason}
 ```
 
 Before enqueueing a snapshot or collection job, the scheduler checks whether an active RQ job already
@@ -679,6 +834,11 @@ exists for the same community.
 |---|---:|---|---|
 | `brief.process` | 3 | 1m, 5m, 15m | OpenAI/network/structured-output failures. |
 | `discovery.run` | 3 | 1m, 5m, 15m | Web-search, Telegram search, or network failures. |
+| `search.plan` | 2 | 1m, 5m | Deterministic validation should fail fast without retry. |
+| `search.retrieve` | 3 | 5m, 15m, 60m | Telegram account, flood wait, and network failures. |
+| `search.normalize` | 2 | 1m, 5m | Reserved until raw-output normalization is split out. |
+| `search.rank` | 2 | 1m, 5m | Pure database recompute; should usually be deterministic. |
+| `search.expand` | 3 | 5m, 15m, 60m | Deferred graph expansion from approved roots only. |
 | `seed.resolve` | 3 | 5m, 15m, 60m | Telegram account and network failures. |
 | `seed.expand` | 3 | 5m, 15m, 60m | Telegram account and network failures. |
 | `telegram_entity.resolve` | 3 | 5m, 15m, 60m | Telegram account and network failures. |
@@ -731,6 +891,8 @@ RQ job `meta` should include:
   "job_type": "community.snapshot",
   "community_id": "uuid",
   "brief_id": "uuid|null",
+  "search_run_id": "uuid|null",
+  "search_query_id": "uuid|null",
   "started_at": "iso_datetime",
   "last_heartbeat_at": "iso_datetime",
   "status_message": "human readable short status"
@@ -749,6 +911,13 @@ The API may read RQ job metadata for operator-facing debug output. Durable busin
 
 - Brief processing may call OpenAI, not Telegram search or Telethon.
 - Discovery may call configured source adapters, not OpenAI or raw message collection.
+- Search planning may create deterministic queries, not OpenAI calls in the first implementation.
+- Search retrieval may call Telegram search adapters through managed `search` pool accounts, not
+  OpenAI or raw message collection.
+- Search ranking may read search candidates/evidence/reviews, not Telegram, OpenAI, or web-search
+  providers.
+- Search expansion is deferred and, when enabled, may inspect graph evidence only from manual seeds
+  or operator-promoted resolved search candidates.
 - Seed resolution may call Telethon and uses the account manager.
 - Direct handle classification may call Telethon and uses the account manager.
 - Engagement target resolution may call Telethon and uses the account manager.

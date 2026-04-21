@@ -369,3 +369,20 @@ Every implementation slice should include:
 
 Full-suite runs are recommended after schema, worker, and bot slices. Narrow tests are acceptable
 for pure documentation or small API-client changes when full suite cost is high.
+
+## Progress
+
+### 2026-04-21 - Slice 0 Contract Resolution
+
+Completed the implementation contract for the first query-driven search slices:
+
+- locked search statuses, review actions, evidence types, caps, and ranking components in
+  `wiki/spec/search-rebuild.md`
+- added planned search tables, uniqueness rules, indexes, and retention constraints to
+  `wiki/spec/database.md`
+- added the first `/api/search-runs` and `/api/search-candidates` contracts to `wiki/spec/api.md`
+- added `search.plan`, `search.retrieve`, `search.normalize`, `search.rank`, and deferred
+  `search.expand` job contracts to `wiki/spec/queue.md`
+- added first bot search commands and review behavior to `wiki/spec/bot.md`
+
+Next slice: Slice 1 Core Search Schema.
