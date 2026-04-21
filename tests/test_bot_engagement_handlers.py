@@ -10,14 +10,19 @@ from bot.main import (
     CONFIG_EDIT_STORE_KEY,
     add_engagement_target_command,
     archive_engagement_target_command,
+    activate_engagement_prompt_command,
     callback_query,
     create_engagement_topic_command,
     detect_engagement_command,
+    duplicate_engagement_prompt_command,
+    edit_engagement_prompt_command,
     engagement_admin_command,
     engagement_actions_command,
     engagement_candidate_command,
     engagement_candidates_command,
     engagement_command,
+    engagement_prompt_command,
+    engagement_prompt_versions_command,
     engagement_rollout_command,
     engagement_settings_command,
     engagement_target_command,
@@ -29,6 +34,7 @@ from bot.main import (
     reject_engagement_target_command,
     retry_candidate_command,
     resolve_engagement_target_command,
+    rollback_engagement_prompt_command,
     send_reply_command,
     candidate_revisions_command,
     approve_reply_command,
@@ -88,6 +94,13 @@ class _FakeApiClient:
         self.target_detect_calls: list[dict[str, Any]] = []
         self.seed_resolution_calls: list[str] = []
         self.prompt_list_calls: list[dict[str, Any]] = []
+        self.get_prompt_calls: list[str] = []
+        self.preview_prompt_calls: list[str] = []
+        self.prompt_versions_calls: list[str] = []
+        self.activate_prompt_calls: list[dict[str, Any]] = []
+        self.duplicate_prompt_calls: list[dict[str, Any]] = []
+        self.rollback_prompt_calls: list[dict[str, Any]] = []
+        self.update_prompt_calls: list[dict[str, Any]] = []
         self.style_list_calls: list[dict[str, Any]] = []
         self.join_calls: list[dict[str, Any]] = []
         self.detect_calls: list[dict[str, Any]] = []
@@ -153,6 +166,74 @@ class _FakeApiClient:
                 "active": False,
             },
         ]
+        self.prompts = [
+            {
+                "id": "prompt-active",
+                "name": "Default",
+                "description": "Primary engagement prompt.",
+                "active": True,
+                "model": "gpt-4.1-mini",
+                "temperature": 0.2,
+                "max_output_tokens": 1000,
+                "system_prompt": "Stay public-only and helpful.",
+                "user_prompt_template": "Community: {{community.title}}\nSource: {{source_post.text}}",
+                "output_schema_name": "engagement_detection_v1",
+                "current_version_number": 2,
+                "current_version_id": "prompt-version-2",
+                "created_by": "operator",
+                "updated_by": "operator",
+                "created_at": "2026-04-19T10:00:00Z",
+                "updated_at": "2026-04-19T11:00:00Z",
+            },
+            {
+                "id": "prompt-draft",
+                "name": "Draft",
+                "description": None,
+                "active": False,
+                "model": "gpt-4.1-mini",
+                "temperature": 0.1,
+                "max_output_tokens": 800,
+                "system_prompt": "Draft concise replies.",
+                "user_prompt_template": "Topic: {{topic.name}}",
+                "output_schema_name": "engagement_detection_v1",
+                "current_version_number": 1,
+                "current_version_id": "prompt-version-1",
+                "created_by": "operator",
+                "updated_by": "operator",
+                "created_at": "2026-04-19T10:00:00Z",
+                "updated_at": "2026-04-19T10:00:00Z",
+            },
+        ]
+        self.prompt_versions = {
+            "prompt-active": [
+                {
+                    "id": "prompt-version-2",
+                    "prompt_profile_id": "prompt-active",
+                    "version_number": 2,
+                    "model": "gpt-4.1-mini",
+                    "temperature": 0.2,
+                    "max_output_tokens": 1000,
+                    "system_prompt": "Stay public-only and helpful.",
+                    "user_prompt_template": "Community: {{community.title}}\nSource: {{source_post.text}}",
+                    "output_schema_name": "engagement_detection_v1",
+                    "created_by": "operator",
+                    "created_at": "2026-04-19T11:00:00Z",
+                },
+                {
+                    "id": "prompt-version-1",
+                    "prompt_profile_id": "prompt-active",
+                    "version_number": 1,
+                    "model": "gpt-4.1-mini",
+                    "temperature": 0.1,
+                    "max_output_tokens": 800,
+                    "system_prompt": "Older public-only guidance.",
+                    "user_prompt_template": "Topic: {{topic.name}}",
+                    "output_schema_name": "engagement_detection_v1",
+                    "created_by": "operator",
+                    "created_at": "2026-04-19T10:00:00Z",
+                },
+            ]
+        }
         self.targets = [
             {
                 "id": "target-pending",
@@ -350,7 +431,100 @@ class _FakeApiClient:
         **_: Any,
     ) -> dict[str, Any]:
         self.prompt_list_calls.append({"limit": limit, "offset": offset})
-        return {"items": [], "total": 1, "limit": limit, "offset": offset}
+        return {
+            "items": self.prompts[offset : offset + limit],
+            "total": len(self.prompts),
+            "limit": limit,
+            "offset": offset,
+        }
+
+    async def get_engagement_prompt_profile(self, profile_id: str) -> dict[str, Any]:
+        self.get_prompt_calls.append(profile_id)
+        prompt = next((item for item in self.prompts if item["id"] == profile_id), None)
+        return dict(prompt or {**self.prompts[0], "id": profile_id})
+
+    async def preview_engagement_prompt_profile(
+        self,
+        profile_id: str,
+        *,
+        variables: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        self.preview_prompt_calls.append(profile_id)
+        prompt = await self.get_engagement_prompt_profile(profile_id)
+        return {
+            "profile_id": profile_id,
+            "profile_name": prompt["name"],
+            "version_id": prompt["current_version_id"],
+            "version_number": prompt["current_version_number"],
+            "model": prompt["model"],
+            "temperature": prompt["temperature"],
+            "max_output_tokens": prompt["max_output_tokens"],
+            "system_prompt": prompt["system_prompt"],
+            "rendered_user_prompt": "Community: Founder Circle\nSource: Discussing CRM tools.",
+            "variables": variables or {},
+        }
+
+    async def list_engagement_prompt_profile_versions(self, profile_id: str) -> dict[str, Any]:
+        self.prompt_versions_calls.append(profile_id)
+        return {"items": list(self.prompt_versions.get(profile_id, []))}
+
+    async def activate_engagement_prompt_profile(
+        self,
+        profile_id: str,
+        *,
+        updated_by: str | None = None,
+    ) -> dict[str, Any]:
+        self.activate_prompt_calls.append({"profile_id": profile_id, "updated_by": updated_by})
+        self.prompts = [
+            {**item, "active": item["id"] == profile_id}
+            for item in self.prompts
+        ]
+        return await self.get_engagement_prompt_profile(profile_id)
+
+    async def duplicate_engagement_prompt_profile(
+        self,
+        profile_id: str,
+        *,
+        name: str | None = None,
+        created_by: str | None = None,
+    ) -> dict[str, Any]:
+        self.duplicate_prompt_calls.append(
+            {"profile_id": profile_id, "name": name, "created_by": created_by}
+        )
+        source = await self.get_engagement_prompt_profile(profile_id)
+        duplicate = {
+            **source,
+            "id": "prompt-copy",
+            "name": name or f"{source['name']} copy",
+            "active": False,
+            "current_version_number": 1,
+            "current_version_id": "prompt-copy-version-1",
+            "created_by": created_by or "operator",
+            "updated_by": created_by or "operator",
+        }
+        self.prompts.append(duplicate)
+        return duplicate
+
+    async def rollback_engagement_prompt_profile(
+        self,
+        profile_id: str,
+        *,
+        version_id: str,
+        updated_by: str | None = None,
+    ) -> dict[str, Any]:
+        self.rollback_prompt_calls.append(
+            {"profile_id": profile_id, "version_id": version_id, "updated_by": updated_by}
+        )
+        prompt = await self.get_engagement_prompt_profile(profile_id)
+        return {**prompt, "current_version_number": 3, "current_version_id": "prompt-version-3"}
+
+    async def update_engagement_prompt_profile(self, profile_id: str, **updates: Any) -> dict[str, Any]:
+        self.update_prompt_calls.append({"profile_id": profile_id, "updates": updates})
+        prompt = await self.get_engagement_prompt_profile(profile_id)
+        changed = {**prompt, **{key: value for key, value in updates.items() if key != "updated_by"}}
+        changed["current_version_number"] = int(changed.get("current_version_number") or 0) + 1
+        self.prompts = [changed if item["id"] == profile_id else item for item in self.prompts]
+        return changed
 
     async def list_engagement_style_rules(
         self,
@@ -727,6 +901,114 @@ async def test_engagement_admin_limit_and_advanced_callbacks_have_destinations()
     assert "Prompt profiles: /engagement_prompts" in (
         advanced_update.callback_query.message.replies[0]["text"]
     )
+
+
+@pytest.mark.asyncio
+async def test_prompt_profile_command_opens_detail_with_admin_controls() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await engagement_prompt_command(update, _context(client, "prompt-active"))
+
+    assert client.get_prompt_calls == ["prompt-active"]
+    text = update.message.replies[0]["text"]
+    assert "Profile ID: prompt-active" in text
+    assert "System: Stay public-only" in text
+    callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
+    assert "eng:admin:pp:prompt-active" in callbacks
+    assert "eng:admin:pv:prompt-active" in callbacks
+    assert "eng:admin:pe:prompt-active:s" in callbacks
+    assert "eng:admin:pe:prompt-active:u" in callbacks
+
+
+@pytest.mark.asyncio
+async def test_prompt_profile_versions_and_rollback_confirm_then_save() -> None:
+    client = _FakeApiClient()
+    versions_update = _message_update()
+    confirm_update = _message_update()
+    save_update = _callback_update("eng:admin:prbc:prompt-active:1")
+
+    await engagement_prompt_versions_command(versions_update, _context(client, "prompt-active"))
+    await rollback_engagement_prompt_command(confirm_update, _context(client, "prompt-active", "1"))
+    await callback_query(save_update, _context(client))
+
+    assert client.prompt_versions_calls == ["prompt-active", "prompt-active", "prompt-active"]
+    assert "Version 1" in versions_update.message.replies[0]["text"]
+    assert "Confirm prompt rollback" in confirm_update.message.replies[0]["text"]
+    assert client.rollback_prompt_calls == [
+        {
+            "profile_id": "prompt-active",
+            "version_id": "prompt-version-1",
+            "updated_by": "telegram:123:@operator",
+        }
+    ]
+    assert "Prompt profile rolled back." in save_update.callback_query.edits[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_prompt_profile_activate_requires_confirmation() -> None:
+    client = _FakeApiClient()
+    confirm_update = _message_update()
+    save_update = _callback_update("eng:admin:pac:prompt-draft")
+
+    await activate_engagement_prompt_command(confirm_update, _context(client, "prompt-draft"))
+    await callback_query(save_update, _context(client))
+
+    assert client.activate_prompt_calls == [
+        {"profile_id": "prompt-draft", "updated_by": "telegram:123:@operator"}
+    ]
+    assert "Confirm prompt activation" in confirm_update.message.replies[0]["text"]
+    assert "Status: active" in save_update.callback_query.edits[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_prompt_profile_edit_guided_flow_rejects_private_variables_before_api_call() -> None:
+    client = _FakeApiClient()
+    context = _context(client, "prompt-active", "user_prompt_template")
+
+    await edit_engagement_prompt_command(_message_update(), context)
+    text_update = _message_update("Sender: {{sender.username}}")
+    await telegram_entity_text(text_update, context)
+
+    assert "Unsupported prompt variable: sender.username" in text_update.message.replies[0]["text"]
+    assert client.update_prompt_calls == []
+
+
+@pytest.mark.asyncio
+async def test_prompt_profile_edit_guided_flow_saves_allowlisted_field() -> None:
+    client = _FakeApiClient()
+    context = _context(client, "prompt-active", "system_prompt")
+
+    await edit_engagement_prompt_command(_message_update(), context)
+    await telegram_entity_text(_message_update("Stay public-only and concise."), context)
+    await callback_query(_callback_update("eng:edit:save"), context)
+
+    assert client.update_prompt_calls == [
+        {
+            "profile_id": "prompt-active",
+            "updates": {
+                "system_prompt": "Stay public-only and concise.",
+                "updated_by": "telegram:123:@operator",
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_duplicate_prompt_profile_command_uses_prompt_api() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await duplicate_engagement_prompt_command(update, _context(client, "prompt-active", "New", "voice"))
+
+    assert client.duplicate_prompt_calls == [
+        {
+            "profile_id": "prompt-active",
+            "name": "New voice",
+            "created_by": "telegram:123:@operator",
+        }
+    ]
+    assert "Prompt profile duplicated." in update.message.replies[0]["text"]
 
 
 @pytest.mark.asyncio

@@ -59,6 +59,20 @@ def test_parse_edit_value_rejects_malformed_values() -> None:
     assert parse_edit_value(uuid_field, "account-1")[0] is False
 
 
+def test_parse_edit_value_rejects_unapproved_prompt_template_variables() -> None:
+    field = editable_field("prompt_profile", "user_prompt_template")
+    assert field is not None
+
+    assert parse_edit_value(field, "Source: {{source_post.text}}") == (
+        True,
+        "Source: {{source_post.text}}",
+    )
+    ok, error = parse_edit_value(field, "Sender: {{sender.username}}")
+
+    assert ok is False
+    assert "sender.username" in str(error)
+
+
 def test_pending_edit_store_scopes_edits_by_operator() -> None:
     store = PendingEditStore()
     field = editable_field("candidate", "final_reply")

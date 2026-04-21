@@ -249,7 +249,7 @@ Completed notes:
 
 ## Slice 6: Prompt Profile Admin Controls
 
-Status: planned.
+Status: completed on 2026-04-21.
 
 Add bot support for:
 
@@ -277,6 +277,17 @@ Acceptance:
 - Prompt edits create immutable backend versions.
 - Activation is explicit and visible.
 - The bot rejects unapproved prompt fields and variables before calling the API when possible.
+
+Completed:
+
+- Added prompt profile detail, version list, duplicate, edit, activation confirmation, and rollback
+  confirmation commands.
+- Added bot API-client methods for prompt profile get, version list, duplicate, and rollback.
+- Added inline prompt profile controls for open, preview, versions, field editing, duplication,
+  activation confirmation, and rollback confirmation.
+- Prompt profile long-field edits reuse the guided config-edit flow, and user prompt template edits
+  reject unapproved variables such as sender identity before calling the API.
+- Added focused bot API-client, handler, and config-editing tests.
 
 ## Slice 7: Topic Examples And Style Rules
 

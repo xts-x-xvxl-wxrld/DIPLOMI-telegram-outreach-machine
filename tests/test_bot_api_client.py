@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import httpx
 import pytest
@@ -673,6 +674,75 @@ async def test_get_engagement_semantic_rollout_uses_rollout_endpoint() -> None:
     await client.aclose()
 
     assert response["window_days"] == 21
+
+
+@pytest.mark.asyncio
+async def test_prompt_profile_admin_methods_use_prompt_profile_endpoints() -> None:
+    seen: list[tuple[str, str, dict[str, Any] | None]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payload = None
+        if request.content:
+            payload = dict(json.loads(request.content.decode("utf-8")))
+        seen.append((request.method, request.url.path, payload))
+        if request.url.path.endswith("/versions"):
+            return httpx.Response(200, json={"items": []})
+        return httpx.Response(
+            200,
+            json={
+                "id": "profile-1",
+                "name": "Default",
+                "description": None,
+                "active": False,
+                "model": "gpt-4.1-mini",
+                "temperature": 0.2,
+                "max_output_tokens": 1000,
+                "system_prompt": "system",
+                "user_prompt_template": "user",
+                "output_schema_name": "engagement_detection_v1",
+                "current_version_number": 1,
+                "current_version_id": "version-1",
+                "created_by": "operator",
+                "updated_by": "operator",
+                "created_at": "2026-04-21T10:00:00Z",
+                "updated_at": "2026-04-21T10:00:00Z",
+            },
+        )
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    await client.get_engagement_prompt_profile("profile-1")
+    await client.duplicate_engagement_prompt_profile(
+        "profile-1",
+        name="Copy",
+        created_by="telegram:123",
+    )
+    await client.rollback_engagement_prompt_profile(
+        "profile-1",
+        version_id="version-1",
+        updated_by="telegram:123",
+    )
+    await client.list_engagement_prompt_profile_versions("profile-1")
+    await client.aclose()
+
+    assert seen == [
+        ("GET", "/api/engagement/prompt-profiles/profile-1", None),
+        (
+            "POST",
+            "/api/engagement/prompt-profiles/profile-1/duplicate",
+            {"name": "Copy", "created_by": "telegram:123"},
+        ),
+        (
+            "POST",
+            "/api/engagement/prompt-profiles/profile-1/rollback",
+            {"version_id": "version-1", "updated_by": "telegram:123"},
+        ),
+        ("GET", "/api/engagement/prompt-profiles/profile-1/versions", None),
+    ]
 
 
 @pytest.mark.asyncio

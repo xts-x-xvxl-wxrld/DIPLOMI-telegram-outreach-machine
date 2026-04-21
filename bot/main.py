@@ -38,9 +38,12 @@ from bot.formatting import (
     format_engagement_candidates,
     format_engagement_home,
     format_engagement_job_response,
+    format_engagement_prompt_activation_confirmation,
     format_engagement_prompt_preview,
     format_engagement_prompt_profile_card,
     format_engagement_prompt_profiles,
+    format_engagement_prompt_rollback_confirmation,
+    format_engagement_prompt_versions,
     format_engagement_settings,
     format_engagement_semantic_rollout,
     format_engagement_style_rule_card,
@@ -96,6 +99,14 @@ from bot.ui import (
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_JOIN,
     ACTION_ENGAGEMENT_PROMPT_ACTIVATE,
+    ACTION_ENGAGEMENT_PROMPT_ACTIVATE_CONFIRM,
+    ACTION_ENGAGEMENT_PROMPT_DUPLICATE,
+    ACTION_ENGAGEMENT_PROMPT_EDIT,
+    ACTION_ENGAGEMENT_PROMPT_OPEN,
+    ACTION_ENGAGEMENT_PROMPT_PREVIEW,
+    ACTION_ENGAGEMENT_PROMPT_ROLLBACK,
+    ACTION_ENGAGEMENT_PROMPT_ROLLBACK_CONFIRM,
+    ACTION_ENGAGEMENT_PROMPT_VERSIONS,
     ACTION_ENGAGEMENT_PROMPTS,
     ACTION_ENGAGEMENT_REJECT,
     ACTION_ENGAGEMENT_SEND,
@@ -149,6 +160,9 @@ from bot.ui import (
     engagement_candidate_send_markup,
     engagement_home_markup,
     engagement_prompt_actions_markup,
+    engagement_prompt_activation_confirm_markup,
+    engagement_prompt_rollback_confirm_markup,
+    engagement_prompt_versions_markup,
     engagement_job_markup,
     engagement_settings_markup,
     engagement_target_actions_markup,
@@ -178,6 +192,16 @@ ENGAGEMENT_ACTION_PAGE_SIZE = 5
 ENGAGEMENT_ADMIN_PAGE_SIZE = 5
 ENGAGEMENT_CANDIDATE_STATUSES = {"needs_review", "approved", "failed", "sent", "rejected"}
 ENGAGEMENT_TARGET_STATUSES = {"pending", "resolved", "approved", "rejected", "archived", "failed"}
+PROMPT_PROFILE_EDIT_FIELD_CODES = {
+    "n": "name",
+    "d": "description",
+    "m": "model",
+    "t": "temperature",
+    "x": "max_output_tokens",
+    "s": "system_prompt",
+    "u": "user_prompt_template",
+}
+PROMPT_PROFILE_EDIT_FIELDS = set(PROMPT_PROFILE_EDIT_FIELD_CODES.values())
 ENGAGEMENT_TARGET_PERMISSIONS = {"join": "allow_join", "detect": "allow_detect", "post": "allow_post"}
 ENGAGEMENT_TARGET_PERMISSION_ALIASES = {"j": "join", "d": "detect", "p": "post"}
 ENGAGEMENT_SETTING_PRESETS = {"off", "observe", "suggest", "ready"}
@@ -543,6 +567,28 @@ async def engagement_prompts_command(update: Any, context: Any) -> None:
         await _reply(update, format_api_error(exc.message))
 
 
+async def engagement_prompt_command(update: Any, context: Any) -> None:
+    profile_id = _first_arg(context)
+    if profile_id is None:
+        await _reply(update, "Usage: /engagement_prompt <profile_id>")
+        return
+    try:
+        await _send_engagement_prompt_detail(update, context, profile_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def engagement_prompt_versions_command(update: Any, context: Any) -> None:
+    profile_id = _first_arg(context)
+    if profile_id is None:
+        await _reply(update, "Usage: /engagement_prompt_versions <profile_id>")
+        return
+    try:
+        await _send_engagement_prompt_versions(update, context, profile_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
 async def engagement_prompt_preview_command(update: Any, context: Any) -> None:
     profile_id = _first_arg(context)
     if profile_id is None:
@@ -555,6 +601,74 @@ async def engagement_prompt_preview_command(update: Any, context: Any) -> None:
         await _reply(update, format_api_error(exc.message))
         return
     await _reply(update, format_engagement_prompt_preview(data))
+
+
+async def activate_engagement_prompt_command(update: Any, context: Any) -> None:
+    profile_id = _first_arg(context)
+    if profile_id is None:
+        await _reply(update, "Usage: /activate_engagement_prompt <profile_id>")
+        return
+    try:
+        await _confirm_engagement_prompt_activation(update, context, profile_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def duplicate_engagement_prompt_command(update: Any, context: Any) -> None:
+    if len(context.args) < 2:
+        await _reply(update, "Usage: /duplicate_engagement_prompt <profile_id> <new_name>")
+        return
+    profile_id = str(context.args[0]).strip()
+    new_name = " ".join(str(part).strip() for part in context.args[1:]).strip()
+    if not profile_id or not new_name:
+        await _reply(update, "Usage: /duplicate_engagement_prompt <profile_id> <new_name>")
+        return
+    client = _api_client(context)
+    try:
+        data = await client.duplicate_engagement_prompt_profile(
+            profile_id,
+            name=new_name,
+            created_by=_reviewer_label(update),
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+        return
+    await _reply(
+        update,
+        "Prompt profile duplicated.\n\n" + format_engagement_prompt_profile_card(data),
+        reply_markup=engagement_prompt_actions_markup(str(data.get("id", profile_id)), active=bool(data.get("active"))),
+    )
+
+
+async def edit_engagement_prompt_command(update: Any, context: Any) -> None:
+    if len(context.args) < 2:
+        await _reply(update, "Usage: /edit_engagement_prompt <profile_id> <field>")
+        return
+    profile_id = str(context.args[0]).strip()
+    field = _normalize_prompt_profile_edit_field(str(context.args[1]).strip())
+    if not profile_id or field is None:
+        await _reply(
+            update,
+            "Usage: /edit_engagement_prompt <profile_id> <field>\n"
+            "Fields: " + ", ".join(sorted(PROMPT_PROFILE_EDIT_FIELDS)),
+        )
+        return
+    await _start_config_edit(update, context, entity="prompt_profile", object_id=profile_id, field=field)
+
+
+async def rollback_engagement_prompt_command(update: Any, context: Any) -> None:
+    if len(context.args) < 2:
+        await _reply(update, "Usage: /rollback_engagement_prompt <profile_id> <version_number>")
+        return
+    profile_id = str(context.args[0]).strip()
+    version_number = _parse_positive_int(str(context.args[1]), default=0)
+    if not profile_id or version_number <= 0:
+        await _reply(update, "Usage: /rollback_engagement_prompt <profile_id> <version_number>")
+        return
+    try:
+        await _confirm_engagement_prompt_rollback(update, context, profile_id, version_number)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
 
 
 async def engagement_style_command(update: Any, context: Any) -> None:
@@ -1014,8 +1128,57 @@ async def callback_query(update: Any, context: Any) -> None:
         if action == ACTION_ENGAGEMENT_PROMPTS and parts:
             await _send_engagement_prompts(update, context, offset=_parse_offset(parts[0]))
             return
+        if action == ACTION_ENGAGEMENT_PROMPT_OPEN and len(parts) == 1:
+            await _send_engagement_prompt_detail(update, context, parts[0])
+            return
+        if action == ACTION_ENGAGEMENT_PROMPT_PREVIEW and len(parts) == 1:
+            await _send_engagement_prompt_preview(update, context, parts[0])
+            return
+        if action == ACTION_ENGAGEMENT_PROMPT_VERSIONS and len(parts) == 1:
+            await _send_engagement_prompt_versions(update, context, parts[0])
+            return
+        if action == ACTION_ENGAGEMENT_PROMPT_EDIT and len(parts) == 2:
+            field = _normalize_prompt_profile_edit_field(parts[1])
+            if field is not None:
+                await _start_config_edit(
+                    update,
+                    context,
+                    entity="prompt_profile",
+                    object_id=parts[0],
+                    field=field,
+                )
+                return
+        if action == ACTION_ENGAGEMENT_PROMPT_DUPLICATE and len(parts) == 1:
+            await _duplicate_engagement_prompt_default(update, context, parts[0])
+            return
         if action == ACTION_ENGAGEMENT_PROMPT_ACTIVATE and len(parts) == 1:
+            await _confirm_engagement_prompt_activation(
+                update,
+                context,
+                parts[0],
+                edit_callback=True,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_PROMPT_ACTIVATE_CONFIRM and len(parts) == 1:
             await _activate_engagement_prompt(update, context, parts[0], edit_callback=True)
+            return
+        if action == ACTION_ENGAGEMENT_PROMPT_ROLLBACK and len(parts) == 2:
+            await _confirm_engagement_prompt_rollback(
+                update,
+                context,
+                parts[0],
+                _parse_positive_int(parts[1], default=0),
+                edit_callback=True,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_PROMPT_ROLLBACK_CONFIRM and len(parts) == 2:
+            await _rollback_engagement_prompt(
+                update,
+                context,
+                parts[0],
+                _parse_positive_int(parts[1], default=0),
+                edit_callback=True,
+            )
             return
         if action == ACTION_ENGAGEMENT_STYLE and parts:
             await _send_engagement_style_rules(update, context, offset=_parse_offset(parts[0]))
@@ -1652,6 +1815,49 @@ async def _send_engagement_prompts(update: Any, context: Any, *, offset: int) ->
         )
 
 
+async def _send_engagement_prompt_detail(update: Any, context: Any, profile_id: str) -> None:
+    client = _api_client(context)
+    data = await client.get_engagement_prompt_profile(profile_id)
+    await _callback_reply(
+        update,
+        format_engagement_prompt_profile_card(data),
+        reply_markup=engagement_prompt_actions_markup(profile_id, active=bool(data.get("active"))),
+    )
+
+
+async def _send_engagement_prompt_preview(update: Any, context: Any, profile_id: str) -> None:
+    client = _api_client(context)
+    data = await client.preview_engagement_prompt_profile(profile_id)
+    await _callback_reply(update, format_engagement_prompt_preview(data))
+
+
+async def _send_engagement_prompt_versions(update: Any, context: Any, profile_id: str) -> None:
+    client = _api_client(context)
+    data = await client.list_engagement_prompt_profile_versions(profile_id)
+    await _callback_reply(
+        update,
+        format_engagement_prompt_versions(data, profile_id=profile_id),
+        reply_markup=engagement_prompt_versions_markup(profile_id, data.get("items") or []),
+    )
+
+
+async def _confirm_engagement_prompt_activation(
+    update: Any,
+    context: Any,
+    profile_id: str,
+    *,
+    edit_callback: bool = False,
+) -> None:
+    client = _api_client(context)
+    data = await client.get_engagement_prompt_profile(profile_id)
+    message = format_engagement_prompt_activation_confirmation(data)
+    markup = engagement_prompt_activation_confirm_markup(profile_id)
+    if edit_callback:
+        await _edit_callback_message(update, message, reply_markup=markup)
+        return
+    await _reply(update, message, reply_markup=markup)
+
+
 async def _activate_engagement_prompt(
     update: Any,
     context: Any,
@@ -1670,6 +1876,88 @@ async def _activate_engagement_prompt(
         await _edit_callback_message(update, message, reply_markup=markup)
         return
     await _reply(update, message, reply_markup=markup)
+
+
+async def _duplicate_engagement_prompt_default(update: Any, context: Any, profile_id: str) -> None:
+    client = _api_client(context)
+    data = await client.duplicate_engagement_prompt_profile(
+        profile_id,
+        created_by=_reviewer_label(update),
+    )
+    await _callback_reply(
+        update,
+        "Prompt profile duplicated.\n\n" + format_engagement_prompt_profile_card(data),
+        reply_markup=engagement_prompt_actions_markup(
+            str(data.get("id", profile_id)),
+            active=bool(data.get("active")),
+        ),
+    )
+
+
+async def _confirm_engagement_prompt_rollback(
+    update: Any,
+    context: Any,
+    profile_id: str,
+    version_number: int,
+    *,
+    edit_callback: bool = False,
+) -> None:
+    if version_number <= 0:
+        await _callback_reply(update, "Choose a valid prompt profile version.")
+        return
+    client = _api_client(context)
+    profile = await client.get_engagement_prompt_profile(profile_id)
+    version = await _prompt_profile_version_by_number(client, profile_id, version_number)
+    if version is None:
+        await _callback_reply(update, f"Prompt profile version {version_number} was not found.")
+        return
+    message = format_engagement_prompt_rollback_confirmation(profile, version)
+    markup = engagement_prompt_rollback_confirm_markup(profile_id, version_number)
+    if edit_callback:
+        await _edit_callback_message(update, message, reply_markup=markup)
+        return
+    await _reply(update, message, reply_markup=markup)
+
+
+async def _rollback_engagement_prompt(
+    update: Any,
+    context: Any,
+    profile_id: str,
+    version_number: int,
+    *,
+    edit_callback: bool = False,
+) -> None:
+    if version_number <= 0:
+        await _callback_reply(update, "Choose a valid prompt profile version.")
+        return
+    client = _api_client(context)
+    version = await _prompt_profile_version_by_number(client, profile_id, version_number)
+    if version is None:
+        await _callback_reply(update, f"Prompt profile version {version_number} was not found.")
+        return
+    data = await client.rollback_engagement_prompt_profile(
+        profile_id,
+        version_id=str(version.get("id")),
+        updated_by=_reviewer_label(update),
+    )
+    message = "Prompt profile rolled back.\n\n" + format_engagement_prompt_profile_card(data)
+    markup = engagement_prompt_actions_markup(profile_id, active=bool(data.get("active")))
+    if edit_callback:
+        await _edit_callback_message(update, message, reply_markup=markup)
+        return
+    await _reply(update, message, reply_markup=markup)
+
+
+async def _prompt_profile_version_by_number(
+    client: Any,
+    profile_id: str,
+    version_number: int,
+) -> dict[str, Any] | None:
+    versions = await client.list_engagement_prompt_profile_versions(profile_id)
+    for version in versions.get("items") or []:
+        if int(version.get("version_number") or 0) == version_number:
+            return version
+    return None
 
 
 async def _send_engagement_style_rules(update: Any, context: Any, *, offset: int) -> None:
@@ -2112,7 +2400,13 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("target_join", target_join_command))
     application.add_handler(CommandHandler("target_detect", target_detect_command))
     application.add_handler(CommandHandler("engagement_prompts", engagement_prompts_command))
+    application.add_handler(CommandHandler("engagement_prompt", engagement_prompt_command))
+    application.add_handler(CommandHandler("engagement_prompt_versions", engagement_prompt_versions_command))
     application.add_handler(CommandHandler("engagement_prompt_preview", engagement_prompt_preview_command))
+    application.add_handler(CommandHandler("activate_engagement_prompt", activate_engagement_prompt_command))
+    application.add_handler(CommandHandler("duplicate_engagement_prompt", duplicate_engagement_prompt_command))
+    application.add_handler(CommandHandler("edit_engagement_prompt", edit_engagement_prompt_command))
+    application.add_handler(CommandHandler("rollback_engagement_prompt", rollback_engagement_prompt_command))
     application.add_handler(CommandHandler("engagement_style", engagement_style_command))
     application.add_handler(CommandHandler("engagement_settings", engagement_settings_command))
     application.add_handler(CommandHandler("set_engagement", set_engagement_command))
@@ -2332,6 +2626,15 @@ def _first_arg(context: Any) -> str | None:
         return None
     value = context.args[0].strip()
     return value or None
+
+
+def _normalize_prompt_profile_edit_field(value: str) -> str | None:
+    normalized = value.strip().casefold()
+    if normalized in PROMPT_PROFILE_EDIT_FIELD_CODES:
+        return PROMPT_PROFILE_EDIT_FIELD_CODES[normalized]
+    if normalized in PROMPT_PROFILE_EDIT_FIELDS:
+        return normalized
+    return None
 
 
 def _second_arg_as_offset(context: Any) -> int:

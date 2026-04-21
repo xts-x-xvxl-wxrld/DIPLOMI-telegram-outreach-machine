@@ -647,11 +647,84 @@ def format_engagement_prompt_profile_card(item: dict[str, Any], *, index: int | 
         f"Status: {active}",
         f"Version: {item.get('current_version_number') or 'none'}",
         f"Model: {item.get('model', 'unknown')} | temp {item.get('temperature', 0.2)} | max {item.get('max_output_tokens', 1000)}",
+        f"Output schema: {item.get('output_schema_name', 'engagement_detection_v1')}",
     ]
     if item.get("description"):
         lines.append(f"Description: {_shorten(str(item['description']), 180)}")
+    if item.get("system_prompt"):
+        lines.append(f"System: {_shorten(str(item['system_prompt']), 400)}")
+    if item.get("user_prompt_template"):
+        lines.append(f"User template: {_shorten(str(item['user_prompt_template']), 500)}")
+    lines.extend(
+        [
+            f"Open: /engagement_prompt {profile_id}",
+            f"Versions: /engagement_prompt_versions {profile_id}",
+            f"Edit: /edit_engagement_prompt {profile_id} <field>",
+            f"Duplicate: /duplicate_engagement_prompt {profile_id} <new name>",
+        ]
+    )
     lines.append(f"Preview: /engagement_prompt_preview {profile_id}")
     return "\n".join(lines)
+
+
+def format_engagement_prompt_versions(data: dict[str, Any], *, profile_id: str) -> str:
+    items = data.get("items") or []
+    if not items:
+        return f"No prompt profile versions found for {profile_id}."
+    lines = [f"Prompt profile versions ({len(items)})", f"Profile ID: {profile_id}"]
+    for item in items[:10]:
+        lines.extend(
+            [
+                "",
+                f"Version {item.get('version_number', 'unknown')}",
+                f"Version ID: {item.get('id', 'unknown')}",
+                f"Model: {item.get('model', 'unknown')} | temp {item.get('temperature', 0.2)} | max {item.get('max_output_tokens', 1000)}",
+                f"Schema: {item.get('output_schema_name', 'engagement_detection_v1')}",
+                f"Created by: {item.get('created_by', 'unknown')}",
+                f"System: {_shorten(str(item.get('system_prompt') or ''), 240)}",
+                f"User template: {_shorten(str(item.get('user_prompt_template') or ''), 280)}",
+                f"Rollback: /rollback_engagement_prompt {profile_id} {item.get('version_number', 'unknown')}",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def format_engagement_prompt_activation_confirmation(item: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            "Confirm prompt activation",
+            f"Profile ID: {item.get('id', 'unknown')}",
+            f"Name: {item.get('name', 'Prompt profile')}",
+            f"Version: {item.get('current_version_number') or 'none'}",
+            f"Model: {item.get('model', 'unknown')}",
+            f"Temperature: {item.get('temperature', 0.2)}",
+            f"Max output tokens: {item.get('max_output_tokens', 1000)}",
+            f"Output schema: {item.get('output_schema_name', 'engagement_detection_v1')}",
+            "",
+            "Activation changes which prompt profile future engagement detection uses.",
+        ]
+    )
+
+
+def format_engagement_prompt_rollback_confirmation(
+    profile: dict[str, Any],
+    version: dict[str, Any],
+) -> str:
+    return "\n".join(
+        [
+            "Confirm prompt rollback",
+            f"Profile ID: {profile.get('id', 'unknown')}",
+            f"Name: {profile.get('name', 'Prompt profile')}",
+            f"Rollback to version: {version.get('version_number', 'unknown')}",
+            f"Version ID: {version.get('id', 'unknown')}",
+            f"Model: {version.get('model', 'unknown')}",
+            f"Temperature: {version.get('temperature', 0.2)}",
+            f"Max output tokens: {version.get('max_output_tokens', 1000)}",
+            f"Output schema: {version.get('output_schema_name', 'engagement_detection_v1')}",
+            "",
+            "Rollback creates a new immutable version from this older version.",
+        ]
+    )
 
 
 def format_engagement_prompt_preview(data: dict[str, Any]) -> str:

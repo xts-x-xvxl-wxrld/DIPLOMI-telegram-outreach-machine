@@ -163,6 +163,28 @@ Completed in Slice 5b:
 - The review surface is aggregate-only and does not expose source messages, candidate IDs, sender
   identity, phone numbers, or person-level scores.
 
+## Slice 6: Prompt Profile Admin Controls
+
+Status: completed on 2026-04-21.
+
+This cross-plan slice is implemented under `wiki/plan/bot-engagement-controls.md` because prompt
+profile administration is a Telegram bot control-plane feature. It supports semantic matching
+rollout by letting operators inspect, preview, edit, duplicate, activate, and roll back the prompt
+profiles used by `engagement.detect`.
+
+Completed:
+
+- `/engagement_prompt <profile_id>` opens prompt profile detail.
+- `/engagement_prompt_versions <profile_id>` lists immutable versions.
+- `/engagement_prompt_preview <profile_id>` remains render-only and is also available inline.
+- `/activate_engagement_prompt <profile_id>` and inline activation now require confirmation.
+- `/duplicate_engagement_prompt <profile_id> <new_name>` duplicates profiles through the API.
+- `/edit_engagement_prompt <profile_id> <field>` uses guided long-text editing for prompt fields.
+- `/rollback_engagement_prompt <profile_id> <version_number>` requires confirmation and creates a
+  new immutable backend version through the rollback API.
+- User prompt template edits reject unapproved variables such as sender identity before calling the
+  API when possible.
+
 ## Open Questions
 
 - Should thresholds eventually be global only, or allow per-topic overrides?

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
+import re
 from typing import Any, Literal
 from uuid import UUID
 
@@ -290,6 +291,31 @@ EDITABLE_FIELDS: dict[tuple[str, str], EditableField] = {
     ),
 }
 
+ALLOWED_PROMPT_TEMPLATE_VARIABLES = {
+    "community.title",
+    "community.username",
+    "community.description",
+    "topic.name",
+    "topic.description",
+    "topic.stance_guidance",
+    "topic.trigger_keywords",
+    "topic.negative_keywords",
+    "topic.example_good_replies",
+    "topic.example_bad_replies",
+    "style.global",
+    "style.account",
+    "style.community",
+    "style.topic",
+    "source_post.text",
+    "source_post.tg_message_id",
+    "source_post.message_date",
+    "reply_context",
+    "messages",
+    "community_context.latest_summary",
+    "community_context.dominant_themes",
+}
+_PROMPT_VARIABLE_RE = re.compile(r"{{\s*([a-zA-Z0-9_.]+)\s*}}")
+
 
 def editable_field(entity: str, field: str) -> EditableField | None:
     return EDITABLE_FIELDS.get((entity, field))
@@ -300,6 +326,16 @@ def parse_edit_value(field: EditableField | PendingEdit, raw_value: str) -> tupl
     if field.value_type in {"text", "long_text"}:
         if not value:
             return False, f"{field.label} cannot be blank."
+        if field.entity == "prompt_profile" and field.field == "user_prompt_template":
+            invalid_variables = sorted(
+                {
+                    match.group(1)
+                    for match in _PROMPT_VARIABLE_RE.finditer(value)
+                    if match.group(1) not in ALLOWED_PROMPT_TEMPLATE_VARIABLES
+                }
+            )
+            if invalid_variables:
+                return False, "Unsupported prompt variable: " + ", ".join(invalid_variables)
         return True, value
 
     if field.value_type == "int":

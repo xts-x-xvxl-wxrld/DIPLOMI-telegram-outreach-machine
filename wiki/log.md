@@ -789,3 +789,11 @@ revision history, explicit expire, and failed-candidate retry routes. The Telegr
 `/engagement_candidate`, `/candidate_revisions`, `/expire_candidate`, and `/retry_candidate`, plus
 inline candidate detail, guided edit, revision, expire, and retry controls. Candidate send buttons
 remain limited to approved candidates, and revision/detail views keep source excerpts capped.
+
+## [2026-04-21] code | Added prompt profile admin bot controls
+
+Completed the prompt profile admin controls slice. The Telegram bot now exposes prompt profile
+detail, immutable version history, render-only preview, guided field editing, duplication,
+activation confirmation, and rollback confirmation. Prompt template edits reject unapproved
+variables such as sender identity before calling the API when possible, and focused bot API-client,
+handler, and config-editing tests cover the new control surface.

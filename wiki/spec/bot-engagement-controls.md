@@ -379,6 +379,19 @@ The current main engagement menu exposes:
 - Target cards with add-target, open/detail, resolve, approve, reject, archive, permission toggle,
   target-scoped join, and target-scoped detect controls.
 - `/engagement_prompts`, `/engagement_prompt_preview`, and direct prompt activation.
+- `/engagement_prompt <profile_id>` detail cards with full profile metadata and capped prompt
+  previews.
+- `/engagement_prompt_versions <profile_id>` immutable version history with rollback entrypoints.
+- `/activate_engagement_prompt <profile_id>` and inline activation now show an explicit
+  confirmation card before activation.
+- `/duplicate_engagement_prompt <profile_id> <new_name>` and inline default duplication call the
+  prompt profile duplicate API.
+- `/edit_engagement_prompt <profile_id> <field>` starts the shared guided config-edit flow for
+  allowlisted prompt profile fields.
+- `/rollback_engagement_prompt <profile_id> <version_number>` and inline rollback controls show an
+  explicit confirmation card before calling the rollback API.
+- Prompt template edits reject unsupported variables, including sender identity variables, before
+  calling the API when possible.
 - `/engagement_style` as a read-only style-rule list.
 
 ### Missing From Daily Engagement
@@ -392,16 +405,8 @@ The current main engagement menu exposes:
 
 ### Missing From Prompt Profiles
 
-- Prompt detail/open command: `/engagement_prompt <profile_id>`.
-- Prompt version list command: `/engagement_prompt_versions <profile_id>`.
-- Inline prompt preview button. `/engagement_prompt_preview` exists, but prompt cards only show it as
-  command text.
 - Prompt profile creation.
-- Prompt profile duplication: `/duplicate_engagement_prompt <profile_id> <new_name>`.
-- Prompt profile field editing: `/edit_engagement_prompt <profile_id> <field>`.
-- Prompt profile rollback: `/rollback_engagement_prompt <profile_id> <version_number>`.
-- Activation confirmation. Current prompt activation is direct.
-- Conversation-state editing for long prompt fields.
+- Dedicated prompt profile creation command.
 
 ### Missing From Topics And Examples
 

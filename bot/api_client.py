@@ -418,6 +418,9 @@ class BotApiClient:
             params={"limit": limit, "offset": offset},
         )
 
+    async def get_engagement_prompt_profile(self, profile_id: str) -> dict[str, Any]:
+        return await self._request("GET", f"/engagement/prompt-profiles/{profile_id}")
+
     async def create_engagement_prompt_profile(
         self,
         **payload: Any,
@@ -450,6 +453,40 @@ class BotApiClient:
             json=payload,
         )
 
+    async def duplicate_engagement_prompt_profile(
+        self,
+        profile_id: str,
+        *,
+        name: str | None = None,
+        created_by: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if name is not None:
+            payload["name"] = name
+        if created_by is not None:
+            payload["created_by"] = created_by
+        return await self._request(
+            "POST",
+            f"/engagement/prompt-profiles/{profile_id}/duplicate",
+            json=payload,
+        )
+
+    async def rollback_engagement_prompt_profile(
+        self,
+        profile_id: str,
+        *,
+        version_id: str,
+        updated_by: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"version_id": version_id}
+        if updated_by is not None:
+            payload["updated_by"] = updated_by
+        return await self._request(
+            "POST",
+            f"/engagement/prompt-profiles/{profile_id}/rollback",
+            json=payload,
+        )
+
     async def preview_engagement_prompt_profile(
         self,
         profile_id: str,
@@ -461,6 +498,9 @@ class BotApiClient:
             f"/engagement/prompt-profiles/{profile_id}/preview",
             json={"variables": variables},
         )
+
+    async def list_engagement_prompt_profile_versions(self, profile_id: str) -> dict[str, Any]:
+        return await self._request("GET", f"/engagement/prompt-profiles/{profile_id}/versions")
 
     async def list_engagement_style_rules(
         self,

@@ -73,7 +73,15 @@ ACTION_ENGAGEMENT_TARGET_PERMISSION = "eng:admin:tp"
 ACTION_ENGAGEMENT_TARGET_JOIN = "eng:admin:tj"
 ACTION_ENGAGEMENT_TARGET_DETECT = "eng:admin:td"
 ACTION_ENGAGEMENT_PROMPTS = "eng:admin:pr"
+ACTION_ENGAGEMENT_PROMPT_OPEN = "eng:admin:po"
+ACTION_ENGAGEMENT_PROMPT_PREVIEW = "eng:admin:pp"
+ACTION_ENGAGEMENT_PROMPT_VERSIONS = "eng:admin:pv"
+ACTION_ENGAGEMENT_PROMPT_EDIT = "eng:admin:pe"
+ACTION_ENGAGEMENT_PROMPT_DUPLICATE = "eng:admin:pd"
 ACTION_ENGAGEMENT_PROMPT_ACTIVATE = "eng:admin:pa"
+ACTION_ENGAGEMENT_PROMPT_ACTIVATE_CONFIRM = "eng:admin:pac"
+ACTION_ENGAGEMENT_PROMPT_ROLLBACK = "eng:admin:prb"
+ACTION_ENGAGEMENT_PROMPT_ROLLBACK_CONFIRM = "eng:admin:prbc"
 ACTION_ENGAGEMENT_STYLE = "eng:admin:sr"
 ACTION_ENGAGEMENT_ADMIN_LIMITS = "eng:admin:lim"
 ACTION_ENGAGEMENT_ADMIN_ADVANCED = "eng:admin:adv"
@@ -440,11 +448,77 @@ def engagement_target_actions_markup(
 
 
 def engagement_prompt_actions_markup(profile_id: str, *, active: bool):
-    rows = []
+    rows = [
+        [
+            _button("Open", ACTION_ENGAGEMENT_PROMPT_OPEN, profile_id),
+            _button("Preview", ACTION_ENGAGEMENT_PROMPT_PREVIEW, profile_id),
+            _button("Versions", ACTION_ENGAGEMENT_PROMPT_VERSIONS, profile_id),
+        ],
+        [
+            _button("Edit system", ACTION_ENGAGEMENT_PROMPT_EDIT, profile_id, "s"),
+            _button("Edit user", ACTION_ENGAGEMENT_PROMPT_EDIT, profile_id, "u"),
+        ],
+        [
+            _button("Edit model", ACTION_ENGAGEMENT_PROMPT_EDIT, profile_id, "m"),
+            _button("Edit temp", ACTION_ENGAGEMENT_PROMPT_EDIT, profile_id, "t"),
+            _button("Edit max", ACTION_ENGAGEMENT_PROMPT_EDIT, profile_id, "x"),
+        ],
+        [_button("Duplicate", ACTION_ENGAGEMENT_PROMPT_DUPLICATE, profile_id)],
+    ]
     if not active:
         rows.append([_button("Activate", ACTION_ENGAGEMENT_PROMPT_ACTIVATE, profile_id)])
     return _inline_markup(
         _with_navigation(rows, back_action=ACTION_ENGAGEMENT_PROMPTS, back_parts=["0"])
+    )
+
+
+def engagement_prompt_activation_confirm_markup(profile_id: str):
+    return _inline_markup(
+        _with_navigation(
+            [[_button("Confirm activation", ACTION_ENGAGEMENT_PROMPT_ACTIVATE_CONFIRM, profile_id)]],
+            back_action=ACTION_ENGAGEMENT_PROMPT_OPEN,
+            back_parts=[profile_id],
+        )
+    )
+
+
+def engagement_prompt_versions_markup(profile_id: str, versions: Sequence[dict[str, object]]):
+    rows = []
+    for version in versions[:5]:
+        version_number = version.get("version_number")
+        if version_number is None:
+            continue
+        rows.append(
+            [
+                _button(
+                    f"Rollback v{version_number}",
+                    ACTION_ENGAGEMENT_PROMPT_ROLLBACK,
+                    profile_id,
+                    str(version_number),
+                )
+            ]
+        )
+    return _inline_markup(
+        _with_navigation(rows, back_action=ACTION_ENGAGEMENT_PROMPT_OPEN, back_parts=[profile_id])
+    )
+
+
+def engagement_prompt_rollback_confirm_markup(profile_id: str, version_number: int):
+    return _inline_markup(
+        _with_navigation(
+            [
+                [
+                    _button(
+                        f"Confirm rollback to v{version_number}",
+                        ACTION_ENGAGEMENT_PROMPT_ROLLBACK_CONFIRM,
+                        profile_id,
+                        str(version_number),
+                    )
+                ]
+            ],
+            back_action=ACTION_ENGAGEMENT_PROMPT_VERSIONS,
+            back_parts=[profile_id],
+        )
     )
 
 
