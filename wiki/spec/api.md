@@ -157,7 +157,7 @@ The primary MVP discovery flow is:
 ```text
 POST /api/seed-imports/csv
   -> POST /api/seed-groups/{seed_group_id}/resolve-jobs
-  -> seed.resolve queues collection.run for resolved seed communities
+  -> seed.resolve queues community.snapshot for resolved seed communities
   -> GET /api/seed-groups
   -> GET /api/seed-groups/{seed_group_id}/candidates
 ```
@@ -386,7 +386,7 @@ Starts resolution for imported seed rows in one seed group.
 
 The resolver maps public Telegram usernames to `communities` rows and updates each seed row with
 `status` and `community_id`. After the worker resolves seed communities, it queues initial
-collection for each unique resolved community so metadata and visible members are persisted.
+snapshots for each unique resolved community so metadata and visible members are persisted.
 
 Request:
 
@@ -579,13 +579,13 @@ Response:
   },
   "job": {
     "id": "rq_job_id",
-    "type": "collection.run",
+    "type": "community.snapshot",
     "status": "queued"
   }
 }
 ```
 
-Approving a community enqueues an initial `collection.run`.
+Approving a community enqueues an initial `community.snapshot`.
 
 ### `PATCH /api/communities/{community_id}`
 
@@ -608,11 +608,11 @@ Response:
 }
 ```
 
-## Collection and Analysis
+## Snapshots and Analysis
 
-### `POST /api/communities/{community_id}/collection-jobs`
+### `POST /api/communities/{community_id}/snapshot-jobs`
 
-Manually starts collection for a community.
+Manually starts a discovery community snapshot.
 
 Request:
 
@@ -628,15 +628,16 @@ Response `202`:
 {
   "job": {
     "id": "rq_job_id",
-    "type": "collection.run",
+    "type": "community.snapshot",
     "status": "queued"
   }
 }
 ```
 
-### `GET /api/communities/{community_id}/collection-runs`
+### `GET /api/communities/{community_id}/snapshot-runs`
 
-Lists recent collection runs.
+Lists recent discovery snapshot runs. The response still uses `collection_runs` storage fields
+because that table is the durable run/artifact boundary.
 
 Response:
 
@@ -747,7 +748,7 @@ Response:
 ## Engagement
 
 Engagement endpoints are optional/future. They must remain operator-controlled and separate from
-collection and analysis.
+discovery snapshots and analysis.
 
 ### `GET /api/engagement/targets`
 
@@ -1040,7 +1041,7 @@ Response:
 ```json
 {
   "id": "rq_job_id",
-  "type": "collection.run",
+  "type": "community.snapshot",
   "status": "queued|started|finished|failed|deferred|scheduled",
   "meta": {},
   "error": null,

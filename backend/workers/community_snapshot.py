@@ -8,19 +8,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.settings import Settings, get_settings
 from backend.db.session import AsyncSessionLocal
-from backend.queue.payloads import CollectionPayload
-from backend.services.community_collection import (
-    CollectorAccountBanned,
-    CollectorAccountRateLimited,
-    CommunityCollectionRepository,
-    CommunityCollectionSummary,
-    SqlAlchemyCommunityCollectionRepository,
-    TelegramCommunityCollector,
-    collect_community,
-    record_collection_failure,
+from backend.queue.payloads import CommunitySnapshotPayload
+from backend.services.community_snapshot import (
+    CommunitySnapshotJobSummary,
+    CommunitySnapshotRepository,
+    SnapshotAccountBanned,
+    SnapshotAccountRateLimited,
+    SqlAlchemyCommunitySnapshotRepository,
+    TelegramCommunitySnapshotter,
+    record_snapshot_failure,
+    snapshot_community,
 )
 from backend.workers.account_manager import AccountLease, acquire_account, release_account
-from backend.workers.telegram_collection import TelethonCommunityCollector
+from backend.workers.telegram_snapshot import TelethonCommunitySnapshotter
 
 
 class AsyncSessionContext(Protocol):
@@ -33,43 +33,43 @@ class AsyncSessionContext(Protocol):
 
 AcquireAccountFn = Callable[..., Any]
 ReleaseAccountFn = Callable[..., Any]
-CollectorFactory = Callable[[AccountLease], TelegramCommunityCollector]
-RepositoryFactory = Callable[[AsyncSession], CommunityCollectionRepository]
-CollectCommunityFn = Callable[..., Any]
+SnapshotterFactory = Callable[[AccountLease], TelegramCommunitySnapshotter]
+RepositoryFactory = Callable[[AsyncSession], CommunitySnapshotRepository]
+SnapshotCommunityFn = Callable[..., Any]
 
 
-async def process_collection(
+async def process_community_snapshot(
     payload: dict[str, Any],
     *,
     session_factory: Callable[[], AsyncSessionContext] = AsyncSessionLocal,
     acquire_account_fn: AcquireAccountFn = acquire_account,
     release_account_fn: ReleaseAccountFn = release_account,
-    collector_factory: CollectorFactory = TelethonCommunityCollector,
-    repository_factory: RepositoryFactory = SqlAlchemyCommunityCollectionRepository,
-    collect_community_fn: CollectCommunityFn = collect_community,
+    snapshotter_factory: SnapshotterFactory = TelethonCommunitySnapshotter,
+    repository_factory: RepositoryFactory = SqlAlchemyCommunitySnapshotRepository,
+    snapshot_community_fn: SnapshotCommunityFn = snapshot_community,
     settings: Settings | None = None,
 ) -> dict[str, object]:
-    validated_payload = CollectionPayload.model_validate(payload)
+    validated_payload = CommunitySnapshotPayload.model_validate(payload)
     runtime_settings = settings or get_settings()
-    job_id = _current_job_id() or f"collection:{validated_payload.community_id}"
+    job_id = _current_job_id() or f"community.snapshot:{validated_payload.community_id}"
 
     async with session_factory() as session:
         lease: AccountLease | None = None
-        collector: TelegramCommunityCollector | None = None
+        snapshotter: TelegramCommunitySnapshotter | None = None
         try:
-            lease = await acquire_account_fn(session, job_id=job_id, purpose="collection")
+            lease = await acquire_account_fn(session, job_id=job_id, purpose="community_snapshot")
             await session.commit()
 
-            collector = collector_factory(lease)
-            summary: CommunityCollectionSummary = await collect_community_fn(
+            snapshotter = snapshotter_factory(lease)
+            summary: CommunitySnapshotJobSummary = await snapshot_community_fn(
                 repository_factory(session),
                 community_id=validated_payload.community_id,
-                collector=collector,
+                snapshotter=snapshotter,
                 window_days=validated_payload.window_days,
                 member_limit=runtime_settings.telegram_member_import_limit,
             )
             await session.commit()
-        except CollectorAccountRateLimited as exc:
+        except SnapshotAccountRateLimited as exc:
             await session.rollback()
             if lease is not None:
                 await release_account_fn(
@@ -82,7 +82,7 @@ async def process_collection(
                 )
                 await session.commit()
             raise
-        except CollectorAccountBanned as exc:
+        except SnapshotAccountBanned as exc:
             await session.rollback()
             if lease is not None:
                 await release_account_fn(
@@ -96,7 +96,7 @@ async def process_collection(
             raise
         except Exception as exc:
             await session.rollback()
-            failure_summary = await record_collection_failure(
+            failure_summary = await record_snapshot_failure(
                 repository_factory(session),
                 community_id=validated_payload.community_id,
                 window_days=validated_payload.window_days,
@@ -125,12 +125,12 @@ async def process_collection(
                 await session.commit()
             return summary.to_dict()
         finally:
-            if collector is not None and hasattr(collector, "aclose"):
-                await collector.aclose()  # type: ignore[attr-defined]
+            if snapshotter is not None and hasattr(snapshotter, "aclose"):
+                await snapshotter.aclose()  # type: ignore[attr-defined]
 
 
-def run_collection_job(payload: dict[str, Any]) -> dict[str, object]:
-    return asyncio.run(process_collection(payload))
+def run_community_snapshot_job(payload: dict[str, Any]) -> dict[str, object]:
+    return asyncio.run(process_community_snapshot(payload))
 
 
 def _current_job_id() -> str | None:

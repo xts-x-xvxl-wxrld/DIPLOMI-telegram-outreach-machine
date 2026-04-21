@@ -7,7 +7,7 @@
 - [Audience Brief](spec/audience-brief.md) - optional/future keyword extraction and search context
 - [Discovery](spec/discovery.md) - seed-first discovery model, candidate normalization, ordering, safety rules
 - [Expansion](spec/expansion.md) - Telethon seed-group graph expansion and provenance
-- [Collection](spec/collection.md) - public message and member collection from approved communities
+- [Collection](spec/collection.md) - engagement message intake from approved communities
 - [Analysis](spec/analysis.md) - community summarization and relevance scoring via OpenAI
 - [Engagement](spec/engagement.md) - optional operator-approved community joining, topic detection, reply opportunities, sending, and audit logs
 - [Engagement Embedding Matching](spec/engagement-embedding-matching.md) - semantic selector for engagement topic matching before drafting
@@ -29,11 +29,12 @@
 - [Backend Contracts](plan/backend-contracts.md) - account manager, queue, and API contract plan
 - [Brief Discovery Slice](plan/brief-discovery-slice.md) - legacy/optional brief-first discovery plan
 - [Manual Seed CSV Import](plan/manual-seed-csv-import.md) - bot CSV upload for named manual seed groups
-- [Bare Seed Collection](plan/bare-seed-collection.md) - active seed-only flow: resolve imported seeds, collect metadata and members, pause expansion
+- [Bare Seed Snapshot](plan/bare-seed-snapshot.md) - active seed-only flow: resolve imported seeds, snapshot metadata and members, pause expansion
+- [Discovery Snapshot Rename](plan/discovery-snapshot-rename.md) - vocabulary/code split between discovery snapshots and engagement collection
 - [Seed Resolution](plan/seed-resolution.md) - contract and next slice for resolving imported seeds into communities
 - [Seed Batch Expansion](plan/seed-batch-expansion.md) - first-class expansion from resolved manual seed groups
 - [Seed-First Discovery](plan/seed-first-discovery.md) - active MVP plan replacing briefs with example-community seed groups
-- [Telegram Bot UX Control Surface](plan/tg-bot-ux-control-surface.md) - richer Telegram-native operator controls for seed-group review and collection
+- [Telegram Bot UX Control Surface](plan/tg-bot-ux-control-surface.md) - richer Telegram-native operator controls for seed-group review and snapshots
 - [Member Access + Account Onboarding](plan/member-access-onboarding.md) - API/bot member visibility and local Telethon session setup
 - [TGStat Removal](plan/tgstat-removal.md) - retire TGStat and replace it with seed, web-search, and graph discovery
 - [Docker DNS for Telegram](plan/docker-dns-telegram.md) - local container DNS override for Telegram API access
@@ -74,12 +75,15 @@
 - `backend/api/routes/telegram_entities.py` - direct Telegram handle intake API endpoints
 - `backend/services/community_engagement.py` - engagement settings and topic validation/state service
 - `backend/workers/community_join.py` - `community.join` orchestration with membership and audit updates
+- `backend/workers/community_snapshot.py` - `community.snapshot` orchestration for discovery metadata/member snapshots
+- `backend/workers/telegram_snapshot.py` - Telethon adapter for discovery community snapshots
 - `backend/workers/engagement_detect.py` - `engagement.detect` orchestration, sample prefiltering, model calls, and candidate creation
 - `backend/workers/engagement_target_resolve.py` - engagement-specific Telegram target resolution for approved outbound surfaces
 - `backend/workers/engagement_scheduler.py` - low-frequency engagement detection scheduler target selection and enqueueing
 - `backend/workers/engagement_send.py` - `engagement.send` orchestration, idempotent action audit, rate-limit checks, and public reply sends
 - `backend/workers/telegram_engagement.py` - fakeable Telethon adapter for engagement joins and sends
 - `backend/services/seed_import.py` - CSV parsing and seed-group upsert logic
+- `backend/services/community_snapshot.py` - discovery community snapshot persistence for metadata and visible members
 - `backend/services/telegram_entity_intake.py` - direct Telegram handle intake persistence and classification rules
 - `backend/services/seed_resolution.py` - manual seed resolver persistence and fakeable adapter contract
 - `backend/services/seed_expansion.py` - seed-group expansion persistence and provenance logic

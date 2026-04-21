@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db.session import AsyncSessionLocal
-from backend.queue.client import QueuedJob, enqueue_collection
+from backend.queue.client import QueuedJob, enqueue_community_snapshot
 from backend.queue.payloads import SeedResolvePayload
 from backend.services.seed_resolution import (
     ResolverAccountBanned,
@@ -40,7 +40,7 @@ ReleaseAccountFn = Callable[..., Any]
 ResolverFactory = Callable[[AccountLease], TelegramResolverAdapter]
 RepositoryFactory = Callable[[AsyncSession], SeedResolutionRepository]
 ResolveSeedGroupFn = Callable[..., Any]
-EnqueueCollectionFn = Callable[..., QueuedJob]
+EnqueueSnapshotFn = Callable[..., QueuedJob]
 
 
 async def process_seed_resolve(
@@ -52,7 +52,7 @@ async def process_seed_resolve(
     resolver_factory: ResolverFactory = TelethonTelegramResolver,
     repository_factory: RepositoryFactory = SqlAlchemySeedResolutionRepository,
     resolve_seed_group_fn: ResolveSeedGroupFn = resolve_seed_group,
-    enqueue_collection_fn: EnqueueCollectionFn = enqueue_collection,
+    enqueue_snapshot_fn: EnqueueSnapshotFn = enqueue_community_snapshot,
 ) -> dict[str, object]:
     validated_payload = SeedResolvePayload.model_validate(payload)
     job_id = _current_job_id() or f"seed.resolve:{validated_payload.seed_group_id}"
@@ -73,10 +73,10 @@ async def process_seed_resolve(
                 resolver=resolver,
             )
             await session.commit()
-            collection_jobs, collection_enqueue_errors = _enqueue_collections_for_resolved_seeds(
+            snapshot_jobs, snapshot_enqueue_errors = _enqueue_snapshots_for_resolved_seeds(
                 summary,
                 requested_by=validated_payload.requested_by,
-                enqueue_collection_fn=enqueue_collection_fn,
+                enqueue_snapshot_fn=enqueue_snapshot_fn,
             )
         except ResolverAccountRateLimited as exc:
             await session.rollback()
@@ -125,10 +125,10 @@ async def process_seed_resolve(
                 )
                 await session.commit()
             result = summary.to_dict()
-            result["collection_jobs"] = [
-                {"id": job.id, "type": job.type, "status": job.status} for job in collection_jobs
+            result["snapshot_jobs"] = [
+                {"id": job.id, "type": job.type, "status": job.status} for job in snapshot_jobs
             ]
-            result["collection_enqueue_errors"] = collection_enqueue_errors
+            result["snapshot_enqueue_errors"] = snapshot_enqueue_errors
             return result
         finally:
             if resolver is not None and hasattr(resolver, "aclose"):
@@ -151,11 +151,11 @@ def _current_job_id() -> str | None:
     return str(job.id)
 
 
-def _enqueue_collections_for_resolved_seeds(
+def _enqueue_snapshots_for_resolved_seeds(
     summary: SeedResolutionSummary,
     *,
     requested_by: str,
-    enqueue_collection_fn: EnqueueCollectionFn,
+    enqueue_snapshot_fn: EnqueueSnapshotFn,
 ) -> tuple[list[QueuedJob], list[str]]:
     community_ids: list[UUID] = []
     seen: set[UUID] = set()
@@ -170,7 +170,7 @@ def _enqueue_collections_for_resolved_seeds(
     for community_id in community_ids:
         try:
             jobs.append(
-                enqueue_collection_fn(
+                enqueue_snapshot_fn(
                     community_id,
                     reason="initial",
                     requested_by=requested_by,

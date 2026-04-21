@@ -8,7 +8,7 @@ uses the same identity that joins communities and posts public engagement replie
 The app should treat account identity as part of product safety:
 
 ```text
-search account       -> read-only Telegram lookup, expansion, and collection
+search account       -> read-only Telegram lookup, expansion, community snapshots, and collection
 engagement account   -> approved joining and approved public replies
 disabled account     -> never leased automatically
 ```
@@ -18,7 +18,7 @@ This spec extends `wiki/spec/account-manager.md`, `wiki/spec/database.md`, and
 
 ## Goals
 
-- Prevent the same Telegram identity from being used for both broad search/collection and public
+- Prevent the same Telegram identity from being used for both broad search/snapshot work and public
   engagement.
 - Keep search accounts read-only.
 - Keep engagement accounts stable and recognizable in communities where they are approved to speak.
@@ -42,7 +42,7 @@ Allowed values:
 
 | Pool | Meaning |
 |---|---|
-| `search` | Read-only account for seed resolution, expansion, entity intake, target resolution, and collection. |
+| `search` | Read-only account for seed resolution, expansion, entity intake, target resolution, community snapshots, and collection. |
 | `engagement` | Public-facing account for approved community joins and approved public replies. |
 | `disabled` | Account is kept in the database but is never automatically leased. |
 
@@ -67,7 +67,8 @@ The account manager must map every lease purpose to exactly one required pool.
 | Purpose | Required pool | Notes |
 |---|---|---|
 | `expansion` | `search` | Includes seed resolution and graph expansion. |
-| `collection` | `search` | Public message/member collection remains read-only. |
+| `community_snapshot` | `search` | Discovery metadata/member snapshots remain read-only. |
+| `collection` | `search` | Engagement message collection remains read-only until a later spec routes it differently. |
 | `entity_intake` | `search` | Direct Telegram handle classification is read-only. |
 | `engagement_target_resolve` | `search` | Resolves engagement targets but does not join or post. |
 | `engagement_join` | `engagement` | Joins only approved engagement targets. |

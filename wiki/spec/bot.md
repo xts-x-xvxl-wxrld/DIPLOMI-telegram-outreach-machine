@@ -5,7 +5,7 @@
 The Telegram bot is the MVP operator UI.
 
 It lets the operator import example Telegram communities as seed groups, resolve those examples,
-collect metadata and visible members for the resolved seed communities, inspect job status, and
+snapshot metadata and visible members for the resolved seed communities, inspect job status, and
 start monitoring approved communities.
 The operator can also send one public Telegram username or link as plain text; the bot asks the API
 to classify it as a channel, group, user, or bot.
@@ -27,7 +27,7 @@ commands as durable shortcuts.
 /resolveseeds <seed_group_id>
 /candidates <seed_group_id>
 /community <community_id>
-/collect <community_id>
+/snapshot <community_id>
 /members <community_id>
 /exportmembers <community_id>
 /entity <intake_id>
@@ -151,19 +151,19 @@ typing.
 Calls:
 
 - `GET /api/communities/{community_id}`
-- `GET /api/communities/{community_id}/collection-runs`
+- `GET /api/communities/{community_id}/snapshot-runs`
 
 The bot should show:
 
 - title, link, status, source, and match reason
 - latest snapshot summary
-- latest collection-run status
+- latest snapshot-run status
 - latest analysis summary when available
-- inline refresh, manual collection, member, and engagement-settings buttons
+- inline refresh, manual snapshot, member, and engagement-settings buttons
 
-### `/collect <community_id>`
+### `/snapshot <community_id>`
 
-Calls `POST /api/communities/{community_id}/collection-jobs` with:
+Calls `POST /api/communities/{community_id}/snapshot-jobs` with:
 
 ```json
 {
@@ -171,14 +171,14 @@ Calls `POST /api/communities/{community_id}/collection-jobs` with:
 }
 ```
 
-The bot reports the queued `collection.run` job and offers inline buttons for job refresh and
+The bot reports the queued `community.snapshot` job and offers inline buttons for job refresh and
 community detail.
 
 ### `/members <community_id>`
 
 Calls `GET /api/communities/{community_id}/members`.
 
-The bot should show a paged list of visible collected members with only:
+The bot should show a paged list of snapshotted visible members with only:
 
 - Telegram user ID
 - public username when present
@@ -217,7 +217,7 @@ Calls `POST /api/communities/{community_id}/review` with:
 }
 ```
 
-For MVP, approving a community moves it directly to `monitoring` and queues initial collection.
+For MVP, approving a community moves it directly to `monitoring` and queues an initial snapshot.
 
 ### `/reject <community_id>`
 
@@ -276,7 +276,7 @@ The bot should send an overview message plus compact group cards with inline act
 Calls `POST /api/seed-groups/{seed_group_id}/resolve-jobs`.
 
 The bot reports the queued `seed.resolve` job ID. Resolution links imported public Telegram seeds to
-candidate `communities` rows and queues initial collection for resolved communities.
+candidate `communities` rows and queues initial snapshots for resolved communities.
 
 ### `/expandseeds <seed_group_id> [brief_id]`
 
@@ -522,9 +522,9 @@ for bot messages and callbacks.
 MVP review behavior:
 
 - `candidate` - discovered and awaiting review
-- `monitoring` - approved and actively scheduled for collection
+- `monitoring` - approved and actively scheduled for snapshots or engagement monitoring
 - `rejected` - operator rejected
-- `dropped` - previously relevant but no longer collectable or intentionally removed
+- `dropped` - previously relevant but no longer accessible or intentionally removed
 - `approved` - reserved for later workflows where approval and monitoring are separate
 
 The current MVP bot uses approve-as-monitoring to keep the first workflow short.

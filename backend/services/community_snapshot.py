@@ -13,21 +13,21 @@ from backend.db.enums import ActivityStatus, AnalysisStatus, CollectionRunStatus
 from backend.db.models import CollectionRun, Community, CommunityMember, CommunitySnapshot, User
 
 
-class CollectionError(RuntimeError):
+class CommunitySnapshotError(RuntimeError):
     pass
 
 
-class CommunityNotFound(CollectionError):
+class CommunityNotFound(CommunitySnapshotError):
     pass
 
 
-class CollectorAccountRateLimited(CollectionError):
+class SnapshotAccountRateLimited(CommunitySnapshotError):
     def __init__(self, flood_wait_seconds: int, message: str | None = None) -> None:
         self.flood_wait_seconds = flood_wait_seconds
         super().__init__(message or f"Telegram account rate limited for {flood_wait_seconds}s")
 
 
-class CollectorAccountBanned(CollectionError):
+class SnapshotAccountBanned(CommunitySnapshotError):
     pass
 
 
@@ -39,7 +39,7 @@ class TelegramMemberInfo:
 
 
 @dataclass(frozen=True)
-class TelegramCollectedCommunity:
+class TelegramSnapshotCommunity:
     tg_id: int
     username: str | None
     title: str | None
@@ -50,19 +50,19 @@ class TelegramCollectedCommunity:
 
 
 @dataclass(frozen=True)
-class TelegramCommunityCollection:
-    community: TelegramCollectedCommunity
+class TelegramCommunitySnapshot:
+    community: TelegramSnapshotCommunity
     members: list[TelegramMemberInfo] = field(default_factory=list)
     member_limit_reached: bool = False
-    collection_notes: list[str] = field(default_factory=list)
+    snapshot_notes: list[str] = field(default_factory=list)
 
 
-class TelegramCommunityCollector(Protocol):
-    async def collect(self, community: Community, *, member_limit: int) -> TelegramCommunityCollection:
+class TelegramCommunitySnapshotter(Protocol):
+    async def snapshot(self, community: Community, *, member_limit: int) -> TelegramCommunitySnapshot:
         pass
 
 
-class CommunityCollectionRepository(Protocol):
+class CommunitySnapshotRepository(Protocol):
     async def get_community(self, community_id: UUID) -> Community | None:
         pass
 
@@ -88,7 +88,7 @@ class CommunityCollectionRepository(Protocol):
         pass
 
 
-class SqlAlchemyCommunityCollectionRepository:
+class SqlAlchemyCommunitySnapshotRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
@@ -123,7 +123,7 @@ class SqlAlchemyCommunityCollectionRepository:
 
 
 @dataclass(frozen=True)
-class CommunityCollectionSummary:
+class CommunitySnapshotJobSummary:
     community_id: UUID
     collection_run_id: UUID
     snapshot_id: UUID | None
@@ -131,64 +131,64 @@ class CommunityCollectionSummary:
     member_limit_reached: bool
     status: str
     error_message: str | None = None
-    collection_notes: tuple[str, ...] = ()
+    snapshot_notes: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         return {
             "status": self.status,
-            "job_type": "collection.run",
+            "job_type": "community.snapshot",
             "community_id": str(self.community_id),
             "collection_run_id": str(self.collection_run_id),
             "snapshot_id": str(self.snapshot_id) if self.snapshot_id else None,
             "members_seen": self.members_seen,
             "member_limit_reached": self.member_limit_reached,
             "error_message": self.error_message,
-            "collection_notes": list(self.collection_notes),
+            "snapshot_notes": list(self.snapshot_notes),
         }
 
 
-async def collect_community(
-    repository: CommunityCollectionRepository,
+async def snapshot_community(
+    repository: CommunitySnapshotRepository,
     *,
     community_id: UUID,
-    collector: TelegramCommunityCollector,
+    snapshotter: TelegramCommunitySnapshotter,
     window_days: int,
     member_limit: int,
-) -> CommunityCollectionSummary:
+) -> CommunitySnapshotJobSummary:
     community = await repository.get_community(community_id)
     if community is None:
         raise CommunityNotFound(f"Community not found: {community_id}")
 
-    collected = await collector.collect(community, member_limit=max(member_limit, 1))
-    return await persist_community_collection(
+    captured = await snapshotter.snapshot(community, member_limit=max(member_limit, 1))
+    return await persist_community_snapshot(
         repository,
         community=community,
-        collected=collected,
+        captured=captured,
         window_days=window_days,
     )
 
 
-async def persist_community_collection(
-    repository: CommunityCollectionRepository,
+async def persist_community_snapshot(
+    repository: CommunitySnapshotRepository,
     *,
     community: Community,
-    collected: TelegramCommunityCollection,
+    captured: TelegramCommunitySnapshot,
     window_days: int,
     now: datetime | None = None,
-) -> CommunityCollectionSummary:
+) -> CommunitySnapshotJobSummary:
     current_time = now or _utcnow()
-    _update_community_metadata(community, collected.community, snapshot_time=current_time)
+    _update_community_metadata(community, captured.community, snapshot_time=current_time)
 
     snapshot = CommunitySnapshot(
         id=uuid.uuid4(),
         community_id=community.id,
-        member_count=collected.community.member_count,
+        member_count=captured.community.member_count,
         message_count_7d=0,
         collected_at=current_time,
     )
     await repository.add_snapshot(snapshot)
 
-    unique_members = _unique_members(collected.members)
+    unique_members = _unique_members(captured.members)
     for member in unique_members:
         await _upsert_member(repository, community_id=community.id, member=member, now=current_time)
 
@@ -212,25 +212,25 @@ async def persist_community_collection(
     await repository.add_collection_run(collection_run)
     await repository.flush()
 
-    return CommunityCollectionSummary(
+    return CommunitySnapshotJobSummary(
         community_id=community.id,
         collection_run_id=collection_run.id,
         snapshot_id=snapshot.id,
         members_seen=len(unique_members),
-        member_limit_reached=collected.member_limit_reached,
+        member_limit_reached=captured.member_limit_reached,
         status=CollectionRunStatus.COMPLETED.value,
-        collection_notes=tuple(collected.collection_notes),
+        snapshot_notes=tuple(captured.snapshot_notes),
     )
 
 
-async def record_collection_failure(
-    repository: CommunityCollectionRepository,
+async def record_snapshot_failure(
+    repository: CommunitySnapshotRepository,
     *,
     community_id: UUID,
     window_days: int,
     error_message: str,
     now: datetime | None = None,
-) -> CommunityCollectionSummary | None:
+) -> CommunitySnapshotJobSummary | None:
     community = await repository.get_community(community_id)
     if community is None:
         return None
@@ -256,7 +256,7 @@ async def record_collection_failure(
     )
     await repository.add_collection_run(collection_run)
     await repository.flush()
-    return CommunityCollectionSummary(
+    return CommunitySnapshotJobSummary(
         community_id=community.id,
         collection_run_id=collection_run.id,
         snapshot_id=None,
@@ -269,28 +269,28 @@ async def record_collection_failure(
 
 def _update_community_metadata(
     community: Community,
-    collected: TelegramCollectedCommunity,
+    captured: TelegramSnapshotCommunity,
     *,
     snapshot_time: datetime,
 ) -> None:
-    community.tg_id = collected.tg_id
-    if collected.username is not None:
-        community.username = collected.username
-    if collected.title is not None:
-        community.title = collected.title
-    if collected.description is not None:
-        community.description = collected.description
-    if collected.member_count is not None:
-        community.member_count = collected.member_count
-    if collected.is_group is not None:
-        community.is_group = collected.is_group
-    if collected.is_broadcast is not None:
-        community.is_broadcast = collected.is_broadcast
+    community.tg_id = captured.tg_id
+    if captured.username is not None:
+        community.username = captured.username
+    if captured.title is not None:
+        community.title = captured.title
+    if captured.description is not None:
+        community.description = captured.description
+    if captured.member_count is not None:
+        community.member_count = captured.member_count
+    if captured.is_group is not None:
+        community.is_group = captured.is_group
+    if captured.is_broadcast is not None:
+        community.is_broadcast = captured.is_broadcast
     community.last_snapshot_at = snapshot_time
 
 
 async def _upsert_member(
-    repository: CommunityCollectionRepository,
+    repository: CommunitySnapshotRepository,
     *,
     community_id: UUID,
     member: TelegramMemberInfo,

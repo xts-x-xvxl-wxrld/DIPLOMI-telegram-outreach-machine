@@ -1,4 +1,4 @@
-# Database Spec
+﻿# Database Spec
 
 ## Engine
 PostgreSQL 16. Single instance. Managed via SQLAlchemy (async) + Alembic migrations.
@@ -37,7 +37,7 @@ created_at          timestamptz NOT NULL DEFAULT now()
 ---
 
 ### `communities`
-All discovered communities — candidates, approved, rejected, and monitored.
+All discovered communities â€” candidates, approved, rejected, and monitored.
 
 ```sql
 id                  uuid PRIMARY KEY
@@ -55,7 +55,7 @@ brief_id            uuid REFERENCES audience_briefs(id)
 status              text NOT NULL DEFAULT 'candidate'
                     -- 'candidate' | 'approved' | 'rejected' | 'monitoring' | 'dropped'
 store_messages      boolean NOT NULL DEFAULT false
-                    -- opt-in raw message storage; false = fetch → count → summarize → discard
+                    -- opt-in raw message storage; false = fetch â†’ count â†’ summarize â†’ discard
 reviewed_at         timestamptz
 first_seen_at       timestamptz NOT NULL DEFAULT now()
 last_snapshot_at    timestamptz
@@ -186,7 +186,8 @@ Resolution rules:
 ---
 
 ### `community_snapshots`
-Point-in-time metadata snapshots for each monitored community. One row per collection run.
+Point-in-time metadata snapshots for each monitored community. Discovery snapshots write these rows,
+and engagement collection may also update them.
 
 ```sql
 id                  uuid PRIMARY KEY
@@ -199,9 +200,12 @@ collected_at        timestamptz NOT NULL DEFAULT now()
 ---
 
 ### `collection_runs`
-Durable boundary between collection and analysis.
+Durable run/artifact boundary shared by discovery snapshots, analysis collection, and engagement
+collection.
 
-Collection writes one row per collection attempt. Analysis reads this row by ID instead of receiving raw message batches through Redis.
+`community.snapshot` writes one row per discovery snapshot attempt. Engagement collection writes one
+row per message-intake attempt. Downstream jobs read this row by ID instead of receiving raw message
+batches through Redis.
 
 ```sql
 id                  uuid PRIMARY KEY
@@ -219,7 +223,7 @@ members_seen        int NOT NULL DEFAULT 0
 activity_events     int NOT NULL DEFAULT 0
 snapshot_id         uuid REFERENCES community_snapshots(id)
 analysis_input      jsonb
-                    -- compact capped artifact for analysis, not full raw history
+                    -- compact capped artifact or engagement batch, not full raw history
 analysis_input_expires_at timestamptz
 error_message       text
 started_at          timestamptz NOT NULL DEFAULT now()
@@ -238,8 +242,10 @@ completed_at        timestamptz
 ---
 
 ### `messages`
-Raw collected messages. Only written when `communities.store_messages = true`.
-Default pipeline: fetch -> count activity -> write compact `collection_runs.analysis_input` -> enqueue analysis -> expire the analysis input later. No `messages` rows are written.
+Raw collected messages for engagement or future analysis collection. Only written when
+`communities.store_messages = true`.
+Default engagement collection pipeline: fetch -> count activity -> write compact collection artifact
+or engagement batch -> enqueue detection -> expire the artifact later. No `messages` rows are written.
 
 ```sql
 id                  uuid PRIMARY KEY
@@ -315,9 +321,9 @@ UNIQUE (community_id, user_id)
 - Other attributable service events (polls, pins)
 
 Activity status is recalculated on every collection run:
-- 0 events → `inactive`
-- 1-4 events → `passive`
-- 5+ events → `active`
+- 0 events â†’ `inactive`
+- 1-4 events â†’ `passive`
+- 5+ events â†’ `active`
 
 ---
 
@@ -648,24 +654,23 @@ CREATE INDEX ON engagement_candidate_revisions (candidate_id, revision_number);
 
 ---
 
-## Default Collection Pipeline (store_messages = false)
+## Default Engagement Collection Pipeline (store_messages = false)
 
 ```
-collection worker
-  │
-  ├─ fetch recent messages from Telegram (in memory)
-  ├─ tally activity events per user_id (in memory)
-  ├─ write/update community_members rows
-  ├─ write community_snapshots row
-  ├─ write collection_runs row with compact analysis_input
-  ├─ enqueue analysis job with collection_run_id
-  └─ discard raw messages
+engagement collection worker
+  -> fetch recent messages from Telegram (in memory)
+  -> tally activity events per user_id (in memory)
+  -> write/update community_members rows
+  -> write community_snapshots row
+  -> write collection_runs row with compact artifact or engagement batch
+  -> enqueue engagement.detect with collection_run_id when eligible
+  -> discard raw messages
 
-analysis worker
-  ├─ read collection_runs.analysis_input
-  ├─ call OpenAI API
-  ├─ write analysis_summaries row
-  └─ mark collection_runs.analysis_status = completed
+engagement.detect worker
+  -> read collection_runs artifact or stored messages
+  -> apply topic/timing/policy gates
+  -> call OpenAI only for selected trigger posts
+  -> create reply opportunities when useful
 ```
 
 No rows are written to `messages` or `message_reactions` in this path. The temporary `collection_runs.analysis_input` expires after the retention window defined in the queue spec.

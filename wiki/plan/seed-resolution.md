@@ -2,9 +2,9 @@
 
 ## Goal
 
-Turn imported manual seed rows into real `communities` rows that can be collected directly.
+Turn imported manual seed rows into real `communities` rows that can be snapshotted directly.
 
-This is the bridge between CSV seed import and bare seed collection. Expansion is paused for now.
+This is the bridge between CSV seed import and bare seed snapshots. Expansion is paused for now.
 
 ## Seed Field Contract
 
@@ -153,14 +153,14 @@ This queues `seed.resolve`. `/seeds` should show both:
 - No retired external index dependency.
 - No OpenAI calls.
 - No expansion graph crawling during resolution.
-- No raw message collection.
+- No raw message intake.
 - No person-level scoring.
 - No automatic joining of private communities.
 
-## Current Seed Collection Behavior
+## Current Seed Snapshot Behavior
 
-After `seed.resolve` commits resolved communities, the worker queues one `collection.run` job per
-unique resolved community with `reason = "initial"`. That collection job fetches metadata and
+After `seed.resolve` commits resolved communities, the worker queues one `community.snapshot` job per
+unique resolved community with `reason = "initial"`. That snapshot job fetches metadata and
 visible members, writes `users`, `community_members`, `community_snapshots`, and a completed
 `collection_runs` row with analysis skipped.
 

@@ -224,14 +224,14 @@ async def test_start_seed_group_expansion_posts_contract_payload() -> None:
 
 
 @pytest.mark.asyncio
-async def test_start_collection_posts_window_days_payload() -> None:
+async def test_start_snapshot_posts_window_days_payload() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
-        assert request.url.path.endswith("/communities/community-1/collection-jobs")
+        assert request.url.path.endswith("/communities/community-1/snapshot-jobs")
         assert json.loads(request.content) == {"window_days": 90}
         return httpx.Response(
             202,
-            json={"job": {"id": "job-1", "type": "collection.run", "status": "queued"}},
+            json={"job": {"id": "job-1", "type": "community.snapshot", "status": "queued"}},
         )
 
     client = BotApiClient(
@@ -240,10 +240,10 @@ async def test_start_collection_posts_window_days_payload() -> None:
         transport=httpx.MockTransport(handler),
     )
 
-    response = await client.start_collection("community-1")
+    response = await client.start_snapshot("community-1")
     await client.aclose()
 
-    assert response["job"]["type"] == "collection.run"
+    assert response["job"]["type"] == "community.snapshot"
 
 
 @pytest.mark.asyncio

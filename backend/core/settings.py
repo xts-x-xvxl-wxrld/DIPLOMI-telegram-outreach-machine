@@ -26,9 +26,9 @@ class Settings(BaseSettings):
         default=10000,
         validation_alias="TELEGRAM_MEMBER_IMPORT_LIMIT",
     )
-    collection_interval_minutes: int = Field(
+    community_snapshot_interval_minutes: int = Field(
         default=60,
-        validation_alias="COLLECTION_INTERVAL_MINUTES",
+        validation_alias="COMMUNITY_SNAPSHOT_INTERVAL_MINUTES",
     )
     engagement_detection_window_minutes: int = Field(
         default=60,

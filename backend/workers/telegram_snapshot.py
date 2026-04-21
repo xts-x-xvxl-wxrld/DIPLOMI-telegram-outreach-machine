@@ -5,41 +5,41 @@ from typing import Any
 
 from backend.core.settings import Settings, get_settings
 from backend.db.models import Community
-from backend.services.community_collection import (
-    CollectionError,
-    CollectorAccountBanned,
-    CollectorAccountRateLimited,
-    TelegramCollectedCommunity,
-    TelegramCommunityCollection,
+from backend.services.community_snapshot import (
+    CommunitySnapshotError,
+    SnapshotAccountBanned,
+    SnapshotAccountRateLimited,
+    TelegramCommunitySnapshot,
     TelegramMemberInfo,
+    TelegramSnapshotCommunity,
 )
 from backend.workers.account_manager import AccountLease
 
 
-class TelethonCollectionError(RuntimeError):
+class TelethonSnapshotError(RuntimeError):
     pass
 
 
-class TelethonCommunityCollector:
+class TelethonCommunitySnapshotter:
     def __init__(self, lease: AccountLease, *, settings: Settings | None = None) -> None:
         self.lease = lease
         self.settings = settings or get_settings()
         self._client: Any | None = None
 
-    async def collect(self, community: Community, *, member_limit: int) -> TelegramCommunityCollection:
+    async def snapshot(self, community: Community, *, member_limit: int) -> TelegramCommunitySnapshot:
         client = await self._get_client()
         entity = await self._get_entity(client, community)
-        collected_community = await _community_from_entity(client, entity, fallback=community)
-        members, notes = await self._collect_members(client, entity, member_limit=member_limit)
-        member_count = collected_community.member_count
+        captured_community = await _community_from_entity(client, entity, fallback=community)
+        members, notes = await self._snapshot_members(client, entity, member_limit=member_limit)
+        member_count = captured_community.member_count
         member_limit_reached = len(members) >= member_limit and (
             member_count is None or member_count > len(members)
         )
-        return TelegramCommunityCollection(
-            community=collected_community,
+        return TelegramCommunitySnapshot(
+            community=captured_community,
             members=members,
             member_limit_reached=member_limit_reached,
-            collection_notes=notes,
+            snapshot_notes=notes,
         )
 
     async def aclose(self) -> None:
@@ -54,10 +54,10 @@ class TelethonCommunityCollector:
         try:
             from telethon import TelegramClient
         except ImportError as exc:
-            raise TelethonCollectionError("telethon must be installed before collection.run can run") from exc
+            raise TelethonSnapshotError("telethon must be installed before community.snapshot can run") from exc
 
         if not self.settings.telegram_api_id or not self.settings.telegram_api_hash:
-            raise TelethonCollectionError("TELEGRAM_API_ID and TELEGRAM_API_HASH are required")
+            raise TelethonSnapshotError("TELEGRAM_API_ID and TELEGRAM_API_HASH are required")
 
         session_path = _session_path(self.lease.session_file_path, self.settings.sessions_dir)
         self._client = TelegramClient(
@@ -67,7 +67,7 @@ class TelethonCommunityCollector:
         )
         await self._client.connect()
         if not await self._client.is_user_authorized():
-            raise CollectorAccountBanned("Telegram session is not authorized")
+            raise SnapshotAccountBanned("Telegram session is not authorized")
         return self._client
 
     async def _get_entity(self, client: Any, community: Community) -> Any:
@@ -80,9 +80,9 @@ class TelethonCommunityCollector:
         try:
             return await client.get_entity(target)
         except Exception as exc:
-            _raise_collection_exception(exc)
+            _raise_snapshot_exception(exc)
 
-    async def _collect_members(
+    async def _snapshot_members(
         self,
         client: Any,
         entity: Any,
@@ -105,7 +105,7 @@ class TelethonCommunityCollector:
                 )
         except Exception as exc:
             if _is_account_level_exception(exc):
-                _raise_collection_exception(exc)
+                _raise_snapshot_exception(exc)
             notes.append(f"Member list was not fully accessible: {exc}")
         return members, notes
 
@@ -115,15 +115,15 @@ async def _community_from_entity(
     entity: Any,
     *,
     fallback: Community,
-) -> TelegramCollectedCommunity:
+) -> TelegramSnapshotCommunity:
     try:
         from telethon.tl.types import Channel, Chat
     except ImportError as exc:
-        raise TelethonCollectionError("telethon entity types are unavailable") from exc
+        raise TelethonSnapshotError("telethon entity types are unavailable") from exc
 
     if isinstance(entity, Channel):
         description, member_count = await _channel_details(client, entity)
-        return TelegramCollectedCommunity(
+        return TelegramSnapshotCommunity(
             tg_id=int(entity.id),
             username=getattr(entity, "username", None) or fallback.username,
             title=getattr(entity, "title", None) or fallback.title,
@@ -135,7 +135,7 @@ async def _community_from_entity(
 
     if isinstance(entity, Chat):
         description, member_count = await _chat_details(client, entity)
-        return TelegramCollectedCommunity(
+        return TelegramSnapshotCommunity(
             tg_id=int(entity.id),
             username=fallback.username,
             title=getattr(entity, "title", None) or fallback.title,
@@ -145,7 +145,7 @@ async def _community_from_entity(
             is_broadcast=False,
         )
 
-    raise CollectionError(f"Resolved target is not a supported community: {type(entity).__name__}")
+    raise CommunitySnapshotError(f"Resolved target is not a supported community: {type(entity).__name__}")
 
 
 async def _channel_details(client: Any, entity: Any) -> tuple[str | None, int | None]:
@@ -185,16 +185,16 @@ def _entity_member_count(entity: Any) -> int | None:
     return None
 
 
-def _raise_collection_exception(exc: Exception) -> None:
+def _raise_snapshot_exception(exc: Exception) -> None:
     name = exc.__class__.__name__.lower()
     seconds = getattr(exc, "seconds", None)
     if "floodwait" in name or "flood_wait" in name:
-        raise CollectorAccountRateLimited(int(seconds or 0), str(exc)) from exc
+        raise SnapshotAccountRateLimited(int(seconds or 0), str(exc)) from exc
     if any(marker in name for marker in ("banned", "deactivated", "authkey", "sessionrevoked")):
-        raise CollectorAccountBanned(str(exc)) from exc
+        raise SnapshotAccountBanned(str(exc)) from exc
     if any(marker in name for marker in ("private", "invalid", "notoccupied", "occupied")):
-        raise CollectionError(str(exc)) from exc
-    raise CollectionError(str(exc)) from exc
+        raise CommunitySnapshotError(str(exc)) from exc
+    raise CommunitySnapshotError(str(exc)) from exc
 
 
 def _is_account_level_exception(exc: Exception) -> bool:

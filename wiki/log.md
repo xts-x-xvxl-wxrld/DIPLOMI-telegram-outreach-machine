@@ -730,3 +730,10 @@ Added `wiki/spec/engagement-embedding-matching.md` to define cached semantic top
 engagement detection. Added `wiki/plan/engagement-embedding-matching.md` with rollout slices for
 settings, cache schema, service integration, detector rollout, and evaluation. Updated the
 engagement spec and wiki index to point future detector work at the embedding selector contract.
+
+## [2026-04-21] code | Renamed discovery collection to community snapshots
+
+Renamed the discovery-side collection worker, queue job, bot controls, and API endpoints to
+community snapshots while keeping `collection.run` reserved for engagement collection. Updated the
+discovery, collection, queue, API, bot, database, and account-pool specs so discovery stores
+community snapshots and engagement owns message collection.

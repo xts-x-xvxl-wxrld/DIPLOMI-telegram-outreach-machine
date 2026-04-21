@@ -49,7 +49,7 @@ async def test_seed_resolve_worker_releases_account_on_success() -> None:
         resolver_factory=lambda lease: FakeResolver(),
         repository_factory=lambda session_arg: object(),
         resolve_seed_group_fn=fake_resolve_seed_group,
-        enqueue_collection_fn=lambda *args, **kwargs: None,
+        enqueue_snapshot_fn=lambda *args, **kwargs: None,
     )
 
     assert result["status"] == "processed"
@@ -95,7 +95,7 @@ async def test_seed_resolve_worker_releases_account_on_error() -> None:
             resolver_factory=lambda lease: FakeResolver(),
             repository_factory=lambda session_arg: object(),
             resolve_seed_group_fn=fake_resolve_seed_group,
-            enqueue_collection_fn=lambda *args, **kwargs: None,
+            enqueue_snapshot_fn=lambda *args, **kwargs: None,
         )
 
     assert session.commits == 2
@@ -106,7 +106,7 @@ async def test_seed_resolve_worker_releases_account_on_error() -> None:
 
 
 @pytest.mark.asyncio
-async def test_seed_resolve_worker_queues_collection_for_resolved_communities() -> None:
+async def test_seed_resolve_worker_queues_snapshot_for_resolved_communities() -> None:
     seed_group_id = uuid4()
     community_id = uuid4()
     account_id = uuid4()
@@ -145,9 +145,13 @@ async def test_seed_resolve_worker_queues_collection_for_resolved_communities() 
         )
         return summary
 
-    def fake_enqueue_collection(*args: object, **kwargs: object) -> object:
+    def fake_enqueue_snapshot(*args: object, **kwargs: object) -> object:
         queued.append({"args": args, "kwargs": kwargs})
-        return type("QueuedJob", (), {"id": "collection-1", "type": "collection.run", "status": "queued"})()
+        return type(
+            "QueuedJob",
+            (),
+            {"id": "snapshot-1", "type": "community.snapshot", "status": "queued"},
+        )()
 
     result = await process_seed_resolve(
         {
@@ -162,11 +166,11 @@ async def test_seed_resolve_worker_queues_collection_for_resolved_communities() 
         resolver_factory=lambda lease: FakeResolver(),
         repository_factory=lambda session_arg: object(),
         resolve_seed_group_fn=fake_resolve_seed_group,
-        enqueue_collection_fn=fake_enqueue_collection,
+        enqueue_snapshot_fn=fake_enqueue_snapshot,
     )
 
-    assert result["collection_jobs"] == [
-        {"id": "collection-1", "type": "collection.run", "status": "queued"}
+    assert result["snapshot_jobs"] == [
+        {"id": "snapshot-1", "type": "community.snapshot", "status": "queued"}
     ]
     assert len(queued) == 1
     assert queued[0]["args"] == (community_id,)

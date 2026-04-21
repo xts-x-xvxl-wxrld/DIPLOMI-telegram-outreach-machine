@@ -13,7 +13,7 @@ operator to copy IDs manually between messages.
 - Seed groups can be listed, but the operator cannot drill into one group cleanly.
 - Candidate review relies on typing `/approve <community_id>` and `/reject <community_id>`.
 - Job inspection exists, but messages do not offer an easy refresh loop.
-- The bot does not expose community detail, collection status, or latest analysis in an operator-friendly way.
+- The bot does not expose community detail, snapshot status, or latest analysis in an operator-friendly way.
 
 ## UX Slice
 
@@ -24,7 +24,7 @@ Add a Telegram-native operator flow with:
 - seed-group detail messages that summarize imported seeds, resolution progress, and next actions
 - seed channel status listing for imported rows inside one group
 - seed-group candidate review cards with inline approve and reject actions
-- community detail messages with latest snapshot, collection history, and latest analysis summary
+- community detail messages with latest snapshot, snapshot history, and latest analysis summary
 
 ## Backend Additions
 
@@ -54,7 +54,7 @@ Add operator convenience commands for direct linking and fallback:
 - `/seed <seed_group_id>`
 - `/channels <seed_group_id>`
 - `/community <community_id>`
-- `/collect <community_id>`
+- `/snapshot <community_id>`
 
 ## Non-Goals
 

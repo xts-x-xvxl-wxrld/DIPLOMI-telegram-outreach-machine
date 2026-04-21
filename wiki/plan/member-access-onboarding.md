@@ -2,8 +2,8 @@
 
 ## Goal
 
-Make collected visible community members accessible to the operator and unblock real Telegram
-collection by adding a safe local Telethon account onboarding path.
+Make snapshotted visible community members accessible to the operator and unblock real Telegram
+snapshots by adding a safe local Telethon account onboarding path.
 
 ## Scope
 
@@ -13,7 +13,7 @@ collection by adding a safe local Telethon account onboarding path.
 - Add bot commands for member viewing and CSV export.
 - Add a local script that creates or validates a Telethon `.session` file and registers the account
   in `telegram_accounts`.
-- Preserve collection-worker boundaries: no business logic, no phone collection from community
+- Preserve snapshot-worker boundaries: no business logic, no phone capture from community
   members, and no person-level scores.
 
 ## API Contract
@@ -52,7 +52,7 @@ Response:
 
 ## Bot Contract
 
-- `/members <community_id>` shows the first page of visible collected members.
+- `/members <community_id>` shows the first page of visible snapshotted members.
 - `/exportmembers <community_id>` exports the allowed member fields as CSV.
 - Bot output must not include phone numbers or person-level scores.
 
@@ -108,9 +108,9 @@ Starter pool guidance:
 
 - Begin with two accounts: one active and one spare.
 - Keep worker concurrency low while the pool is small.
-- Add more accounts only after a few successful small collection cycles without repeated
+- Add more accounts only after a few successful small snapshot cycles without repeated
   `FloodWaitError` or session/auth errors.
-- Prefer slower recurring collection over large bursts. The goal is steady account health, not peak
+- Prefer slower recurring snapshots over large bursts. The goal is steady account health, not peak
   throughput.
 
 Official Telegram references:

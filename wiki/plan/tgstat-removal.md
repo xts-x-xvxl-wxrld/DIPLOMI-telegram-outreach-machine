@@ -12,7 +12,7 @@ source-adapter discovery model.
 3. Automated discovery should first find public Telegram usernames or links, then resolve them
    through Telegram before writing `communities`.
 4. Web search adapters and Telegram-native search adapters must be optional and capped.
-5. Discovery does not call OpenAI and does not collect raw messages.
+5. Discovery does not call OpenAI and does not ingest raw messages.
 6. Existing operator decisions on communities must be preserved during dedupe.
 
 ## Replacement Sources

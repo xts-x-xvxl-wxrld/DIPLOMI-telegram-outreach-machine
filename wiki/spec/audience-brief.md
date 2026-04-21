@@ -87,6 +87,7 @@ They are not allowed in:
 - `discovery.run`
 - `expansion.run`
 - `seed.expand`
+- `community.snapshot`
 - `collection.run`
 
 `brief.process` must request structured JSON and validate it before writing to the database. Invalid

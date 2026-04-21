@@ -45,9 +45,16 @@ class ExpansionPayload(BaseModel):
     requested_by: str
 
 
+class CommunitySnapshotPayload(BaseModel):
+    community_id: UUID
+    reason: Literal["manual", "initial"]
+    requested_by: str | None = None
+    window_days: int = Field(default=90, ge=1)
+
+
 class CollectionPayload(BaseModel):
     community_id: UUID
-    reason: Literal["scheduled", "manual", "initial"]
+    reason: Literal["engagement", "scheduled", "manual"]
     requested_by: str | None = None
     window_days: int = Field(default=90, ge=1)
 

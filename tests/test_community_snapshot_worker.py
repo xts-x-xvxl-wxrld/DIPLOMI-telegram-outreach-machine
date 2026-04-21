@@ -5,13 +5,13 @@ from uuid import uuid4
 
 import pytest
 
-from backend.services.community_collection import CommunityCollectionSummary
+from backend.services.community_snapshot import CommunitySnapshotJobSummary
 from backend.workers.account_manager import AccountLease
-from backend.workers.community_collect import process_collection
+from backend.workers.community_snapshot import process_community_snapshot
 
 
 @pytest.mark.asyncio
-async def test_collection_worker_releases_account_on_success() -> None:
+async def test_snapshot_worker_releases_account_on_success() -> None:
     community_id = uuid4()
     account_id = uuid4()
     session = FakeSession()
@@ -19,7 +19,7 @@ async def test_collection_worker_releases_account_on_success() -> None:
 
     async def fake_acquire(session_arg: FakeSession, *, job_id: str, purpose: str) -> AccountLease:
         assert session_arg is session
-        assert purpose == "collection"
+        assert purpose == "community_snapshot"
         return AccountLease(
             account_id=account_id,
             phone="+123456789",
@@ -32,9 +32,9 @@ async def test_collection_worker_releases_account_on_success() -> None:
         assert session_arg is session
         releases.append(kwargs)
 
-    async def fake_collect_community(*args: object, **kwargs: object) -> CommunityCollectionSummary:
+    async def fake_snapshot_community(*args: object, **kwargs: object) -> CommunitySnapshotJobSummary:
         assert kwargs["member_limit"] == 123
-        return CommunityCollectionSummary(
+        return CommunitySnapshotJobSummary(
             community_id=community_id,
             collection_run_id=uuid4(),
             snapshot_id=uuid4(),
@@ -43,7 +43,7 @@ async def test_collection_worker_releases_account_on_success() -> None:
             status="completed",
         )
 
-    result = await process_collection(
+    result = await process_community_snapshot(
         {
             "community_id": str(community_id),
             "reason": "initial",
@@ -53,9 +53,9 @@ async def test_collection_worker_releases_account_on_success() -> None:
         session_factory=lambda: session,
         acquire_account_fn=fake_acquire,
         release_account_fn=fake_release,
-        collector_factory=lambda lease: FakeCollector(),
+        snapshotter_factory=lambda lease: FakeSnapshotter(),
         repository_factory=lambda session_arg: object(),
-        collect_community_fn=fake_collect_community,
+        snapshot_community_fn=fake_snapshot_community,
         settings=FakeSettings(member_limit=123),
     )
 
@@ -68,7 +68,7 @@ async def test_collection_worker_releases_account_on_success() -> None:
 
 
 @pytest.mark.asyncio
-async def test_collection_worker_records_failure_and_releases_account() -> None:
+async def test_snapshot_worker_records_failure_and_releases_account() -> None:
     community_id = uuid4()
     account_id = uuid4()
     session = FakeSession()
@@ -86,10 +86,10 @@ async def test_collection_worker_records_failure_and_releases_account() -> None:
     async def fake_release(session_arg: FakeSession, **kwargs: object) -> None:
         releases.append(kwargs)
 
-    async def fake_collect_community(*args: object, **kwargs: object) -> CommunityCollectionSummary:
-        raise RuntimeError("collection exploded")
+    async def fake_snapshot_community(*args: object, **kwargs: object) -> CommunitySnapshotJobSummary:
+        raise RuntimeError("snapshot exploded")
 
-    result = await process_collection(
+    result = await process_community_snapshot(
         {
             "community_id": str(community_id),
             "reason": "initial",
@@ -99,18 +99,18 @@ async def test_collection_worker_records_failure_and_releases_account() -> None:
         session_factory=lambda: session,
         acquire_account_fn=fake_acquire,
         release_account_fn=fake_release,
-        collector_factory=lambda lease: FakeCollector(),
+        snapshotter_factory=lambda lease: FakeSnapshotter(),
         repository_factory=lambda session_arg: FakeFailureRepository(community_id),
-        collect_community_fn=fake_collect_community,
+        snapshot_community_fn=fake_snapshot_community,
         settings=FakeSettings(member_limit=10000),
     )
 
     assert result["status"] == "failed"
-    assert result["error_message"] == "collection exploded"
+    assert result["error_message"] == "snapshot exploded"
     assert session.commits == 2
     assert session.rollbacks == 1
     assert releases[0]["outcome"] == "error"
-    assert releases[0]["error_message"] == "collection exploded"
+    assert releases[0]["error_message"] == "snapshot exploded"
 
 
 class FakeSession:
@@ -131,7 +131,7 @@ class FakeSession:
         self.rollbacks += 1
 
 
-class FakeCollector:
+class FakeSnapshotter:
     async def aclose(self) -> None:
         return None
 

@@ -216,10 +216,10 @@ This cockpit reframes the core search workflow around what the operator is tryin
 | Button | Operator meaning | Backend concepts behind it |
 |---|---|---|
 | `Start search` | Add example communities for a new or existing search. | seed groups, seed channels, CSV import, direct Telegram entity intake |
-| `Needs attention` | Show searches or communities that need operator attention before they can move forward. | unresolved seeds, failed seed resolution, failed collection, queued/stuck jobs |
+| `Needs attention` | Show searches or communities that need operator attention before they can move forward. | unresolved seeds, failed seed resolution, failed snapshots, queued/stuck jobs |
 | `Review communities` | Decide which suggested communities should be watched. | candidate communities, seed-group candidate lists, review decisions |
-| `Watching` | Inspect communities already approved for monitoring. | communities with `monitoring` status, collection runs, latest snapshots |
-| `Recent activity` | Inspect recent background work, job outcomes, and operational events. | seed resolution, collection, expansion/future jobs |
+| `Watching` | Inspect communities already approved for monitoring. | communities with `monitoring` status, snapshot runs, latest snapshots |
+| `Recent activity` | Inspect recent background work, job outcomes, and operational events. | seed resolution, snapshots, expansion/future jobs |
 | `Help` | Show discovery-specific input guidance. | CSV shape, public link rules, direct commands |
 
 The first implementation should reuse existing backend routes where possible. It should not
@@ -401,7 +401,7 @@ remain named `/approve` and `/reject`, but the normal button-led path should use
 
 Cards should emphasize operational state:
 
-- latest collection status
+- latest snapshot status
 - latest snapshot summary when available
 - latest analysis summary when available
 - whether engagement settings exist when engagement is enabled

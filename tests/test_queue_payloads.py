@@ -7,6 +7,7 @@ from backend.queue.client import (
     QueuedJob,
     enqueue_brief_process,
     enqueue_community_join,
+    enqueue_community_snapshot,
     enqueue_engagement_detect,
     enqueue_manual_engagement_detect,
     enqueue_engagement_send,
@@ -19,6 +20,7 @@ from backend.queue.client import (
 from backend.queue.payloads import (
     AnalysisPayload,
     BriefProcessPayload,
+    CommunitySnapshotPayload,
     CollectionPayload,
     CommunityJoinPayload,
     DiscoveryPayload,
@@ -276,14 +278,59 @@ def test_enqueue_telegram_entity_resolve_uses_default_queue(monkeypatch) -> None
     }
 
 
-def test_collection_payload_matches_contract() -> None:
-    payload = CollectionPayload(community_id=uuid4(), reason="manual", requested_by="operator")
+def test_enqueue_community_snapshot_uses_high_queue(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_enqueue_job(
+        job_type: str,
+        payload: dict[str, object],
+        *,
+        queue_name: str,
+        job_id: str | None = None,
+    ) -> QueuedJob:
+        captured.update(
+            {
+                "job_type": job_type,
+                "payload": payload,
+                "queue_name": queue_name,
+                "job_id": job_id,
+            }
+        )
+        return QueuedJob(id="snapshot-1", type=job_type)
+
+    monkeypatch.setattr("backend.queue.client.enqueue_job", fake_enqueue_job)
+    community_id = uuid4()
+
+    job = enqueue_community_snapshot(community_id, reason="manual", requested_by="operator")
+
+    assert job == QueuedJob(id="snapshot-1", type="community.snapshot")
+    assert captured["job_type"] == "community.snapshot"
+    assert captured["payload"] == {
+        "community_id": str(community_id),
+        "reason": "manual",
+        "requested_by": "operator",
+        "window_days": 90,
+    }
+    assert captured["queue_name"] == "high"
+    assert str(captured["job_id"]).startswith(f"community.snapshot:{community_id}:")
+
+
+def test_community_snapshot_payload_matches_contract() -> None:
+    payload = CommunitySnapshotPayload(community_id=uuid4(), reason="manual", requested_by="operator")
 
     dumped = payload.model_dump(mode="json")
 
     assert dumped["reason"] == "manual"
     assert dumped["window_days"] == 90
     assert "community_id" in dumped
+
+
+def test_collection_payload_is_reserved_for_engagement_collection() -> None:
+    payload = CollectionPayload(community_id=uuid4(), reason="engagement", requested_by="operator")
+
+    dumped = payload.model_dump(mode="json")
+
+    assert dumped["reason"] == "engagement"
 
 
 def test_analysis_payload_uses_collection_run_id_only() -> None:
@@ -579,6 +626,10 @@ def test_enqueue_engagement_send_uses_engagement_queue(monkeypatch) -> None:
 def test_dispatch_recognizes_engagement_job_types(monkeypatch) -> None:
     monkeypatch.setattr("backend.workers.jobs.set_job_status", lambda *_args: None)
     monkeypatch.setattr(
+        "backend.workers.jobs.run_community_snapshot",
+        lambda payload: {"status": "processed", "job_type": "community.snapshot", "payload": payload},
+    )
+    monkeypatch.setattr(
         "backend.workers.jobs.run_community_join",
         lambda payload: {"status": "processed", "job_type": "community.join", "payload": payload},
     )
@@ -602,6 +653,24 @@ def test_dispatch_recognizes_engagement_job_types(monkeypatch) -> None:
     candidate_id = str(uuid4())
     target_id = str(uuid4())
 
+    assert dispatch_job(
+        "community.snapshot",
+        {
+            "community_id": community_id,
+            "reason": "manual",
+            "requested_by": "operator",
+            "window_days": 90,
+        },
+    ) == {
+        "status": "processed",
+        "job_type": "community.snapshot",
+        "payload": {
+            "community_id": community_id,
+            "reason": "manual",
+            "requested_by": "operator",
+            "window_days": 90,
+        },
+    }
     assert dispatch_job(
         "community.join",
         {

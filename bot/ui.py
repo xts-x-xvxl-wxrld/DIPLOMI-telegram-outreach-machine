@@ -38,7 +38,7 @@ ACTION_SEED_CANDIDATES = "sc"
 ACTION_OPEN_COMMUNITY = "cm"
 ACTION_APPROVE_COMMUNITY = "ca"
 ACTION_REJECT_COMMUNITY = "cr"
-ACTION_COLLECT_COMMUNITY = "cl"
+ACTION_SNAPSHOT_COMMUNITY = "sn"
 ACTION_COMMUNITY_MEMBERS = "mb"
 ACTION_JOB_STATUS = "jb"
 ACTION_ENGAGEMENT_HOME = "eng:home"
@@ -539,7 +539,7 @@ def config_edit_confirmation_markup():
 def review_result_markup(community_id: str, job_id: str | None = None):
     rows = [[_button("Community", ACTION_OPEN_COMMUNITY, community_id)]]
     if job_id:
-        rows.append([_button("Collection Job", ACTION_JOB_STATUS, job_id)])
+        rows.append([_button("Snapshot Job", ACTION_JOB_STATUS, job_id)])
     return _inline_markup(
         _with_navigation(rows, back_action=ACTION_OPEN_COMMUNITY, back_parts=[community_id])
     )
@@ -547,7 +547,7 @@ def review_result_markup(community_id: str, job_id: str | None = None):
 
 def community_actions_markup(community_id: str):
     rows = [
-        [_button("Collect 90d", ACTION_COLLECT_COMMUNITY, community_id)],
+        [_button("Snapshot", ACTION_SNAPSHOT_COMMUNITY, community_id)],
         [
             _button("Members", ACTION_COMMUNITY_MEMBERS, community_id, "0"),
             _button("Engagement", ACTION_ENGAGEMENT_SETTINGS_OPEN, community_id),

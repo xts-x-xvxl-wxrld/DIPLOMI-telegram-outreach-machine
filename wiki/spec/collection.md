@@ -2,15 +2,13 @@
 
 ## Purpose
 
-Collection gathers public Telegram community data from imported seed communities and
-operator-approved monitored communities.
+Collection gathers recent public Telegram messages from operator-approved engagement communities.
 
-The collection worker fetches data, writes durable collection artifacts, prepares compact analysis
-input, and stops. It does not decide whether a community is relevant.
+The collection worker fetches message data, writes durable collection artifacts, and stops. It does
+not decide whether a message is an engagement opportunity.
 
-For engagement-enabled communities, collection also acts as the read-only message intake loop. It
-pulls every new visible message since the last collection checkpoint and hands an exact bounded batch
-to detection. It still does not decide whether a message is an engagement opportunity.
+Discovery-side metadata/member reads are now called **community snapshots** and are handled by
+`community.snapshot`. Collection is reserved for engagement message intake.
 
 ## Inputs
 
@@ -19,30 +17,25 @@ to detection. It still does not decide whether a message is an engagement opport
 ```json
 {
   "community_id": "uuid",
-  "reason": "scheduled|manual|initial|engagement",
+  "reason": "engagement|manual",
   "requested_by": "telegram_user_id_or_operator|null",
   "window_days": 90
 }
 ```
 
-For the bare seed-import slice, `reason = "initial"` is used when `seed.resolve` queues collection
-for a resolved seed community.
+Manual collection may be operator-triggered for an approved engagement target. Scheduled engagement
+collection should use `reason = "engagement"`.
 
 ## Responsibilities
 
 - Acquire a Telegram account lease through the account manager.
-- Fetch available metadata and visible members.
-- Fetch public messages for the collection window only when the message-collection path is enabled.
-- For engagement-enabled communities, fetch all new visible messages since the last engagement
-  collection checkpoint.
+- Fetch all new visible messages since the last engagement collection checkpoint.
 - Update normalized user records when Telegram users are visible.
 - Update `community_members` activity counts for the rolling window.
 - Write one `community_snapshots` row.
 - Write one `collection_runs` row.
 - Write compact capped `collection_runs.analysis_input`.
 - Write raw `messages` rows only when `communities.store_messages = true`.
-- Enqueue `analysis.run` after successful message collection. For metadata/member-only seed
-  collection, set `collection_runs.analysis_status = 'skipped'`.
 - Enqueue `engagement.detect` after successful engagement collection when the community is eligible.
 
 ## Non-Responsibilities
@@ -54,19 +47,19 @@ for a resolved seed community.
 - No engagement opportunity detection.
 - No reply drafting.
 - No operator notification.
-- No business logic beyond collection persistence and capped analysis input preparation.
+- No business logic beyond collection persistence and capped artifact preparation.
 
 ## Default Raw Message Policy
 
 Raw message storage is opt-in.
 
-The bare seed-import slice does not fetch messages yet. It writes community metadata, a snapshot,
-visible members, and a completed collection run with analysis skipped.
+Community snapshots do not fetch messages. They write community metadata, visible members, and a
+completed run with analysis skipped through the `community.snapshot` path.
 
 When `communities.store_messages = false`:
 
 - messages are fetched in memory
-- activity counts and compact analysis input are persisted
+- activity counts, checkpoint metadata, and compact collection artifacts are persisted
 - raw messages are discarded
 - no `messages` rows are written
 
@@ -162,9 +155,10 @@ Default cadence for engagement collection should be shorter than analysis collec
 target is every 10 minutes for engagement-enabled communities, with the engagement scheduler acting
 as a fallback rather than the primary trigger.
 
-## Analysis Input
+## Collection Artifact
 
-The analysis input lives on `collection_runs.analysis_input` and must follow the queue spec envelope.
+The compact collection artifact may live on `collection_runs.analysis_input` until a dedicated
+engagement-batch table exists. It must follow the queue spec envelope.
 
 Rules:
 

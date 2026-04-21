@@ -9,6 +9,7 @@ from backend.core.settings import get_settings
 from backend.queue.payloads import (
     AnalysisPayload,
     BriefProcessPayload,
+    CommunitySnapshotPayload,
     CollectionPayload,
     CommunityJoinPayload,
     DiscoveryPayload,
@@ -126,6 +127,28 @@ def enqueue_telegram_entity_resolve(
     )
 
 
+def enqueue_community_snapshot(
+    community_id: UUID,
+    *,
+    reason: str,
+    requested_by: str | None = None,
+    window_days: int = 90,
+) -> QueuedJob:
+    payload = CommunitySnapshotPayload(
+        community_id=community_id,
+        reason=reason,  # type: ignore[arg-type]
+        requested_by=requested_by,
+        window_days=window_days,
+    )
+    job_id = f"community.snapshot:{community_id}:{datetime.utcnow():%Y%m%d%H}"
+    return enqueue_job(
+        "community.snapshot",
+        payload.model_dump(mode="json"),
+        queue_name="high",
+        job_id=job_id,
+    )
+
+
 def enqueue_collection(
     community_id: UUID,
     *,
@@ -139,7 +162,7 @@ def enqueue_collection(
         requested_by=requested_by,
         window_days=window_days,
     )
-    queue_name = "high" if reason in {"manual", "initial"} else "scheduled"
+    queue_name = "high" if reason == "manual" else "scheduled"
     job_id = f"collection:{community_id}:{datetime.utcnow():%Y%m%d%H}"
     return enqueue_job(
         "collection.run",

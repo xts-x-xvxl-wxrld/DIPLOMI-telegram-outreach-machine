@@ -13,6 +13,7 @@ from backend.db.models import TelegramAccount
 
 AccountPurpose = Literal[
     "expansion",
+    "community_snapshot",
     "collection",
     "entity_intake",
     "engagement_target_resolve",
@@ -21,6 +22,7 @@ AccountPurpose = Literal[
 ]
 ACCOUNT_PURPOSES: tuple[AccountPurpose, ...] = (
     "expansion",
+    "community_snapshot",
     "collection",
     "entity_intake",
     "engagement_target_resolve",
@@ -29,6 +31,7 @@ ACCOUNT_PURPOSES: tuple[AccountPurpose, ...] = (
 )
 PURPOSE_ACCOUNT_POOLS: dict[AccountPurpose, AccountPool] = {
     "expansion": AccountPool.SEARCH,
+    "community_snapshot": AccountPool.SEARCH,
     "collection": AccountPool.SEARCH,
     "entity_intake": AccountPool.SEARCH,
     "engagement_target_resolve": AccountPool.SEARCH,

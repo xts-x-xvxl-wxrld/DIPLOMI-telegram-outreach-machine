@@ -17,6 +17,7 @@ from backend.workers.account_manager import (
 def test_account_purposes_match_worker_contract() -> None:
     assert ACCOUNT_PURPOSES == (
         "expansion",
+        "community_snapshot",
         "collection",
         "entity_intake",
         "engagement_target_resolve",
@@ -40,6 +41,7 @@ def test_validate_account_purpose_rejects_unknown_purpose() -> None:
     ("purpose", "expected_pool"),
     [
         ("expansion", AccountPool.SEARCH),
+        ("community_snapshot", AccountPool.SEARCH),
         ("collection", AccountPool.SEARCH),
         ("entity_intake", AccountPool.SEARCH),
         ("engagement_target_resolve", AccountPool.SEARCH),

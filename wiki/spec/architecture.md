@@ -19,7 +19,7 @@ and analysis.
 | Service | Image | Role |
 |---------|-------|------|
 | `api` | FastAPI | REST API: receives bot commands, enqueues jobs, serves results |
-| `worker` | Python + RQ | Job runner: seed resolution, expansion, collection, analysis |
+| `worker` | Python + RQ | Job runner: seed resolution, expansion, community snapshots, engagement collection, analysis |
 | `scheduler` | Python | Lightweight recurring scheduler for optional engagement detection ticks |
 | `bot` | Python + python-telegram-bot | Operator UI: seed import, candidate review, debug logs |
 | `redis` | redis:alpine | Job queue + RQ result backend |
@@ -44,7 +44,7 @@ backend/
   core/           # settings, logging, shared app utilities
   db/             # SQLAlchemy models, sessions, repositories
   queue/          # RQ connection, enqueue helpers, job metadata helpers
-  workers/        # seed resolution, expansion, collection, analysis, account manager
+  workers/        # seed resolution, expansion, snapshots, engagement collection, analysis, account manager
 bot/              # Telegram bot operator UI
 alembic/          # database migrations
 scripts/          # local developer workflow helpers
@@ -70,7 +70,7 @@ Use these environment variable names:
 | `TELEGRAM_API_ID` | worker | Telegram API ID for Telethon |
 | `TELEGRAM_API_HASH` | worker | Telegram API hash for Telethon |
 | `SESSIONS_DIR` | worker | Mounted Telethon session directory |
-| `COLLECTION_INTERVAL_MINUTES` | worker | Scheduler interval for monitored communities; default 60 |
+| `COMMUNITY_SNAPSHOT_INTERVAL_MINUTES` | worker | Scheduler interval for discovery community snapshots; default 60 |
 | `ENGAGEMENT_DETECTION_WINDOW_MINUTES` | scheduler | Recent collection window required before detection; default 60 |
 | `ENGAGEMENT_SCHEDULER_INTERVAL_SECONDS` | scheduler | Engagement scheduler sleep interval; default 3600 |
 
@@ -85,7 +85,8 @@ OpenAI calls are allowed only in worker jobs with explicit LLM responsibility:
 - `engagement.detect` - optional operator-approved engagement drafting from compact community samples
 
 The seed-first discovery path does not require OpenAI. OpenAI calls are not allowed in API request
-handlers, seed resolution, discovery, expansion, collection, engagement scheduling, or sending.
+handlers, seed resolution, discovery, expansion, community snapshots, collection, engagement
+scheduling, or sending.
 
 ## Developer Workflow
 
@@ -130,10 +131,10 @@ worker
   |     -> communities with source=expansion, status=candidate
   |     -> community_discovery_edges provenance
   |
-  +-- collection.run after operator approval
+  +-- community.snapshot after seed resolution or operator approval
   |     -> users, community_members, snapshots, collection_runs
   |
-  +-- analysis.run after collection
+  +-- analysis.run after future analysis collection
         -> analysis_summaries
 
 postgres
@@ -154,7 +155,8 @@ bot lists candidates, jobs, accounts, and review actions through api
 | `brief.process` | optional/future operator command | audience brief id | OpenAI-backed structured search-context extraction | `audience_briefs` |
 | `discovery.run` | optional/future manual run | brief id or adapter query | source-adapter search for public Telegram seeds before resolution | `communities` candidates |
 | `expansion.run` | optional/future manual run | community ids | generic Telethon expansion not anchored to a seed group | `communities` candidates |
-| `collection.run` | scheduler or manual review | monitored community ids | Telethon batch polls messages + member list; raw messages discarded by default | `community_members`, `community_snapshots`, `collection_runs`, `messages` opt-in only |
+| `community.snapshot` | seed resolution or manual review | community id | Telethon captures metadata + visible members; no raw message intake | `community_members`, `community_snapshots`, `collection_runs` |
+| `collection.run` | engagement scheduler or manual engagement review | approved engagement community id | Telethon reads recent public messages for engagement detection; raw messages discarded by default | `community_members`, `community_snapshots`, `collection_runs`, `messages` opt-in only |
 | `analysis.run` | after collection | collection run id | OpenAI summarizes themes, activity, relevance from compact analysis input | `analysis_summaries`, `collection_runs.analysis_status` |
 
 Primary MVP chain:
@@ -164,8 +166,8 @@ CSV seed import
   -> seed.resolve
   -> seed.expand
   -> operator review
-  -> collection.run
-  -> analysis.run
+  -> community.snapshot
+  -> optional future analysis
 ```
 
 Optional future chain:
@@ -175,17 +177,19 @@ brief.process
   -> discovery.run
   -> optional seed-aware or generic expansion
   -> operator review
-  -> collection.run
+  -> community.snapshot or future analysis collection
   -> analysis.run
 ```
 
-Collection and analysis repeat on schedule after initial approval.
+Snapshots may repeat on schedule after initial approval. Engagement collection has a separate,
+faster cadence for approved engagement targets.
 
 ---
 
 ## Account Manager
 
-Not a separate service. A utility module used by seed resolution, expansion, and collection workers.
+Not a separate service. A utility module used by seed resolution, expansion, snapshot, collection,
+and engagement workers.
 
 ```text
 postgres: telegram_accounts table

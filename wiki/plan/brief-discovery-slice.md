@@ -29,7 +29,7 @@ operator enters audience text
 6. Discovery does not auto-expand by default.
 7. Telegram bot is the MVP operator UI before a web frontend.
 8. Raw message storage remains opt-in per community.
-9. MVP approve behavior moves a community directly to `monitoring` and queues initial collection.
+9. MVP approve behavior moves a community directly to `monitoring` and queues an initial snapshot.
 
 ## Work Items
 

@@ -68,5 +68,5 @@ quick from pasted usernames.
 
 - No retired external index dependency.
 - No automatic joining of private communities.
-- No raw message collection during import.
+- No raw message intake during import.
 - No person-level scoring.

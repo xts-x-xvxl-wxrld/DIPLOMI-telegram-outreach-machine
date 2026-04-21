@@ -241,7 +241,7 @@ class CommunityDetailResponse(BaseModel):
     latest_analysis: dict[str, Any] | None
 
 
-class CollectionJobRequest(BaseModel):
+class CommunitySnapshotJobRequest(BaseModel):
     window_days: int = Field(default=90, ge=1, le=365)
 
 

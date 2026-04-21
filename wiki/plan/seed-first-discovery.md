@@ -25,7 +25,7 @@ CSV upload
   -> seed.expand
   -> seed-group candidate review
   -> approval to monitoring
-  -> collection
+  -> community.snapshot
   -> analysis
 ```
 
@@ -36,7 +36,7 @@ CSV upload
 - `/expandseeds <seed_group_id>` expands from resolved seed communities.
 - `/candidates <seed_group_id>` lists candidates for that seed group.
 - Candidate cards explain graph evidence, not abstract keyword matching.
-- Approving a candidate moves it to `monitoring` and queues initial collection.
+- Approving a candidate moves it to `monitoring` and queues an initial snapshot.
 - Rejecting a candidate preserves the decision across future expansion runs.
 
 ## Expansion Logic
@@ -82,4 +82,4 @@ This is only for operator sorting. It is not a durable relevance score and never
 - No private invite-link crawling.
 - No person-level scores.
 - No outreach automation.
-- No raw message collection during expansion beyond the small inspection window needed for graph evidence.
+- No raw message intake during expansion beyond the small inspection window needed for graph evidence.

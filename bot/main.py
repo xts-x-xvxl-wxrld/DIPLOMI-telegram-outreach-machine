@@ -23,7 +23,6 @@ from bot.formatting import (
     format_briefs_unavailable,
     format_candidate_card,
     format_candidates,
-    format_collection_job,
     format_community_detail,
     format_created_brief,
     format_discovery_cockpit,
@@ -61,6 +60,7 @@ from bot.formatting import (
     format_seed_group_resolution,
     format_seed_groups,
     format_seed_import,
+    format_snapshot_job,
     format_telegram_entity_intake,
     format_telegram_entity_submission,
     format_whoami,
@@ -68,7 +68,6 @@ from bot.formatting import (
 from bot.ui import (
     ACCOUNTS_MENU_LABEL,
     ACTION_APPROVE_COMMUNITY,
-    ACTION_COLLECT_COMMUNITY,
     ACTION_COMMUNITY_MEMBERS,
     ACTION_CONFIG_EDIT_CANCEL,
     ACTION_CONFIG_EDIT_SAVE,
@@ -121,6 +120,7 @@ from bot.ui import (
     ACTION_RESOLVE_SEED_GROUP,
     ACTION_SEED_CANDIDATES,
     ACTION_SEED_CHANNELS,
+    ACTION_SNAPSHOT_COMMUNITY,
     HELP_MENU_LABEL,
     ENGAGEMENT_MENU_LABEL,
     SEEDS_MENU_LABEL,
@@ -305,13 +305,13 @@ async def community_command(update: Any, context: Any) -> None:
     await _send_community_detail(update, context, community_id)
 
 
-async def collect_command(update: Any, context: Any) -> None:
+async def snapshot_command(update: Any, context: Any) -> None:
     community_id = _first_arg(context)
     if community_id is None:
-        await _reply(update, "Usage: /collect <community_id>")
+        await _reply(update, "Usage: /snapshot <community_id>")
         return
 
-    await _start_collection(update, context, community_id)
+    await _start_snapshot(update, context, community_id)
 
 
 async def members_command(update: Any, context: Any) -> None:
@@ -854,8 +854,8 @@ async def callback_query(update: Any, context: Any) -> None:
         if action == ACTION_OPEN_COMMUNITY and len(parts) == 1:
             await _send_community_detail(update, context, parts[0])
             return
-        if action == ACTION_COLLECT_COMMUNITY and len(parts) == 1:
-            await _start_collection(update, context, parts[0])
+        if action == ACTION_SNAPSHOT_COMMUNITY and len(parts) == 1:
+            await _start_snapshot(update, context, parts[0])
             return
         if action == ACTION_COMMUNITY_MEMBERS and len(parts) == 2:
             await _send_community_members(
@@ -1082,7 +1082,7 @@ async def callback_query(update: Any, context: Any) -> None:
                 update,
                 "Recent activity\n\n"
                 "Check background jobs with /job <job_id>.\n"
-                "Seed resolution, collection, and expansion jobs appear here when available.",
+                "Seed resolution, snapshots, and expansion jobs appear here when available.",
                 reply_markup=discovery_cockpit_markup(),
             )
             return
@@ -1226,10 +1226,10 @@ async def _send_seed_group_candidates(
 async def _send_community_detail(update: Any, context: Any, community_id: str) -> None:
     client = _api_client(context)
     detail = await client.get_community(community_id)
-    collection_runs = await client.list_collection_runs(community_id)
+    snapshot_runs = await client.list_snapshot_runs(community_id)
     await _callback_reply(
         update,
-        format_community_detail(detail, collection_runs),
+        format_community_detail(detail, snapshot_runs),
         reply_markup=community_actions_markup(community_id),
     )
 
@@ -1851,15 +1851,15 @@ async def _start_seed_group_resolution(update: Any, context: Any, seed_group_id:
     )
 
 
-async def _start_collection(update: Any, context: Any, community_id: str) -> None:
+async def _start_snapshot(update: Any, context: Any, community_id: str) -> None:
     client = _api_client(context)
     detail = await client.get_community(community_id)
-    data = await client.start_collection(community_id)
+    data = await client.start_snapshot(community_id)
     community = detail.get("community") or {}
     title = community.get("title") or community.get("username")
     await _callback_reply(
         update,
-        format_collection_job(data, community_title=title),
+        format_snapshot_job(data, community_title=title),
         reply_markup=review_result_markup(
             community_id,
             str((data.get("job") or {}).get("id", "unknown")),
@@ -1931,7 +1931,7 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("channels", channels_command))
     application.add_handler(CommandHandler("resolveseeds", resolveseeds_command))
     application.add_handler(CommandHandler("community", community_command))
-    application.add_handler(CommandHandler("collect", collect_command))
+    application.add_handler(CommandHandler("snapshot", snapshot_command))
     application.add_handler(CommandHandler("members", members_command))
     application.add_handler(CommandHandler("exportmembers", exportmembers_command))
     application.add_handler(CommandHandler("engagement", engagement_command))

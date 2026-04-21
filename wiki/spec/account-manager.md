@@ -4,8 +4,8 @@
 
 The account manager coordinates small pools of Telegram user accounts used by Telethon-based workers.
 
-It is a Python utility module, not a separate service. Expansion, collection, entity-intake, and
-future engagement workers call it directly before making Telegram API calls.
+It is a Python utility module, not a separate service. Expansion, community snapshots, collection,
+entity-intake, and future engagement workers call it directly before making Telegram API calls.
 
 Account pool separation is specified in `wiki/spec/telegram-account-pools.md`. Search/read-only work
 and public engagement work must use separate Telegram identities.
@@ -32,8 +32,8 @@ Uses `telegram_accounts`.
 
 Required account pools:
 
-- `search` - read-only account for seed resolution, expansion, entity intake, target resolution, and
-  collection.
+- `search` - read-only account for seed resolution, expansion, entity intake, target resolution,
+  community snapshots, and collection.
 - `engagement` - public-facing account for approved engagement joins and approved public replies.
 - `disabled` - never leased automatically.
 
@@ -62,6 +62,7 @@ def acquire_account(
     job_id: str,
     purpose: Literal[
         "expansion",
+        "community_snapshot",
         "collection",
         "entity_intake",
         "engagement_target_resolve",
@@ -171,7 +172,7 @@ rate-limited, disabled, or missing.
 The worker must not busy-loop. Queue behavior:
 
 - expansion: retry later with backoff.
-- collection: retry later or let the next scheduler tick pick it up.
+- community snapshot or collection: retry later or let the next scheduler tick pick it up.
 - engagement join/send: retry later or alert the operator that no engagement account is available.
 
 ## Operator Alerts
@@ -216,8 +217,8 @@ Baseline operating rules:
 
 - Use dedicated Telegram accounts, never the operator's main personal account.
 - Keep search-pool accounts read-only for discovery, expansion, entity intake, target resolution,
-  and collection.
-- Keep engagement-pool accounts out of broad search and collection work.
+  community snapshots, and collection.
+- Keep engagement-pool accounts out of broad search, snapshot, and collection work.
 - Engagement is the only planned exception to read-only use. It must be explicitly enabled through
   the engagement module, stay public, require operator approval in the MVP, and write audit logs.
 - No outreach DMs, promotional mass joins, vote manipulation, or subscriber/view inflation.
@@ -225,8 +226,8 @@ Baseline operating rules:
 - Keep each Telethon `.session` file private. Treat it like an account password.
 - Use stable infrastructure. Avoid repeatedly logging the same account in from many hosts, IPs, or
   regenerated session files.
-- Start new accounts slowly with a tiny seed batch before larger resolution or collection runs.
-- Do not join many groups quickly. Prefer public username/link resolution and collection from
+- Start new accounts slowly with a tiny seed batch before larger resolution or snapshot runs.
+- Do not join many groups quickly. Prefer public username/link resolution and snapshots from
   communities where access is already allowed.
 - Never collect phone numbers, never assign person-level scores, and never use collected data to
   train, fine-tune, or build machine-learning models.
@@ -234,10 +235,10 @@ Baseline operating rules:
 Healthy account behavior:
 
 - One leased job per account at a time.
-- Conservative collection windows and member limits.
+- Conservative snapshot windows and member limits.
 - Let `rate_limited` accounts rest until `flood_wait_until`.
 - Investigate repeated `last_error` values before retrying more work.
-- Keep at least one spare `available` account when running recurring collection.
+- Keep at least one spare `available` account when running recurring snapshots or collection.
 - Keep engagement send limits much lower than collection/expansion throughput.
 
 Risk indicators:
@@ -262,7 +263,7 @@ Recommended pool size for the beginning:
 - Add all accounts through `scripts/onboard_telegram_account.py` so each has a session, a row in
   `telegram_accounts`, and the correct `account_pool`.
 - Keep worker concurrency low enough that the pool normally has at least one account not `in_use`.
-- Scale only after observing several successful seed-resolution and collection cycles without
+- Scale only after observing several successful seed-resolution and snapshot cycles without
   `rate_limited` or account-level auth errors.
 
 ## Safety Rules

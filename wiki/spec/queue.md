@@ -131,7 +131,7 @@ Writes:
 
 May enqueue:
 
-- `collection.run` with `reason = "initial"` for each unique resolved seed community
+- `community.snapshot` with `reason = "initial"` for each unique resolved seed community
 
 Rules:
 
@@ -268,16 +268,53 @@ Rules:
   arbitrary-community expansion request after resolving the initial community IDs.
 - Expansion work must be capped per seed and per seed group to protect Telegram account health.
 
-### `collection.run`
+### `community.snapshot`
 
-Triggered by scheduler for monitored communities or manually by the operator.
+Discovery-side snapshot job triggered after seed resolution or manually by the operator.
 
 Payload:
 
 ```json
 {
   "community_id": "uuid",
-  "reason": "scheduled|manual|initial|engagement",
+  "reason": "manual|initial",
+  "requested_by": "telegram_user_id_or_operator|null",
+  "window_days": 90
+}
+```
+
+Uses:
+
+- `account_manager.acquire_account(purpose="community_snapshot")`
+
+Writes:
+
+- `users`
+- `community_members`
+- `community_snapshots`
+- `collection_runs`
+
+Rules:
+
+- No OpenAI calls.
+- No raw message intake.
+- No reply opportunity detection.
+- No analysis enqueue in the bare seed snapshot path.
+- Phone numbers are never read or persisted.
+- The job may write a `collection_runs` row as the durable run record for compatibility, with
+  `analysis_status = 'skipped'`.
+
+### `collection.run`
+
+Engagement message-intake job triggered by the engagement collection scheduler or manually for an
+approved engagement target.
+
+Payload:
+
+```json
+{
+  "community_id": "uuid",
+  "reason": "engagement|manual",
   "requested_by": "telegram_user_id_or_operator|null",
   "window_days": 90
 }
@@ -307,8 +344,7 @@ Collection does not pass raw message batches through Redis. It writes durable `c
 artifacts and enqueues analysis or detection by ID. For analysis, it writes a compact, capped
 `collection_runs.analysis_input` artifact. For engagement detection, it writes an exact
 new-message batch in the collection artifact or raw `messages` rows and passes `collection_run_id`.
-For the bare seed-import slice, collection fetches metadata and visible members only, writes
-`analysis_status = 'skipped'`, and does not enqueue analysis.
+Discovery community snapshots are handled by `community.snapshot`, not `collection.run`.
 
 ### `analysis.run`
 
@@ -466,7 +502,7 @@ Primary seed-first flow:
 CSV uploaded
   -> seed rows imported
   -> seed.resolve
-  -> collection.run for resolved seed communities
+  -> community.snapshot for resolved seed communities
   -> metadata, snapshots, users, and community_members persisted
   -> optional operator review/monitoring later
 ```
@@ -479,15 +515,15 @@ brief created
   -> discovery.run
   -> optional expansion.run
   -> operator approves communities
-  -> collection.run
+  -> future analysis collection or community snapshot
   -> analysis.run
 ```
 
-Recurring monitored flow:
+Recurring analysis collection flow:
 
 ```text
 scheduler tick
-  -> collection.run for due monitored communities
+  -> future analysis collection for due monitored communities
   -> analysis.run for each successful collection run
 ```
 
@@ -506,13 +542,13 @@ engagement collection tick
 `collection_runs` is the durable boundary between collection and downstream readers such as analysis
 and engagement detection.
 
-Collection stores:
+Collection or snapshot jobs store:
 
 - community ID
 - brief ID
 - collection window
 - aggregate counts
-- compact analysis input
+- compact analysis input or compact engagement batch
 - optional engagement message batch and checkpoint metadata
 - expiration time for the analysis input
 
@@ -605,17 +641,18 @@ Rules:
 
 ## Scheduling
 
-Approved communities enter `status = 'monitoring'`.
+Discovery-reviewed communities may enter `status = 'monitoring'`.
 
-Scheduler runs every 30-60 minutes and enqueues `collection.run` for communities where:
+The discovery snapshot scheduler, when enabled, enqueues `community.snapshot` for communities where:
 
 - `status = 'monitoring'`
-- no collection job is currently queued/running for that community
+- no snapshot job is currently queued/running for that community
 - `last_snapshot_at` is older than the configured interval
 
 Default interval: 60 minutes.
 
-Manual collection uses the `high` queue and bypasses the interval check, but still avoids duplicate active jobs for the same community.
+Manual snapshots use the `high` queue and bypass the interval check, but still avoid duplicate active
+jobs for the same community.
 
 Engagement-enabled communities may use a shorter collection cadence, currently targeted at 10
 minutes. Those collection runs should use `reason = "engagement"` and enqueue detection after commit
@@ -626,13 +663,15 @@ when the batch contains new messages and `allow_detect = true`.
 Job IDs should be deterministic where useful:
 
 ```text
+community.snapshot:{community_id}:{yyyyMMddHH}
 collection:{community_id}:{yyyyMMddHH}
 collection:engagement:{community_id}:{yyyyMMddHHmm}
 analysis:{collection_run_id}
 engagement.detect:{community_id}:{collection_run_id}
 ```
 
-Before enqueueing collection, the scheduler checks whether an active RQ job already exists for the same community.
+Before enqueueing a snapshot or collection job, the scheduler checks whether an active RQ job already
+exists for the same community.
 
 ## Retry Policy
 
@@ -644,7 +683,8 @@ Before enqueueing collection, the scheduler checks whether an active RQ job alre
 | `seed.expand` | 3 | 5m, 15m, 60m | Telegram account and network failures. |
 | `telegram_entity.resolve` | 3 | 5m, 15m, 60m | Telegram account and network failures. |
 | `expansion.run` | 3 | 5m, 15m, 60m | Telegram account and network failures. |
-| `collection.run` | 2 | 10m, 30m | Scheduler will also retry on future ticks. |
+| `community.snapshot` | 2 | 10m, 30m | Scheduler will also retry on future ticks. |
+| `collection.run` | 2 | 10m, 30m | Engagement collection scheduler will also retry on future ticks. |
 | `analysis.run` | 3 | 1m, 5m, 30m | OpenAI/network failures. |
 | `community.join` | 2 | 10m, 60m | Telegram account and community access failures. |
 | `engagement_target.resolve` | 3 | 5m, 15m, 60m | Telegram account and network failures. |
@@ -658,8 +698,8 @@ Before enqueueing collection, the scheduler checks whether an active RQ job alre
 No account is healthy and available.
 
 - expansion: retry with backoff.
-- scheduled collection: retry once, then let future scheduler ticks handle it.
-- manual collection: retry with backoff and expose status to API.
+- scheduled snapshot or engagement collection: retry once, then let future scheduler ticks handle it.
+- manual snapshot or collection: retry with backoff and expose status to API.
 
 ### `FloodWaitError`
 
@@ -678,7 +718,7 @@ The current job may retry if other accounts are available. The account issue is 
 
 ### Community Inaccessible
 
-Collection records the community as inaccessible or dropped according to the worker spec.
+Snapshot or collection records the community as inaccessible or dropped according to the worker spec.
 
 This is not an account failure.
 
@@ -688,7 +728,7 @@ RQ job `meta` should include:
 
 ```json
 {
-  "job_type": "collection.run",
+  "job_type": "community.snapshot",
   "community_id": "uuid",
   "brief_id": "uuid|null",
   "started_at": "iso_datetime",
@@ -714,9 +754,11 @@ The API may read RQ job metadata for operator-facing debug output. Durable busin
 - Engagement target resolution may call Telethon and uses the account manager.
 - Seed batch expansion may call Telethon and uses the account manager.
 - Expansion may call Telethon and uses the account manager.
-- Collection may call Telethon and uses the account manager.
+- Community snapshots may call Telethon and use the account manager.
+- Engagement collection may call Telethon and uses the account manager.
 - Analysis may call OpenAI, not Telethon.
 - Engagement detection may call OpenAI and must not call Telethon in the MVP.
 - Engagement join/send may call Telethon and use the account manager.
-- Collection performs fetching and persistence only; relevance decisions happen in analysis.
+- Community snapshots and engagement collection perform fetching and persistence only; relevance
+  decisions happen in analysis or engagement detection.
 - Outbound Telegram behavior belongs only to the engagement module.

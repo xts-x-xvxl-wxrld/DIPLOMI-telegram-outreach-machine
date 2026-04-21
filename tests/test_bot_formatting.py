@@ -5,7 +5,6 @@ from bot.formatting import (
     format_accounts,
     format_candidate_card,
     format_candidates,
-    format_collection_job,
     format_community_detail,
     format_created_brief,
     format_engagement_candidate_card,
@@ -28,6 +27,7 @@ from bot.formatting import (
     format_seed_group_resolution,
     format_seed_groups,
     format_seed_import,
+    format_snapshot_job,
     format_start,
     format_telegram_entity_intake,
     format_telegram_entity_submission,
@@ -42,7 +42,7 @@ def test_format_start_lists_seed_first_controls() -> None:
     assert "/seed <seed_group_id>" in message
     assert "/candidates <seed_group_id>" in message
     assert "/community <community_id>" in message
-    assert "/collect <community_id>" in message
+    assert "/snapshot <community_id>" in message
     assert "/members <community_id>" in message
     assert "/exportmembers <community_id>" in message
     assert "/engagement_candidates" in message
@@ -130,7 +130,7 @@ def test_format_job_status_uses_last_error_line() -> None:
     assert "Traceback" not in message
 
 
-def test_format_review_includes_collection_job_when_present() -> None:
+def test_format_review_includes_snapshot_job_when_present() -> None:
     message = format_review(
         "approve",
         {
@@ -139,13 +139,13 @@ def test_format_review_includes_collection_job_when_present() -> None:
                 "title": "Founder Circle",
                 "status": "monitoring",
             },
-            "job": {"id": "collection-1", "type": "collection.run", "status": "queued"},
+            "job": {"id": "snapshot-1", "type": "community.snapshot", "status": "queued"},
         },
     )
 
     assert "Founder Circle" in message
     assert "Status: monitoring" in message
-    assert "Collection job: collection-1 (collection.run)" in message
+    assert "Snapshot job: snapshot-1 (community.snapshot)" in message
 
 
 def test_format_accounts_uses_masked_phone_from_api() -> None:
@@ -269,14 +269,14 @@ def test_format_telegram_entity_intake_links_community_result() -> None:
     assert "Community: /community community-1" in message
 
 
-def test_format_collection_job_reports_manual_trigger() -> None:
-    message = format_collection_job(
-        {"job": {"id": "collect-1", "type": "collection.run", "status": "queued"}},
+def test_format_snapshot_job_reports_manual_trigger() -> None:
+    message = format_snapshot_job(
+        {"job": {"id": "snapshot-1", "type": "community.snapshot", "status": "queued"}},
         community_title="Founder Circle",
     )
 
     assert "Founder Circle" in message
-    assert "collect-1 (collection.run)" in message
+    assert "snapshot-1 (community.snapshot)" in message
 
 
 def test_format_members_outputs_safe_member_fields() -> None:
@@ -573,5 +573,5 @@ def test_format_community_detail_includes_snapshot_run_and_analysis() -> None:
 
     assert "Founder Circle" in message
     assert "Latest snapshot" in message
-    assert "Latest collection run" in message
+    assert "Latest snapshot run" in message
     assert "Latest analysis" in message

@@ -120,15 +120,15 @@ class BotApiClient:
     async def get_community(self, community_id: str) -> dict[str, Any]:
         return await self._request("GET", f"/communities/{community_id}")
 
-    async def start_collection(self, community_id: str, *, window_days: int = 90) -> dict[str, Any]:
+    async def start_snapshot(self, community_id: str, *, window_days: int = 90) -> dict[str, Any]:
         return await self._request(
             "POST",
-            f"/communities/{community_id}/collection-jobs",
+            f"/communities/{community_id}/snapshot-jobs",
             json={"window_days": window_days},
         )
 
-    async def list_collection_runs(self, community_id: str) -> dict[str, Any]:
-        return await self._request("GET", f"/communities/{community_id}/collection-runs")
+    async def list_snapshot_runs(self, community_id: str) -> dict[str, Any]:
+        return await self._request("GET", f"/communities/{community_id}/snapshot-runs")
 
     async def list_community_members(
         self,

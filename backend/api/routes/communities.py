@@ -9,12 +9,12 @@ from sqlalchemy import desc, func, or_, select
 from backend.api.deps import DbSession, require_bot_token
 from backend.api.schemas import (
     AnalysisListResponse,
-    CollectionJobRequest,
     CollectionRunListResponse,
     CommunityDetailResponse,
     CommunityListResponse,
     CommunityMemberListResponse,
     CommunityMemberOut,
+    CommunitySnapshotJobRequest,
     JobResponse,
     PatchCommunityRequest,
     PatchCommunityResponse,
@@ -30,7 +30,7 @@ from backend.db.models import (
     CommunitySnapshot,
     User,
 )
-from backend.queue.client import QueueUnavailable, enqueue_analysis, enqueue_collection
+from backend.queue.client import QueueUnavailable, enqueue_analysis, enqueue_community_snapshot
 
 router = APIRouter(dependencies=[Depends(require_bot_token)])
 
@@ -105,7 +105,7 @@ async def review_community(
     if decision == "approve":
         community.status = CommunityStatus.MONITORING.value
         try:
-            job = enqueue_collection(community.id, reason="initial", requested_by="operator")
+            job = enqueue_community_snapshot(community.id, reason="initial", requested_by="operator")
         except QueueUnavailable as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
     else:
@@ -136,10 +136,10 @@ async def patch_community(
     return PatchCommunityResponse(community=community)
 
 
-@router.post("/communities/{community_id}/collection-jobs", response_model=JobResponse, status_code=202)
-async def start_collection(
+@router.post("/communities/{community_id}/snapshot-jobs", response_model=JobResponse, status_code=202)
+async def start_snapshot(
     community_id: UUID,
-    payload: CollectionJobRequest,
+    payload: CommunitySnapshotJobRequest,
     db: DbSession,
 ) -> JobResponse:
     community = await db.get(Community, community_id)
@@ -147,7 +147,7 @@ async def start_collection(
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Community not found"})
 
     try:
-        job = enqueue_collection(
+        job = enqueue_community_snapshot(
             community.id,
             reason="manual",
             requested_by="operator",
@@ -158,8 +158,8 @@ async def start_collection(
     return JobResponse(job=job)
 
 
-@router.get("/communities/{community_id}/collection-runs", response_model=CollectionRunListResponse)
-async def list_collection_runs(community_id: UUID, db: DbSession) -> CollectionRunListResponse:
+@router.get("/communities/{community_id}/snapshot-runs", response_model=CollectionRunListResponse)
+async def list_snapshot_runs(community_id: UUID, db: DbSession) -> CollectionRunListResponse:
     rows = await db.scalars(
         select(CollectionRun)
         .where(CollectionRun.community_id == community_id)

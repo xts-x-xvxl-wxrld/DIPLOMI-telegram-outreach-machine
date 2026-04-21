@@ -64,7 +64,7 @@ def format_discovery_help() -> str:
             "/channels <seed_group_id>",
             "/candidates <seed_group_id>",
             "/community <community_id>",
-            "/collect <community_id>",
+            "/snapshot <community_id>",
             "/job <job_id>",
         ]
     )
@@ -113,7 +113,7 @@ def format_start() -> str:
             "/channels <seed_group_id>",
             "/candidates <seed_group_id>",
             "/community <community_id>",
-            "/collect <community_id>",
+            "/snapshot <community_id>",
             "/members <community_id>",
             "/exportmembers <community_id>",
             "/engagement",
@@ -248,8 +248,8 @@ def format_review(decision: str, data: dict[str, Any]) -> str:
         lines.extend(
             [
                 "",
-                f"Collection job: {job.get('id', 'unknown')} "
-                f"({job.get('type', 'collection.run')})",
+                f"Snapshot job: {job.get('id', 'unknown')} "
+                f"({job.get('type', 'community.snapshot')})",
                 f"Check it with /job {job.get('id', 'unknown')}",
             ]
         )
@@ -397,7 +397,7 @@ def format_seed_group_resolution(data: dict[str, Any]) -> str:
     job_id = job.get("id", "unknown")
     return "\n".join(
         [
-            "Seed group resolution queued. Resolved communities will queue initial collection.",
+            "Seed group resolution queued. Resolved communities will queue initial snapshots.",
             f"Job: {job_id} ({job.get('type', 'seed.resolve')})",
             f"Status: {job.get('status', 'queued')}",
             f"Check it with /job {job_id}",
@@ -439,14 +439,14 @@ def format_telegram_entity_intake(data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def format_collection_job(data: dict[str, Any], *, community_title: str | None = None) -> str:
+def format_snapshot_job(data: dict[str, Any], *, community_title: str | None = None) -> str:
     job = data.get("job") or {}
-    label = community_title or "Community collection"
+    label = community_title or "Community snapshot"
     job_id = job.get("id", "unknown")
     return "\n".join(
         [
             f"{label}",
-            f"Collection job: {job_id} ({job.get('type', 'collection.run')})",
+            f"Snapshot job: {job_id} ({job.get('type', 'community.snapshot')})",
             f"Status: {job.get('status', 'queued')}",
             f"Check it with /job {job_id}",
         ]
@@ -463,7 +463,7 @@ def format_members(
     total = data.get("total", len(items))
     label = community_title or "Community"
     if not items:
-        return f"No collected visible members for {label} yet."
+        return f"No snapshotted visible members for {label} yet."
 
     lines = [f"Visible members | {label} ({offset + 1}-{offset + len(items)} of {total})"]
     for index, member in enumerate(items, start=offset + 1):
@@ -887,12 +887,12 @@ def format_engagement_candidate_review(action: str, item: dict[str, Any]) -> str
 
 def format_community_detail(
     detail: dict[str, Any],
-    collection_runs: dict[str, Any] | None = None,
+    snapshot_runs: dict[str, Any] | None = None,
 ) -> str:
     community = detail.get("community") or {}
     latest_snapshot = detail.get("latest_snapshot") or {}
     latest_analysis = detail.get("latest_analysis") or {}
-    latest_run = ((collection_runs or {}).get("items") or [None])[0] or {}
+    latest_run = ((snapshot_runs or {}).get("items") or [None])[0] or {}
     title = community.get("title") or community.get("username") or "Community"
     lines = [
         f"{title}",
@@ -913,7 +913,7 @@ def format_community_detail(
             [
                 "",
                 "Latest snapshot",
-                f"Collected: {latest_snapshot.get('collected_at', 'unknown')}",
+                f"Snapshotted: {latest_snapshot.get('collected_at', 'unknown')}",
                 f"Member count: {latest_snapshot.get('member_count', 'unknown')}",
                 f"Messages 7d: {latest_snapshot.get('message_count_7d', 'unknown')}",
             ]
@@ -923,7 +923,7 @@ def format_community_detail(
         lines.extend(
             [
                 "",
-                "Latest collection run",
+                "Latest snapshot run",
                 f"Status: {latest_run.get('status', 'unknown')}",
                 f"Analysis: {latest_run.get('analysis_status', 'unknown')}",
                 f"Window: {latest_run.get('window_days', 'unknown')} days",

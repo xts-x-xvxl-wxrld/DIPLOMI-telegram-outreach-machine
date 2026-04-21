@@ -5,14 +5,14 @@
 Discovery is seed-first for the active MVP, with graph expansion paused for the current slice.
 
 The operator supplies example Telegram communities as named `seed_groups`. The app resolves those
-examples with `seed.resolve`, then collects metadata and visible members for those exact resolved
+examples with `seed.resolve`, then snapshots metadata and visible members for those exact resolved
 seed communities. A seed group is the primary intent object for this slice: it means "these are
-high-quality communities worth importing and collecting."
+high-quality communities worth importing and snapshotting."
 
 Audience-brief discovery is not the primary path. `brief.process` and `discovery.run` may remain as
 legacy or future optional capabilities, but they should not drive the next implementation slice.
 
-Discovery does not join private communities, collect raw message history, call OpenAI, or decide
+Discovery does not join private communities, ingest raw message history, call OpenAI, or decide
 final relevance.
 
 ## Active MVP Flow
@@ -22,12 +22,12 @@ CSV upload
   -> seed_groups + seed_channels
   -> seed.resolve
   -> resolved seed communities
-  -> collection.run
+  -> community.snapshot
   -> metadata snapshots + users + community_members
 ```
 
 Seed import stores public-looking usernames and links first. Resolution is the boundary where a
-public seed becomes a real `communities` row with a Telegram `tg_id`. Initial collection is the
+public seed becomes a real `communities` row with a Telegram `tg_id`. Initial snapshotting is the
 boundary where group info and visible members are persisted safely. Expansion remains documented as
 a future/dormant capability, but it is not the active next step.
 
@@ -67,7 +67,7 @@ Disallowed source families:
 - TGStat or TGStat-derived APIs
 - private invite-link scraping
 - people search or person-level scoring
-- raw message collection inside discovery
+- raw message intake inside discovery
 - OpenAI-generated relevance decisions inside discovery
 
 ## Candidate Normalization
@@ -141,7 +141,7 @@ Audience briefs may return later as optional context:
 
 - attach a `brief_id` to a seed expansion run
 - use brief fields to filter or sort seed-group candidates
-- include brief context in collection analysis
+- include brief context in future community-level analysis
 - run public web-search adapters to produce additional seed candidates
 
 Briefs must not replace seed-group provenance. If both are present, seed-group evidence remains the
@@ -152,5 +152,5 @@ primary explanation for why a candidate entered the app.
 - Discovery finds communities, not people.
 - No person-level scoring.
 - No OpenAI calls in discovery.
-- No raw Telegram message collection in discovery.
+- No raw Telegram message intake in discovery.
 - Telegram account-backed discovery must use the account manager and respect flood-wait behavior.

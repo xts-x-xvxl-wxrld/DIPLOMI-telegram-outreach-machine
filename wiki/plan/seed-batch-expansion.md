@@ -61,7 +61,7 @@ must remain seed-batch-aware.
 - No CSV parsing; import remains in seed import.
 - No seed resolution; unresolved rows must go through `seed.resolve`.
 - No OpenAI calls.
-- No collection or monitoring side effects.
+- No snapshot, collection, or monitoring side effects.
 - No person-level scoring.
 
 ## Implementation Steps

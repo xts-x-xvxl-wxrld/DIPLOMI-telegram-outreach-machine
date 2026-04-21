@@ -7,17 +7,17 @@ import pytest
 
 from backend.db.enums import ActivityStatus, AnalysisStatus, CollectionRunStatus
 from backend.db.models import CollectionRun, Community, CommunityMember, CommunitySnapshot, User
-from backend.services.community_collection import (
-    TelegramCollectedCommunity,
-    TelegramCommunityCollection,
+from backend.services.community_snapshot import (
+    TelegramCommunitySnapshot,
     TelegramMemberInfo,
-    persist_community_collection,
-    record_collection_failure,
+    TelegramSnapshotCommunity,
+    persist_community_snapshot,
+    record_snapshot_failure,
 )
 
 
 @pytest.mark.asyncio
-async def test_persist_collection_upserts_members_without_resetting_activity() -> None:
+async def test_persist_snapshot_upserts_members_without_resetting_activity() -> None:
     community = Community(
         id=uuid4(),
         tg_id=100,
@@ -39,18 +39,18 @@ async def test_persist_collection_upserts_members_without_resetting_activity() -
         activity_status=ActivityStatus.ACTIVE.value,
         event_count=9,
     )
-    repository = FakeCollectionRepository(
+    repository = FakeSnapshotRepository(
         communities=[community],
         users=[existing_user],
         members=[existing_member],
     )
     now = datetime(2026, 4, 15, 12, 0, tzinfo=timezone.utc)
 
-    summary = await persist_community_collection(
+    summary = await persist_community_snapshot(
         repository,
         community=community,
-        collected=TelegramCommunityCollection(
-            community=TelegramCollectedCommunity(
+        captured=TelegramCommunitySnapshot(
+            community=TelegramSnapshotCommunity(
                 tg_id=100,
                 username="seed_group",
                 title="Seed Group",
@@ -65,7 +65,7 @@ async def test_persist_collection_upserts_members_without_resetting_activity() -
                 TelegramMemberInfo(tg_user_id=2, username="second", first_name="Second"),
             ],
             member_limit_reached=True,
-            collection_notes=["capped at limit"],
+            snapshot_notes=["capped at limit"],
         ),
         window_days=90,
         now=now,
@@ -88,11 +88,11 @@ async def test_persist_collection_upserts_members_without_resetting_activity() -
 
 
 @pytest.mark.asyncio
-async def test_record_collection_failure_writes_failed_run() -> None:
+async def test_record_snapshot_failure_writes_failed_run() -> None:
     community = Community(id=uuid4(), tg_id=100, status="candidate", store_messages=False)
-    repository = FakeCollectionRepository(communities=[community])
+    repository = FakeSnapshotRepository(communities=[community])
 
-    summary = await record_collection_failure(
+    summary = await record_snapshot_failure(
         repository,
         community_id=community.id,
         window_days=30,
@@ -107,7 +107,7 @@ async def test_record_collection_failure_writes_failed_run() -> None:
     assert repository.collection_runs[0].error_message == "community inaccessible"
 
 
-class FakeCollectionRepository:
+class FakeSnapshotRepository:
     def __init__(
         self,
         *,

@@ -3,7 +3,7 @@
 ## Purpose
 
 The web frontend is a later operator interface for reviewing seed groups, candidates, watchlists,
-collection runs, and community summaries.
+community snapshot runs, engagement collection runs, and community summaries.
 
 It is not part of the first MVP slice. The Telegram bot is the initial operator UI.
 
@@ -21,7 +21,8 @@ Expected views:
 - seed-group candidate review with graph evidence summaries
 - watchlists and monitoring state
 - community detail
-- collection run history
+- community snapshot history
+- engagement collection history
 - analysis summaries
 - account health/debug status
 - optional audience brief list and detail, if the brief layer returns
