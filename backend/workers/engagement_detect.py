@@ -12,8 +12,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.settings import Settings, get_settings
-from backend.db.enums import CollectionRunStatus, EngagementMode
-from backend.db.models import AnalysisSummary, CollectionRun, Community, EngagementTopic, Message
+from backend.db.enums import CollectionRunStatus, EngagementCandidateStatus, EngagementMode
+from backend.db.models import (
+    AnalysisSummary,
+    CollectionRun,
+    Community,
+    EngagementCandidate,
+    EngagementTopic,
+    Message,
+)
 from backend.db.session import AsyncSessionLocal
 from backend.queue.payloads import EngagementDetectPayload
 from backend.services.community_engagement import (
@@ -29,6 +36,10 @@ from backend.services.community_engagement import (
     render_prompt_template,
     sanitize_candidate_excerpt,
     select_active_prompt_profile,
+)
+from backend.services.engagement_embeddings import (
+    SemanticTriggerMatch,
+    select_semantic_trigger_messages,
 )
 
 
@@ -70,6 +81,12 @@ class CommunityContext:
     dominant_themes: list[str]
 
 
+@dataclass(frozen=True)
+class TriggerCandidate:
+    message: DetectionMessage
+    semantic_match: SemanticTriggerMatch | None = None
+
+
 class EngagementDetectionDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -86,6 +103,7 @@ TopicLoader = Callable[[AsyncSession], Awaitable[list[EngagementTopic]]]
 SampleLoader = Callable[..., Awaitable[list[DetectionMessage]]]
 ContextLoader = Callable[..., Awaitable[CommunityContext]]
 CandidateCreator = Callable[..., Awaitable[EngagementCandidateCreationResult]]
+SemanticSelector = Callable[..., Awaitable[list[SemanticTriggerMatch]]]
 
 
 async def detect_with_openai(model_input: dict[str, Any]) -> EngagementDetectionDecision:
@@ -139,6 +157,7 @@ async def process_engagement_detect(
     sample_loader: SampleLoader = None,  # type: ignore[assignment]
     context_loader: ContextLoader = None,  # type: ignore[assignment]
     candidate_creator: CandidateCreator = create_engagement_candidate,
+    semantic_selector: SemanticSelector = select_semantic_trigger_messages,
     settings: Settings | None = None,
 ) -> dict[str, object]:
     validated_payload = EngagementDetectPayload.model_validate(payload)
@@ -197,86 +216,109 @@ async def process_engagement_detect(
             community_context = await context_loader(session, community=community)
             prompt_selection = await select_active_prompt_profile(session)
             summary = DetectionSummary(community_id=validated_payload.community_id)
+            detector_cap_reached = False
             for topic in topics:
                 summary.topics_checked += 1
-                if (
-                    not runtime_settings.engagement_semantic_matching_enabled
-                    and not (topic.trigger_keywords or [])
-                ):
-                    summary.skipped_no_signal += 1
-                    continue
-                matching_messages = _prefilter_messages(topic, eligible_messages)
-                if not matching_messages:
-                    summary.skipped_no_signal += 1
-                    continue
-                if summary.detector_calls >= runtime_settings.engagement_max_detector_calls_per_run:
-                    summary.skipped_detector_cap += 1
-                    break
-                source_message = _select_source_message(matching_messages)
-
-                style_rules = await _load_style_bundle(
+                topic_messages = await _filter_existing_candidate_messages(
                     session,
-                    account_id=engagement_settings.assigned_account_id,
                     community_id=validated_payload.community_id,
                     topic_id=topic.id,
+                    messages=eligible_messages,
                 )
-                model_input = _build_model_input(
-                    community=community,
+                skipped_duplicates = len(eligible_messages) - len(topic_messages)
+                if skipped_duplicates:
+                    summary.skipped_dedupe += skipped_duplicates
+
+                trigger_candidates = await _select_trigger_candidates(
+                    session,
+                    community_id=validated_payload.community_id,
                     topic=topic,
-                    source_message=source_message,
-                    community_context=community_context,
-                    style_rules=style_rules,
+                    messages=topic_messages,
+                    runtime_settings=runtime_settings,
+                    semantic_selector=semantic_selector,
                 )
-                model_input = _fit_model_input(model_input)
-                prompt_runtime = _build_prompt_runtime(
-                    model_input,
-                    prompt_selection=prompt_selection,
-                    fallback_model=runtime_settings.openai_engagement_model,
-                )
-                model_input["_prompt_runtime"] = prompt_runtime
-                decision = await detector(model_input)
-                decision = EngagementDetectionDecision.model_validate(decision)
-                summary.detector_calls += 1
-                if not decision.should_engage:
+                if not trigger_candidates:
                     summary.skipped_no_signal += 1
                     continue
-                if not decision.suggested_reply:
-                    summary.skipped_validation += 1
-                    continue
-                if (
-                    decision.source_tg_message_id is not None
-                    and source_message.tg_message_id is not None
-                    and decision.source_tg_message_id != source_message.tg_message_id
-                ):
-                    summary.skipped_validation += 1
-                    continue
-                try:
-                    creation = await candidate_creator(
+
+                for trigger_candidate in trigger_candidates:
+                    if summary.detector_calls >= runtime_settings.engagement_max_detector_calls_per_run:
+                        summary.skipped_detector_cap += 1
+                        detector_cap_reached = True
+                        break
+                    source_message = trigger_candidate.message
+
+                    style_rules = await _load_style_bundle(
                         session,
+                        account_id=engagement_settings.assigned_account_id,
                         community_id=validated_payload.community_id,
                         topic_id=topic.id,
-                        source_tg_message_id=source_message.tg_message_id,
-                        source_excerpt=source_message.text,
-                        detected_reason=decision.reason,
-                        suggested_reply=decision.suggested_reply,
-                        model=str(prompt_runtime["model"]),
-                        model_output=decision.model_dump(mode="json", exclude_none=True),
-                        risk_notes=decision.risk_notes,
-                        prompt_profile_id=prompt_runtime.get("prompt_profile_id"),
-                        prompt_profile_version_id=prompt_runtime.get("prompt_profile_version_id"),
-                        prompt_render_summary=_prompt_render_summary(
-                            model_input,
-                            prompt_runtime=prompt_runtime,
-                        ),
                     )
-                except EngagementValidationError:
-                    summary.skipped_validation += 1
-                    continue
+                    model_input = _build_model_input(
+                        community=community,
+                        topic=topic,
+                        source_message=source_message,
+                        community_context=community_context,
+                        style_rules=style_rules,
+                        semantic_match=trigger_candidate.semantic_match,
+                    )
+                    model_input = _fit_model_input(model_input)
+                    prompt_runtime = _build_prompt_runtime(
+                        model_input,
+                        prompt_selection=prompt_selection,
+                        fallback_model=runtime_settings.openai_engagement_model,
+                    )
+                    model_input["_prompt_runtime"] = prompt_runtime
+                    decision = await detector(model_input)
+                    decision = EngagementDetectionDecision.model_validate(decision)
+                    summary.detector_calls += 1
+                    if not decision.should_engage:
+                        summary.skipped_no_signal += 1
+                        continue
+                    if not decision.suggested_reply:
+                        summary.skipped_validation += 1
+                        continue
+                    if (
+                        decision.source_tg_message_id is not None
+                        and source_message.tg_message_id is not None
+                        and decision.source_tg_message_id != source_message.tg_message_id
+                    ):
+                        summary.skipped_validation += 1
+                        continue
+                    model_output = decision.model_dump(mode="json", exclude_none=True)
+                    semantic_summary = _semantic_match_for_storage(trigger_candidate.semantic_match)
+                    if semantic_summary is not None:
+                        model_output["semantic_match"] = semantic_summary
+                    try:
+                        creation = await candidate_creator(
+                            session,
+                            community_id=validated_payload.community_id,
+                            topic_id=topic.id,
+                            source_tg_message_id=source_message.tg_message_id,
+                            source_excerpt=source_message.text,
+                            detected_reason=decision.reason,
+                            suggested_reply=decision.suggested_reply,
+                            model=str(prompt_runtime["model"]),
+                            model_output=model_output,
+                            risk_notes=decision.risk_notes,
+                            prompt_profile_id=prompt_runtime.get("prompt_profile_id"),
+                            prompt_profile_version_id=prompt_runtime.get("prompt_profile_version_id"),
+                            prompt_render_summary=_prompt_render_summary(
+                                model_input,
+                                prompt_runtime=prompt_runtime,
+                            ),
+                        )
+                    except EngagementValidationError:
+                        summary.skipped_validation += 1
+                        continue
 
-                if creation.created:
-                    summary.candidates_created += 1
-                else:
-                    summary.skipped_dedupe += 1
+                    if creation.created:
+                        summary.candidates_created += 1
+                    else:
+                        summary.skipped_dedupe += 1
+
+                if detector_cap_reached:
+                    break
 
             await session.commit()
             return summary.to_dict()
@@ -352,18 +394,148 @@ class DetectionSummary:
         }
 
 
-def _prefilter_messages(topic: EngagementTopic, messages: list[DetectionMessage]) -> list[DetectionMessage]:
+async def _select_trigger_candidates(
+    session: AsyncSession,
+    *,
+    community_id: object,
+    topic: EngagementTopic,
+    messages: list[DetectionMessage],
+    runtime_settings: Settings,
+    semantic_selector: SemanticSelector,
+) -> list[TriggerCandidate]:
+    if not messages:
+        return []
+    if runtime_settings.engagement_semantic_matching_enabled:
+        semantic_matches = await semantic_selector(
+            session,
+            community_id=community_id,
+            topic=topic,
+            messages=messages,
+            settings=runtime_settings,
+        )
+        if semantic_matches:
+            return [
+                TriggerCandidate(
+                    message=_coerce_detection_message(match.message),
+                    semantic_match=match,
+                )
+                for match in semantic_matches
+            ]
+        if not (topic.trigger_keywords or []):
+            return []
+        # Rollout fallback: only exact trigger keywords may rescue an empty semantic selection.
+        fallback_messages = _prefilter_messages(topic, messages, require_trigger=True)
+        return [TriggerCandidate(message=_select_source_message(fallback_messages))] if fallback_messages else []
+
+    if not (topic.trigger_keywords or []):
+        return []
+    matching_messages = _prefilter_messages(topic, messages, require_trigger=True)
+    return [TriggerCandidate(message=_select_source_message(matching_messages))] if matching_messages else []
+
+
+async def _filter_existing_candidate_messages(
+    session: AsyncSession,
+    *,
+    community_id: object,
+    topic_id: object,
+    messages: list[DetectionMessage],
+) -> list[DetectionMessage]:
+    filtered: list[DetectionMessage] = []
+    for message in messages:
+        if await _has_active_candidate_duplicate(
+            session,
+            community_id=community_id,
+            topic_id=topic_id,
+            source_tg_message_id=message.tg_message_id,
+            source_excerpt=message.text,
+        ):
+            continue
+        filtered.append(message)
+    return filtered
+
+
+async def _has_active_candidate_duplicate(
+    session: AsyncSession,
+    *,
+    community_id: object,
+    topic_id: object,
+    source_tg_message_id: int | None,
+    source_excerpt: str | None,
+) -> bool:
+    active_statuses = (
+        EngagementCandidateStatus.NEEDS_REVIEW.value,
+        EngagementCandidateStatus.APPROVED.value,
+    )
+    query = select(EngagementCandidate).where(
+        EngagementCandidate.community_id == community_id,
+        EngagementCandidate.topic_id == topic_id,
+        EngagementCandidate.status.in_(active_statuses),
+    )
+    if source_tg_message_id is not None:
+        query = query.where(EngagementCandidate.source_tg_message_id == source_tg_message_id)
+    else:
+        query = query.where(
+            EngagementCandidate.source_tg_message_id.is_(None),
+            EngagementCandidate.source_excerpt == sanitize_candidate_excerpt(source_excerpt),
+        )
+    return await session.scalar(query.limit(1)) is not None
+
+
+def _prefilter_messages(
+    topic: EngagementTopic,
+    messages: list[DetectionMessage],
+    *,
+    require_trigger: bool = False,
+) -> list[DetectionMessage]:
     triggers = [keyword.casefold() for keyword in topic.trigger_keywords or [] if keyword]
     negatives = [keyword.casefold() for keyword in topic.negative_keywords or [] if keyword]
+    if require_trigger and not triggers:
+        return []
     matches: list[DetectionMessage] = []
     for message in messages:
         text = message.text.casefold()
-        if triggers and not any(keyword in text for keyword in triggers):
+        if (triggers or require_trigger) and not any(keyword in text for keyword in triggers):
             continue
         if negatives and any(keyword in text for keyword in negatives):
             continue
         matches.append(message)
     return matches
+
+
+def _coerce_detection_message(message: object) -> DetectionMessage:
+    if isinstance(message, DetectionMessage):
+        return message
+    return DetectionMessage(
+        tg_message_id=getattr(message, "tg_message_id", None),
+        text=str(getattr(message, "text", "") or ""),
+        message_date=getattr(message, "message_date", None),
+        reply_context=getattr(message, "reply_context", None),
+        is_replyable=bool(getattr(message, "is_replyable", True)),
+    )
+
+
+def _semantic_match_for_model_input(match: SemanticTriggerMatch | None) -> dict[str, Any] | None:
+    if match is None:
+        return None
+    return {
+        "embedding_model": match.embedding_model,
+        "embedding_dimensions": match.embedding_dimensions,
+        "similarity": round(float(match.similarity), 6),
+        "threshold": round(float(match.threshold), 6),
+        "rank": match.rank,
+    }
+
+
+def _semantic_match_for_storage(match: SemanticTriggerMatch | None) -> dict[str, Any] | None:
+    if match is None:
+        return None
+    return {
+        "model": match.embedding_model,
+        "dimensions": match.embedding_dimensions,
+        "similarity": round(float(match.similarity), 6),
+        "threshold": round(float(match.threshold), 6),
+        "rank": match.rank,
+    }
 
 
 def _build_model_input(
@@ -373,13 +545,17 @@ def _build_model_input(
     source_message: DetectionMessage,
     community_context: CommunityContext,
     style_rules: dict[str, list[str]],
+    semantic_match: SemanticTriggerMatch | None = None,
 ) -> dict[str, Any]:
     source_post = {
         "tg_message_id": source_message.tg_message_id,
         "text": _truncate_text(source_message.text, MAX_MESSAGE_CHARS),
         "message_date": source_message.message_date.isoformat() if source_message.message_date else None,
+        "reply_context": _truncate_text(source_message.reply_context, MAX_MESSAGE_CHARS)
+        if source_message.reply_context
+        else None,
     }
-    return {
+    model_input: dict[str, Any] = {
         "community": {
             "id": str(community.id),
             "title": community.title,
@@ -411,6 +587,10 @@ def _build_model_input(
             "dominant_themes": community_context.dominant_themes[:20],
         },
     }
+    semantic_summary = _semantic_match_for_model_input(semantic_match)
+    if semantic_summary is not None:
+        model_input["semantic_match"] = semantic_summary
+    return model_input
 
 
 async def _load_style_bundle(
@@ -477,7 +657,7 @@ def _prompt_render_summary(
     prompt_runtime: dict[str, Any],
 ) -> dict[str, Any]:
     style = model_input.get("style") if isinstance(model_input.get("style"), dict) else {}
-    return {
+    summary: dict[str, Any] = {
         "profile_name": prompt_runtime.get("profile_name"),
         "version_number": prompt_runtime.get("version_number"),
         "style_rule_counts": {
@@ -490,6 +670,9 @@ def _prompt_render_summary(
         "source_post_present": isinstance(model_input.get("source_post"), dict),
         "serialized_input_bytes": _serialized_size(_public_model_input(model_input)),
     }
+    if isinstance(model_input.get("semantic_match"), dict):
+        summary["semantic_match"] = model_input["semantic_match"]
+    return summary
 
 
 def _public_model_input(model_input: dict[str, Any]) -> dict[str, Any]:

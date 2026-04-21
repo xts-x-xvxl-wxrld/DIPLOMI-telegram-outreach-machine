@@ -756,3 +756,12 @@ batched OpenAI embedding calls, cache reuse, cosine similarity scoring, stable t
 selection, and expired message-cache cleanup. Added focused schema and service tests, and updated
 the database and embedding-matching wiki specs plus the index entries for the new implementation
 roots.
+
+## [2026-04-21] code | Integrated semantic engagement detector matching
+
+Wired the cached semantic selector into `engagement.detect` behind
+`ENGAGEMENT_SEMANTIC_MATCHING_ENABLED`. The detector now runs membership/replyable/dedupe gates
+before semantic scoring, sends selected semantic trigger posts into the existing draft model, keeps
+keyword fallback for keyword-backed topics during rollout, caps detector calls per community run,
+and stores compact semantic-match metadata with reply opportunities. Added detector tests for the
+semantic path, no-match skips, keyword fallback, and detector-call caps.

@@ -21,6 +21,7 @@ from backend.db.models import (
     EngagementTopic,
 )
 from backend.services.community_engagement import create_engagement_candidate
+from backend.services.engagement_embeddings import SemanticTriggerMatch
 from backend.workers.engagement_detect import (
     CommunityContext,
     DetectionMessage,
@@ -255,6 +256,261 @@ async def test_engagement_detect_skips_semantic_only_topic_until_selector_is_ena
     assert result["status"] == "processed"
     assert result["detector_calls"] == 0
     assert result["skipped_no_signal"] == 1
+
+
+@pytest.mark.asyncio
+async def test_engagement_detect_uses_semantic_selector_when_enabled() -> None:
+    community_id = uuid4()
+    topic = _topic(trigger_keywords=[])
+    topic.description = "People comparing CRM migration and evaluation tradeoffs."
+    message = DetectionMessage(
+        tg_message_id=123,
+        text="We are weighing whether to migrate CRM data now or wait.",
+        message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+        reply_context="Earlier thread asked about export access.",
+        is_replyable=True,
+    )
+    session = FakeSession(community=_community(community_id), settings=_settings(community_id))
+    captured_inputs: list[dict[str, object]] = []
+
+    async def semantic_selector(*_args: object, **_kwargs: object) -> list[SemanticTriggerMatch]:
+        return [
+            SemanticTriggerMatch(
+                message=message,
+                similarity=0.7134567,
+                threshold=0.62,
+                rank=1,
+                embedding_model="text-embedding-3-small",
+                embedding_dimensions=512,
+                source_text_hash="hash",
+            )
+        ]
+
+    async def detector(model_input: dict[str, object]) -> EngagementDetectionDecision:
+        captured_inputs.append(model_input)
+        return EngagementDetectionDecision(
+            should_engage=True,
+            topic_match="CRM",
+            source_tg_message_id=123,
+            reason="The group is discussing CRM migration timing.",
+            suggested_reply="One practical filter is whether export cleanup blocks other work; if it does, migrate in smaller chunks.",
+            risk_notes=[],
+        )
+
+    result = await process_engagement_detect(
+        {"community_id": str(community_id), "window_minutes": 60, "requested_by": None},
+        session_factory=lambda: session,
+        detector=detector,
+        active_topics_fn=lambda _session: _async_result([topic]),
+        sample_loader=lambda *_args, **_kwargs: _async_result([message]),
+        context_loader=lambda *_args, **_kwargs: _async_result(
+            CommunityContext(latest_summary=None, dominant_themes=[])
+        ),
+        candidate_creator=create_engagement_candidate,
+        semantic_selector=semantic_selector,
+        settings=SimpleNamespace(
+            openai_engagement_model="test-model",
+            engagement_max_detector_calls_per_run=5,
+            engagement_semantic_matching_enabled=True,
+        ),  # type: ignore[arg-type]
+    )
+
+    assert result["candidates_created"] == 1
+    assert result["detector_calls"] == 1
+    assert captured_inputs[0]["source_post"]["tg_message_id"] == 123
+    assert captured_inputs[0]["source_post"]["reply_context"] == "Earlier thread asked about export access."
+    assert captured_inputs[0]["semantic_match"] == {
+        "embedding_model": "text-embedding-3-small",
+        "embedding_dimensions": 512,
+        "similarity": 0.713457,
+        "threshold": 0.62,
+        "rank": 1,
+    }
+    assert session.candidates[0].model_output["semantic_match"] == {
+        "model": "text-embedding-3-small",
+        "dimensions": 512,
+        "similarity": 0.713457,
+        "threshold": 0.62,
+        "rank": 1,
+    }
+    assert session.candidates[0].prompt_render_summary["semantic_match"] == {
+        "embedding_model": "text-embedding-3-small",
+        "embedding_dimensions": 512,
+        "similarity": 0.713457,
+        "threshold": 0.62,
+        "rank": 1,
+    }
+
+
+@pytest.mark.asyncio
+async def test_engagement_detect_skips_semantic_only_topic_when_selector_finds_no_match() -> None:
+    community_id = uuid4()
+    topic = _topic(trigger_keywords=[])
+    topic.description = "People comparing CRM migration and evaluation tradeoffs."
+    session = FakeSession(community=_community(community_id), settings=_settings(community_id))
+
+    async def detector(_model_input: dict[str, object]) -> EngagementDetectionDecision:
+        raise AssertionError("detector should not run when semantic selector finds no match")
+
+    async def semantic_selector(*_args: object, **_kwargs: object) -> list[SemanticTriggerMatch]:
+        return []
+
+    result = await process_engagement_detect(
+        {"community_id": str(community_id), "window_minutes": 60, "requested_by": None},
+        session_factory=lambda: session,
+        detector=detector,
+        active_topics_fn=lambda _session: _async_result([topic]),
+        sample_loader=lambda *_args, **_kwargs: _async_result(
+            [
+                DetectionMessage(
+                    tg_message_id=123,
+                    text="We are comparing CRM options.",
+                    message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                    is_replyable=True,
+                )
+            ]
+        ),
+        context_loader=lambda *_args, **_kwargs: _async_result(
+            CommunityContext(latest_summary=None, dominant_themes=[])
+        ),
+        semantic_selector=semantic_selector,
+        settings=SimpleNamespace(
+            openai_engagement_model="test-model",
+            engagement_max_detector_calls_per_run=5,
+            engagement_semantic_matching_enabled=True,
+        ),  # type: ignore[arg-type]
+    )
+
+    assert result["status"] == "processed"
+    assert result["detector_calls"] == 0
+    assert result["skipped_no_signal"] == 1
+
+
+@pytest.mark.asyncio
+async def test_engagement_detect_keeps_keyword_fallback_when_semantic_has_no_match() -> None:
+    community_id = uuid4()
+    topic = _topic(trigger_keywords=["crm"])
+    session = FakeSession(community=_community(community_id), settings=_settings(community_id))
+
+    async def detector(model_input: dict[str, object]) -> EngagementDetectionDecision:
+        assert "semantic_match" not in model_input
+        return EngagementDetectionDecision(
+            should_engage=True,
+            topic_match="CRM",
+            source_tg_message_id=123,
+            reason="The group is comparing CRM tools.",
+            suggested_reply="Start with export access and integration needs before ranking tools.",
+            risk_notes=[],
+        )
+
+    async def semantic_selector(*_args: object, **_kwargs: object) -> list[SemanticTriggerMatch]:
+        return []
+
+    result = await process_engagement_detect(
+        {"community_id": str(community_id), "window_minutes": 60, "requested_by": None},
+        session_factory=lambda: session,
+        detector=detector,
+        active_topics_fn=lambda _session: _async_result([topic]),
+        sample_loader=lambda *_args, **_kwargs: _async_result(
+            [
+                DetectionMessage(
+                    tg_message_id=123,
+                    text="We are comparing CRM options.",
+                    message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                    is_replyable=True,
+                )
+            ]
+        ),
+        context_loader=lambda *_args, **_kwargs: _async_result(
+            CommunityContext(latest_summary=None, dominant_themes=[])
+        ),
+        candidate_creator=create_engagement_candidate,
+        semantic_selector=semantic_selector,
+        settings=SimpleNamespace(
+            openai_engagement_model="test-model",
+            engagement_max_detector_calls_per_run=5,
+            engagement_semantic_matching_enabled=True,
+        ),  # type: ignore[arg-type]
+    )
+
+    assert result["candidates_created"] == 1
+    assert result["detector_calls"] == 1
+    assert session.candidates[0].model_output.get("semantic_match") is None
+
+
+@pytest.mark.asyncio
+async def test_engagement_detect_caps_semantic_detector_calls_per_run() -> None:
+    community_id = uuid4()
+    topic = _topic(trigger_keywords=[])
+    topic.description = "People comparing CRM migration and evaluation tradeoffs."
+    first = DetectionMessage(
+        tg_message_id=101,
+        text="CRM migration plan A",
+        message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+        is_replyable=True,
+    )
+    second = DetectionMessage(
+        tg_message_id=102,
+        text="CRM migration plan B",
+        message_date=datetime(2026, 4, 19, 12, 1, tzinfo=timezone.utc),
+        is_replyable=True,
+    )
+    session = FakeSession(community=_community(community_id), settings=_settings(community_id))
+    called_message_ids: list[int | None] = []
+
+    async def semantic_selector(*_args: object, **_kwargs: object) -> list[SemanticTriggerMatch]:
+        return [
+            SemanticTriggerMatch(
+                message=first,
+                similarity=0.9,
+                threshold=0.62,
+                rank=1,
+                embedding_model="embed",
+                embedding_dimensions=2,
+                source_text_hash="first",
+            ),
+            SemanticTriggerMatch(
+                message=second,
+                similarity=0.8,
+                threshold=0.62,
+                rank=2,
+                embedding_model="embed",
+                embedding_dimensions=2,
+                source_text_hash="second",
+            ),
+        ]
+
+    async def detector(model_input: dict[str, object]) -> EngagementDetectionDecision:
+        called_message_ids.append(model_input["source_post"]["tg_message_id"])
+        return EngagementDetectionDecision(
+            should_engage=False,
+            topic_match=None,
+            source_tg_message_id=model_input["source_post"]["tg_message_id"],
+            reason="Weak moment.",
+            suggested_reply=None,
+            risk_notes=[],
+        )
+
+    result = await process_engagement_detect(
+        {"community_id": str(community_id), "window_minutes": 60, "requested_by": None},
+        session_factory=lambda: session,
+        detector=detector,
+        active_topics_fn=lambda _session: _async_result([topic]),
+        sample_loader=lambda *_args, **_kwargs: _async_result([first, second]),
+        context_loader=lambda *_args, **_kwargs: _async_result(
+            CommunityContext(latest_summary=None, dominant_themes=[])
+        ),
+        semantic_selector=semantic_selector,
+        settings=SimpleNamespace(
+            openai_engagement_model="test-model",
+            engagement_max_detector_calls_per_run=1,
+            engagement_semantic_matching_enabled=True,
+        ),  # type: ignore[arg-type]
+    )
+
+    assert result["detector_calls"] == 1
+    assert result["skipped_detector_cap"] == 1
+    assert called_message_ids == [101]
 
 
 @pytest.mark.asyncio

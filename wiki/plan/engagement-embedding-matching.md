@@ -32,6 +32,8 @@ As of 2026-04-21, the detector and wiki contracts were aligned so semantic rollo
 - joined-membership and post-join/replyable gates are enforced before drafting
 - semantic-only topics stay inert until the semantic-selector feature flag is enabled
 - detector calls are capped per community run through settings
+- semantic matching is now integrated behind `ENGAGEMENT_SEMANTIC_MATCHING_ENABLED`, with keyword
+  fallback retained when no semantic match is selected for keyword-backed topics
 
 ## Design Decisions
 
@@ -113,7 +115,7 @@ Acceptance:
 
 ## Slice 4: Detector Integration
 
-Status: pending.
+Status: completed.
 
 Integrate the selector into `backend/workers/engagement_detect.py` behind a feature flag or setting.
 
