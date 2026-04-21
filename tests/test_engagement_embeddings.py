@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from uuid import uuid4
@@ -10,6 +11,7 @@ from backend.db.models import EngagementMessageEmbedding, EngagementTopic
 from backend.services import engagement_embeddings
 from backend.services.engagement_embeddings import (
     EngagementEmbeddingError,
+    SemanticSelectionStats,
     build_message_embedding_text,
     delete_expired_message_embeddings,
     get_or_create_message_embeddings,
@@ -83,6 +85,8 @@ async def test_get_or_create_message_embeddings_reuses_identical_normalized_text
         _message(102, "CRM   migration help", now),
     ]
     embed_calls: list[list[str]] = []
+    first_stats = SemanticSelectionStats()
+    second_stats = SemanticSelectionStats()
 
     async def fake_load(
         *_args,
@@ -123,6 +127,7 @@ async def test_get_or_create_message_embeddings_reuses_identical_normalized_text
         dimensions=2,
         retention_days=14,
         embed_texts_fn=fake_embed,
+        observability=first_stats,
     )
     second = await get_or_create_message_embeddings(
         session,
@@ -132,6 +137,7 @@ async def test_get_or_create_message_embeddings_reuses_identical_normalized_text
         dimensions=2,
         retention_days=14,
         embed_texts_fn=fake_embed,
+        observability=second_stats,
     )
 
     assert len(embed_calls) == 1
@@ -139,6 +145,10 @@ async def test_get_or_create_message_embeddings_reuses_identical_normalized_text
     assert len(first) == 2
     assert len(second) == 2
     assert len([row for row in session.added if isinstance(row, EngagementMessageEmbedding)]) == 2
+    assert first_stats.message_embedding_cache_misses == 2
+    assert first_stats.message_embeddings_created == 2
+    assert second_stats.message_embedding_cache_hits == 2
+    assert second_stats.message_embedding_cache_misses == 0
 
 
 def test_validate_embedding_vector_rejects_wrong_dimensions() -> None:
@@ -210,6 +220,73 @@ async def test_select_semantic_trigger_messages_orders_stably_and_respects_negat
     assert [match.message.tg_message_id for match in matches] == [10, 20, 30]
     assert [match.rank for match in matches] == [1, 2, 3]
     assert all(match.similarity == pytest.approx(1.0) for match in matches)
+
+
+@pytest.mark.asyncio
+async def test_select_semantic_trigger_messages_records_below_threshold_observability(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    community_id = uuid4()
+    topic = _topic()
+    now = datetime(2026, 4, 21, 12, 0, tzinfo=timezone.utc)
+    message = _message(50, "Comparing payroll tools instead.", now - timedelta(minutes=30))
+    stats = SemanticSelectionStats()
+
+    async def fake_topic_embedding(*_args, **_kwargs) -> list[float]:
+        return [1.0, 0.0]
+
+    async def fake_message_embeddings(*_args, community_id: object, messages: list[object], model: str, dimensions: int, **_kwargs):
+        vectors: dict[str, list[float]] = {}
+        for candidate in messages:
+            source_text_hash = engagement_embeddings.embedding_text_hash(
+                build_message_embedding_text(candidate)
+            )
+            vectors[
+                message_embedding_cache_key(
+                    community_id=community_id,
+                    tg_message_id=candidate.tg_message_id,
+                    source_text_hash=source_text_hash,
+                    model=model,
+                    dimensions=dimensions,
+                )
+            ] = [0.0, 1.0]
+        return vectors
+
+    monkeypatch.setattr(engagement_embeddings, "get_or_create_topic_embedding", fake_topic_embedding)
+    monkeypatch.setattr(
+        engagement_embeddings,
+        "get_or_create_message_embeddings",
+        fake_message_embeddings,
+    )
+
+    with caplog.at_level(logging.INFO, logger=engagement_embeddings.__name__):
+        matches = await select_semantic_trigger_messages(
+            FakeSession(),
+            community_id=community_id,
+            topic=topic,
+            messages=[message],
+            settings=SimpleNamespace(
+                openai_embedding_model="embed-small",
+                openai_embedding_dimensions=2,
+                engagement_semantic_match_threshold=0.9,
+                engagement_max_semantic_matches_per_topic=3,
+                engagement_max_embedding_messages_per_run=10,
+                engagement_message_embedding_retention_days=14,
+            ),
+            now=now,
+            observability=stats,
+        )
+
+    assert matches == []
+    assert stats.messages_considered == 1
+    assert stats.messages_eligible_for_embedding == 1
+    assert stats.messages_below_threshold == 1
+    assert stats.semantic_matches_selected == 0
+    assert stats.detector_calls_avoided == 1
+    selector_logs = [record for record in caplog.records if record.message == "engagement.semantic_selector"]
+    assert selector_logs
+    assert selector_logs[-1].semantic_matching["messages_below_threshold"] == 1
 
 
 def test_build_message_embedding_text_uses_only_public_text_and_reply_context() -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from uuid import uuid4
@@ -259,7 +260,9 @@ async def test_engagement_detect_skips_semantic_only_topic_until_selector_is_ena
 
 
 @pytest.mark.asyncio
-async def test_engagement_detect_uses_semantic_selector_when_enabled() -> None:
+async def test_engagement_detect_uses_semantic_selector_when_enabled(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     community_id = uuid4()
     topic = _topic(trigger_keywords=[])
     topic.description = "People comparing CRM migration and evaluation tradeoffs."
@@ -297,26 +300,29 @@ async def test_engagement_detect_uses_semantic_selector_when_enabled() -> None:
             risk_notes=[],
         )
 
-    result = await process_engagement_detect(
-        {"community_id": str(community_id), "window_minutes": 60, "requested_by": None},
-        session_factory=lambda: session,
-        detector=detector,
-        active_topics_fn=lambda _session: _async_result([topic]),
-        sample_loader=lambda *_args, **_kwargs: _async_result([message]),
-        context_loader=lambda *_args, **_kwargs: _async_result(
-            CommunityContext(latest_summary=None, dominant_themes=[])
-        ),
-        candidate_creator=create_engagement_candidate,
-        semantic_selector=semantic_selector,
-        settings=SimpleNamespace(
-            openai_engagement_model="test-model",
-            engagement_max_detector_calls_per_run=5,
-            engagement_semantic_matching_enabled=True,
-        ),  # type: ignore[arg-type]
-    )
+    with caplog.at_level(logging.INFO, logger="backend.workers.engagement_detect"):
+        result = await process_engagement_detect(
+            {"community_id": str(community_id), "window_minutes": 60, "requested_by": None},
+            session_factory=lambda: session,
+            detector=detector,
+            active_topics_fn=lambda _session: _async_result([topic]),
+            sample_loader=lambda *_args, **_kwargs: _async_result([message]),
+            context_loader=lambda *_args, **_kwargs: _async_result(
+                CommunityContext(latest_summary=None, dominant_themes=[])
+            ),
+            candidate_creator=create_engagement_candidate,
+            semantic_selector=semantic_selector,
+            settings=SimpleNamespace(
+                openai_engagement_model="test-model",
+                engagement_max_detector_calls_per_run=5,
+                engagement_semantic_matching_enabled=True,
+            ),  # type: ignore[arg-type]
+        )
 
     assert result["candidates_created"] == 1
     assert result["detector_calls"] == 1
+    assert result["semantic_matches_selected"] == 1
+    assert result["semantic_candidates_created"] == 1
     assert captured_inputs[0]["source_post"]["tg_message_id"] == 123
     assert captured_inputs[0]["source_post"]["reply_context"] == "Earlier thread asked about export access."
     assert captured_inputs[0]["semantic_match"] == {
@@ -340,6 +346,9 @@ async def test_engagement_detect_uses_semantic_selector_when_enabled() -> None:
         "threshold": 0.62,
         "rank": 1,
     }
+    detect_logs = [record for record in caplog.records if record.message == "engagement.detect_summary"]
+    assert detect_logs
+    assert detect_logs[-1].engagement_detect["semantic_candidates_created"] == 1
 
 
 @pytest.mark.asyncio

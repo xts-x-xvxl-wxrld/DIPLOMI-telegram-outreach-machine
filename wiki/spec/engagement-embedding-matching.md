@@ -321,6 +321,17 @@ Structured logs and metrics should count:
 
 Similarity bands should be aggregate-only. They must not become person-level scores.
 
+The first observability slice exposes these counts in the `engagement.detect` worker result and
+emits structured log records:
+
+- `engagement.semantic_selector` with aggregate cache, rejection, below-threshold, selected-match,
+  and avoided-call counters for a community/topic selector run
+- `engagement.detect_summary` with aggregate detector calls and semantic-created reply opportunity
+  counts for a community detection run
+
+The logs must not include sender identity, phone numbers, raw broad prompt batches, or person-level
+scores. Similarity values remain compact candidate metadata only for selected source posts.
+
 ## Threshold Evaluation
 
 Maintain a small evaluation set outside production user identity data:
@@ -343,6 +354,12 @@ Use the eval set to tune:
 
 Operator approval rate is useful feedback, but it is not the only metric. A low approval rate may
 mean the draft model is weak, the topic is vague, or the threshold is too loose.
+
+The initial fixture lives at `tests/fixtures/engagement_semantic_eval.jsonl`. It is intentionally
+small and synthetic/sanitized: topic profile, sanitized message text, human label, similarity score,
+detector decision, and optional operator outcome. It must include both `match` and `no_match`
+labels and must not contain sender usernames, Telegram user IDs, phone numbers, or person-level
+scores.
 
 ## Rollout
 

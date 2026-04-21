@@ -129,7 +129,8 @@ Acceptance:
 
 ## Slice 5: Evaluation And Rollout
 
-Status: pending.
+Status: in progress. Slice 5a completed observability counters/logs and sanitized evaluation
+fixtures on 2026-04-21.
 
 Add lightweight evaluation fixtures and metrics for threshold tuning.
 
@@ -140,6 +141,15 @@ Acceptance:
   opportunities.
 - Operator approval/rejection outcomes can be reviewed by similarity band without exposing
   person-level scoring.
+
+Completed in Slice 5a:
+
+- Aggregate selector and detector summaries now report topic/message embedding cache hits/misses,
+  created cache rows, rejected empty/negative messages, below-threshold messages, selected semantic
+  matches, avoided detector calls, and semantic-created reply opportunities.
+- Selector and detector emit structured log records with aggregate-only counter payloads.
+- `tests/fixtures/engagement_semantic_eval.jsonl` provides sanitized `match`/`no_match` examples
+  for threshold tuning.
 
 ## Open Questions
 

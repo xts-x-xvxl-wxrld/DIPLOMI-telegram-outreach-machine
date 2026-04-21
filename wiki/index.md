@@ -44,6 +44,7 @@
 - [VPS Agent Ops Context](plan/vps-agent-ops.md) - redacted VPS map, helper commands, and staging deploy gates
 - [Community Engagement](plan/community-engagement.md) - human-in-the-loop Telethon joining and public reply workflow
 - [Engagement Embedding Matching](plan/engagement-embedding-matching.md) - cached embedding selector rollout for engagement topic matching
+- [Semantic Matching Observability + Evaluation Fixtures](plan/semantic-matching-observability-evaluation-fixtures.md) - Slice 5a counters, logs, and sanitized eval fixtures for semantic matching
 - [Timely Reply Opportunities](plan/timely-reply-opportunities.md) - freshness SLO, reply opportunity terminology, detection cadence, and operator notification contract
 - [Engagement Operator Controls](plan/engagement-operator-controls.md) - Telegram bot control surface for settings, topics, joins, detection, reply opportunity sends, and audit views
 - [Engagement Admin Control Plane](plan/engagement-admin-control-plane.md) - manual engagement targets, prompt/profile admin, style rules, and editable reply implementation plan
@@ -101,6 +102,8 @@
 - `alembic/versions/20260420_0009_telegram_account_pools.py` - Telegram account pool separation migration
 - `alembic/versions/20260421_0010_engagement_embeddings.py` - topic/message embedding cache migration for semantic engagement matching
 - `tests/test_engagement_embeddings.py` - embedding cache reuse, dimension validation, selector ordering, and cleanup tests
+- `tests/test_engagement_semantic_eval_fixtures.py` - sanitized semantic matching evaluation fixture contract tests
+- `tests/fixtures/engagement_semantic_eval.jsonl` - synthetic sanitized semantic matching threshold evaluation examples
 - `tests/test_engagement_schema.py` - engagement schema enum/default/constraint/index tests
 - `tests/test_engagement_targets.py` - engagement target resolution and permission gate tests
 - `tests/test_engagement_prompt_controls.py` - prompt template variable privacy tests

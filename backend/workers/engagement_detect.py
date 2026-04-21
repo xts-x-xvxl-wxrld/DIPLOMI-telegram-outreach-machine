@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 
@@ -38,6 +39,7 @@ from backend.services.community_engagement import (
     select_active_prompt_profile,
 )
 from backend.services.engagement_embeddings import (
+    SemanticSelectionStats,
     SemanticTriggerMatch,
     select_semantic_trigger_messages,
 )
@@ -46,6 +48,7 @@ from backend.services.engagement_embeddings import (
 MAX_MESSAGES_PER_MODEL_CALL = 20
 MAX_MESSAGE_CHARS = 500
 MAX_MODEL_INPUT_BYTES = 64 * 1024
+LOGGER = logging.getLogger(__name__)
 
 
 DETECTION_INSTRUCTIONS = """You draft transparent, helpful public replies for an approved operator account.
@@ -236,6 +239,7 @@ async def process_engagement_detect(
                     messages=topic_messages,
                     runtime_settings=runtime_settings,
                     semantic_selector=semantic_selector,
+                    semantic_observability=summary.semantic_observability,
                 )
                 if not trigger_candidates:
                     summary.skipped_no_signal += 1
@@ -314,6 +318,8 @@ async def process_engagement_detect(
 
                     if creation.created:
                         summary.candidates_created += 1
+                        if trigger_candidate.semantic_match is not None:
+                            summary.semantic_candidates_created += 1
                     else:
                         summary.skipped_dedupe += 1
 
@@ -321,7 +327,9 @@ async def process_engagement_detect(
                     break
 
             await session.commit()
-            return summary.to_dict()
+            result = summary.to_dict()
+            LOGGER.info("engagement.detect_summary", extra={"engagement_detect": result})
+            return result
         except EngagementServiceError:
             await session.rollback()
             raise
@@ -378,8 +386,11 @@ class DetectionSummary:
     skipped_no_signal: int = 0
     skipped_dedupe: int = 0
     skipped_validation: int = 0
+    semantic_observability: SemanticSelectionStats = field(default_factory=SemanticSelectionStats)
+    semantic_candidates_created: int = 0
 
     def to_dict(self) -> dict[str, object]:
+        semantic = self.semantic_observability.to_dict()
         return {
             "status": "processed",
             "job_type": "engagement.detect",
@@ -391,6 +402,20 @@ class DetectionSummary:
             "skipped_no_signal": self.skipped_no_signal,
             "skipped_dedupe": self.skipped_dedupe,
             "skipped_validation": self.skipped_validation,
+            "semantic_topic_embedding_cache_hits": semantic["topic_embedding_cache_hits"],
+            "semantic_topic_embedding_cache_misses": semantic["topic_embedding_cache_misses"],
+            "semantic_topic_embeddings_created": semantic["topic_embeddings_created"],
+            "semantic_message_embedding_cache_hits": semantic["message_embedding_cache_hits"],
+            "semantic_message_embedding_cache_misses": semantic["message_embedding_cache_misses"],
+            "semantic_message_embeddings_created": semantic["message_embeddings_created"],
+            "semantic_messages_considered": semantic["messages_considered"],
+            "semantic_messages_rejected_empty_text": semantic["messages_rejected_empty_text"],
+            "semantic_messages_rejected_negative": semantic["messages_rejected_negative"],
+            "semantic_messages_eligible_for_embedding": semantic["messages_eligible_for_embedding"],
+            "semantic_messages_below_threshold": semantic["messages_below_threshold"],
+            "semantic_matches_selected": semantic["semantic_matches_selected"],
+            "semantic_detector_calls_avoided": semantic["detector_calls_avoided"],
+            "semantic_candidates_created": self.semantic_candidates_created,
         }
 
 
@@ -402,6 +427,7 @@ async def _select_trigger_candidates(
     messages: list[DetectionMessage],
     runtime_settings: Settings,
     semantic_selector: SemanticSelector,
+    semantic_observability: SemanticSelectionStats | None = None,
 ) -> list[TriggerCandidate]:
     if not messages:
         return []
@@ -412,7 +438,13 @@ async def _select_trigger_candidates(
             topic=topic,
             messages=messages,
             settings=runtime_settings,
+            observability=semantic_observability,
         )
+        if semantic_matches and semantic_observability is not None:
+            semantic_observability.semantic_matches_selected = max(
+                semantic_observability.semantic_matches_selected,
+                len(semantic_matches),
+            )
         if semantic_matches:
             return [
                 TriggerCandidate(

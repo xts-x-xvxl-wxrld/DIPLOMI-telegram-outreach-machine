@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import math
 import re
 import uuid
@@ -27,6 +28,7 @@ SIMILARITY_ROUND_PLACES = 6
 PREFERRED_AGE_MINUTES_MIN = 15
 PREFERRED_AGE_MINUTES_MAX = 60
 PHONE_RE = re.compile(r"(?<!\w)(?:\+?\d[\d\s().-]{7,}\d)(?!\w)")
+LOGGER = logging.getLogger(__name__)
 
 
 class SupportsMessageEmbedding(Protocol):
@@ -57,6 +59,47 @@ class PreparedMessageEmbedding:
     normalized_text: str
     source_text_hash: str
     cache_key: str
+
+
+@dataclass
+class SemanticSelectionStats:
+    topic_embedding_cache_hits: int = 0
+    topic_embedding_cache_misses: int = 0
+    topic_embeddings_created: int = 0
+    message_embedding_cache_hits: int = 0
+    message_embedding_cache_misses: int = 0
+    message_embeddings_created: int = 0
+    messages_considered: int = 0
+    messages_rejected_empty_text: int = 0
+    messages_rejected_negative: int = 0
+    messages_eligible_for_embedding: int = 0
+    messages_below_threshold: int = 0
+    semantic_matches_selected: int = 0
+
+    @property
+    def detector_calls_avoided(self) -> int:
+        return (
+            self.messages_rejected_empty_text
+            + self.messages_rejected_negative
+            + self.messages_below_threshold
+        )
+
+    def to_dict(self) -> dict[str, int]:
+        return {
+            "topic_embedding_cache_hits": self.topic_embedding_cache_hits,
+            "topic_embedding_cache_misses": self.topic_embedding_cache_misses,
+            "topic_embeddings_created": self.topic_embeddings_created,
+            "message_embedding_cache_hits": self.message_embedding_cache_hits,
+            "message_embedding_cache_misses": self.message_embedding_cache_misses,
+            "message_embeddings_created": self.message_embeddings_created,
+            "messages_considered": self.messages_considered,
+            "messages_rejected_empty_text": self.messages_rejected_empty_text,
+            "messages_rejected_negative": self.messages_rejected_negative,
+            "messages_eligible_for_embedding": self.messages_eligible_for_embedding,
+            "messages_below_threshold": self.messages_below_threshold,
+            "semantic_matches_selected": self.semantic_matches_selected,
+            "detector_calls_avoided": self.detector_calls_avoided,
+        }
 
 
 def normalize_embedding_text(value: str) -> str:
@@ -134,6 +177,7 @@ async def get_or_create_topic_embedding(
     model: str,
     dimensions: int,
     embed_texts_fn: EmbeddingProvider = request_embeddings,
+    observability: SemanticSelectionStats | None = None,
 ) -> list[float]:
     profile_text = build_topic_profile_text(topic)
     if not profile_text:
@@ -148,8 +192,12 @@ async def get_or_create_topic_embedding(
         profile_text_hash=profile_text_hash,
     )
     if cached is not None:
+        if observability is not None:
+            observability.topic_embedding_cache_hits += 1
         return _validate_embedding_vector(cached.embedding, dimensions=dimensions, label="topic embedding cache")
 
+    if observability is not None:
+        observability.topic_embedding_cache_misses += 1
     vectors = await _embed_texts_batched(
         [profile_text],
         model=model,
@@ -167,6 +215,8 @@ async def get_or_create_topic_embedding(
         created_at=_utcnow(),
     )
     db.add(row)
+    if observability is not None:
+        observability.topic_embeddings_created += 1
     await db.flush()
     return vector
 
@@ -180,6 +230,7 @@ async def get_or_create_message_embeddings(
     dimensions: int,
     retention_days: int,
     embed_texts_fn: EmbeddingProvider = request_embeddings,
+    observability: SemanticSelectionStats | None = None,
 ) -> dict[str, list[float]]:
     if retention_days <= 0:
         raise EngagementEmbeddingError("Message embedding retention_days must be positive")
@@ -208,12 +259,16 @@ async def get_or_create_message_embeddings(
             dimensions=dimensions,
         )
         if cached is not None and _ensure_aware_utc(cached.expires_at) > now:
+            if observability is not None:
+                observability.message_embedding_cache_hits += 1
             vectors_by_key[item.cache_key] = _validate_embedding_vector(
                 cached.embedding,
                 dimensions=dimensions,
                 label="message embedding cache",
             )
             continue
+        if observability is not None:
+            observability.message_embedding_cache_misses += 1
         missing_by_text.setdefault(item.normalized_text, []).append(item)
 
     if missing_by_text:
@@ -243,6 +298,8 @@ async def get_or_create_message_embeddings(
                     created_at=now,
                 )
                 db.add(row)
+                if observability is not None:
+                    observability.message_embeddings_created += 1
                 vectors_by_key[item.cache_key] = validated
         await db.flush()
 
@@ -271,7 +328,9 @@ async def select_semantic_trigger_messages(
     settings: object,
     now: datetime | None = None,
     embed_texts_fn: EmbeddingProvider = request_embeddings,
+    observability: SemanticSelectionStats | None = None,
 ) -> list[SemanticTriggerMatch]:
+    stats = observability or SemanticSelectionStats()
     threshold = float(getattr(settings, "engagement_semantic_match_threshold"))
     max_matches = max(int(getattr(settings, "engagement_max_semantic_matches_per_topic")), 0)
     max_messages = max(int(getattr(settings, "engagement_max_embedding_messages_per_run")), 0)
@@ -280,15 +339,22 @@ async def select_semantic_trigger_messages(
     retention_days = int(getattr(settings, "engagement_message_embedding_retention_days"))
 
     if max_matches == 0 or max_messages == 0:
+        _log_semantic_selection(community_id=community_id, topic_id=topic.id, stats=stats)
         return []
 
-    eligible_messages = [
-        message
-        for message in list(messages)[:max_messages]
-        if build_message_embedding_text(message)
-        and not _message_matches_negative_keyword(topic, message)
-    ]
+    eligible_messages: list[SupportsMessageEmbedding] = []
+    for message in list(messages)[:max_messages]:
+        stats.messages_considered += 1
+        if not build_message_embedding_text(message):
+            stats.messages_rejected_empty_text += 1
+            continue
+        if _message_matches_negative_keyword(topic, message):
+            stats.messages_rejected_negative += 1
+            continue
+        eligible_messages.append(message)
+    stats.messages_eligible_for_embedding = len(eligible_messages)
     if not eligible_messages:
+        _log_semantic_selection(community_id=community_id, topic_id=topic.id, stats=stats)
         return []
 
     topic_embedding = await get_or_create_topic_embedding(
@@ -297,6 +363,7 @@ async def select_semantic_trigger_messages(
         model=model,
         dimensions=dimensions,
         embed_texts_fn=embed_texts_fn,
+        observability=stats,
     )
     message_embeddings = await get_or_create_message_embeddings(
         db,
@@ -306,6 +373,7 @@ async def select_semantic_trigger_messages(
         dimensions=dimensions,
         retention_days=retention_days,
         embed_texts_fn=embed_texts_fn,
+        observability=stats,
     )
     effective_now = _ensure_aware_utc(now) if now is not None else _utcnow()
 
@@ -324,6 +392,7 @@ async def select_semantic_trigger_messages(
             continue
         similarity = cosine_similarity(topic_embedding, vector)
         if similarity < threshold:
+            stats.messages_below_threshold += 1
             continue
         matches.append(
             SemanticTriggerMatch(
@@ -339,6 +408,8 @@ async def select_semantic_trigger_messages(
 
     matches.sort(key=lambda item: _semantic_match_sort_key(item, now=effective_now))
     ranked = matches[:max_matches]
+    stats.semantic_matches_selected = len(ranked)
+    _log_semantic_selection(community_id=community_id, topic_id=topic.id, stats=stats)
     return [replace(match, rank=index) for index, match in enumerate(ranked, start=1)]
 
 
@@ -354,6 +425,22 @@ async def delete_expired_message_embeddings(
         )
     )
     return int(result.rowcount or 0)
+
+
+def _log_semantic_selection(
+    *,
+    community_id: object,
+    topic_id: object,
+    stats: SemanticSelectionStats,
+) -> None:
+    LOGGER.info(
+        "engagement.semantic_selector",
+        extra={
+            "community_id": str(community_id),
+            "topic_id": str(topic_id),
+            "semantic_matching": stats.to_dict(),
+        },
+    )
 
 
 async def _load_topic_embedding_row(

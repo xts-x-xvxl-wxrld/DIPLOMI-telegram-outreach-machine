@@ -765,3 +765,10 @@ before semantic scoring, sends selected semantic trigger posts into the existing
 keyword fallback for keyword-backed topics during rollout, caps detector calls per community run,
 and stores compact semantic-match metadata with reply opportunities. Added detector tests for the
 semantic path, no-match skips, keyword fallback, and detector-call caps.
+
+## [2026-04-21] code | Added semantic matching observability fixtures
+
+Added aggregate semantic selector and detector observability for cache hits/misses, created
+embedding rows, deterministic rejections, below-threshold skips, selected semantic matches, avoided
+detector calls, and semantic-created reply opportunities. Added structured selector/detector log
+records and a sanitized JSONL evaluation fixture with validation tests for threshold tuning.
