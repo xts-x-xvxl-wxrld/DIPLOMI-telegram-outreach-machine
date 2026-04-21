@@ -878,3 +878,11 @@ Completed Search Rebuild Implementation Slice 0. Replaced the blocking open-cont
 normalization, ranking, caps, API boundaries, queue jobs, graph-expansion gating, and bot-first
 operator controls. Updated database, API, queue, bot, and plan docs so Slice 1 can start from a
 locked core search schema.
+
+## [2026-04-21] code | Added query-driven search core schema
+
+Completed Search Rebuild Implementation Slice 1. Added search enums, SQLAlchemy models, Pydantic
+schemas, and Alembic migration `20260421_0011_search_schema.py` for search runs, planner queries,
+run-scoped candidates, compact evidence, and review audit rows. Focused schema coverage validates
+defaults, uniqueness, nullable unresolved candidates, foreign keys, and PostgreSQL DDL compilation;
+the full test suite passed with 399 tests.

@@ -106,6 +106,8 @@
 - `alembic/versions/20260420_0008_engagement_admin_control_plane.py` - prompt profiles, style rules, prompt provenance, and reply revision migration
 - `alembic/versions/20260420_0009_telegram_account_pools.py` - Telegram account pool separation migration
 - `alembic/versions/20260421_0010_engagement_embeddings.py` - topic/message embedding cache migration for semantic engagement matching
+- `alembic/versions/20260421_0011_search_schema.py` - query-driven search runs, queries, candidates, evidence, and review schema
+- `tests/test_search_schema.py` - search enum, model default, uniqueness, nullable candidate, foreign key, DDL, and schema validation tests
 - `tests/test_engagement_embeddings.py` - embedding cache reuse, dimension validation, selector ordering, and cleanup tests
 - `tests/test_engagement_semantic_eval_fixtures.py` - sanitized semantic matching evaluation fixture contract tests
 - `tests/fixtures/engagement_semantic_eval.jsonl` - synthetic sanitized semantic matching threshold evaluation examples

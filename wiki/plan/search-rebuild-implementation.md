@@ -386,3 +386,17 @@ Completed the implementation contract for the first query-driven search slices:
 - added first bot search commands and review behavior to `wiki/spec/bot.md`
 
 Next slice: Slice 1 Core Search Schema.
+
+### 2026-04-21 - Slice 1 Core Search Schema
+
+Implemented the durable schema foundation for query-driven search:
+
+- added search enums for adapters, statuses, evidence types, review actions, and review scopes
+- added SQLAlchemy models for `search_runs`, `search_queries`, `search_candidates`,
+  `search_candidate_evidence`, and `search_reviews`
+- added Alembic migration `20260421_0011_search_schema.py`
+- added Pydantic search request/response schemas for the upcoming API skeleton
+- added focused schema tests for defaults, partial uniqueness, nullable unresolved candidates,
+  foreign keys, PostgreSQL DDL compilation, and create-request validation
+
+Next slice: Slice 2 API Skeleton.

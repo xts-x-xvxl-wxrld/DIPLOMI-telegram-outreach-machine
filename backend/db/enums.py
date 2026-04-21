@@ -42,6 +42,63 @@ class TelegramEntityType(StrEnum):
     BOT = "bot"
 
 
+class SearchAdapter(StrEnum):
+    TELEGRAM_ENTITY_SEARCH = "telegram_entity_search"
+
+
+class SearchRunStatus(StrEnum):
+    DRAFT = "draft"
+    PLANNING = "planning"
+    RETRIEVING = "retrieving"
+    RANKING = "ranking"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class SearchQueryStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+class SearchCandidateStatus(StrEnum):
+    CANDIDATE = "candidate"
+    PROMOTED = "promoted"
+    REJECTED = "rejected"
+    ARCHIVED = "archived"
+    CONVERTED_TO_SEED = "converted_to_seed"
+
+
+class SearchReviewAction(StrEnum):
+    PROMOTE = "promote"
+    REJECT = "reject"
+    ARCHIVE = "archive"
+    GLOBAL_REJECT = "global_reject"
+    CONVERT_TO_SEED = "convert_to_seed"
+
+
+class SearchReviewScope(StrEnum):
+    RUN = "run"
+    GLOBAL = "global"
+
+
+class SearchEvidenceType(StrEnum):
+    ENTITY_TITLE_MATCH = "entity_title_match"
+    ENTITY_USERNAME_MATCH = "entity_username_match"
+    DESCRIPTION_MATCH = "description_match"
+    HANDLE_RESOLUTION = "handle_resolution"
+    MANUAL_SEED = "manual_seed"
+    LINKED_DISCUSSION = "linked_discussion"
+    FORWARD_SOURCE = "forward_source"
+    TELEGRAM_LINK = "telegram_link"
+    MENTION = "mention"
+    POST_TEXT_MATCH = "post_text_match"
+    WEB_RESULT = "web_result"
+
+
 class CollectionRunStatus(StrEnum):
     RUNNING = "running"
     COMPLETED = "completed"
