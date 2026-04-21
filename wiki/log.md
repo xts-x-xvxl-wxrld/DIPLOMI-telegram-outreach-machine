@@ -815,3 +815,17 @@ guided topic-guidance editing, scoped style-rule lists, style-rule detail, style
 guided/toggle style-rule admin flows. Topic cards now clearly separate good examples from bad
 examples and mark bad examples as avoid-copy guidance, and focused bot/API tests cover the new
 controls.
+
+## [2026-04-21] code | Added advanced community settings bot controls
+
+Completed Bot Engagement Controls Slice 8. The Telegram bot now exposes
+`/set_engagement_limits`, `/set_engagement_quiet_hours`,
+`/clear_engagement_quiet_hours`, `/assign_engagement_account`, and
+`/clear_engagement_account`, all implemented through the existing
+community engagement-settings API while preserving
+`reply_only=true` and `require_approval=true`. Settings cards now show
+direct command hints for limits, quiet hours, and account assignment, and
+assigned accounts render with masked-phone labels from
+`GET /api/debug/accounts` when available. Focused bot handler and
+formatting tests cover parsing, preserved safety fields, clearing flows,
+and masked account display.

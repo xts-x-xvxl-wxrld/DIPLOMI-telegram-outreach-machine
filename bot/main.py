@@ -820,6 +820,153 @@ async def detect_engagement_command(update: Any, context: Any) -> None:
         await _reply(update, format_api_error(exc.message))
 
 
+async def set_engagement_limits_command(update: Any, context: Any) -> None:
+    if len(context.args) < 3:
+        await _reply(
+            update,
+            "Usage: /set_engagement_limits <community_id> <max_posts_per_day> <min_minutes_between_posts>",
+        )
+        return
+
+    community_id = str(context.args[0]).strip()
+    if not community_id:
+        await _reply(
+            update,
+            "Usage: /set_engagement_limits <community_id> <max_posts_per_day> <min_minutes_between_posts>",
+        )
+        return
+
+    ok_max_posts, max_posts_or_error = _parse_settings_value("max_posts_per_day", str(context.args[1]))
+    if not ok_max_posts:
+        await _reply(update, str(max_posts_or_error))
+        return
+    ok_min_minutes, min_minutes_or_error = _parse_settings_value(
+        "min_minutes_between_posts",
+        str(context.args[2]),
+    )
+    if not ok_min_minutes:
+        await _reply(update, str(min_minutes_or_error))
+        return
+
+    try:
+        await _update_engagement_settings_from_current(
+            update,
+            context,
+            community_id,
+            max_posts_per_day=max_posts_or_error,
+            min_minutes_between_posts=min_minutes_or_error,
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def set_engagement_quiet_hours_command(update: Any, context: Any) -> None:
+    if len(context.args) < 3:
+        await _reply(
+            update,
+            "Usage: /set_engagement_quiet_hours <community_id> <HH:MM> <HH:MM>",
+        )
+        return
+
+    community_id = str(context.args[0]).strip()
+    if not community_id:
+        await _reply(
+            update,
+            "Usage: /set_engagement_quiet_hours <community_id> <HH:MM> <HH:MM>",
+        )
+        return
+
+    ok_start, start_or_error = _parse_settings_value("quiet_hours_start", str(context.args[1]))
+    if not ok_start:
+        await _reply(update, str(start_or_error))
+        return
+    ok_end, end_or_error = _parse_settings_value("quiet_hours_end", str(context.args[2]))
+    if not ok_end:
+        await _reply(update, str(end_or_error))
+        return
+
+    try:
+        await _update_engagement_settings_from_current(
+            update,
+            context,
+            community_id,
+            quiet_hours_start=start_or_error,
+            quiet_hours_end=end_or_error,
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def clear_engagement_quiet_hours_command(update: Any, context: Any) -> None:
+    community_id = _first_arg(context)
+    if community_id is None:
+        await _reply(update, "Usage: /clear_engagement_quiet_hours <community_id>")
+        return
+
+    try:
+        await _update_engagement_settings_from_current(
+            update,
+            context,
+            community_id,
+            quiet_hours_start=None,
+            quiet_hours_end=None,
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def assign_engagement_account_command(update: Any, context: Any) -> None:
+    if len(context.args) < 2:
+        await _reply(
+            update,
+            "Usage: /assign_engagement_account <community_id> <telegram_account_id>",
+        )
+        return
+
+    community_id = str(context.args[0]).strip()
+    if not community_id:
+        await _reply(
+            update,
+            "Usage: /assign_engagement_account <community_id> <telegram_account_id>",
+        )
+        return
+
+    ok_account, account_id_or_error = _parse_settings_value(
+        "assigned_account_id",
+        str(context.args[1]),
+    )
+    if not ok_account:
+        await _reply(update, str(account_id_or_error))
+        return
+
+    try:
+        await _update_engagement_settings_from_current(
+            update,
+            context,
+            community_id,
+            assigned_account_id=account_id_or_error,
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def clear_engagement_account_command(update: Any, context: Any) -> None:
+    community_id = _first_arg(context)
+    if community_id is None:
+        await _reply(update, "Usage: /clear_engagement_account <community_id>")
+        return
+
+    try:
+        await _update_engagement_settings_from_current(
+            update,
+            context,
+            community_id,
+            assigned_account_id=None,
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
 async def engagement_actions_command(update: Any, context: Any) -> None:
     community_id = _first_arg(context)
     try:
@@ -2362,11 +2509,7 @@ async def _retry_engagement_candidate(
 async def _send_engagement_settings(update: Any, context: Any, community_id: str) -> None:
     client = _api_client(context)
     data = await client.get_engagement_settings(community_id)
-    await _callback_reply(
-        update,
-        format_engagement_settings(data),
-        reply_markup=_engagement_settings_markup(community_id, data),
-    )
+    await _reply_with_engagement_settings(update, context, community_id, data)
 
 
 async def _apply_engagement_preset(
@@ -2382,12 +2525,13 @@ async def _apply_engagement_preset(
         community_id,
         **_engagement_preset_payload(preset),
     )
-    message = format_engagement_settings(data)
-    reply_markup = _engagement_settings_markup(community_id, data)
-    if edit_callback:
-        await _edit_callback_message(update, message, reply_markup=reply_markup)
-        return
-    await _reply(update, message, reply_markup=reply_markup)
+    await _reply_with_engagement_settings(
+        update,
+        context,
+        community_id,
+        data,
+        edit_callback=edit_callback,
+    )
 
 
 async def _toggle_engagement_setting(
@@ -2399,16 +2543,80 @@ async def _toggle_engagement_setting(
     value: bool,
     edit_callback: bool = False,
 ) -> None:
+    await _update_engagement_settings_from_current(
+        update,
+        context,
+        community_id,
+        edit_callback=edit_callback,
+        **{field: value},
+    )
+
+
+async def _update_engagement_settings_from_current(
+    update: Any,
+    context: Any,
+    community_id: str,
+    *,
+    edit_callback: bool = False,
+    **updates: Any,
+) -> None:
     client = _api_client(context)
     current = await client.get_engagement_settings(community_id)
-    payload = _engagement_settings_payload_from_current(current, **{field: value})
+    payload = _engagement_settings_payload_from_current(current, **updates)
     data = await client.update_engagement_settings(community_id, **payload)
-    message = format_engagement_settings(data)
+    await _reply_with_engagement_settings(
+        update,
+        context,
+        community_id,
+        data,
+        edit_callback=edit_callback,
+    )
+
+
+async def _reply_with_engagement_settings(
+    update: Any,
+    context: Any,
+    community_id: str,
+    data: dict[str, Any],
+    *,
+    edit_callback: bool = False,
+) -> None:
+    message = await _format_engagement_settings_message(context, data)
     reply_markup = _engagement_settings_markup(community_id, data)
     if edit_callback:
         await _edit_callback_message(update, message, reply_markup=reply_markup)
         return
-    await _reply(update, message, reply_markup=reply_markup)
+    await _callback_reply(update, message, reply_markup=reply_markup)
+
+
+async def _format_engagement_settings_message(context: Any, data: dict[str, Any]) -> str:
+    assigned_account_label: str | None = None
+    assigned_account_id = data.get("assigned_account_id")
+    if assigned_account_id:
+        assigned_account_label = await _lookup_masked_account_label(
+            _api_client(context),
+            str(assigned_account_id),
+        )
+    return format_engagement_settings(data, assigned_account_label=assigned_account_label)
+
+
+async def _lookup_masked_account_label(client: BotApiClient, account_id: str) -> str | None:
+    try:
+        accounts = await client.get_accounts()
+    except BotApiError:
+        return None
+
+    for item in accounts.get("items") or []:
+        if str(item.get("id") or "") != account_id:
+            continue
+        masked_phone = str(item.get("phone") or "").strip()
+        if masked_phone:
+            return f"{account_id} | {masked_phone}"
+        status = str(item.get("status") or "").strip()
+        if status:
+            return f"{account_id} | {status}"
+        return account_id
+    return account_id
 
 
 async def _start_engagement_join(update: Any, context: Any, community_id: str) -> None:
@@ -2760,6 +2968,11 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("toggle_style_rule", toggle_style_rule_command))
     application.add_handler(CommandHandler("engagement_settings", engagement_settings_command))
     application.add_handler(CommandHandler("set_engagement", set_engagement_command))
+    application.add_handler(CommandHandler("set_engagement_limits", set_engagement_limits_command))
+    application.add_handler(CommandHandler("set_engagement_quiet_hours", set_engagement_quiet_hours_command))
+    application.add_handler(CommandHandler("clear_engagement_quiet_hours", clear_engagement_quiet_hours_command))
+    application.add_handler(CommandHandler("assign_engagement_account", assign_engagement_account_command))
+    application.add_handler(CommandHandler("clear_engagement_account", clear_engagement_account_command))
     application.add_handler(CommandHandler("join_community", join_community_command))
     application.add_handler(CommandHandler("detect_engagement", detect_engagement_command))
     application.add_handler(CommandHandler("engagement_actions", engagement_actions_command))
@@ -2991,6 +3204,13 @@ def _first_arg(context: Any) -> str | None:
         return None
     value = context.args[0].strip()
     return value or None
+
+
+def _parse_settings_value(field_name: str, raw_value: str) -> tuple[bool, Any | str]:
+    field = editable_field("settings", field_name)
+    if field is None:
+        return False, "That settings field is not editable from the bot."
+    return parse_edit_value(field, raw_value)
 
 
 def _normalize_prompt_profile_edit_field(value: str) -> str | None:

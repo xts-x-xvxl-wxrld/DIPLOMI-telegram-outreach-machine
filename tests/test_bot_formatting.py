@@ -351,7 +351,9 @@ def test_format_engagement_settings_shows_safe_controls() -> None:
             "min_minutes_between_posts": 240,
             "quiet_hours_start": "22:00:00",
             "quiet_hours_end": "07:00:00",
-        }
+            "assigned_account_id": "account-1",
+        },
+        assigned_account_label="account-1 | +123*****89",
     )
 
     assert "Mode: suggest" in message
@@ -359,6 +361,11 @@ def test_format_engagement_settings_shows_safe_controls() -> None:
     assert "Join allowed: no" in message
     assert "Reply only: yes" in message
     assert "/set_engagement community-1" in message
+    assert "/set_engagement_limits community-1" in message
+    assert "/set_engagement_quiet_hours community-1 <HH:MM> <HH:MM>" in message
+    assert "/assign_engagement_account community-1 <telegram_account_id>" in message
+    assert "Quiet hours: 22:00-07:00" in message
+    assert "Assigned account: account-1 | +123*****89" in message
     assert "phone" not in message.lower()
 
 

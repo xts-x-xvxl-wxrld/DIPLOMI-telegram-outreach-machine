@@ -366,6 +366,15 @@ The current main engagement menu exposes:
 - Community settings cards with readiness summaries before raw mode, permission, and rate-limit
   fields.
 - `/set_engagement <community_id> <off|observe|suggest|ready>`.
+- `/set_engagement_limits <community_id> <max_posts_per_day> <min_minutes_between_posts>`.
+- `/set_engagement_quiet_hours <community_id> <HH:MM> <HH:MM>`.
+- `/clear_engagement_quiet_hours <community_id>`.
+- `/assign_engagement_account <community_id> <telegram_account_id>`.
+- `/clear_engagement_account <community_id>`.
+- Community settings cards now show direct command hints for limits, quiet hours, account
+  assignment, join, and manual detection.
+- Assigned engagement accounts render as account IDs plus masked-phone labels from
+  `/api/debug/accounts` when available.
 - `/join_community <community_id>`.
 - `/detect_engagement <community_id> [window_minutes]`.
 - `/engagement_topics`, `/engagement_topic <topic_id>`, topic creation, topic active-state toggles,
@@ -423,12 +432,6 @@ The current main engagement menu exposes:
 
 ### Missing From Community Controls
 
-- Rate-limit command:
-  `/set_engagement_limits <community_id> <max_posts_per_day> <min_minutes_between_posts>`.
-- Quiet-hours command: `/set_engagement_quiet_hours <community_id> <HH:MM> <HH:MM>`.
-- Clear quiet-hours command: `/clear_engagement_quiet_hours <community_id>`.
-- Assigned-account command: `/assign_engagement_account <community_id> <telegram_account_id>`.
-- Clear assigned-account command: `/clear_engagement_account <community_id>`.
 - Inline community controls for rate limits, quiet hours, and account assignment.
 
 ### Missing Cross-Cutting UX
@@ -447,10 +450,10 @@ The current main engagement menu exposes:
 
 The next implementation slice should prioritize:
 
-- Add candidate detail/open views and wire the existing guided edit foundation into candidate
-  detail cards.
-- Add candidate revision, expire, and retry commands when the backend routes are available.
-- Keep send buttons limited to approved candidates and terminal candidates read-only.
+- Add the admin permission boundary so prompt, style, target-approval, posting-permission, and
+  advanced community-setting mutations can be hidden or rejected early for non-admin operators.
+- Keep daily candidate review available for ordinary operators only where the backend explicitly
+  permits it.
 
 ## Implementation Slice Contracts
 
@@ -775,15 +778,10 @@ Required commands:
 /clear_engagement_account <community_id>
 ```
 
-Required inline controls:
+Deferred inline follow-up:
 
-- Open limits/accounts from community settings.
-- Edit max posts per day.
-- Edit minimum minutes between posts.
-- Set quiet hours.
-- Clear quiet hours.
-- Assign engagement account.
-- Clear assigned account.
+- Button-led community controls for rate limits, quiet hours, and account assignment remain future
+  work. The current slice ships slash-command entrypoints plus richer settings cards.
 
 Rules:
 

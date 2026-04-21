@@ -71,6 +71,11 @@ Engagement commands are optional and operator-controlled:
 /edit_topic_guidance <topic_id>
 /engagement_settings <community_id>
 /set_engagement <community_id> <off|observe|suggest|ready>
+/set_engagement_limits <community_id> <max_posts_per_day> <min_minutes_between_posts>
+/set_engagement_quiet_hours <community_id> <HH:MM> <HH:MM>
+/clear_engagement_quiet_hours <community_id>
+/assign_engagement_account <community_id> <telegram_account_id>
+/clear_engagement_account <community_id>
 /join_community <community_id>
 /detect_engagement <community_id> [window_minutes]
 /engagement_candidates [status]
@@ -471,7 +476,7 @@ Starts the shared guided config-edit flow for topic guidance.
 Calls `GET /api/communities/{community_id}/engagement-settings`.
 
 The bot should show mode, join/post flags, reply-only and approval requirements, rate limits, quiet
-hours when configured, and assigned account ID when configured.
+hours when configured, and the assigned engagement account as an ID or masked non-secret label.
 
 ### `/set_engagement <community_id> <off|observe|suggest|ready>`
 
@@ -484,6 +489,31 @@ Preset meanings:
 - `suggest` - draft candidates for review, no joins or posts.
 - `ready` - allow joins and approved public replies while preserving `reply_only=true` and
   `require_approval=true`.
+
+### `/set_engagement_limits <community_id> <max_posts_per_day> <min_minutes_between_posts>`
+
+Reads the current community settings, replaces the two rate-limit fields, preserves
+`reply_only=true` and `require_approval=true`, and updates the full settings payload through
+`PUT /api/communities/{community_id}/engagement-settings`.
+
+### `/set_engagement_quiet_hours <community_id> <HH:MM> <HH:MM>`
+
+Reads the current community settings, validates simple `HH:MM` input in the bot, and updates quiet
+hours through `PUT /api/communities/{community_id}/engagement-settings`.
+
+### `/clear_engagement_quiet_hours <community_id>`
+
+Clears both quiet-hour fields while preserving the rest of the current settings payload.
+
+### `/assign_engagement_account <community_id> <telegram_account_id>`
+
+Reads the current community settings, updates the assigned engagement account, and renders the
+result using the account ID plus a masked label from `GET /api/debug/accounts` when available. The
+API remains the source of truth for wrong-pool and invalid-account rejection.
+
+### `/clear_engagement_account <community_id>`
+
+Clears the assigned engagement account while preserving the rest of the current settings payload.
 
 ### `/join_community <community_id>`
 

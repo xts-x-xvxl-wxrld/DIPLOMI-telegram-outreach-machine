@@ -11,7 +11,10 @@ from bot.main import (
     add_engagement_target_command,
     archive_engagement_target_command,
     activate_engagement_prompt_command,
+    assign_engagement_account_command,
     callback_query,
+    clear_engagement_account_command,
+    clear_engagement_quiet_hours_command,
     create_style_rule_command,
     create_engagement_topic_command,
     detect_engagement_command,
@@ -44,6 +47,8 @@ from bot.main import (
     send_reply_command,
     candidate_revisions_command,
     approve_reply_command,
+    set_engagement_limits_command,
+    set_engagement_quiet_hours_command,
     toggle_style_rule_command,
     target_detect_command,
     target_join_command,
@@ -123,6 +128,7 @@ class _FakeApiClient:
         self.detect_calls: list[dict[str, Any]] = []
         self.action_calls: list[dict[str, Any]] = []
         self.rollout_calls: list[dict[str, Any]] = []
+        self.accounts_calls = 0
         self.settings = {
             "community_id": "community-1",
             "mode": "disabled",
@@ -137,6 +143,16 @@ class _FakeApiClient:
             "assigned_account_id": None,
             "created_at": None,
             "updated_at": None,
+        }
+        self.accounts = {
+            "counts": {"available": 1, "in_use": 0, "rate_limited": 0, "banned": 0},
+            "items": [
+                {
+                    "id": "12345678-1234-1234-1234-123456789abc",
+                    "phone": "+123*****89",
+                    "status": "available",
+                }
+            ],
         }
         self.actions = [
             {
@@ -796,6 +812,10 @@ class _FakeApiClient:
         self.settings = {**self.settings, **updates, "community_id": community_id}
         return self.settings
 
+    async def get_accounts(self) -> dict[str, Any]:
+        self.accounts_calls += 1
+        return self.accounts
+
     async def start_community_join(
         self,
         community_id: str,
@@ -1372,6 +1392,146 @@ async def test_settings_join_toggle_callback_reads_then_patches_setting() -> Non
     assert client.update_settings_calls[0]["updates"]["allow_join"] is True
     assert client.update_settings_calls[0]["updates"]["reply_only"] is True
     assert "Join allowed: yes" in update.callback_query.edits[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_set_engagement_limits_command_preserves_safe_fields() -> None:
+    client = _FakeApiClient()
+    client.settings = {
+        **client.settings,
+        "mode": "require_approval",
+        "allow_join": True,
+        "allow_post": True,
+    }
+    update = _message_update()
+
+    await set_engagement_limits_command(update, _context(client, "community-1", "2", "180"))
+
+    assert client.get_settings_calls == ["community-1"]
+    assert client.update_settings_calls == [
+        {
+            "community_id": "community-1",
+            "updates": {
+                "mode": "require_approval",
+                "allow_join": True,
+                "allow_post": True,
+                "reply_only": True,
+                "require_approval": True,
+                "max_posts_per_day": 2,
+                "min_minutes_between_posts": 180,
+                "quiet_hours_start": None,
+                "quiet_hours_end": None,
+                "assigned_account_id": None,
+            },
+        }
+    ]
+    assert "Rate limit: 2 per day, 180 minutes apart" in update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_set_engagement_quiet_hours_command_validates_time_before_api_call() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await set_engagement_quiet_hours_command(update, _context(client, "community-1", "25:00", "07:00"))
+
+    assert client.get_settings_calls == []
+    assert client.update_settings_calls == []
+    assert update.message.replies[0]["text"] == "Quiet hours start must use HH:MM time."
+
+
+@pytest.mark.asyncio
+async def test_clear_engagement_quiet_hours_command_clears_both_values() -> None:
+    client = _FakeApiClient()
+    client.settings = {
+        **client.settings,
+        "quiet_hours_start": "22:00",
+        "quiet_hours_end": "07:00",
+    }
+    update = _message_update()
+
+    await clear_engagement_quiet_hours_command(update, _context(client, "community-1"))
+
+    assert client.update_settings_calls == [
+        {
+            "community_id": "community-1",
+            "updates": {
+                "mode": "disabled",
+                "allow_join": False,
+                "allow_post": False,
+                "reply_only": True,
+                "require_approval": True,
+                "max_posts_per_day": 1,
+                "min_minutes_between_posts": 240,
+                "quiet_hours_start": None,
+                "quiet_hours_end": None,
+                "assigned_account_id": None,
+            },
+        }
+    ]
+    assert "Quiet hours: 22:00-07:00" not in update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_assign_engagement_account_command_uses_uuid_and_masked_label() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+    account_id = "12345678-1234-1234-1234-123456789abc"
+
+    await assign_engagement_account_command(update, _context(client, "community-1", account_id))
+
+    assert client.update_settings_calls == [
+        {
+            "community_id": "community-1",
+            "updates": {
+                "mode": "disabled",
+                "allow_join": False,
+                "allow_post": False,
+                "reply_only": True,
+                "require_approval": True,
+                "max_posts_per_day": 1,
+                "min_minutes_between_posts": 240,
+                "quiet_hours_start": None,
+                "quiet_hours_end": None,
+                "assigned_account_id": account_id,
+            },
+        }
+    ]
+    assert client.accounts_calls == 1
+    text = update.message.replies[0]["text"]
+    assert f"Assigned account: {account_id} | +123*****89" in text
+    assert "+123456789" not in text
+
+
+@pytest.mark.asyncio
+async def test_clear_engagement_account_command_removes_assignment() -> None:
+    client = _FakeApiClient()
+    client.settings = {
+        **client.settings,
+        "assigned_account_id": "12345678-1234-1234-1234-123456789abc",
+    }
+    update = _message_update()
+
+    await clear_engagement_account_command(update, _context(client, "community-1"))
+
+    assert client.update_settings_calls == [
+        {
+            "community_id": "community-1",
+            "updates": {
+                "mode": "disabled",
+                "allow_join": False,
+                "allow_post": False,
+                "reply_only": True,
+                "require_approval": True,
+                "max_posts_per_day": 1,
+                "min_minutes_between_posts": 240,
+                "quiet_hours_start": None,
+                "quiet_hours_end": None,
+                "assigned_account_id": None,
+            },
+        }
+    ]
+    assert "Assigned account:" not in update.message.replies[0]["text"]
 
 
 @pytest.mark.asyncio

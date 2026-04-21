@@ -544,9 +544,10 @@ def format_engagement_admin_limits_home() -> str:
     return "\n".join(
         [
             "Limits and accounts",
-            "Open a community first, then tune its posting limits and engagement account.",
+            "Open a community first, then tune its posting limits, quiet hours, and engagement account.",
             "",
             "Settings lookup: /engagement_settings <community_id>",
+            "Masked account lookup: /accounts",
             "Communities: /engagement_targets",
         ]
     )
@@ -781,7 +782,11 @@ def format_engagement_style_rule_card(item: dict[str, Any], *, index: int | None
     return "\n".join(lines)
 
 
-def format_engagement_settings(data: dict[str, Any]) -> str:
+def format_engagement_settings(
+    data: dict[str, Any],
+    *,
+    assigned_account_label: str | None = None,
+) -> str:
     community_id = data.get("community_id", "unknown")
     lines = [
         "Engagement settings",
@@ -802,15 +807,32 @@ def format_engagement_settings(data: dict[str, Any]) -> str:
     if data.get("quiet_hours_start") or data.get("quiet_hours_end"):
         lines.append(
             "Quiet hours: "
-            f"{data.get('quiet_hours_start') or '?'}-"
-            f"{data.get('quiet_hours_end') or '?'}"
+            f"{_format_time_value(data.get('quiet_hours_start'))}-"
+            f"{_format_time_value(data.get('quiet_hours_end'))}"
         )
     if data.get("assigned_account_id"):
-        lines.append(f"Assigned account ID: {data['assigned_account_id']}")
+        lines.append(
+            "Assigned account: "
+            f"{assigned_account_label or data['assigned_account_id']}"
+        )
     lines.extend(
         [
             "",
             f"Preset: /set_engagement {community_id} <off|observe|suggest|ready>",
+            (
+                "Limits: /set_engagement_limits "
+                f"{community_id} <max_posts_per_day> <min_minutes_between_posts>"
+            ),
+            (
+                "Quiet hours: /set_engagement_quiet_hours "
+                f"{community_id} <HH:MM> <HH:MM>"
+            ),
+            f"Clear quiet hours: /clear_engagement_quiet_hours {community_id}",
+            (
+                "Assign account: /assign_engagement_account "
+                f"{community_id} <telegram_account_id>"
+            ),
+            f"Clear account: /clear_engagement_account {community_id}",
             f"Join: /join_community {community_id}",
             f"Detect: /detect_engagement {community_id}",
         ]
@@ -1338,6 +1360,15 @@ def _shorten(value: str, limit: int) -> str:
 
 def _yes_no(value: Any) -> str:
     return "yes" if bool(value) else "no"
+
+
+def _format_time_value(value: Any) -> str:
+    if value is None:
+        return "?"
+    text = str(value).strip()
+    if len(text) >= 5 and text[2] == ":":
+        return text[:5]
+    return text or "?"
 
 
 def _percent(value: Any) -> str:

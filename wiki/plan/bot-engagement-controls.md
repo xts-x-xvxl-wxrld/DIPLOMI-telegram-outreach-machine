@@ -341,7 +341,7 @@ Completed:
 
 ## Slice 8: Advanced Community Settings
 
-Status: planned.
+Status: completed on 2026-04-21.
 
 Add bot support for:
 
@@ -364,6 +364,23 @@ Acceptance:
 - Updates preserve `reply_only=true` and `require_approval=true`.
 - Backend rejects out-of-range limits and wrong-pool accounts.
 - Bot never shows full account phone numbers.
+
+Completed:
+
+- Added `/set_engagement_limits`, `/set_engagement_quiet_hours`,
+  `/clear_engagement_quiet_hours`, `/assign_engagement_account`, and
+  `/clear_engagement_account` bot commands.
+- Community-settings updates now reuse the shared "read current settings,
+  merge changes, preserve hard safety fields" helper path instead of
+  rebuilding payloads ad hoc in each command.
+- Quiet-hour command parsing now rejects malformed `HH:MM` values before
+  making API calls, while numeric bounds still defer to backend validation.
+- Settings cards now include direct command hints for limits, quiet hours,
+  and account assignment, and assigned accounts render with masked-phone
+  labels from `/api/debug/accounts` when available.
+- Added focused handler and formatting tests covering preserved safety
+  fields, quiet-hour validation, assignment clearing, and masked account
+  display.
 
 ## Slice 9: Admin Permission Boundary
 
