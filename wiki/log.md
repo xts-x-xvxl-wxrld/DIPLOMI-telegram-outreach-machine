@@ -839,3 +839,11 @@ rejects protected prompt/style/topic/target/community-setting mutations
 before calling the API. Daily candidate review remains available to
 ordinary allowlisted operators, and focused bot access, UI, config, and
 handler tests cover the new boundary.
+
+## [2026-04-21] spec | Recorded search rebuild contract gaps
+
+Expanded `wiki/spec/search-rebuild.md` with implementation-readiness gaps for the future search
+rebuild. The spec now calls out unresolved database, search-run, query-planning, adapter,
+normalization, evidence, ranking, review, seed-conversion, API, queue, graph-expansion, and UI
+contracts that should be settled before rewriting existing discovery code around the new search
+model.

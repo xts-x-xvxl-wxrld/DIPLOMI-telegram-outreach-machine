@@ -300,6 +300,162 @@ improvements.
 - Query planning may extract search terms, but it must not decide final relevance without evidence.
 - Telegram account-backed retrieval must use managed accounts with rate-limit and flood-wait safety.
 
+## Open Contract Gaps and Uncertainties
+
+This spec is not implementation-ready until the following contracts are resolved.
+
+### Database Contract
+
+The durable search tables are named but not fully specified. Before implementation, define exact
+columns, indexes, uniqueness rules, status values, and retention rules for:
+
+- `search_runs`
+- `search_queries`
+- `search_candidates`
+- `search_candidate_evidence`
+- `search_reviews`
+
+Key uncertainty: whether `search_candidates` stores only a run-scoped link to an existing
+`communities` row, or whether it can also hold unresolved raw hits before Telegram resolution.
+
+### Search Run Contract
+
+Define what a run stores and how it moves through state. Minimum fields likely include raw operator
+query, normalized title, requested-by operator, enabled adapters, per-adapter caps, status,
+started/completed timestamps, error summary, and replay/rerank metadata.
+
+Open question: should a search run be allowed to rerun retrieval, rerank existing evidence only, or
+both?
+
+### Query Planning Contract
+
+Define the shape of `search_queries`, including query text, language/locale hints, adapter target,
+include terms, exclusion terms, planner source, and validation rules.
+
+Open question: whether the existing `audience_briefs` and `brief.process` flow is reused for search
+planning, replaced by `search.plan`, or kept as a separate legacy path.
+
+### Retrieval Adapter Contract
+
+Every adapter needs the same input and output shape. Adapters should return raw hits plus structured
+evidence and should not write final relevance decisions.
+
+Each adapter contract must define:
+
+- required input fields
+- output hit identity fields
+- evidence fields
+- caps and rate limits
+- retry and partial-failure behavior
+- whether the adapter needs a Telegram search-pool account
+- whether the adapter may cache raw results
+
+Largest uncertainty: `telegram_post_search`. The spec still needs to define the Telegram capability
+or adapter used for public post/message search, the exact caps, the evidence snippet length, and
+what message text may be stored without becoming raw message-history collection.
+
+### Candidate Normalization Contract
+
+Define the boundary between raw adapter hits, unresolved candidates, and durable `communities` rows.
+The implementation needs clear rules for:
+
+- deduping by `tg_id`, username, and public URL
+- resolving public identifiers through Telegram
+- handling inaccessible or non-community hits
+- preserving existing operator decisions on reused communities
+- merging new evidence without overwriting older review state
+
+### Evidence Contract
+
+The evidence model needs exact allowed evidence types, required fields by type, truncation rules,
+and retention rules.
+
+Post/message evidence needs special limits. Search may store a short proof snippet, source
+community, source post ID or URL when safe, and matched query terms, but it must not store full raw
+message history by default.
+
+### Ranking Contract
+
+The ranking formula is only sketched. Before building, define:
+
+- score component names and weights
+- how spam and prior rejection penalties work
+- whether scores are persisted or recomputed
+- whether ranking versions are stored for replay
+- deterministic tie-breakers
+- how much evidence detail the API must return for explanations
+
+Scores must remain community-level sorting signals, not outreach priority or person-level scores.
+
+### Review Contract
+
+Define exactly what each operator action does:
+
+- `promote`
+- `reject`
+- `archive`
+- `convert_to_seed`
+- `approve_for_monitoring`
+
+Key uncertainty: which actions are scoped only to one search run and which mutate the global
+`communities.status`. For example, a search-run reject may need to hide the result only for that
+run, while a global reject should affect future searches.
+
+### Seed Conversion Contract
+
+Define how strong search hits become seeds. The contract should say whether conversion creates a
+new `seed_group`, appends `seed_channels` to an existing group, writes `manual_seed` evidence, or
+all of the above.
+
+Open question: if the community already exists and has a public username, should conversion create a
+seed row from the username, the canonical URL, or the resolved `community_id`?
+
+### API Contract
+
+The API needs concrete endpoints before implementation starts. Likely endpoints include:
+
+- create a search run
+- get search run status
+- list search run queries
+- list ranked candidates with evidence summaries
+- review a candidate
+- rerank a run
+- expand from promoted candidates
+- convert candidates to seed groups
+
+Open question: whether search endpoints live under `/api/search-runs` as a new module or extend the
+older brief/discovery endpoints.
+
+### Job and Queue Contract
+
+The proposed job family is not yet defined in the queue spec. Before building, define payloads,
+queue names, retry policy, idempotency keys, and job metadata for:
+
+- `search.plan`
+- `search.retrieve`
+- `search.normalize`
+- `search.rank`
+- `search.expand`
+
+Open question: whether these replace `discovery.run`, wrap it, or live beside it as the new
+query-driven search path.
+
+### Graph Expansion Gate
+
+The phrase "promising early hits" is too vague for implementation. The safer default contract should
+be that second-wave graph expansion can start only from manual seeds or operator-promoted search
+results.
+
+Define per-run, per-community, and per-adapter caps before enabling expansion from search results.
+
+### Bot and Frontend Contract
+
+The current bot is built around seed groups and community review. Search needs its own operator
+surface for starting a run, viewing progress, inspecting evidence, promoting/rejecting/archiving
+results, launching expansion, and converting results to seeds.
+
+Open question: whether the first search UI is Telegram-bot-only, frontend-only, or both.
+
 ## MVP Recommendation
 
 If implementation starts from this spec, the recommended first slice is:
