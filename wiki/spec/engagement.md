@@ -28,6 +28,11 @@ Those controls are now part of the active engagement implementation: detection r
 profile/version summary used for drafting, and reply opportunity approval uses the latest validated
 `final_reply` when an operator edits a reply before approval.
 
+Semantic topic matching is specified separately in
+`wiki/spec/engagement-embedding-matching.md`. That spec replaces manual keyword-only trigger
+detection with a cached embedding selector while keeping the structured draft model, operator
+approval, rate limits, and public-only send path unchanged.
+
 In plain product terms: the engagement module may participate only in groups or channels where an
 approved engagement account is already allowed to operate. It does not discover people to contact.
 It watches approved public discussion surfaces, drafts reply opportunities from configured
@@ -1399,18 +1404,20 @@ Eligibility for a scheduled detection run:
 - The current time is outside configured quiet hours.
 
 Opportunity detection should be precise before invoking the drafting model. The first-pass selector
-should use deterministic signals such as:
+should use the embedding-based semantic matching contract in
+`wiki/spec/engagement-embedding-matching.md`, after deterministic eligibility and safety gates such
+as:
 
-- topic trigger keyword or phrase matches
 - negative keyword exclusions
 - message age
 - whether the message was posted after the engagement account joined
 - whether the message is a replyable group message
 - dedupe against active reply opportunities and recent sent actions
 
-Keyword matches are a trigger opportunity, not a send decision. A match should identify a source
+Semantic matches are trigger opportunities, not send decisions. A match should identify a source
 post for review, then the drafting model decides whether the moment is strong enough to create a
-reply opportunity.
+reply opportunity. Keyword or phrase matching may remain as a fallback during rollout, but it should
+not be the long-term primary selector.
 
 Messages posted before the engagement account joined the community must not trigger new engagement
 reply opportunities. They may inform a community-level summary, but the bot should not join a group and

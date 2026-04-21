@@ -723,3 +723,10 @@ checkpoint, recording checkpoint ranges, exposing exact `engagement_messages` ba
 message rows for detection, and queueing `engagement.detect` with `collection_run_id` after
 collection commits. Detection now prefers the exact collection-run batch before falling back to
 stored messages or sampled artifacts.
+
+## [2026-04-21] spec | Engagement embedding matching selector
+
+Added `wiki/spec/engagement-embedding-matching.md` to define cached semantic topic matching for
+engagement detection. Added `wiki/plan/engagement-embedding-matching.md` with rollout slices for
+settings, cache schema, service integration, detector rollout, and evaluation. Updated the
+engagement spec and wiki index to point future detector work at the embedding selector contract.
