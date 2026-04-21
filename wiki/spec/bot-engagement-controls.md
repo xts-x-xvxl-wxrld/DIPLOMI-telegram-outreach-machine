@@ -412,6 +412,11 @@ The current main engagement menu exposes:
   `/edit_style_rule <rule_id>`, and `/toggle_style_rule <rule_id> <on|off>`.
 - Style-rule lists now expose scope filters plus inline create-help, open, edit, and toggle
   controls.
+- Button-led edit entrypoints now start the shared guided edit flow for candidate final replies,
+  prompt profile fields, topic guidance, and style-rule text where those cards expose edit buttons.
+- Admin-only command, callback, and guided-edit save paths now reject locally identified non-admins
+  before protected API mutations are called. Daily review, target detail, topic detail, style list,
+  settings detail, and audit views remain readable where the backend permits them.
 
 ### Missing From Daily Engagement
 
@@ -438,15 +443,15 @@ The current main engagement menu exposes:
 ### Missing From Community Controls
 
 - Inline community controls for rate limits, quiet hours, and account assignment.
+- Confirmation flow before account assignment changes.
 
 ### Missing Cross-Cutting UX
 
 - Full readiness summaries for membership, account assignment, expiry, rate limits, and quiet-hour
   blocks when those backend fields are exposed to the bot.
-- Detail/open views that keep raw IDs and backend fields behind progressive disclosure.
-- Conversation-state editing for long prompt, topic guidance, and style rule edits.
-- Button-led entrypoints that start the shared edit flow from prompt, topic, style, target, and
-  settings cards.
+- Further progressive disclosure to keep raw IDs and backend fields behind detail/open views on
+  every card.
+- Button-led entrypoints that start the shared edit flow from target note and settings cards.
 - Confirmation flows for risky admin mutations, including prompt activation, posting permission
   changes, target approval, and account assignment.
 
@@ -670,7 +675,7 @@ POST /api/engagement/prompt-profiles/{profile_id}/duplicate
 POST /api/engagement/prompt-profiles/{profile_id}/rollback
 ```
 
-Duplicate and rollback controls may be hidden until the backend exposes first-class routes.
+Duplicate and rollback controls use first-class backend routes in the shipped implementation.
 
 Tests:
 
@@ -1238,6 +1243,8 @@ POST   /api/engagement/prompt-profiles
 GET    /api/engagement/prompt-profiles/{profile_id}
 PATCH  /api/engagement/prompt-profiles/{profile_id}
 POST   /api/engagement/prompt-profiles/{profile_id}/activate
+POST   /api/engagement/prompt-profiles/{profile_id}/duplicate
+POST   /api/engagement/prompt-profiles/{profile_id}/rollback
 POST   /api/engagement/prompt-profiles/{profile_id}/preview
 GET    /api/engagement/prompt-profiles/{profile_id}/versions
 
@@ -1249,18 +1256,11 @@ PATCH  /api/engagement/style-rules/{rule_id}
 GET    /api/engagement/topics/{topic_id}
 POST   /api/engagement/topics/{topic_id}/examples
 DELETE /api/engagement/topics/{topic_id}/examples/{example_type}/{index}
-POST   /api/engagement/candidates/{candidate_id}/edit
-```
-
-Optional or future API routes:
-
-```http
 GET    /api/engagement/candidates/{candidate_id}
 GET    /api/engagement/candidates/{candidate_id}/revisions
+POST   /api/engagement/candidates/{candidate_id}/edit
 POST   /api/engagement/candidates/{candidate_id}/expire
 POST   /api/engagement/candidates/{candidate_id}/retry
-POST   /api/engagement/prompt-profiles/{profile_id}/duplicate
-POST   /api/engagement/prompt-profiles/{profile_id}/rollback
 ```
 
 If an API route is missing, the bot slice should add the API route first or keep the related bot
@@ -1298,13 +1298,12 @@ Minimum tests for implementation:
 
 ## Open Questions
 
-- Should admin permission be enforced entirely in the backend, or should the bot maintain a separate
-  admin allowlist for faster first implementation?
-- Should prompt duplicate and rollback be first-class API routes now, or implemented as create/edit
-  flows from existing profile versions?
+- Long-term admin permission should move to backend capabilities. The shipped bot also has a
+  transitional `TELEGRAM_ADMIN_USER_IDS` allowlist for early local hiding/rejection.
+- Prompt duplicate and rollback are now first-class API routes.
 - Should engagement target approval create default community engagement settings, or remain a
   separate explicit settings action?
-- Should assigned engagement account selection list account IDs only, or include masked display
-  labels from `/api/debug/accounts`?
+- Assigned engagement accounts currently render as account IDs plus masked labels from
+  `/api/debug/accounts` when available.
 - Should long edit drafts survive bot restarts, or is short-lived in-process state enough for the
   first slice?

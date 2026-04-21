@@ -921,6 +921,11 @@ Lists admin-managed engagement prompt profiles with current immutable version me
 Creates a prompt profile and version 1. Fields include name, model, temperature,
 max_output_tokens, system_prompt, user_prompt_template, output_schema_name, active, and created_by.
 
+### `GET /api/engagement/prompt-profiles/{profile_id}`
+
+Returns one prompt profile with current version metadata, model parameters, output schema, capped
+bot-safe prompt preview fields, active state, and audit metadata.
+
 ### `PATCH /api/engagement/prompt-profiles/{profile_id}`
 
 Updates editable prompt profile fields and creates a new immutable version row.
@@ -928,6 +933,15 @@ Updates editable prompt profile fields and creates a new immutable version row.
 ### `POST /api/engagement/prompt-profiles/{profile_id}/activate`
 
 Activates one prompt profile and deactivates other active profiles.
+
+### `POST /api/engagement/prompt-profiles/{profile_id}/duplicate`
+
+Copies an existing prompt profile into a new inactive profile with a new name and version 1.
+
+### `POST /api/engagement/prompt-profiles/{profile_id}/rollback`
+
+Restores a selected immutable version into the current profile state and creates a new current
+version representing that rollback.
 
 ### `POST /api/engagement/prompt-profiles/{profile_id}/preview`
 

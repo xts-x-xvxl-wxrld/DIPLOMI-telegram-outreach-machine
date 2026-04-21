@@ -55,6 +55,12 @@ Recommended bot entrypoints:
 /engagement_settings <engagement_target_or_community_id>
 /engagement_prompts
 /engagement_prompt <prompt_profile_id>
+/engagement_prompt_versions <prompt_profile_id>
+/engagement_prompt_preview <prompt_profile_id>
+/activate_engagement_prompt <prompt_profile_id>
+/duplicate_engagement_prompt <prompt_profile_id> <new_name>
+/edit_engagement_prompt <prompt_profile_id> <field>
+/rollback_engagement_prompt <prompt_profile_id> <version_number>
 /engagement_style [scope] [scope_id]
 /engagement_style_rule <rule_id>
 /create_style_rule <scope> <scope_id_or_dash> | <name> | <priority> | <rule_text>
@@ -197,6 +203,10 @@ Admin access:
   context.
 - The bot should warn before activating a profile that removes key guidance like public-only,
   reply-only, no DMs, no fake consensus, or prefer no reply.
+- Prompt activation and rollback require explicit confirmation in the bot.
+- Prompt profile detail, preview, version history, duplicate, edit, activate, and rollback controls
+  are admin-only. The bot may reject locally identified non-admin operators before protected API
+  mutations, while backend authorization remains authoritative.
 
 Safety floor:
 
@@ -403,6 +413,8 @@ POST /api/engagement/prompt-profiles
 GET  /api/engagement/prompt-profiles/{profile_id}
 PATCH /api/engagement/prompt-profiles/{profile_id}
 POST /api/engagement/prompt-profiles/{profile_id}/activate
+POST /api/engagement/prompt-profiles/{profile_id}/duplicate
+POST /api/engagement/prompt-profiles/{profile_id}/rollback
 POST /api/engagement/prompt-profiles/{profile_id}/preview
 GET  /api/engagement/prompt-profiles/{profile_id}/versions
 

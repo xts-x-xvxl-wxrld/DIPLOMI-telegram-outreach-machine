@@ -58,6 +58,7 @@
 ## Implementation roots
 
 - `bot/api_client.py` - bot HTTP client for backend API endpoints
+- `bot/config.py` - bot environment parsing for API token, operator allowlist, and engagement admin allowlist
 - `bot/config_editing.py` - shared Telegram bot config-edit metadata, typed parsers, and
   per-operator pending edit state
 - `bot/formatting.py` - concise Telegram message formatting helpers
@@ -109,12 +110,17 @@
 - `tests/fixtures/engagement_semantic_eval.jsonl` - synthetic sanitized semantic matching threshold evaluation examples
 - `tests/test_engagement_schema.py` - engagement schema enum/default/constraint/index tests
 - `tests/test_engagement_targets.py` - engagement target resolution and permission gate tests
+- `tests/test_engagement_api.py` - engagement API route tests for targets, settings, topics, style rules, prompts, candidates, actions, and rollout summaries
 - `tests/test_engagement_prompt_controls.py` - prompt template variable privacy tests
 - `tests/test_engagement_detect_worker.py` - engagement detection worker prefiltering, candidate creation, and dedupe tests
 - `tests/test_engagement_send_worker.py` - engagement send worker preflight, rate-limit, idempotency, and Telethon error-mapping tests
+- `tests/test_bot_access.py` - bot operator and engagement-admin allowlist tests
+- `tests/test_bot_api_client.py` - bot HTTP client route and payload contract tests
+- `tests/test_bot_formatting.py` - bot message formatting and privacy regression tests
 - `tests/test_bot_handlers.py` - operator cockpit, discovery cockpit, /start, /help, /accounts, /seeds, and op:/disc: callback routing tests
 - `tests/test_bot_engagement_handlers.py` - engagement cockpit, candidate status, approve-to-send, and send callback bot tests
 - `tests/test_bot_config_editing.py` - config-edit field registry, typed parser, pending-state, and expiry tests
+- `tests/test_bot_ui.py` - inline callback parser, callback length, and Telegram markup tests
 - `scripts/` - local developer workflow helpers
 - `backend/` - FastAPI app, SQLAlchemy models, queue helpers, worker stubs
 - `bot/` - Telegram bot package placeholder

@@ -417,7 +417,7 @@ Completed:
 
 ## Slice 10: Release Documentation And Broader Test Wrap-Up
 
-Status: planned.
+Status: completed on 2026-04-21.
 
 Update after implementation:
 
@@ -436,10 +436,27 @@ Acceptance:
 - Wiki docs reflect the shipped behavior.
 - Changes are committed and pushed when a remote is configured.
 
+Completed:
+
+- Refreshed the release docs after the shipped Slice 4 through Slice 9 behavior, including the
+  current menu-gap inventory in `wiki/spec/bot-engagement-controls.md`.
+- Updated `wiki/spec/bot.md` with the final prompt-profile command surface and admin boundary
+  behavior.
+- Updated `wiki/spec/api.md` and `wiki/spec/engagement-admin-control-plane.md` for prompt profile
+  detail, duplicate, rollback, and admin-only confirmation behavior.
+- Updated `wiki/index.md` with the bot config module and broader bot/engagement regression test
+  roots.
+- Ran the focused release coverage:
+  `python -m pytest -q tests/test_bot_api_client.py tests/test_bot_formatting.py tests/test_bot_ui.py tests/test_bot_handlers.py tests/test_bot_engagement_handlers.py tests/test_bot_config_editing.py tests/test_bot_access.py tests/test_engagement_api.py tests/test_engagement_prompt_controls.py tests/test_engagement_targets.py tests/test_engagement_send_worker.py tests/test_engagement_detect_worker.py tests/test_engagement_scheduler.py tests/test_engagement_embeddings.py tests/test_engagement_semantic_eval_fixtures.py tests/test_engagement_schema.py`
+  with 281 passing tests.
+- Ran the full repo suite with `python -m pytest -q` outside the sandbox after the sandbox denied
+  pytest temp-directory setup; the full suite passed with 385 tests and one existing datetime
+  deprecation warning.
+
 ## Open Questions
 
-- Should prompt duplicate and rollback routes be added before bot controls, or should the bot
-  compose those workflows from existing create/edit/version endpoints?
-- Should admin permission be implemented as a backend role, a bot allowlist, or both?
+- Prompt duplicate and rollback are first-class API routes in the shipped implementation.
+- Admin permission currently uses a transitional bot allowlist through `TELEGRAM_ADMIN_USER_IDS`;
+  a backend capability or role model remains the preferred long-term authority.
 - Should target approval also create default engagement settings?
 - Should conversation-state edits survive bot restarts?

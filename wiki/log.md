@@ -847,3 +847,11 @@ rebuild. The spec now calls out unresolved database, search-run, query-planning,
 normalization, evidence, ranking, review, seed-conversion, API, queue, graph-expansion, and UI
 contracts that should be settled before rewriting existing discovery code around the new search
 model.
+
+## [2026-04-21] docs | Wrapped bot engagement controls release docs and tests
+
+Completed Bot Engagement Controls Slice 10. Refreshed the final bot engagement controls docs,
+current menu-gap inventory, main bot command spec, API prompt-profile route spec, engagement admin
+control-plane notes, and wiki implementation roots. Focused bot/engagement release coverage passed
+with 281 tests, and the full repo suite passed with 385 tests after rerunning outside the sandbox's
+Windows temp-directory restriction.

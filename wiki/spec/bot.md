@@ -54,7 +54,13 @@ Engagement commands are optional and operator-controlled:
 /target_join <target_id>
 /target_detect <target_id> [window_minutes]
 /engagement_prompts
+/engagement_prompt <profile_id>
+/engagement_prompt_versions <profile_id>
 /engagement_prompt_preview <profile_id>
+/activate_engagement_prompt <profile_id>
+/duplicate_engagement_prompt <profile_id> <new_name>
+/edit_engagement_prompt <profile_id> <field>
+/rollback_engagement_prompt <profile_id> <version_number>
 /engagement_style [scope] [scope_id]
 /engagement_style_rule <rule_id>
 /create_style_rule <scope> <scope_id_or_dash> | <name> | <priority> | <rule_text>
@@ -405,10 +411,43 @@ and workers still enforce approval and `allow_detect`.
 
 Lists prompt profile cards with active state, model parameters, current version, and preview command.
 
+### `/engagement_prompt <profile_id>`
+
+Shows one prompt profile detail card with active state, current version, model parameters, output
+schema, capped prompt previews, and admin actions for preview, versions, edit, duplicate,
+activation, and rollback when applicable.
+
+### `/engagement_prompt_versions <profile_id>`
+
+Lists immutable prompt profile versions newest first. Version cards may offer rollback entrypoints,
+but rollback must show a confirmation card before calling the API.
+
 ### `/engagement_prompt_preview <profile_id>`
 
 Renders a prompt profile preview through the API. The bot displays rendered text only; the preview
 endpoint does not call OpenAI.
+
+### `/activate_engagement_prompt <profile_id>`
+
+Shows an explicit activation confirmation card before activating the profile through the API.
+Activation is admin-only and never happens as part of previewing or editing.
+
+### `/duplicate_engagement_prompt <profile_id> <new_name>`
+
+Duplicates an existing prompt profile through the prompt profile API. The new profile is returned as
+a normal prompt profile card and remains subject to backend validation and activation rules.
+
+### `/edit_engagement_prompt <profile_id> <field>`
+
+Starts the shared guided config-edit flow for an allowlisted prompt profile field. Long prompt text
+is collected as the next Telegram message, previewed, and saved only after confirmation.
+Unsupported prompt variables, including sender identity variables, are rejected before the API call
+when possible.
+
+### `/rollback_engagement_prompt <profile_id> <version_number>`
+
+Shows an explicit rollback confirmation card, then calls the rollback API to restore the selected
+immutable version as the profile's current editable state.
 
 ### `/engagement_style [scope] [scope_id]`
 
