@@ -337,13 +337,16 @@ keeps the core command behavior visible in the main bot spec.
 Shows a compact engagement cockpit with counts for replies needing review, approved replies waiting
 to send, failed candidates needing attention, and active topics. It offers intention-first inline
 buttons for today, review replies, approved-to-send replies, communities, topics, recent actions,
-and engagement admin.
+and engagement admin. When the bot can determine locally that the caller is not an engagement
+admin, it should hide the `Admin` button while keeping the daily review buttons available.
 
 ### `/engagement_admin`
 
 Shows the admin-only configuration entrypoint for communities, topics, voice rules,
 limits/accounts, and advanced prompt/audit controls. This surface stays separate from daily
-candidate review.
+candidate review. The bot may enforce this locally with a transitional `TELEGRAM_ADMIN_USER_IDS`
+allowlist when no backend capability endpoint exists yet, but backend authorization remains
+authoritative.
 
 ### `/engagement_targets [status]`
 
@@ -619,6 +622,11 @@ candidate IDs, source messages, sender identity, phone numbers, or person-level 
 The bot may be restricted with `TELEGRAM_ALLOWED_USER_IDS`, a comma- or whitespace-separated list of
 numeric Telegram user IDs.
 
+The engagement admin subset may be restricted further with `TELEGRAM_ADMIN_USER_IDS`, also parsed as
+a comma- or whitespace-separated list of numeric Telegram user IDs. When that list is empty, the
+bot preserves the older local behavior and does not distinguish engagement admins from other
+allowlisted operators locally.
+
 If the allowlist is empty, existing local/development behavior is preserved and any Telegram user who
 can reach the bot can use it.
 
@@ -626,6 +634,11 @@ If the allowlist is set, only listed user IDs can use operator commands, reply k
 inline callback actions, CSV uploads, or plain-text Telegram entity submission. Unauthorized message
 senders receive their own Telegram user ID and instructions to ask the operator to add it. Unauthorized
 callback users receive the same information as a Telegram alert.
+
+If `TELEGRAM_ADMIN_USER_IDS` is set, non-admin operators may still use ordinary daily engagement
+review controls, but the bot should hide or reject engagement-admin mutations such as prompt
+profile edits, style-rule edits, target approval/permission changes, topic mutations, and advanced
+community setting changes before calling protected API routes.
 
 Telegram Premium status does not change this flow; Telegram still includes the same `from_user.id`
 for bot messages and callbacks.

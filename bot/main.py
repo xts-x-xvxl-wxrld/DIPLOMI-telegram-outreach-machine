@@ -216,6 +216,9 @@ PROMPT_PROFILE_EDIT_FIELDS = set(PROMPT_PROFILE_EDIT_FIELD_CODES.values())
 ENGAGEMENT_TARGET_PERMISSIONS = {"join": "allow_join", "detect": "allow_detect", "post": "allow_post"}
 ENGAGEMENT_TARGET_PERMISSION_ALIASES = {"j": "join", "d": "detect", "p": "post"}
 ENGAGEMENT_SETTING_PRESETS = {"off", "observe", "suggest", "ready"}
+ENGAGEMENT_ADMIN_ONLY_MESSAGE = (
+    "This engagement admin control is limited to admin operators."
+)
 
 
 async def start_command(update: Any, context: Any) -> None:
@@ -420,6 +423,8 @@ async def engagement_command(update: Any, context: Any) -> None:
 
 
 async def engagement_admin_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     try:
         await _send_engagement_admin(update, context)
     except BotApiError as exc:
@@ -450,6 +455,8 @@ async def engagement_target_command(update: Any, context: Any) -> None:
 
 
 async def add_engagement_target_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     target_ref = _first_arg(context)
     if target_ref is None:
         await _reply(update, "Usage: /add_engagement_target <telegram_link_or_username_or_community_id>")
@@ -474,6 +481,8 @@ async def add_engagement_target_command(update: Any, context: Any) -> None:
 
 
 async def approve_engagement_target_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     target_id = _first_arg(context)
     if target_id is None:
         await _reply(update, "Usage: /approve_engagement_target <target_id>")
@@ -485,6 +494,8 @@ async def approve_engagement_target_command(update: Any, context: Any) -> None:
 
 
 async def resolve_engagement_target_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     target_id = _first_arg(context)
     if target_id is None:
         await _reply(update, "Usage: /resolve_engagement_target <target_id>")
@@ -496,6 +507,8 @@ async def resolve_engagement_target_command(update: Any, context: Any) -> None:
 
 
 async def reject_engagement_target_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     target_id = _first_arg(context)
     if target_id is None:
         await _reply(update, "Usage: /reject_engagement_target <target_id>")
@@ -507,6 +520,8 @@ async def reject_engagement_target_command(update: Any, context: Any) -> None:
 
 
 async def archive_engagement_target_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     target_id = _first_arg(context)
     if target_id is None:
         await _reply(update, "Usage: /archive_engagement_target <target_id>")
@@ -518,6 +533,8 @@ async def archive_engagement_target_command(update: Any, context: Any) -> None:
 
 
 async def target_permission_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     if len(context.args) < 3:
         await _reply(update, "Usage: /target_permission <target_id> <join|detect|post> <on|off>")
         return
@@ -572,6 +589,8 @@ async def target_detect_command(update: Any, context: Any) -> None:
 
 
 async def engagement_prompts_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     try:
         await _send_engagement_prompts(update, context, offset=0)
     except BotApiError as exc:
@@ -579,6 +598,8 @@ async def engagement_prompts_command(update: Any, context: Any) -> None:
 
 
 async def engagement_prompt_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     profile_id = _first_arg(context)
     if profile_id is None:
         await _reply(update, "Usage: /engagement_prompt <profile_id>")
@@ -590,6 +611,8 @@ async def engagement_prompt_command(update: Any, context: Any) -> None:
 
 
 async def engagement_prompt_versions_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     profile_id = _first_arg(context)
     if profile_id is None:
         await _reply(update, "Usage: /engagement_prompt_versions <profile_id>")
@@ -601,6 +624,8 @@ async def engagement_prompt_versions_command(update: Any, context: Any) -> None:
 
 
 async def engagement_prompt_preview_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     profile_id = _first_arg(context)
     if profile_id is None:
         await _reply(update, "Usage: /engagement_prompt_preview <profile_id>")
@@ -615,6 +640,8 @@ async def engagement_prompt_preview_command(update: Any, context: Any) -> None:
 
 
 async def activate_engagement_prompt_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     profile_id = _first_arg(context)
     if profile_id is None:
         await _reply(update, "Usage: /activate_engagement_prompt <profile_id>")
@@ -626,6 +653,8 @@ async def activate_engagement_prompt_command(update: Any, context: Any) -> None:
 
 
 async def duplicate_engagement_prompt_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     if len(context.args) < 2:
         await _reply(update, "Usage: /duplicate_engagement_prompt <profile_id> <new_name>")
         return
@@ -652,6 +681,8 @@ async def duplicate_engagement_prompt_command(update: Any, context: Any) -> None
 
 
 async def edit_engagement_prompt_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     if len(context.args) < 2:
         await _reply(update, "Usage: /edit_engagement_prompt <profile_id> <field>")
         return
@@ -668,6 +699,8 @@ async def edit_engagement_prompt_command(update: Any, context: Any) -> None:
 
 
 async def rollback_engagement_prompt_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     if len(context.args) < 2:
         await _reply(update, "Usage: /rollback_engagement_prompt <profile_id> <version_number>")
         return
@@ -683,6 +716,8 @@ async def rollback_engagement_prompt_command(update: Any, context: Any) -> None:
 
 
 async def engagement_style_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     parsed = _parse_engagement_style_args(context)
     try:
         await _send_engagement_style_rules(
@@ -699,6 +734,8 @@ async def engagement_style_command(update: Any, context: Any) -> None:
 
 
 async def engagement_style_rule_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     rule_id = _first_arg(context)
     if rule_id is None:
         await _reply(update, "Usage: /engagement_style_rule <rule_id>")
@@ -710,6 +747,8 @@ async def engagement_style_rule_command(update: Any, context: Any) -> None:
 
 
 async def create_style_rule_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     parsed = _parse_create_style_rule_args(context)
     if parsed is None:
         await _reply(
@@ -740,6 +779,8 @@ async def create_style_rule_command(update: Any, context: Any) -> None:
 
 
 async def edit_style_rule_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     rule_id = _first_arg(context)
     if rule_id is None:
         await _reply(update, "Usage: /edit_style_rule <rule_id>")
@@ -748,6 +789,8 @@ async def edit_style_rule_command(update: Any, context: Any) -> None:
 
 
 async def toggle_style_rule_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     if len(context.args) < 2:
         await _reply(update, "Usage: /toggle_style_rule <rule_id> <on|off>")
         return
@@ -775,6 +818,8 @@ async def engagement_settings_command(update: Any, context: Any) -> None:
 
 
 async def set_engagement_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     if len(context.args) < 2:
         await _reply(update, "Usage: /set_engagement <community_id> <off|observe|suggest|ready>")
         return
@@ -821,6 +866,8 @@ async def detect_engagement_command(update: Any, context: Any) -> None:
 
 
 async def set_engagement_limits_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     if len(context.args) < 3:
         await _reply(
             update,
@@ -861,6 +908,8 @@ async def set_engagement_limits_command(update: Any, context: Any) -> None:
 
 
 async def set_engagement_quiet_hours_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     if len(context.args) < 3:
         await _reply(
             update,
@@ -898,6 +947,8 @@ async def set_engagement_quiet_hours_command(update: Any, context: Any) -> None:
 
 
 async def clear_engagement_quiet_hours_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     community_id = _first_arg(context)
     if community_id is None:
         await _reply(update, "Usage: /clear_engagement_quiet_hours <community_id>")
@@ -916,6 +967,8 @@ async def clear_engagement_quiet_hours_command(update: Any, context: Any) -> Non
 
 
 async def assign_engagement_account_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     if len(context.args) < 2:
         await _reply(
             update,
@@ -951,6 +1004,8 @@ async def assign_engagement_account_command(update: Any, context: Any) -> None:
 
 
 async def clear_engagement_account_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     community_id = _first_arg(context)
     if community_id is None:
         await _reply(update, "Usage: /clear_engagement_account <community_id>")
@@ -1005,6 +1060,8 @@ async def engagement_topic_command(update: Any, context: Any) -> None:
 
 
 async def create_engagement_topic_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     parsed = _parse_create_engagement_topic_args(context)
     if parsed is None:
         await _reply(update, _create_engagement_topic_usage())
@@ -1032,6 +1089,8 @@ async def create_engagement_topic_command(update: Any, context: Any) -> None:
 
 
 async def toggle_engagement_topic_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     if len(context.args) < 2:
         await _reply(update, "Usage: /toggle_engagement_topic <topic_id> <on|off>")
         return
@@ -1049,14 +1108,20 @@ async def toggle_engagement_topic_command(update: Any, context: Any) -> None:
 
 
 async def topic_good_reply_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     await _topic_example_command(update, context, example_type="good")
 
 
 async def topic_bad_reply_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     await _topic_example_command(update, context, example_type="bad")
 
 
 async def topic_remove_example_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     if len(context.args) < 3:
         await _reply(update, "Usage: /topic_remove_example <topic_id> <good|bad> <index>")
         return
@@ -1085,6 +1150,8 @@ async def topic_remove_example_command(update: Any, context: Any) -> None:
 
 
 async def topic_keywords_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     if len(context.args) < 3:
         await _reply(update, "Usage: /topic_keywords <topic_id> <trigger|negative> <comma_keywords>")
         return
@@ -1103,6 +1170,8 @@ async def topic_keywords_command(update: Any, context: Any) -> None:
 
 
 async def edit_topic_guidance_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
     topic_id = _first_arg(context)
     if topic_id is None:
         await _reply(update, "Usage: /edit_topic_guidance <topic_id>")
@@ -1301,6 +1370,12 @@ async def callback_query(update: Any, context: Any) -> None:
 
     await query.answer()
     action, parts = parse_callback_data(query.data)
+
+    if _callback_action_requires_engagement_admin(action, parts) and not _is_engagement_admin(
+        update, context
+    ):
+        await _callback_reply(update, ENGAGEMENT_ADMIN_ONLY_MESSAGE)
+        return
 
     try:
         if action == ACTION_OPEN_SEED_GROUP and len(parts) == 1:
@@ -1938,7 +2013,11 @@ async def _send_engagement_home(update: Any, context: Any) -> None:
         "failed_candidate_count": failed.get("total", 0),
         "active_topic_count": active_topic_count,
     }
-    await _callback_reply(update, format_engagement_home(data), reply_markup=engagement_home_markup())
+    await _callback_reply(
+        update,
+        format_engagement_home(data),
+        reply_markup=engagement_home_markup(show_admin=_is_engagement_admin(update, context)),
+    )
 
 
 async def _send_engagement_admin(update: Any, context: Any) -> None:
@@ -1986,6 +2065,7 @@ async def _send_engagement_targets(
     offset: int,
 ) -> None:
     client = _api_client(context)
+    can_manage = _is_engagement_admin(update, context)
     data = await client.list_engagement_targets(
         status=status,
         limit=ENGAGEMENT_ADMIN_PAGE_SIZE,
@@ -2000,6 +2080,7 @@ async def _send_engagement_targets(
             offset=offset,
             total=data.get("total", 0),
             page_size=ENGAGEMENT_ADMIN_PAGE_SIZE,
+            can_manage=can_manage,
         ),
     )
     for index, item in enumerate(data.get("items") or [], start=offset + 1):
@@ -2012,6 +2093,7 @@ async def _send_engagement_targets(
                 allow_join=bool(item.get("allow_join")),
                 allow_detect=bool(item.get("allow_detect")),
                 allow_post=bool(item.get("allow_post")),
+                can_manage=can_manage,
             ),
         )
 
@@ -2022,7 +2104,11 @@ async def _send_engagement_target(update: Any, context: Any, target_id: str) -> 
     await _callback_reply(
         update,
         format_engagement_target_card(data),
-        reply_markup=_engagement_target_markup(target_id, data),
+        reply_markup=_engagement_target_markup(
+            target_id,
+            data,
+            can_manage=_is_engagement_admin(update, context),
+        ),
     )
 
 
@@ -2326,6 +2412,7 @@ async def _send_engagement_style_rules(
     offset: int,
 ) -> None:
     client = _api_client(context)
+    can_manage = _is_engagement_admin(update, context)
     data = await client.list_engagement_style_rules(
         scope_type=scope_type,
         scope_id=scope_id,
@@ -2346,6 +2433,7 @@ async def _send_engagement_style_rules(
             offset=offset,
             total=data.get("total", 0),
             page_size=ENGAGEMENT_ADMIN_PAGE_SIZE,
+            can_manage=can_manage,
         ),
     )
     for index, item in enumerate(data.get("items") or [], start=offset + 1):
@@ -2356,6 +2444,7 @@ async def _send_engagement_style_rules(
             reply_markup=engagement_style_rule_actions_markup(
                 rule_id,
                 active=bool(item.get("active")),
+                can_manage=can_manage,
             ),
         )
 
@@ -2369,6 +2458,7 @@ async def _send_engagement_style_rule(update: Any, context: Any, rule_id: str) -
         reply_markup=engagement_style_rule_actions_markup(
             rule_id,
             active=bool(data.get("active")),
+            can_manage=_is_engagement_admin(update, context),
         ),
     )
 
@@ -2582,7 +2672,11 @@ async def _reply_with_engagement_settings(
     edit_callback: bool = False,
 ) -> None:
     message = await _format_engagement_settings_message(context, data)
-    reply_markup = _engagement_settings_markup(community_id, data)
+    reply_markup = _engagement_settings_markup(
+        community_id,
+        data,
+        can_manage=_is_engagement_admin(update, context),
+    )
     if edit_callback:
         await _edit_callback_message(update, message, reply_markup=reply_markup)
         return
@@ -2684,6 +2778,7 @@ async def _send_engagement_actions(
 
 async def _send_engagement_topics(update: Any, context: Any, *, offset: int) -> None:
     client = _api_client(context)
+    can_manage = _is_engagement_admin(update, context)
     data = await client.list_engagement_topics()
     items = data.get("items") or []
     total = int(data.get("total", len(items)) or 0)
@@ -2709,6 +2804,7 @@ async def _send_engagement_topics(update: Any, context: Any, *, offset: int) -> 
                 active=bool(item.get("active")),
                 good_count=len(item.get("example_good_replies") or []),
                 bad_count=len(item.get("example_bad_replies") or []),
+                can_manage=can_manage,
             ),
         )
 
@@ -2724,6 +2820,7 @@ async def _send_engagement_topic(update: Any, context: Any, topic_id: str) -> No
             active=bool(data.get("active")),
             good_count=len(data.get("example_good_replies") or []),
             bad_count=len(data.get("example_bad_replies") or []),
+            can_manage=_is_engagement_admin(update, context),
         ),
     )
 
@@ -3055,6 +3152,8 @@ async def _start_config_edit(
     if editable is None:
         await _callback_reply(update, "That field is not editable from the bot.")
         return
+    if editable.admin_only and not await _require_engagement_admin(update, context):
+        return
     pending = _config_edit_store(context).start(
         operator_id=operator_id,
         field=editable,
@@ -3071,6 +3170,10 @@ async def _handle_config_edit_text(update: Any, context: Any, raw_text: str) -> 
     pending = store.get(operator_id)
     if pending is None:
         return False
+    if pending.admin_only and not _is_engagement_admin(update, context):
+        store.cancel(operator_id)
+        await _reply(update, ENGAGEMENT_ADMIN_ONLY_MESSAGE)
+        return True
     ok, parsed_or_error = parse_edit_value(pending, raw_text)
     if not ok:
         await _reply(update, str(parsed_or_error))
@@ -3096,6 +3199,9 @@ async def _save_config_edit_callback(update: Any, context: Any) -> None:
     pending = store.get(operator_id)
     if pending is None:
         await _callback_reply(update, "No pending edit to save.")
+        return
+    if pending.admin_only and not _is_engagement_admin(update, context):
+        await _callback_reply(update, ENGAGEMENT_ADMIN_ONLY_MESSAGE)
         return
     if pending.raw_value is None:
         await _callback_reply(update, "Send the replacement value before saving.")
@@ -3303,21 +3409,33 @@ def _parse_style_callback_parts(parts: list[str]) -> tuple[str | None, str | Non
     return None, None, _parse_offset(parts[0])
 
 
-def _engagement_settings_markup(community_id: str, data: dict[str, Any]) -> Any:
+def _engagement_settings_markup(
+    community_id: str,
+    data: dict[str, Any],
+    *,
+    can_manage: bool = True,
+) -> Any:
     return engagement_settings_markup(
         community_id,
         allow_join=bool(data.get("allow_join")),
         allow_post=bool(data.get("allow_post")),
+        can_manage=can_manage,
     )
 
 
-def _engagement_target_markup(target_id: str, data: dict[str, Any]) -> Any:
+def _engagement_target_markup(
+    target_id: str,
+    data: dict[str, Any],
+    *,
+    can_manage: bool = True,
+) -> Any:
     return engagement_target_actions_markup(
         target_id,
         status=str(data.get("status") or "pending"),
         allow_join=bool(data.get("allow_join")),
         allow_detect=bool(data.get("allow_detect")),
         allow_post=bool(data.get("allow_post")),
+        can_manage=can_manage,
     )
 
 
@@ -3535,6 +3653,70 @@ def _is_authorized_update(update: Any, settings: BotSettings) -> bool:
         return True
     user_id = _telegram_user_id(update)
     return user_id in settings.allowed_user_ids if user_id is not None else False
+
+
+def _is_engagement_admin(update: Any, context: Any) -> bool:
+    settings = _bot_settings(context)
+    if settings is None or not settings.admin_user_ids:
+        return True
+    user_id = _telegram_user_id(update)
+    return user_id in settings.admin_user_ids if user_id is not None else False
+
+
+async def _require_engagement_admin(update: Any, context: Any) -> bool:
+    if _is_engagement_admin(update, context):
+        return True
+    await _callback_reply(update, ENGAGEMENT_ADMIN_ONLY_MESSAGE)
+    return False
+
+
+def _callback_action_requires_engagement_admin(action: str, parts: list[str]) -> bool:
+    if action in {
+        ACTION_ENGAGEMENT_ADMIN,
+        ACTION_ENGAGEMENT_ADMIN_LIMITS,
+        ACTION_ENGAGEMENT_ADMIN_ADVANCED,
+        ACTION_ENGAGEMENT_TARGET_ADD,
+        ACTION_ENGAGEMENT_TARGET_APPROVE,
+        ACTION_ENGAGEMENT_TARGET_RESOLVE,
+        ACTION_ENGAGEMENT_TARGET_REJECT,
+        ACTION_ENGAGEMENT_TARGET_ARCHIVE,
+        ACTION_ENGAGEMENT_PROMPTS,
+        ACTION_ENGAGEMENT_PROMPT_OPEN,
+        ACTION_ENGAGEMENT_PROMPT_PREVIEW,
+        ACTION_ENGAGEMENT_PROMPT_VERSIONS,
+        ACTION_ENGAGEMENT_PROMPT_EDIT,
+        ACTION_ENGAGEMENT_PROMPT_DUPLICATE,
+        ACTION_ENGAGEMENT_PROMPT_ACTIVATE,
+        ACTION_ENGAGEMENT_PROMPT_ACTIVATE_CONFIRM,
+        ACTION_ENGAGEMENT_PROMPT_ROLLBACK,
+        ACTION_ENGAGEMENT_PROMPT_ROLLBACK_CONFIRM,
+        ACTION_ENGAGEMENT_STYLE,
+        ACTION_ENGAGEMENT_STYLE_CREATE,
+        ACTION_ENGAGEMENT_STYLE_OPEN,
+        ACTION_ENGAGEMENT_STYLE_EDIT,
+        ACTION_ENGAGEMENT_STYLE_TOGGLE,
+        ACTION_ENGAGEMENT_SETTINGS_PRESET,
+        ACTION_ENGAGEMENT_SETTINGS_JOIN,
+        ACTION_ENGAGEMENT_SETTINGS_POST,
+        ACTION_ENGAGEMENT_TOPIC_EDIT,
+        ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
+        ACTION_ENGAGEMENT_TOPIC_TOGGLE,
+    }:
+        return True
+    if action == ACTION_ENGAGEMENT_TARGET_PERMISSION:
+        return True
+    if action == ACTION_CONFIG_EDIT_SAVE:
+        return bool(parts)
+    return False
+
+
+def _bot_settings(context: Any) -> BotSettings | None:
+    application = getattr(context, "application", None)
+    bot_data = getattr(application, "bot_data", None)
+    if not isinstance(bot_data, dict):
+        return None
+    settings = bot_data.get("settings")
+    return settings if isinstance(settings, BotSettings) else None
 
 
 def _is_identity_command(update: Any) -> bool:

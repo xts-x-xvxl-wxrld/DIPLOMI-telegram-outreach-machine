@@ -384,7 +384,7 @@ Completed:
 
 ## Slice 9: Admin Permission Boundary
 
-Status: planned.
+Status: completed on 2026-04-21.
 
 Add admin-only enforcement when backend support exists.
 
@@ -400,6 +400,20 @@ Acceptance:
   permissions.
 - Unauthorized attempts produce clear bot messages without calling protected API mutations.
 - Backend auth remains the source of truth.
+
+Completed:
+
+- Added a transitional bot-side admin allowlist through `TELEGRAM_ADMIN_USER_IDS`. When it is set,
+  only those Telegram users are treated as engagement admins locally; when it is empty, the bot
+  keeps the previous permissive local behavior and still relies on backend authorization.
+- Added shared admin checks for admin-only engagement commands, callback routes, and guided
+  config-edit saves so non-admin operators are rejected before protected mutation API calls.
+- Daily review surfaces remain available to ordinary allowlisted operators, while the `/engagement`
+  home hides the `Admin` button for known non-admin users and read-only target/topic/settings cards
+  hide admin mutation buttons when the bot can determine the caller is not an admin.
+- Added focused bot access, UI, config, and handler tests covering hidden controls plus early
+  rejection of non-admin prompt, style, target-permission, topic, and advanced community-setting
+  mutations.
 
 ## Slice 10: Release Documentation And Broader Test Wrap-Up
 

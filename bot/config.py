@@ -12,6 +12,7 @@ class BotSettings:
     api_token: str
     request_timeout_seconds: float = 15.0
     allowed_user_ids: frozenset[int] = frozenset()
+    admin_user_ids: frozenset[int] = frozenset()
 
 
 def load_settings(env: Mapping[str, str] | None = None) -> BotSettings:
@@ -21,7 +22,14 @@ def load_settings(env: Mapping[str, str] | None = None) -> BotSettings:
         api_base_url=values.get("BOT_API_BASE_URL", "http://api:8000/api").rstrip("/"),
         api_token=values.get("BOT_API_TOKEN", ""),
         request_timeout_seconds=float(values.get("BOT_API_TIMEOUT_SECONDS", "15")),
-        allowed_user_ids=parse_allowed_user_ids(values.get("TELEGRAM_ALLOWED_USER_IDS", "")),
+        allowed_user_ids=parse_user_ids(
+            values.get("TELEGRAM_ALLOWED_USER_IDS", ""),
+            env_var_name="TELEGRAM_ALLOWED_USER_IDS",
+        ),
+        admin_user_ids=parse_user_ids(
+            values.get("TELEGRAM_ADMIN_USER_IDS", ""),
+            env_var_name="TELEGRAM_ADMIN_USER_IDS",
+        ),
     )
 
 
@@ -35,7 +43,7 @@ def validate_runtime_settings(settings: BotSettings) -> None:
         raise RuntimeError(f"Missing required bot setting(s): {', '.join(missing)}")
 
 
-def parse_allowed_user_ids(raw_value: str) -> frozenset[int]:
+def parse_user_ids(raw_value: str, *, env_var_name: str) -> frozenset[int]:
     values: set[int] = set()
     for raw_item in raw_value.replace(",", " ").split():
         item = raw_item.strip()
@@ -44,10 +52,12 @@ def parse_allowed_user_ids(raw_value: str) -> frozenset[int]:
         try:
             user_id = int(item)
         except ValueError as exc:
-            raise ValueError(
-                "TELEGRAM_ALLOWED_USER_IDS must contain only numeric Telegram user IDs"
-            ) from exc
+            raise ValueError(f"{env_var_name} must contain only numeric Telegram user IDs") from exc
         if user_id <= 0:
-            raise ValueError("TELEGRAM_ALLOWED_USER_IDS must contain positive Telegram user IDs")
+            raise ValueError(f"{env_var_name} must contain positive Telegram user IDs")
         values.add(user_id)
     return frozenset(values)
+
+
+def parse_allowed_user_ids(raw_value: str) -> frozenset[int]:
+    return parse_user_ids(raw_value, env_var_name="TELEGRAM_ALLOWED_USER_IDS")

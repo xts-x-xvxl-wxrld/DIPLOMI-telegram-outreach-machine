@@ -97,8 +97,9 @@ Primary controls:
 - advanced prompt profile controls
 
 Admin controls require an admin permission layer in addition to the normal bot allowlist when the
-backend exposes that distinction. Until then, the bot should keep admin actions behind distinct
-commands and confirmation copy so they are not confused with daily review.
+backend exposes that distinction. Until then, the bot may enforce a transitional Telegram admin
+allowlist such as `TELEGRAM_ADMIN_USER_IDS`, while still treating backend authorization as the
+source of truth.
 
 ## Navigation
 
@@ -339,7 +340,8 @@ The current main engagement menu exposes:
 
 - `/engagement` cockpit.
 - Inline intention-first `Today`, `Review replies`, `Approved to send`, `Communities`, `Topics`,
-  `Recent actions`, and `Admin` buttons.
+  `Recent actions`, and `Admin` buttons, with the `Admin` entry hidden when the bot can identify
+  the caller as a non-admin locally.
 - Candidate queue filters for `needs_review`, `approved`, `failed`, `sent`, and `rejected`.
 - Candidate cards with readiness summaries and state-relevant approve, reject, edit, audit, and
   queue-send command hints.
@@ -373,6 +375,9 @@ The current main engagement menu exposes:
 - `/clear_engagement_account <community_id>`.
 - Community settings cards now show direct command hints for limits, quiet hours, account
   assignment, join, and manual detection.
+- Non-admin operators now get read-only target/topic/settings cards where the bot can identify them
+  locally, and admin-only prompt/style/admin-menu callbacks are rejected before protected mutation
+  API calls.
 - Assigned engagement accounts render as account IDs plus masked-phone labels from
   `/api/debug/accounts` when available.
 - `/join_community <community_id>`.
@@ -442,18 +447,8 @@ The current main engagement menu exposes:
 - Conversation-state editing for long prompt, topic guidance, and style rule edits.
 - Button-led entrypoints that start the shared edit flow from prompt, topic, style, target, and
   settings cards.
-- Admin permission boundary in the bot UI.
 - Confirmation flows for risky admin mutations, including prompt activation, posting permission
   changes, target approval, and account assignment.
-
-### Recommended Next Slice
-
-The next implementation slice should prioritize:
-
-- Add the admin permission boundary so prompt, style, target-approval, posting-permission, and
-  advanced community-setting mutations can be hidden or rejected early for non-admin operators.
-- Keep daily candidate review available for ordinary operators only where the backend explicitly
-  permits it.
 
 ## Implementation Slice Contracts
 

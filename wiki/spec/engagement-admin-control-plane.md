@@ -76,6 +76,11 @@ approval as engagement approval.
 
 Callback prefixes should remain under `eng:*`. Admin-only controls may use `eng:admin:*`.
 
+When the backend does not yet expose a capability or role endpoint for the bot, the Telegram bot
+may apply a transitional local admin allowlist such as `TELEGRAM_ADMIN_USER_IDS` to hide and reject
+admin-only bot mutations early. This is a UX boundary only; backend authorization remains the
+source of truth.
+
 ## Engagement Targets
 
 Engagement targets are the explicit list of communities that the engagement module may consider.

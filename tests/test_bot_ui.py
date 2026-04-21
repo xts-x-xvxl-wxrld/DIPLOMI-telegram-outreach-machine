@@ -278,6 +278,12 @@ def test_engagement_home_markup_links_core_surfaces() -> None:
     assert rows[4][0].callback_data == ACTION_ENGAGEMENT_ADMIN
 
 
+def test_engagement_home_markup_hides_admin_button_for_non_admins() -> None:
+    markup = engagement_home_markup(show_admin=False)
+
+    assert ACTION_ENGAGEMENT_ADMIN not in _callbacks(markup)
+
+
 def test_engagement_admin_home_markup_links_setup_and_advanced_surfaces() -> None:
     markup = engagement_admin_home_markup()
     rows = markup.inline_keyboard
@@ -345,6 +351,25 @@ def test_engagement_target_actions_markup_exposes_safe_target_controls() -> None
     assert f"{ACTION_ENGAGEMENT_TARGET_DETECT}:target-2:60" in approved_callbacks
 
 
+def test_engagement_target_actions_markup_hides_admin_mutations_for_non_admins() -> None:
+    markup = engagement_target_actions_markup(
+        "target-2",
+        status="approved",
+        allow_join=True,
+        allow_detect=True,
+        allow_post=False,
+        can_manage=False,
+    )
+
+    callbacks = _callbacks(markup)
+
+    assert f"{ACTION_ENGAGEMENT_TARGET_OPEN}:target-2" in callbacks
+    assert f"{ACTION_ENGAGEMENT_TARGET_JOIN}:target-2" in callbacks
+    assert f"{ACTION_ENGAGEMENT_TARGET_DETECT}:target-2:60" in callbacks
+    assert ACTION_ENGAGEMENT_TARGET_APPROVE not in callbacks
+    assert f"{ACTION_ENGAGEMENT_TARGET_PERMISSION}:target-2:p:1" not in callbacks
+
+
 def test_engagement_topic_markup_pages_and_toggles() -> None:
     pager = engagement_topic_pager_markup(offset=0, total=12, page_size=5)
     actions = engagement_topic_actions_markup("topic-1", active=True, good_count=1, bad_count=1)
@@ -357,6 +382,22 @@ def test_engagement_topic_markup_pages_and_toggles() -> None:
     assert actions.inline_keyboard[2][1].callback_data == "eng:topic:toggle:topic-1:0"
     assert "eng:topic:list:0" in _callbacks(actions)
     assert ACTION_OP_HOME in _callbacks(actions)
+
+
+def test_engagement_topic_markup_hides_mutations_for_non_admins() -> None:
+    actions = engagement_topic_actions_markup(
+        "topic-1",
+        active=True,
+        good_count=1,
+        bad_count=1,
+        can_manage=False,
+    )
+
+    callbacks = _callbacks(actions)
+
+    assert f"{ACTION_ENGAGEMENT_TOPIC_OPEN}:topic-1" in callbacks
+    assert f"{ACTION_ENGAGEMENT_TOPIC_EDIT}:topic-1:stance_guidance" not in callbacks
+    assert f"{ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE}:topic-1:g:0" not in callbacks
 
 
 def test_engagement_style_markup_filters_pages_and_controls() -> None:
@@ -377,6 +418,23 @@ def test_engagement_style_markup_filters_pages_and_controls() -> None:
     assert f"{ACTION_ENGAGEMENT_STYLE_TOGGLE}:rule-1:0" in _callbacks(rule_markup)
 
 
+def test_engagement_style_markup_hides_create_and_mutations_for_non_admins() -> None:
+    list_markup = engagement_style_list_markup(
+        scope_type="community",
+        scope_id="community-1",
+        offset=0,
+        total=5,
+        page_size=5,
+        can_manage=False,
+    )
+    rule_markup = engagement_style_rule_actions_markup("rule-1", active=True, can_manage=False)
+
+    assert ACTION_ENGAGEMENT_STYLE_CREATE not in _callbacks(list_markup)
+    assert f"{ACTION_ENGAGEMENT_STYLE_OPEN}:rule-1" in _callbacks(rule_markup)
+    assert f"{ACTION_ENGAGEMENT_STYLE_EDIT}:rule-1" not in _callbacks(rule_markup)
+    assert f"{ACTION_ENGAGEMENT_STYLE_TOGGLE}:rule-1:0" not in _callbacks(rule_markup)
+
+
 def test_engagement_candidate_send_and_filter_markup() -> None:
     send_markup = engagement_candidate_send_markup("candidate-1")
     filter_markup = engagement_candidate_filter_markup(status="approved")
@@ -389,6 +447,23 @@ def test_engagement_candidate_send_and_filter_markup() -> None:
         for row in filter_markup.inline_keyboard
         for button in row
     )
+
+
+def test_engagement_settings_markup_hides_mutations_for_non_admins() -> None:
+    markup = engagement_settings_markup(
+        "community-1",
+        allow_join=False,
+        allow_post=True,
+        can_manage=False,
+    )
+
+    callbacks = _callbacks(markup)
+
+    assert "eng:set:preset:community-1:off" not in callbacks
+    assert "eng:set:join:community-1:1" not in callbacks
+    assert "eng:set:post:community-1:0" not in callbacks
+    assert f"{ACTION_ENGAGEMENT_JOIN}:community-1" in callbacks
+    assert f"{ACTION_ENGAGEMENT_DETECT}:community-1:60" in callbacks
 
 
 def test_engagement_action_pager_markup_pages_actions() -> None:

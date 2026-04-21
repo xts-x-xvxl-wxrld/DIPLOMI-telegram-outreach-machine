@@ -18,6 +18,7 @@ def test_load_bot_settings_from_env_mapping() -> None:
             "BOT_API_TOKEN": "api-token",
             "BOT_API_TIMEOUT_SECONDS": "7.5",
             "TELEGRAM_ALLOWED_USER_IDS": "123, 456 789",
+            "TELEGRAM_ADMIN_USER_IDS": "123 999",
         }
     )
 
@@ -26,6 +27,7 @@ def test_load_bot_settings_from_env_mapping() -> None:
     assert settings.api_token == "api-token"
     assert settings.request_timeout_seconds == 7.5
     assert settings.allowed_user_ids == frozenset({123, 456, 789})
+    assert settings.admin_user_ids == frozenset({123, 999})
     validate_runtime_settings(settings)
 
 

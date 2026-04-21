@@ -325,7 +325,7 @@ def engagement_candidate_pager_markup(
     return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))
 
 
-def engagement_home_markup():
+def engagement_home_markup(*, show_admin: bool = True):
     rows = [
         [_button("Today", ACTION_ENGAGEMENT_HOME)],
         [
@@ -337,8 +337,9 @@ def engagement_home_markup():
             _button("Topics", ACTION_ENGAGEMENT_TOPIC_LIST, "0"),
         ],
         [_button("Recent actions", ACTION_ENGAGEMENT_ACTIONS, "0")],
-        [_button("Admin", ACTION_ENGAGEMENT_ADMIN)],
     ]
+    if show_admin:
+        rows.append([_button("Admin", ACTION_ENGAGEMENT_ADMIN)])
     return _inline_markup(_with_navigation(rows))
 
 
@@ -376,11 +377,11 @@ def engagement_target_list_markup(
     offset: int,
     total: int,
     page_size: int,
+    can_manage: bool = True,
 ):
-    rows = [
-        [_button("Add target", ACTION_ENGAGEMENT_TARGET_ADD)],
-        *_target_status_filter_rows(status),
-    ]
+    rows = [*_target_status_filter_rows(status)]
+    if can_manage:
+        rows.insert(0, [_button("Add target", ACTION_ENGAGEMENT_TARGET_ADD)])
     pager_row = _offset_pager_row(
         action=ACTION_ENGAGEMENT_TARGETS,
         offset=offset,
@@ -400,21 +401,22 @@ def engagement_target_actions_markup(
     allow_join: bool = False,
     allow_detect: bool = False,
     allow_post: bool = False,
+    can_manage: bool = True,
 ):
     rows = []
     rows.append([_button("Open", ACTION_ENGAGEMENT_TARGET_OPEN, target_id)])
-    if status in {"pending", "failed"}:
+    if can_manage and status in {"pending", "failed"}:
         rows.append([_button("Resolve", ACTION_ENGAGEMENT_TARGET_RESOLVE, target_id)])
-    if status == "resolved":
+    if can_manage and status == "resolved":
         rows.append([_button("Approve", ACTION_ENGAGEMENT_TARGET_APPROVE, target_id)])
-    if status not in {"rejected", "archived"}:
+    if can_manage and status not in {"rejected", "archived"}:
         rows.append(
             [
                 _button("Reject", ACTION_ENGAGEMENT_TARGET_REJECT, target_id),
                 _button("Archive", ACTION_ENGAGEMENT_TARGET_ARCHIVE, target_id),
             ]
         )
-    if status == "approved":
+    if can_manage and status == "approved":
         rows.extend(
             [
                 [
@@ -446,6 +448,13 @@ def engagement_target_actions_markup(
                     _button("Queue join", ACTION_ENGAGEMENT_TARGET_JOIN, target_id),
                     _button("Detect now", ACTION_ENGAGEMENT_TARGET_DETECT, target_id, "60"),
                 ],
+            ]
+        )
+    elif status == "approved":
+        rows.append(
+            [
+                _button("Queue join", ACTION_ENGAGEMENT_TARGET_JOIN, target_id),
+                _button("Detect now", ACTION_ENGAGEMENT_TARGET_DETECT, target_id, "60"),
             ]
         )
     return _inline_markup(
@@ -549,12 +558,12 @@ def engagement_style_list_markup(
     offset: int,
     total: int,
     page_size: int,
+    can_manage: bool = True,
 ):
     selected = scope_type or "all"
     scope_token = scope_type or "all"
     scope_id_token = scope_id or "-"
     rows = [
-        [_button("Create", ACTION_ENGAGEMENT_STYLE_CREATE)],
         [
             _button("* All" if selected == "all" else "All", ACTION_ENGAGEMENT_STYLE, "all", "-", "0"),
             _button(
@@ -591,6 +600,8 @@ def engagement_style_list_markup(
             )
         ],
     ]
+    if can_manage:
+        rows.insert(0, [_button("Create", ACTION_ENGAGEMENT_STYLE_CREATE)])
     pager_row = _offset_pager_row(
         action=ACTION_ENGAGEMENT_STYLE,
         offset=offset,
@@ -603,53 +614,66 @@ def engagement_style_list_markup(
     return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_ADMIN))
 
 
-def engagement_style_rule_actions_markup(rule_id: str, *, active: bool):
-    rows = [
-        [
-            _button("Open", ACTION_ENGAGEMENT_STYLE_OPEN, rule_id),
-            _button("Edit", ACTION_ENGAGEMENT_STYLE_EDIT, rule_id),
-        ],
-        [
-            _button(
-                "Disable" if active else "Enable",
-                ACTION_ENGAGEMENT_STYLE_TOGGLE,
-                rule_id,
-                "0" if active else "1",
-            )
-        ],
-    ]
+def engagement_style_rule_actions_markup(rule_id: str, *, active: bool, can_manage: bool = True):
+    rows = [[_button("Open", ACTION_ENGAGEMENT_STYLE_OPEN, rule_id)]]
+    if can_manage:
+        rows.extend(
+            [
+                [_button("Edit", ACTION_ENGAGEMENT_STYLE_EDIT, rule_id)],
+                [
+                    _button(
+                        "Disable" if active else "Enable",
+                        ACTION_ENGAGEMENT_STYLE_TOGGLE,
+                        rule_id,
+                        "0" if active else "1",
+                    )
+                ],
+            ]
+        )
     return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_STYLE, back_parts=["all", "-", "0"]))
 
 
-def engagement_settings_markup(community_id: str, *, allow_join: bool, allow_post: bool):
-    rows = [
-        [
-            _button("Off", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "off"),
-            _button("Observe", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "observe"),
-        ],
-        [
-            _button("Suggest", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "suggest"),
-            _button("Ready", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "ready"),
-        ],
-        [
-            _button(
-                "Join on" if not allow_join else "Join off",
-                ACTION_ENGAGEMENT_SETTINGS_JOIN,
-                community_id,
-                "1" if not allow_join else "0",
-            ),
-            _button(
-                "Post on" if not allow_post else "Post off",
-                ACTION_ENGAGEMENT_SETTINGS_POST,
-                community_id,
-                "1" if not allow_post else "0",
-            ),
-        ],
+def engagement_settings_markup(
+    community_id: str,
+    *,
+    allow_join: bool,
+    allow_post: bool,
+    can_manage: bool = True,
+):
+    rows = []
+    if can_manage:
+        rows.extend(
+            [
+                [
+                    _button("Off", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "off"),
+                    _button("Observe", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "observe"),
+                ],
+                [
+                    _button("Suggest", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "suggest"),
+                    _button("Ready", ACTION_ENGAGEMENT_SETTINGS_PRESET, community_id, "ready"),
+                ],
+                [
+                    _button(
+                        "Join on" if not allow_join else "Join off",
+                        ACTION_ENGAGEMENT_SETTINGS_JOIN,
+                        community_id,
+                        "1" if not allow_join else "0",
+                    ),
+                    _button(
+                        "Post on" if not allow_post else "Post off",
+                        ACTION_ENGAGEMENT_SETTINGS_POST,
+                        community_id,
+                        "1" if not allow_post else "0",
+                    ),
+                ],
+            ]
+        )
+    rows.append(
         [
             _button("Queue join", ACTION_ENGAGEMENT_JOIN, community_id),
             _button("Detect now", ACTION_ENGAGEMENT_DETECT, community_id, "60"),
-        ],
-    ]
+        ]
+    )
     return _inline_markup(
         _with_navigation(rows, back_action=ACTION_OPEN_COMMUNITY, back_parts=[community_id])
     )
@@ -679,24 +703,28 @@ def engagement_topic_actions_markup(
     active: bool,
     good_count: int = 0,
     bad_count: int = 0,
+    can_manage: bool = True,
 ):
-    rows = [
-        [_button("Open", ACTION_ENGAGEMENT_TOPIC_OPEN, topic_id)],
-        [
-            _button("Edit guidance", ACTION_ENGAGEMENT_TOPIC_EDIT, topic_id, "stance_guidance"),
-            _button("Edit triggers", ACTION_ENGAGEMENT_TOPIC_EDIT, topic_id, "trigger_keywords"),
-        ],
-        [
-            _button("Edit negatives", ACTION_ENGAGEMENT_TOPIC_EDIT, topic_id, "negative_keywords"),
-            _button(
-                "Deactivate" if active else "Activate",
-                ACTION_ENGAGEMENT_TOPIC_TOGGLE,
-                topic_id,
-                "0" if active else "1",
-            ),
-        ],
-    ]
-    if good_count > 0 or bad_count > 0:
+    rows = [[_button("Open", ACTION_ENGAGEMENT_TOPIC_OPEN, topic_id)]]
+    if can_manage:
+        rows.extend(
+            [
+                [
+                    _button("Edit guidance", ACTION_ENGAGEMENT_TOPIC_EDIT, topic_id, "stance_guidance"),
+                    _button("Edit triggers", ACTION_ENGAGEMENT_TOPIC_EDIT, topic_id, "trigger_keywords"),
+                ],
+                [
+                    _button("Edit negatives", ACTION_ENGAGEMENT_TOPIC_EDIT, topic_id, "negative_keywords"),
+                    _button(
+                        "Deactivate" if active else "Activate",
+                        ACTION_ENGAGEMENT_TOPIC_TOGGLE,
+                        topic_id,
+                        "0" if active else "1",
+                    ),
+                ],
+            ]
+        )
+    if can_manage and (good_count > 0 or bad_count > 0):
         remove_row = []
         if good_count > 0:
             remove_row.append(

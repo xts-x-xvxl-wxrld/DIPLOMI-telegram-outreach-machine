@@ -5,10 +5,12 @@ from typing import Any
 
 import pytest
 
+from bot.config import BotSettings
 from bot.main import (
     API_CLIENT_KEY,
     CONFIG_EDIT_STORE_KEY,
     add_engagement_target_command,
+    approve_engagement_target_command,
     archive_engagement_target_command,
     activate_engagement_prompt_command,
     assign_engagement_account_command,
@@ -28,6 +30,7 @@ from bot.main import (
     engagement_candidates_command,
     engagement_command,
     engagement_prompt_command,
+    engagement_prompts_command,
     engagement_prompt_versions_command,
     engagement_rollout_command,
     engagement_settings_command,
@@ -957,10 +960,27 @@ class _FakeApiClient:
         }
 
 
-def _context(client: _FakeApiClient, *args: str) -> SimpleNamespace:
+def _settings(*, admin_user_ids: tuple[int, ...] = ()) -> BotSettings:
+    return BotSettings(
+        telegram_bot_token="telegram-token",
+        api_base_url="http://api.test/api",
+        api_token="api-token",
+        allowed_user_ids=frozenset({123, 456}),
+        admin_user_ids=frozenset(admin_user_ids),
+    )
+
+
+def _context(
+    client: _FakeApiClient,
+    *args: str,
+    settings: BotSettings | None = None,
+) -> SimpleNamespace:
+    bot_data = {API_CLIENT_KEY: client}
+    if settings is not None:
+        bot_data["settings"] = settings
     return SimpleNamespace(
         args=list(args),
-        application=SimpleNamespace(bot_data={API_CLIENT_KEY: client}),
+        application=SimpleNamespace(bot_data=bot_data),
     )
 
 
@@ -1138,6 +1158,26 @@ async def test_prompt_profile_activate_requires_confirmation() -> None:
     ]
     assert "Confirm prompt activation" in confirm_update.message.replies[0]["text"]
     assert "Status: active" in save_update.callback_query.edits[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_non_admin_cannot_open_prompt_admin_surfaces() -> None:
+    client = _FakeApiClient()
+    settings = _settings(admin_user_ids=(999,))
+    command_update = _message_update()
+    callback_update = _callback_update("eng:admin:pa:prompt-active")
+
+    await engagement_prompts_command(command_update, _context(client, settings=settings))
+    await callback_query(callback_update, _context(client, settings=settings))
+
+    assert client.prompt_list_calls == []
+    assert client.get_prompt_calls == []
+    assert command_update.message.replies[0]["text"] == (
+        "This engagement admin control is limited to admin operators."
+    )
+    assert callback_update.callback_query.message.replies[0]["text"] == (
+        "This engagement admin control is limited to admin operators."
+    )
 
 
 @pytest.mark.asyncio
@@ -1324,6 +1364,28 @@ async def test_target_callbacks_open_toggle_and_queue_jobs() -> None:
     assert "After: status=approved" in toggle_update.callback_query.edits[0]["text"]
     assert client.target_join_calls[-1]["target_id"] == "target-approved"
     assert client.target_detect_calls[-1]["window_minutes"] == 60
+
+
+@pytest.mark.asyncio
+async def test_non_admin_cannot_approve_target_or_toggle_target_permissions() -> None:
+    client = _FakeApiClient()
+    settings = _settings(admin_user_ids=(999,))
+    approve_update = _message_update()
+    toggle_update = _callback_update("eng:admin:tp:target-approved:p:1")
+
+    await approve_engagement_target_command(
+        approve_update,
+        _context(client, "target-approved", settings=settings),
+    )
+    await callback_query(toggle_update, _context(client, settings=settings))
+
+    assert client.update_target_calls == []
+    assert approve_update.message.replies[0]["text"] == (
+        "This engagement admin control is limited to admin operators."
+    )
+    assert toggle_update.callback_query.message.replies[0]["text"] == (
+        "This engagement admin control is limited to admin operators."
+    )
 
 
 @pytest.mark.asyncio
@@ -1532,6 +1594,29 @@ async def test_clear_engagement_account_command_removes_assignment() -> None:
         }
     ]
     assert "Assigned account:" not in update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_non_admin_cannot_change_engagement_limits_or_posting_callbacks() -> None:
+    client = _FakeApiClient()
+    settings = _settings(admin_user_ids=(999,))
+    command_update = _message_update()
+    callback_update = _callback_update("eng:set:post:community-1:1")
+
+    await set_engagement_limits_command(
+        command_update,
+        _context(client, "community-1", "2", "180", settings=settings),
+    )
+    await callback_query(callback_update, _context(client, settings=settings))
+
+    assert client.get_settings_calls == []
+    assert client.update_settings_calls == []
+    assert command_update.message.replies[0]["text"] == (
+        "This engagement admin control is limited to admin operators."
+    )
+    assert callback_update.callback_query.message.replies[0]["text"] == (
+        "This engagement admin control is limited to admin operators."
+    )
 
 
 @pytest.mark.asyncio
@@ -1787,6 +1872,29 @@ async def test_topic_keywords_command_updates_selected_keyword_list() -> None:
         }
     ]
     assert "Topic negative keywords updated." in update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_non_admin_cannot_mutate_topics_or_style_rules() -> None:
+    client = _FakeApiClient()
+    settings = _settings(admin_user_ids=(999,))
+    topic_update = _message_update()
+    style_update = _callback_update("eng:admin:srt:rule-1:0")
+
+    await topic_keywords_command(
+        topic_update,
+        _context(client, "topic-1", "negative", "jobs,", "recruiting", settings=settings),
+    )
+    await callback_query(style_update, _context(client, settings=settings))
+
+    assert client.update_topic_calls == []
+    assert client.update_style_rule_calls == []
+    assert topic_update.message.replies[0]["text"] == (
+        "This engagement admin control is limited to admin operators."
+    )
+    assert style_update.callback_query.message.replies[0]["text"] == (
+        "This engagement admin control is limited to admin operators."
+    )
 
 
 @pytest.mark.asyncio

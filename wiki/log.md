@@ -829,3 +829,13 @@ assigned accounts render with masked-phone labels from
 `GET /api/debug/accounts` when available. Focused bot handler and
 formatting tests cover parsing, preserved safety fields, clearing flows,
 and masked account display.
+
+## [2026-04-21] code | Added engagement admin permission boundary
+
+Completed Bot Engagement Controls Slice 9. The bot now supports a
+transitional engagement-admin allowlist through `TELEGRAM_ADMIN_USER_IDS`,
+hides admin-only buttons when it can identify a non-admin locally, and
+rejects protected prompt/style/topic/target/community-setting mutations
+before calling the API. Daily candidate review remains available to
+ordinary allowlisted operators, and focused bot access, UI, config, and
+handler tests cover the new boundary.
