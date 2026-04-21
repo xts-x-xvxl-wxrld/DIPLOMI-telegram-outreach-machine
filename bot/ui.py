@@ -60,6 +60,8 @@ ACTION_ENGAGEMENT_SETTINGS_OPEN = "eng:set:open"
 ACTION_ENGAGEMENT_SETTINGS_PRESET = "eng:set:preset"
 ACTION_ENGAGEMENT_SETTINGS_JOIN = "eng:set:join"
 ACTION_ENGAGEMENT_SETTINGS_POST = "eng:set:post"
+ACTION_ENGAGEMENT_ACCOUNT_CONFIRM = "eng:set:acctc"
+ACTION_ENGAGEMENT_ACCOUNT_CANCEL = "eng:set:acctx"
 ACTION_ENGAGEMENT_JOIN = "eng:join"
 ACTION_ENGAGEMENT_DETECT = "eng:detect"
 ACTION_ENGAGEMENT_ACTIONS = "eng:actions:list"
@@ -68,10 +70,12 @@ ACTION_ENGAGEMENT_TARGETS = "eng:admin:tgt"
 ACTION_ENGAGEMENT_TARGET_ADD = "eng:admin:tna"
 ACTION_ENGAGEMENT_TARGET_OPEN = "eng:admin:to"
 ACTION_ENGAGEMENT_TARGET_APPROVE = "eng:admin:ta"
+ACTION_ENGAGEMENT_TARGET_APPROVE_CONFIRM = "eng:admin:tac"
 ACTION_ENGAGEMENT_TARGET_RESOLVE = "eng:admin:tr"
 ACTION_ENGAGEMENT_TARGET_REJECT = "eng:admin:tx"
 ACTION_ENGAGEMENT_TARGET_ARCHIVE = "eng:admin:tz"
 ACTION_ENGAGEMENT_TARGET_PERMISSION = "eng:admin:tp"
+ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM = "eng:admin:tpc"
 ACTION_ENGAGEMENT_TARGET_JOIN = "eng:admin:tj"
 ACTION_ENGAGEMENT_TARGET_DETECT = "eng:admin:td"
 ACTION_ENGAGEMENT_PROMPTS = "eng:admin:pr"
@@ -462,6 +466,41 @@ def engagement_target_actions_markup(
     )
 
 
+def engagement_target_approval_confirm_markup(target_id: str):
+    return _inline_markup(
+        _with_navigation(
+            [[_button("Confirm approval", ACTION_ENGAGEMENT_TARGET_APPROVE_CONFIRM, target_id)]],
+            back_action=ACTION_ENGAGEMENT_TARGET_OPEN,
+            back_parts=[target_id],
+        )
+    )
+
+
+def engagement_target_permission_confirm_markup(
+    target_id: str,
+    *,
+    permission_code: str,
+    enabled: bool,
+):
+    return _inline_markup(
+        _with_navigation(
+            [
+                [
+                    _button(
+                        "Confirm posting change",
+                        ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM,
+                        target_id,
+                        permission_code,
+                        "1" if enabled else "0",
+                    )
+                ]
+            ],
+            back_action=ACTION_ENGAGEMENT_TARGET_OPEN,
+            back_parts=[target_id],
+        )
+    )
+
+
 def engagement_prompt_actions_markup(profile_id: str, *, active: bool):
     rows = [
         [
@@ -676,6 +715,17 @@ def engagement_settings_markup(
     )
     return _inline_markup(
         _with_navigation(rows, back_action=ACTION_OPEN_COMMUNITY, back_parts=[community_id])
+    )
+
+
+def engagement_account_confirm_markup():
+    return _inline_markup(
+        [
+            [
+                _button("Confirm account change", ACTION_ENGAGEMENT_ACCOUNT_CONFIRM),
+                _button("Cancel", ACTION_ENGAGEMENT_ACCOUNT_CANCEL),
+            ]
+        ]
     )
 
 

@@ -629,6 +629,43 @@ def format_engagement_target_mutation(
     )
 
 
+def format_engagement_target_approval_confirmation(
+    *,
+    before: dict[str, Any],
+    after: dict[str, Any],
+) -> str:
+    return "\n".join(
+        [
+            "Confirm target approval",
+            f"Target ID: {before.get('id', 'unknown')}",
+            f"Community: {before.get('community_title') or before.get('community_id') or 'unresolved'}",
+            f"Before: {_target_permission_summary(before)}",
+            f"After: {_target_permission_summary(after)}",
+            "",
+            "Approval enables watching, joining, and reviewed public posting for this engagement target.",
+        ]
+    )
+
+
+def format_engagement_target_permission_confirmation(
+    *,
+    permission: str,
+    before: dict[str, Any],
+    after: dict[str, Any],
+) -> str:
+    return "\n".join(
+        [
+            f"Confirm target {permission} permission change",
+            f"Target ID: {before.get('id', 'unknown')}",
+            f"Community: {before.get('community_title') or before.get('community_id') or 'unresolved'}",
+            f"Before: {_target_permission_summary(before)}",
+            f"After: {_target_permission_summary(after)}",
+            "",
+            "Posting remains public-reply only and still requires candidate approval before send.",
+        ]
+    )
+
+
 def format_engagement_prompt_profiles(data: dict[str, Any], *, offset: int = 0) -> str:
     items = data.get("items") or []
     total = data.get("total", len(items))
@@ -838,6 +875,24 @@ def format_engagement_settings(
         ]
     )
     return "\n".join(lines)
+
+
+def format_engagement_account_assignment_confirmation(
+    data: dict[str, Any],
+    *,
+    after_account_label: str,
+    before_account_label: str,
+) -> str:
+    return "\n".join(
+        [
+            "Confirm engagement account assignment",
+            f"Community ID: {data.get('community_id', 'unknown')}",
+            f"Before: {before_account_label}",
+            f"After: {after_account_label}",
+            "",
+            "The API will validate that the account belongs to the engagement pool before saving.",
+        ]
+    )
 
 
 def format_engagement_topics(data: dict[str, Any], *, offset: int = 0) -> str:

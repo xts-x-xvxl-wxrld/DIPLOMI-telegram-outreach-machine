@@ -489,9 +489,10 @@ resolution APIs or create seed rows.
 
 ### `/approve_engagement_target <target_id>`
 
-Approves a resolved engagement target and enables join/detect/post permissions for the target. The
-bot shows the current permission state before mutation and the resulting state after the API
-returns. The worker still enforces settings and target gates before any outbound work.
+Shows a confirmation card for approving a resolved engagement target and enabling
+join/detect/post permissions. The bot shows before/after permission state and calls the target
+update API only after the admin confirms. The worker still enforces settings and target gates
+before any outbound work.
 
 ### `/reject_engagement_target <target_id>`
 
@@ -507,7 +508,8 @@ off.
 
 Toggles one target permission through the engagement target API and displays before/after target
 permissions. `detect` is labeled to operators as watching/drafting, while `post` remains reviewed
-public posting only.
+public posting only. Posting-permission changes show a confirmation card before saving; join and
+detect permission changes remain direct.
 
 ### `/target_join <target_id>`
 
@@ -661,13 +663,15 @@ Clears both quiet-hour fields while preserving the rest of the current settings 
 
 ### `/assign_engagement_account <community_id> <telegram_account_id>`
 
-Reads the current community settings, updates the assigned engagement account, and renders the
-result using the account ID plus a masked label from `GET /api/debug/accounts` when available. The
-API remains the source of truth for wrong-pool and invalid-account rejection.
+Reads the current community settings and shows a before/after account assignment confirmation using
+the account ID plus a masked label from `GET /api/debug/accounts` when available. The settings API
+is called only after the admin confirms. The API remains the source of truth for wrong-pool and
+invalid-account rejection.
 
 ### `/clear_engagement_account <community_id>`
 
-Clears the assigned engagement account while preserving the rest of the current settings payload.
+Shows a before/after confirmation for clearing the assigned engagement account, then clears it after
+the admin confirms while preserving the rest of the current settings payload.
 
 ### `/join_community <community_id>`
 

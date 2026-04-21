@@ -375,6 +375,8 @@ The current main engagement menu exposes:
 - `/clear_engagement_account <community_id>`.
 - Community settings cards now show direct command hints for limits, quiet hours, account
   assignment, join, and manual detection.
+- Account assignment and account clearing commands now show before/after masked account labels and
+  require a confirmation callback before saving.
 - Non-admin operators now get read-only target/topic/settings cards where the bot can identify them
   locally, and admin-only prompt/style/admin-menu callbacks are rejected before protected mutation
   API calls.
@@ -393,6 +395,10 @@ The current main engagement menu exposes:
 - Target cards with readiness summaries before raw target status and permission fields.
 - Target cards with add-target, open/detail, resolve, approve, reject, archive, permission toggle,
   target-scoped join, and target-scoped detect controls.
+- Target approval now shows an explicit before/after confirmation card before saving, and the API
+  mutation happens only from the confirm callback.
+- Target posting-permission changes now show an explicit before/after confirmation card before
+  saving. Join and detect permission toggles remain direct.
 - `/engagement_prompts`, `/engagement_prompt_preview`, and direct prompt activation.
 - `/engagement_prompt <profile_id>` detail cards with full profile metadata and capped prompt
   previews.
@@ -424,7 +430,6 @@ The current main engagement menu exposes:
 
 ### Missing From Engagement Targets
 
-- Confirmation flow before posting permission changes and target approval.
 - Conversation-state target note editing.
 
 ### Missing From Prompt Profiles
@@ -443,7 +448,6 @@ The current main engagement menu exposes:
 ### Missing From Community Controls
 
 - Inline community controls for rate limits, quiet hours, and account assignment.
-- Confirmation flow before account assignment changes.
 
 ### Missing Cross-Cutting UX
 

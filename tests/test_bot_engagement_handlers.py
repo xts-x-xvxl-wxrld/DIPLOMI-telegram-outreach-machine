@@ -1295,19 +1295,77 @@ async def test_resolve_target_command_queues_engagement_target_job() -> None:
 
 
 @pytest.mark.asyncio
-async def test_target_permission_command_displays_before_after_state() -> None:
+async def test_approve_target_command_requires_confirmation_before_mutation() -> None:
+    client = _FakeApiClient()
+    context = _context(client, "target-resolved")
+    update = _message_update()
+
+    await approve_engagement_target_command(update, context)
+
+    assert client.update_target_calls == []
+    assert "Confirm target approval" in update.message.replies[0]["text"]
+    assert "After: status=approved, join=yes, detect=yes, post=yes" in update.message.replies[0]["text"]
+    assert "eng:admin:tac:target-resolved" in _callback_data_values(
+        update.message.replies[0]["reply_markup"]
+    )
+
+    await callback_query(_callback_update("eng:admin:tac:target-resolved"), context)
+
+    assert client.update_target_calls == [
+        {
+            "target_id": "target-resolved",
+            "updates": {
+                "status": "approved",
+                "allow_join": True,
+                "allow_detect": True,
+                "allow_post": True,
+                "updated_by": "telegram:123:@operator",
+            },
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_target_permission_post_command_requires_confirmation_before_mutation() -> None:
+    client = _FakeApiClient()
+    context = _context(client, "target-approved", "post", "on")
+    update = _message_update()
+
+    await target_permission_command(update, context)
+
+    assert client.update_target_calls == []
+    message = update.message.replies[0]["text"]
+    assert "Confirm target post permission change" in message
+    assert "Before: status=approved, join=yes, detect=yes, post=no" in message
+    assert "After: status=approved, join=yes, detect=yes, post=yes" in message
+    assert "eng:admin:tpc:target-approved:p:1" in _callback_data_values(
+        update.message.replies[0]["reply_markup"]
+    )
+
+    await callback_query(_callback_update("eng:admin:tpc:target-approved:p:1"), context)
+
+    assert client.update_target_calls == [
+        {
+            "target_id": "target-approved",
+            "updates": {"allow_post": True, "updated_by": "telegram:123:@operator"},
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_target_permission_join_command_still_saves_directly() -> None:
     client = _FakeApiClient()
     update = _message_update()
 
-    await target_permission_command(update, _context(client, "target-approved", "post", "on"))
+    await target_permission_command(update, _context(client, "target-approved", "join", "off"))
 
     assert client.update_target_calls[-1] == {
         "target_id": "target-approved",
-        "updates": {"allow_post": True, "updated_by": "telegram:123:@operator"},
+        "updates": {"allow_join": False, "updated_by": "telegram:123:@operator"},
     }
     message = update.message.replies[0]["text"]
     assert "Before: status=approved, join=yes, detect=yes, post=no" in message
-    assert "After: status=approved, join=yes, detect=yes, post=yes" in message
+    assert "After: status=approved, join=no, detect=yes, post=no" in message
 
 
 @pytest.mark.asyncio
@@ -1352,16 +1410,19 @@ async def test_target_callbacks_open_toggle_and_queue_jobs() -> None:
     client = _FakeApiClient()
     open_update = _callback_update("eng:admin:to:target-approved")
     toggle_update = _callback_update("eng:admin:tp:target-approved:p:1")
+    confirm_update = _callback_update("eng:admin:tpc:target-approved:p:1")
     join_update = _callback_update("eng:admin:tj:target-approved")
     detect_update = _callback_update("eng:admin:td:target-approved:60")
 
     await callback_query(open_update, _context(client))
     await callback_query(toggle_update, _context(client))
+    await callback_query(confirm_update, _context(client))
     await callback_query(join_update, _context(client))
     await callback_query(detect_update, _context(client))
 
     assert "Target ID: target-approved" in open_update.callback_query.message.replies[0]["text"]
-    assert "After: status=approved" in toggle_update.callback_query.edits[0]["text"]
+    assert "Confirm target post permission change" in toggle_update.callback_query.edits[0]["text"]
+    assert "After: status=approved" in confirm_update.callback_query.edits[0]["text"]
     assert client.target_join_calls[-1]["target_id"] == "target-approved"
     assert client.target_detect_calls[-1]["window_minutes"] == 60
 
@@ -1372,18 +1433,28 @@ async def test_non_admin_cannot_approve_target_or_toggle_target_permissions() ->
     settings = _settings(admin_user_ids=(999,))
     approve_update = _message_update()
     toggle_update = _callback_update("eng:admin:tp:target-approved:p:1")
+    approve_confirm_update = _callback_update("eng:admin:tac:target-approved")
+    post_confirm_update = _callback_update("eng:admin:tpc:target-approved:p:1")
 
     await approve_engagement_target_command(
         approve_update,
         _context(client, "target-approved", settings=settings),
     )
     await callback_query(toggle_update, _context(client, settings=settings))
+    await callback_query(approve_confirm_update, _context(client, settings=settings))
+    await callback_query(post_confirm_update, _context(client, settings=settings))
 
     assert client.update_target_calls == []
     assert approve_update.message.replies[0]["text"] == (
         "This engagement admin control is limited to admin operators."
     )
     assert toggle_update.callback_query.message.replies[0]["text"] == (
+        "This engagement admin control is limited to admin operators."
+    )
+    assert approve_confirm_update.callback_query.message.replies[0]["text"] == (
+        "This engagement admin control is limited to admin operators."
+    )
+    assert post_confirm_update.callback_query.message.replies[0]["text"] == (
         "This engagement admin control is limited to admin operators."
     )
 
@@ -1537,10 +1608,22 @@ async def test_clear_engagement_quiet_hours_command_clears_both_values() -> None
 @pytest.mark.asyncio
 async def test_assign_engagement_account_command_uses_uuid_and_masked_label() -> None:
     client = _FakeApiClient()
+    context = _context(client, "community-1", "12345678-1234-1234-1234-123456789abc")
     update = _message_update()
     account_id = "12345678-1234-1234-1234-123456789abc"
 
-    await assign_engagement_account_command(update, _context(client, "community-1", account_id))
+    await assign_engagement_account_command(update, context)
+
+    assert client.update_settings_calls == []
+    preview_text = update.message.replies[0]["text"]
+    assert "Confirm engagement account assignment" in preview_text
+    assert "Before: none" in preview_text
+    assert f"After: {account_id} | +123*****89" in preview_text
+    assert "+123456789" not in preview_text
+    assert "eng:set:acctc" in _callback_data_values(update.message.replies[0]["reply_markup"])
+
+    confirm_update = _callback_update("eng:set:acctc")
+    await callback_query(confirm_update, context)
 
     assert client.update_settings_calls == [
         {
@@ -1559,8 +1642,8 @@ async def test_assign_engagement_account_command_uses_uuid_and_masked_label() ->
             },
         }
     ]
-    assert client.accounts_calls == 1
-    text = update.message.replies[0]["text"]
+    assert client.accounts_calls == 2
+    text = confirm_update.callback_query.edits[0]["text"]
     assert f"Assigned account: {account_id} | +123*****89" in text
     assert "+123456789" not in text
 
@@ -1572,9 +1655,19 @@ async def test_clear_engagement_account_command_removes_assignment() -> None:
         **client.settings,
         "assigned_account_id": "12345678-1234-1234-1234-123456789abc",
     }
+    context = _context(client, "community-1")
     update = _message_update()
 
-    await clear_engagement_account_command(update, _context(client, "community-1"))
+    await clear_engagement_account_command(update, context)
+
+    assert client.update_settings_calls == []
+    preview_text = update.message.replies[0]["text"]
+    assert "Confirm engagement account assignment" in preview_text
+    assert "Before: 12345678-1234-1234-1234-123456789abc | +123*****89" in preview_text
+    assert "After: none" in preview_text
+
+    confirm_update = _callback_update("eng:set:acctc")
+    await callback_query(confirm_update, context)
 
     assert client.update_settings_calls == [
         {
@@ -1593,7 +1686,7 @@ async def test_clear_engagement_account_command_removes_assignment() -> None:
             },
         }
     ]
-    assert "Assigned account:" not in update.message.replies[0]["text"]
+    assert "Assigned account:" not in confirm_update.callback_query.edits[0]["text"]
 
 
 @pytest.mark.asyncio
@@ -1602,12 +1695,14 @@ async def test_non_admin_cannot_change_engagement_limits_or_posting_callbacks() 
     settings = _settings(admin_user_ids=(999,))
     command_update = _message_update()
     callback_update = _callback_update("eng:set:post:community-1:1")
+    account_confirm_update = _callback_update("eng:set:acctc")
 
     await set_engagement_limits_command(
         command_update,
         _context(client, "community-1", "2", "180", settings=settings),
     )
     await callback_query(callback_update, _context(client, settings=settings))
+    await callback_query(account_confirm_update, _context(client, settings=settings))
 
     assert client.get_settings_calls == []
     assert client.update_settings_calls == []
@@ -1615,6 +1710,9 @@ async def test_non_admin_cannot_change_engagement_limits_or_posting_callbacks() 
         "This engagement admin control is limited to admin operators."
     )
     assert callback_update.callback_query.message.replies[0]["text"] == (
+        "This engagement admin control is limited to admin operators."
+    )
+    assert account_confirm_update.callback_query.message.replies[0]["text"] == (
         "This engagement admin control is limited to admin operators."
     )
 

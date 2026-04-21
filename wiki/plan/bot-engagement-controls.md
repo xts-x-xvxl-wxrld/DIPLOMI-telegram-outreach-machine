@@ -457,7 +457,7 @@ Completed:
 
 ## Follow-Up Slice 11: Safety Confirmations
 
-Status: planned.
+Status: completed on 2026-04-21.
 
 Purpose:
 
@@ -495,6 +495,22 @@ Tests:
 - Callback parser tests cover the new confirmation callback shapes and the 64-byte Telegram limit.
 - Admin permission tests cover command and callback confirmation paths.
 - Formatting/privacy tests cover before/after cards and masked account labels.
+
+Completed:
+
+- `/approve_engagement_target <target_id>` and inline target approval now render an explicit
+  before/after confirmation card; the target update API is called only from the confirm callback.
+- `/target_permission <target_id> post <on|off>` and inline posting toggles now render the same
+  before/after confirmation flow before mutating `allow_post`.
+- Join and detect target permission toggles remain direct, matching this slice's reviewed scope.
+- `/assign_engagement_account` and `/clear_engagement_account` now store a short per-operator
+  pending confirmation and show before/after account labels before saving.
+- Account confirmation callbacks stay payload-free so they remain well under Telegram's callback
+  length limit even when community and account IDs are UUIDs.
+- Non-admin command and confirm-callback paths are rejected before protected target or settings
+  mutation APIs are called.
+- Added formatting, callback parser, callback length, handler, and admin-boundary tests for the new
+  confirmation surfaces.
 
 ## Follow-Up Slice 12: Guided Edit Entrypoints
 

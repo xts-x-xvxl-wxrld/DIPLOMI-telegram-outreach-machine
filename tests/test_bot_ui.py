@@ -19,6 +19,8 @@ from bot.ui import (
     ACTION_ENGAGEMENT_ADMIN,
     ACTION_ENGAGEMENT_ADMIN_ADVANCED,
     ACTION_ENGAGEMENT_ADMIN_LIMITS,
+    ACTION_ENGAGEMENT_ACCOUNT_CANCEL,
+    ACTION_ENGAGEMENT_ACCOUNT_CONFIRM,
     ACTION_ENGAGEMENT_APPROVE,
     ACTION_ENGAGEMENT_CANDIDATES,
     ACTION_ENGAGEMENT_CANDIDATE_EDIT,
@@ -36,10 +38,12 @@ from bot.ui import (
     ACTION_ENGAGEMENT_STYLE_OPEN,
     ACTION_ENGAGEMENT_STYLE_TOGGLE,
     ACTION_ENGAGEMENT_TARGET_APPROVE,
+    ACTION_ENGAGEMENT_TARGET_APPROVE_CONFIRM,
     ACTION_ENGAGEMENT_TARGET_DETECT,
     ACTION_ENGAGEMENT_TARGET_JOIN,
     ACTION_ENGAGEMENT_TARGET_OPEN,
     ACTION_ENGAGEMENT_TARGET_PERMISSION,
+    ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM,
     ACTION_ENGAGEMENT_TARGETS,
     ACTION_ENGAGEMENT_TOPIC_EDIT,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
@@ -56,6 +60,7 @@ from bot.ui import (
     config_edit_confirmation_markup,
     discovery_cockpit_markup,
     engagement_action_pager_markup,
+    engagement_account_confirm_markup,
     engagement_candidate_actions_markup,
     engagement_candidate_detail_markup,
     engagement_candidate_filter_markup,
@@ -68,7 +73,9 @@ from bot.ui import (
     engagement_style_list_markup,
     engagement_style_rule_actions_markup,
     engagement_target_actions_markup,
+    engagement_target_approval_confirm_markup,
     engagement_target_list_markup,
+    engagement_target_permission_confirm_markup,
     engagement_topic_actions_markup,
     engagement_topic_pager_markup,
     encode_callback_data,
@@ -120,14 +127,21 @@ def test_parse_all_engagement_callback_namespaces() -> None:
         "eng:topic:toggle:topic-1:0": ("eng:topic:toggle", ["topic-1", "0"]),
         "eng:set:open:community-1": (ACTION_ENGAGEMENT_SETTINGS_OPEN, ["community-1"]),
         "eng:set:preset:community-1:ready": ("eng:set:preset", ["community-1", "ready"]),
+        "eng:set:acctc": (ACTION_ENGAGEMENT_ACCOUNT_CONFIRM, []),
+        "eng:set:acctx": (ACTION_ENGAGEMENT_ACCOUNT_CANCEL, []),
         "eng:join:community-1": (ACTION_ENGAGEMENT_JOIN, ["community-1"]),
         "eng:detect:community-1:60": (ACTION_ENGAGEMENT_DETECT, ["community-1", "60"]),
         "eng:admin:to:target-1": (ACTION_ENGAGEMENT_TARGET_OPEN, ["target-1"]),
+        "eng:admin:tac:target-1": (ACTION_ENGAGEMENT_TARGET_APPROVE_CONFIRM, ["target-1"]),
         "eng:admin:src": (ACTION_ENGAGEMENT_STYLE_CREATE, []),
         "eng:admin:sro:rule-1": (ACTION_ENGAGEMENT_STYLE_OPEN, ["rule-1"]),
         "eng:admin:sre:rule-1": (ACTION_ENGAGEMENT_STYLE_EDIT, ["rule-1"]),
         "eng:admin:srt:rule-1:0": (ACTION_ENGAGEMENT_STYLE_TOGGLE, ["rule-1", "0"]),
         "eng:admin:tp:target-1:p:1": (ACTION_ENGAGEMENT_TARGET_PERMISSION, ["target-1", "p", "1"]),
+        "eng:admin:tpc:target-1:p:1": (
+            ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM,
+            ["target-1", "p", "1"],
+        ),
         "eng:admin:tj:target-1": (ACTION_ENGAGEMENT_TARGET_JOIN, ["target-1"]),
         "eng:admin:td:target-1:60": (ACTION_ENGAGEMENT_TARGET_DETECT, ["target-1", "60"]),
         "eng:cand:send:candidate-1": ("eng:cand:send", ["candidate-1"]),
@@ -170,8 +184,22 @@ def test_engagement_target_permission_callback_data_stays_under_telegram_limit()
     target_id = "12345678-1234-1234-1234-123456789abc"
 
     data = encode_callback_data(ACTION_ENGAGEMENT_TARGET_PERMISSION, target_id, "p", "1")
+    confirm_data = encode_callback_data(
+        ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM,
+        target_id,
+        "p",
+        "1",
+    )
+    approve_data = encode_callback_data(ACTION_ENGAGEMENT_TARGET_APPROVE_CONFIRM, target_id)
 
     assert len(data) <= 64
+    assert len(confirm_data) <= 64
+    assert len(approve_data) <= 64
+
+
+def test_engagement_account_confirmation_callback_data_stays_under_telegram_limit() -> None:
+    assert len(ACTION_ENGAGEMENT_ACCOUNT_CONFIRM) <= 64
+    assert len(ACTION_ENGAGEMENT_ACCOUNT_CANCEL) <= 64
 
 
 def test_main_menu_exposes_engagement_entrypoint() -> None:
@@ -349,6 +377,25 @@ def test_engagement_target_actions_markup_exposes_safe_target_controls() -> None
     assert f"{ACTION_ENGAGEMENT_TARGET_PERMISSION}:target-2:p:1" in approved_callbacks
     assert f"{ACTION_ENGAGEMENT_TARGET_JOIN}:target-2" in approved_callbacks
     assert f"{ACTION_ENGAGEMENT_TARGET_DETECT}:target-2:60" in approved_callbacks
+
+
+def test_engagement_target_confirmation_markups_expose_confirm_buttons() -> None:
+    approval = engagement_target_approval_confirm_markup("target-1")
+    permission = engagement_target_permission_confirm_markup(
+        "target-1",
+        permission_code="p",
+        enabled=True,
+    )
+
+    assert f"{ACTION_ENGAGEMENT_TARGET_APPROVE_CONFIRM}:target-1" in _callbacks(approval)
+    assert f"{ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM}:target-1:p:1" in _callbacks(permission)
+
+
+def test_engagement_account_confirmation_markup_is_payload_free() -> None:
+    markup = engagement_account_confirm_markup()
+
+    assert ACTION_ENGAGEMENT_ACCOUNT_CONFIRM in _callbacks(markup)
+    assert ACTION_ENGAGEMENT_ACCOUNT_CANCEL in _callbacks(markup)
 
 
 def test_engagement_target_actions_markup_hides_admin_mutations_for_non_admins() -> None:

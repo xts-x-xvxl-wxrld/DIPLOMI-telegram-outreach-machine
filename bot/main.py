@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 from typing import Any
 
 from bot.api_client import BotApiClient, BotApiError
@@ -32,6 +33,7 @@ from bot.formatting import (
     format_engagement_admin_advanced_home,
     format_engagement_admin_home,
     format_engagement_admin_limits_home,
+    format_engagement_account_assignment_confirmation,
     format_engagement_candidate_card,
     format_engagement_candidate_review,
     format_engagement_candidate_revisions,
@@ -49,7 +51,9 @@ from bot.formatting import (
     format_engagement_style_rule_card,
     format_engagement_style_rules,
     format_engagement_target_card,
+    format_engagement_target_approval_confirmation,
     format_engagement_target_mutation,
+    format_engagement_target_permission_confirmation,
     format_engagement_targets,
     format_engagement_topic_card,
     format_engagement_topics,
@@ -72,6 +76,8 @@ from bot.formatting import (
 )
 from bot.ui import (
     ACCOUNTS_MENU_LABEL,
+    ACTION_ENGAGEMENT_ACCOUNT_CANCEL,
+    ACTION_ENGAGEMENT_ACCOUNT_CONFIRM,
     ACTION_APPROVE_COMMUNITY,
     ACTION_COMMUNITY_MEMBERS,
     ACTION_CONFIG_EDIT_CANCEL,
@@ -121,11 +127,13 @@ from bot.ui import (
     ACTION_ENGAGEMENT_STYLE_TOGGLE,
     ACTION_ENGAGEMENT_TARGET_ADD,
     ACTION_ENGAGEMENT_TARGET_APPROVE,
+    ACTION_ENGAGEMENT_TARGET_APPROVE_CONFIRM,
     ACTION_ENGAGEMENT_TARGET_ARCHIVE,
     ACTION_ENGAGEMENT_TARGET_DETECT,
     ACTION_ENGAGEMENT_TARGET_JOIN,
     ACTION_ENGAGEMENT_TARGET_OPEN,
     ACTION_ENGAGEMENT_TARGET_PERMISSION,
+    ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM,
     ACTION_ENGAGEMENT_TARGET_REJECT,
     ACTION_ENGAGEMENT_TARGET_RESOLVE,
     ACTION_ENGAGEMENT_TARGETS,
@@ -153,6 +161,7 @@ from bot.ui import (
     community_actions_markup,
     config_edit_confirmation_markup,
     discovery_cockpit_markup,
+    engagement_account_confirm_markup,
     discovery_seeds_markup,
     engagement_action_pager_markup,
     engagement_admin_advanced_markup,
@@ -175,6 +184,8 @@ from bot.ui import (
     engagement_style_list_markup,
     engagement_style_rule_actions_markup,
     engagement_target_actions_markup,
+    engagement_target_approval_confirm_markup,
+    engagement_target_permission_confirm_markup,
     engagement_target_list_markup,
     engagement_topic_actions_markup,
     engagement_topic_pager_markup,
@@ -191,6 +202,7 @@ from bot.ui import (
 
 API_CLIENT_KEY = "api_client"
 CONFIG_EDIT_STORE_KEY = "config_edit_store"
+ACCOUNT_CONFIRM_STORE_KEY = "account_confirm_store"
 CANDIDATE_PAGE_SIZE = 5
 CHANNEL_PAGE_SIZE = 5
 MEMBER_PAGE_SIZE = 10
@@ -488,7 +500,7 @@ async def approve_engagement_target_command(update: Any, context: Any) -> None:
         await _reply(update, "Usage: /approve_engagement_target <target_id>")
         return
     try:
-        await _approve_engagement_target(update, context, target_id)
+        await _confirm_engagement_target_approval(update, context, target_id)
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
 
@@ -546,6 +558,15 @@ async def target_permission_command(update: Any, context: Any) -> None:
         await _reply(update, "Usage: /target_permission <target_id> <join|detect|post> <on|off>")
         return
     try:
+        if permission == "post":
+            await _confirm_engagement_target_permission(
+                update,
+                context,
+                target_id,
+                permission=permission,
+                enabled=enabled,
+            )
+            return
         await _set_engagement_target_permission(
             update,
             context,
@@ -993,7 +1014,7 @@ async def assign_engagement_account_command(update: Any, context: Any) -> None:
         return
 
     try:
-        await _update_engagement_settings_from_current(
+        await _confirm_engagement_account_assignment(
             update,
             context,
             community_id,
@@ -1012,7 +1033,7 @@ async def clear_engagement_account_command(update: Any, context: Any) -> None:
         return
 
     try:
-        await _update_engagement_settings_from_current(
+        await _confirm_engagement_account_assignment(
             update,
             context,
             community_id,
@@ -1435,6 +1456,16 @@ async def callback_query(update: Any, context: Any) -> None:
         if action == ACTION_CONFIG_EDIT_CANCEL:
             await _cancel_config_edit_callback(update, context)
             return
+        if action == ACTION_ENGAGEMENT_ACCOUNT_CONFIRM:
+            await _apply_confirmed_engagement_account_assignment(
+                update,
+                context,
+                edit_callback=True,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_ACCOUNT_CANCEL:
+            await _cancel_engagement_account_assignment(update, context, edit_callback=True)
+            return
         if action == ACTION_ENGAGEMENT_TARGETS and parts:
             status, offset = _engagement_target_callback_status_and_offset(parts)
             await _send_engagement_targets(update, context, status=status, offset=offset)
@@ -1452,6 +1483,14 @@ async def callback_query(update: Any, context: Any) -> None:
             await _resolve_engagement_target(update, context, parts[0])
             return
         if action == ACTION_ENGAGEMENT_TARGET_APPROVE and len(parts) == 1:
+            await _confirm_engagement_target_approval(
+                update,
+                context,
+                parts[0],
+                edit_callback=True,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_TARGET_APPROVE_CONFIRM and len(parts) == 1:
             await _approve_engagement_target(update, context, parts[0], edit_callback=True)
             return
         if action == ACTION_ENGAGEMENT_TARGET_REJECT and len(parts) == 1:
@@ -1476,6 +1515,16 @@ async def callback_query(update: Any, context: Any) -> None:
             permission = _normalize_target_permission(parts[1])
             enabled = _parse_callback_bool(parts[2])
             if permission is not None and enabled is not None:
+                if permission == "post":
+                    await _confirm_engagement_target_permission(
+                        update,
+                        context,
+                        parts[0],
+                        permission=permission,
+                        enabled=enabled,
+                        edit_callback=True,
+                    )
+                    return
                 await _set_engagement_target_permission(
                     update,
                     context,
@@ -1517,6 +1566,19 @@ async def callback_query(update: Any, context: Any) -> None:
                     entity="prompt_profile",
                     object_id=parts[0],
                     field=field,
+                )
+                return
+        if action == ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM and len(parts) == 3:
+            permission = _normalize_target_permission(parts[1])
+            enabled = _parse_callback_bool(parts[2])
+            if permission is not None and enabled is not None:
+                await _set_engagement_target_permission(
+                    update,
+                    context,
+                    parts[0],
+                    permission=permission,
+                    enabled=enabled,
+                    edit_callback=True,
                 )
                 return
         if action == ACTION_ENGAGEMENT_PROMPT_DUPLICATE and len(parts) == 1:
@@ -2112,6 +2174,30 @@ async def _send_engagement_target(update: Any, context: Any, target_id: str) -> 
     )
 
 
+async def _confirm_engagement_target_approval(
+    update: Any,
+    context: Any,
+    target_id: str,
+    *,
+    edit_callback: bool = False,
+) -> None:
+    client = _api_client(context)
+    before = await client.get_engagement_target(target_id)
+    after = {
+        **before,
+        "status": "approved",
+        "allow_join": True,
+        "allow_detect": True,
+        "allow_post": True,
+    }
+    message = format_engagement_target_approval_confirmation(before=before, after=after)
+    markup = engagement_target_approval_confirm_markup(target_id)
+    if edit_callback:
+        await _edit_callback_message(update, message, reply_markup=markup)
+        return
+    await _reply(update, message, reply_markup=markup)
+
+
 async def _approve_engagement_target(
     update: Any,
     context: Any,
@@ -2131,6 +2217,35 @@ async def _approve_engagement_target(
     )
     message = format_engagement_target_mutation(action="approved", before=before, after=data)
     markup = _engagement_target_markup(target_id, data)
+    if edit_callback:
+        await _edit_callback_message(update, message, reply_markup=markup)
+        return
+    await _reply(update, message, reply_markup=markup)
+
+
+async def _confirm_engagement_target_permission(
+    update: Any,
+    context: Any,
+    target_id: str,
+    *,
+    permission: str,
+    enabled: bool,
+    edit_callback: bool = False,
+) -> None:
+    client = _api_client(context)
+    before = await client.get_engagement_target(target_id)
+    field_name = ENGAGEMENT_TARGET_PERMISSIONS[permission]
+    after = {**before, field_name: enabled}
+    message = format_engagement_target_permission_confirmation(
+        permission=permission,
+        before=before,
+        after=after,
+    )
+    markup = engagement_target_permission_confirm_markup(
+        target_id,
+        permission_code=permission[0],
+        enabled=enabled,
+    )
     if edit_callback:
         await _edit_callback_message(update, message, reply_markup=markup)
         return
@@ -2663,6 +2778,86 @@ async def _update_engagement_settings_from_current(
     )
 
 
+async def _confirm_engagement_account_assignment(
+    update: Any,
+    context: Any,
+    community_id: str,
+    *,
+    assigned_account_id: str | None,
+    edit_callback: bool = False,
+) -> None:
+    operator_id = _telegram_user_id(update)
+    if operator_id is None:
+        await _callback_reply(update, "Telegram did not include a user ID on this update.")
+        return
+
+    client = _api_client(context)
+    current = await client.get_engagement_settings(community_id)
+    current_account_id = current.get("assigned_account_id")
+    before_label = await _format_account_assignment_label(
+        client,
+        str(current_account_id) if current_account_id else None,
+    )
+    after_label = await _format_account_assignment_label(client, assigned_account_id)
+    _account_confirm_store(context)[operator_id] = {
+        "community_id": community_id,
+        "assigned_account_id": assigned_account_id,
+    }
+    message = format_engagement_account_assignment_confirmation(
+        current,
+        before_account_label=before_label,
+        after_account_label=after_label,
+    )
+    if edit_callback:
+        await _edit_callback_message(
+            update,
+            message,
+            reply_markup=engagement_account_confirm_markup(),
+        )
+        return
+    await _reply(update, message, reply_markup=engagement_account_confirm_markup())
+
+
+async def _apply_confirmed_engagement_account_assignment(
+    update: Any,
+    context: Any,
+    *,
+    edit_callback: bool = False,
+) -> None:
+    operator_id = _telegram_user_id(update)
+    pending = (
+        _account_confirm_store(context).pop(operator_id, None)
+        if operator_id is not None
+        else None
+    )
+    if not pending:
+        await _callback_reply(update, "No pending engagement account change to confirm.")
+        return
+    await _update_engagement_settings_from_current(
+        update,
+        context,
+        str(pending["community_id"]),
+        assigned_account_id=pending.get("assigned_account_id"),
+        edit_callback=edit_callback,
+    )
+
+
+async def _cancel_engagement_account_assignment(
+    update: Any,
+    context: Any,
+    *,
+    edit_callback: bool = False,
+) -> None:
+    operator_id = _telegram_user_id(update)
+    if operator_id is not None:
+        _account_confirm_store(context).pop(operator_id, None)
+    message = "Cancelled engagement account assignment change."
+    if edit_callback:
+        await _edit_callback_message(update, message)
+        return
+    await _reply(update, message)
+
+
 async def _reply_with_engagement_settings(
     update: Any,
     context: Any,
@@ -2694,6 +2889,15 @@ async def _format_engagement_settings_message(context: Any, data: dict[str, Any]
     return format_engagement_settings(data, assigned_account_label=assigned_account_label)
 
 
+async def _format_account_assignment_label(
+    client: BotApiClient,
+    account_id: str | None,
+) -> str:
+    if not account_id:
+        return "none"
+    return await _lookup_masked_account_label(client, account_id) or account_id
+
+
 async def _lookup_masked_account_label(client: BotApiClient, account_id: str) -> str | None:
     try:
         accounts = await client.get_accounts()
@@ -2703,14 +2907,24 @@ async def _lookup_masked_account_label(client: BotApiClient, account_id: str) ->
     for item in accounts.get("items") or []:
         if str(item.get("id") or "") != account_id:
             continue
-        masked_phone = str(item.get("phone") or "").strip()
-        if masked_phone:
-            return f"{account_id} | {masked_phone}"
+        phone = str(item.get("phone") or "").strip()
+        if phone:
+            return f"{account_id} | {_safe_masked_phone(phone)}"
         status = str(item.get("status") or "").strip()
         if status:
             return f"{account_id} | {status}"
         return account_id
     return account_id
+
+
+def _safe_masked_phone(value: str) -> str:
+    if "*" in value:
+        return value
+    digits = re.sub(r"\D", "", value)
+    if len(digits) < 7:
+        return value
+    prefix = "+" if value.strip().startswith("+") else ""
+    return f"{prefix}{digits[:3]}*****{digits[-2:]}"
 
 
 async def _start_engagement_join(update: Any, context: Any, community_id: str) -> None:
@@ -2985,6 +3199,7 @@ async def post_init(application: Any) -> None:
         timeout_seconds=settings.request_timeout_seconds,
     )
     application.bot_data[CONFIG_EDIT_STORE_KEY] = PendingEditStore()
+    application.bot_data[ACCOUNT_CONFIRM_STORE_KEY] = {}
 
 
 async def post_shutdown(application: Any) -> None:
@@ -3121,6 +3336,14 @@ def _config_edit_store(context: Any) -> PendingEditStore:
     if store is None:
         store = PendingEditStore()
         context.application.bot_data[CONFIG_EDIT_STORE_KEY] = store
+    return store
+
+
+def _account_confirm_store(context: Any) -> dict[int, dict[str, Any]]:
+    store = context.application.bot_data.get(ACCOUNT_CONFIRM_STORE_KEY)
+    if store is None:
+        store = {}
+        context.application.bot_data[ACCOUNT_CONFIRM_STORE_KEY] = store
     return store
 
 
@@ -3675,8 +3898,11 @@ def _callback_action_requires_engagement_admin(action: str, parts: list[str]) ->
         ACTION_ENGAGEMENT_ADMIN,
         ACTION_ENGAGEMENT_ADMIN_LIMITS,
         ACTION_ENGAGEMENT_ADMIN_ADVANCED,
+        ACTION_ENGAGEMENT_ACCOUNT_CONFIRM,
+        ACTION_ENGAGEMENT_ACCOUNT_CANCEL,
         ACTION_ENGAGEMENT_TARGET_ADD,
         ACTION_ENGAGEMENT_TARGET_APPROVE,
+        ACTION_ENGAGEMENT_TARGET_APPROVE_CONFIRM,
         ACTION_ENGAGEMENT_TARGET_RESOLVE,
         ACTION_ENGAGEMENT_TARGET_REJECT,
         ACTION_ENGAGEMENT_TARGET_ARCHIVE,
@@ -3703,7 +3929,7 @@ def _callback_action_requires_engagement_admin(action: str, parts: list[str]) ->
         ACTION_ENGAGEMENT_TOPIC_TOGGLE,
     }:
         return True
-    if action == ACTION_ENGAGEMENT_TARGET_PERMISSION:
+    if action in {ACTION_ENGAGEMENT_TARGET_PERMISSION, ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM}:
         return True
     if action == ACTION_CONFIG_EDIT_SAVE:
         return bool(parts)

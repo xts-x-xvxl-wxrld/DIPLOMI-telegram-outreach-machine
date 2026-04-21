@@ -886,3 +886,11 @@ schemas, and Alembic migration `20260421_0011_search_schema.py` for search runs,
 run-scoped candidates, compact evidence, and review audit rows. Focused schema coverage validates
 defaults, uniqueness, nullable unresolved candidates, foreign keys, and PostgreSQL DDL compilation;
 the full test suite passed with 399 tests.
+
+## [2026-04-21] code | Added bot engagement safety confirmations
+
+Completed Bot Engagement Controls Slice 11. Target approval, target posting-permission changes,
+and community engagement account assignment/clearing now render confirmation cards and delay API
+mutations until the admin confirms. Confirmation cards show before/after permission or masked
+account state, and non-admin confirm callbacks are rejected before protected API calls. Focused bot
+UI, formatting, handler, and access coverage passed with 153 tests.

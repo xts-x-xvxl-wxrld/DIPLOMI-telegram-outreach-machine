@@ -13,6 +13,7 @@ from bot.formatting import (
     format_engagement_candidates,
     format_engagement_action_card,
     format_engagement_actions,
+    format_engagement_account_assignment_confirmation,
     format_engagement_home,
     format_engagement_job_response,
     format_engagement_settings,
@@ -20,7 +21,9 @@ from bot.formatting import (
     format_engagement_style_rule_card,
     format_engagement_style_rules,
     format_engagement_target_card,
+    format_engagement_target_approval_confirmation,
     format_engagement_target_mutation,
+    format_engagement_target_permission_confirmation,
     format_engagement_topic_card,
     format_engagement_topics,
     format_job_status,
@@ -413,6 +416,59 @@ def test_format_engagement_target_mutation_shows_before_after_permissions() -> N
     assert "Before: status=approved, join=yes, detect=yes, post=no" in message
     assert "After: status=approved, join=yes, detect=yes, post=yes" in message
     assert "Readiness: Ready to post with review" in message
+
+
+def test_format_target_confirmation_cards_show_before_after_state() -> None:
+    before = {
+        "id": "target-1",
+        "submitted_ref": "username:founders",
+        "status": "resolved",
+        "community_id": "community-1",
+        "community_title": "Founder Circle",
+        "allow_join": False,
+        "allow_detect": False,
+        "allow_post": False,
+    }
+    approval = format_engagement_target_approval_confirmation(
+        before=before,
+        after={
+            **before,
+            "status": "approved",
+            "allow_join": True,
+            "allow_detect": True,
+            "allow_post": True,
+        },
+    )
+    posting = format_engagement_target_permission_confirmation(
+        permission="post",
+        before={**before, "status": "approved", "allow_detect": True},
+        after={
+            **before,
+            "status": "approved",
+            "allow_detect": True,
+            "allow_post": True,
+        },
+    )
+
+    assert "Confirm target approval" in approval
+    assert "Before: status=resolved, join=no, detect=no, post=no" in approval
+    assert "After: status=approved, join=yes, detect=yes, post=yes" in approval
+    assert "Confirm target post permission change" in posting
+    assert "After: status=approved, join=no, detect=yes, post=yes" in posting
+
+
+def test_format_account_assignment_confirmation_uses_masked_labels() -> None:
+    message = format_engagement_account_assignment_confirmation(
+        {"community_id": "community-1"},
+        before_account_label="none",
+        after_account_label="account-1 | +123*****89",
+    )
+
+    assert "Confirm engagement account assignment" in message
+    assert "Before: none" in message
+    assert "After: account-1 | +123*****89" in message
+    assert "+123456789" not in message
+    assert "phone" not in message.lower()
 
 
 def test_format_engagement_topics_and_card_truncate_guidance() -> None:
