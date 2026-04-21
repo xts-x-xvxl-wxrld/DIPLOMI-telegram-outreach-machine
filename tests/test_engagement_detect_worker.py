@@ -14,6 +14,7 @@ from backend.db.enums import (
 )
 from backend.db.models import (
     Community,
+    CommunityAccountMembership,
     CommunityEngagementSettings,
     EngagementCandidate,
     EngagementTarget,
@@ -48,13 +49,18 @@ async def test_engagement_detect_skips_model_when_keyword_prefilter_has_no_signa
                     tg_message_id=10,
                     text="Does anyone have newsletter tooling recommendations?",
                     message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                    is_replyable=True,
                 )
             ]
         ),
         context_loader=lambda *_args, **_kwargs: _async_result(
             CommunityContext(latest_summary=None, dominant_themes=[])
         ),
-        settings=SimpleNamespace(openai_engagement_model="test-model"),  # type: ignore[arg-type]
+        settings=SimpleNamespace(
+            openai_engagement_model="test-model",
+            engagement_max_detector_calls_per_run=5,
+            engagement_semantic_matching_enabled=False,
+        ),  # type: ignore[arg-type]
     )
 
     assert result["status"] == "processed"
@@ -94,6 +100,7 @@ async def test_engagement_detect_creates_candidate_without_sender_identity() -> 
                     tg_message_id=123,
                     text="We are comparing CRM options. Call me at +1 555 123 4567 if you know one.",
                     message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                    is_replyable=True,
                 )
             ]
         ),
@@ -101,7 +108,11 @@ async def test_engagement_detect_creates_candidate_without_sender_identity() -> 
             CommunityContext(latest_summary="Community discusses SaaS operations.", dominant_themes=["ops"])
         ),
         candidate_creator=create_engagement_candidate,
-        settings=SimpleNamespace(openai_engagement_model="test-model"),  # type: ignore[arg-type]
+        settings=SimpleNamespace(
+            openai_engagement_model="test-model",
+            engagement_max_detector_calls_per_run=5,
+            engagement_semantic_matching_enabled=False,
+        ),  # type: ignore[arg-type]
     )
 
     assert result["candidates_created"] == 1
@@ -114,6 +125,9 @@ async def test_engagement_detect_creates_candidate_without_sender_identity() -> 
     assert "+1 555" not in (candidate.source_excerpt or "")
     assert candidate.suggested_reply is not None
     assert candidate.model == "test-model"
+    assert "source_post" in captured_inputs[0]
+    assert captured_inputs[0]["source_post"]["tg_message_id"] == 123
+    assert captured_inputs[0]["messages"] == [captured_inputs[0]["source_post"]]
     assert "sender" not in str(captured_inputs[0]).casefold()
     assert "user_id" not in str(captured_inputs[0]).casefold()
 
@@ -142,18 +156,105 @@ async def test_engagement_detect_skips_without_approved_engagement_target() -> N
                     tg_message_id=123,
                     text="We are comparing CRM options.",
                     message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                    is_replyable=True,
                 )
             ]
         ),
         context_loader=lambda *_args, **_kwargs: _async_result(
             CommunityContext(latest_summary=None, dominant_themes=[])
         ),
-        settings=SimpleNamespace(openai_engagement_model="test-model"),  # type: ignore[arg-type]
+        settings=SimpleNamespace(
+            openai_engagement_model="test-model",
+            engagement_max_detector_calls_per_run=5,
+            engagement_semantic_matching_enabled=False,
+        ),  # type: ignore[arg-type]
     )
 
     assert result["status"] == "skipped"
     assert result["reason"] == "engagement_target_detect_not_approved"
     assert session.candidates == []
+
+
+@pytest.mark.asyncio
+async def test_engagement_detect_skips_without_joined_membership() -> None:
+    community_id = uuid4()
+    topic = _topic(trigger_keywords=["crm"])
+    session = FakeSession(
+        community=_community(community_id),
+        settings=_settings(community_id),
+        membership=None,
+    )
+
+    async def detector(_model_input: dict[str, object]) -> EngagementDetectionDecision:
+        raise AssertionError("detector should not run without joined engagement membership")
+
+    result = await process_engagement_detect(
+        {"community_id": str(community_id), "window_minutes": 60, "requested_by": None},
+        session_factory=lambda: session,
+        detector=detector,
+        active_topics_fn=lambda _session: _async_result([topic]),
+        sample_loader=lambda *_args, **_kwargs: _async_result(
+            [
+                DetectionMessage(
+                    tg_message_id=123,
+                    text="We are comparing CRM options.",
+                    message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                    is_replyable=True,
+                )
+            ]
+        ),
+        context_loader=lambda *_args, **_kwargs: _async_result(
+            CommunityContext(latest_summary=None, dominant_themes=[])
+        ),
+        settings=SimpleNamespace(
+            openai_engagement_model="test-model",
+            engagement_max_detector_calls_per_run=5,
+            engagement_semantic_matching_enabled=False,
+        ),  # type: ignore[arg-type]
+    )
+
+    assert result["status"] == "skipped"
+    assert result["reason"] == "no_joined_engagement_membership"
+
+
+@pytest.mark.asyncio
+async def test_engagement_detect_skips_semantic_only_topic_until_selector_is_enabled() -> None:
+    community_id = uuid4()
+    topic = _topic(trigger_keywords=[])
+    topic.description = "People comparing CRM migration and evaluation tradeoffs."
+    session = FakeSession(community=_community(community_id), settings=_settings(community_id))
+
+    async def detector(_model_input: dict[str, object]) -> EngagementDetectionDecision:
+        raise AssertionError("detector should not run for semantic-only topics before selector rollout")
+
+    result = await process_engagement_detect(
+        {"community_id": str(community_id), "window_minutes": 60, "requested_by": None},
+        session_factory=lambda: session,
+        detector=detector,
+        active_topics_fn=lambda _session: _async_result([topic]),
+        sample_loader=lambda *_args, **_kwargs: _async_result(
+            [
+                DetectionMessage(
+                    tg_message_id=123,
+                    text="We are comparing CRM options.",
+                    message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                    is_replyable=True,
+                )
+            ]
+        ),
+        context_loader=lambda *_args, **_kwargs: _async_result(
+            CommunityContext(latest_summary=None, dominant_themes=[])
+        ),
+        settings=SimpleNamespace(
+            openai_engagement_model="test-model",
+            engagement_max_detector_calls_per_run=5,
+            engagement_semantic_matching_enabled=False,
+        ),  # type: ignore[arg-type]
+    )
+
+    assert result["status"] == "processed"
+    assert result["detector_calls"] == 0
+    assert result["skipped_no_signal"] == 1
 
 
 @pytest.mark.asyncio
@@ -199,6 +300,7 @@ async def test_engagement_detect_skips_duplicate_active_candidate() -> None:
                     tg_message_id=123,
                     text="We are comparing CRM options.",
                     message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                    is_replyable=True,
                 )
             ]
         ),
@@ -206,7 +308,11 @@ async def test_engagement_detect_skips_duplicate_active_candidate() -> None:
             CommunityContext(latest_summary=None, dominant_themes=[])
         ),
         candidate_creator=create_engagement_candidate,
-        settings=SimpleNamespace(openai_engagement_model="test-model"),  # type: ignore[arg-type]
+        settings=SimpleNamespace(
+            openai_engagement_model="test-model",
+            engagement_max_detector_calls_per_run=5,
+            engagement_semantic_matching_enabled=False,
+        ),  # type: ignore[arg-type]
     )
 
     assert result["candidates_created"] == 0
@@ -222,11 +328,13 @@ class FakeSession:
         settings: CommunityEngagementSettings,
         target: EngagementTarget | None | bool = True,
         existing_candidate: EngagementCandidate | None = None,
+        membership: CommunityAccountMembership | None | bool = True,
     ) -> None:
         self.community = community
         self.settings = settings
         self.target = _target(community.id) if target is True else target
         self.existing_candidate = existing_candidate
+        self.membership = _membership(community.id) if membership is True else membership
         self.candidates: list[EngagementCandidate] = []
         self.commits = 0
         self.rollbacks = 0
@@ -249,6 +357,8 @@ class FakeSession:
             return self.settings
         if entity is EngagementTarget:
             return self.target
+        if entity is CommunityAccountMembership:
+            return self.membership
         if entity is EngagementCandidate:
             return self.existing_candidate
         return None
@@ -325,4 +435,14 @@ def _target(community_id: object) -> EngagementTarget:
         allow_detect=True,
         allow_post=True,
         added_by="op",
+    )
+
+
+def _membership(community_id: object) -> CommunityAccountMembership:
+    return CommunityAccountMembership(
+        id=uuid4(),
+        community_id=community_id,
+        telegram_account_id=uuid4(),
+        status="joined",
+        joined_at=datetime(2026, 4, 19, 11, 0, tzinfo=timezone.utc),
     )

@@ -503,7 +503,26 @@ async def test_create_topic_normalizes_keywords_and_returns_guidance_fields() ->
 
 
 @pytest.mark.asyncio
-async def test_create_active_topic_requires_trigger_keyword() -> None:
+async def test_create_active_topic_allows_semantic_profile_without_trigger_keyword() -> None:
+    db = FakeDb()
+
+    response = await post_engagement_topic(
+        EngagementTopicCreate(
+            name="CRM",
+            description="People comparing CRM migration and evaluation tradeoffs.",
+            stance_guidance="Be useful.",
+            trigger_keywords=[],
+        ),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.description == "People comparing CRM migration and evaluation tradeoffs."
+    assert response.trigger_keywords == []
+    assert db.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_create_active_topic_requires_semantic_profile_text() -> None:
     db = FakeDb()
 
     with pytest.raises(HTTPException) as exc_info:
@@ -512,12 +531,14 @@ async def test_create_active_topic_requires_trigger_keyword() -> None:
                 name="CRM",
                 stance_guidance="Be useful.",
                 trigger_keywords=[],
+                description=None,
+                example_good_replies=[],
             ),
             db,  # type: ignore[arg-type]
         )
 
     assert exc_info.value.status_code == 400
-    assert exc_info.value.detail["code"] == "topic_requires_trigger_keyword"
+    assert exc_info.value.detail["code"] == "topic_requires_semantic_profile"
     assert db.commits == 0
 
 

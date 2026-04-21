@@ -63,6 +63,10 @@ topic.example_good_replies
 optional future positive trigger-message examples
 ```
 
+Active topics do not need `trigger_keywords` once semantic selection is enabled, as long as the
+topic still has enough profile text to embed. During rollout, topics without trigger keywords should
+not trigger the legacy keyword fallback when semantic matching is disabled.
+
 `negative_keywords` remain deterministic exclusions. They should not be treated as a soft semantic
 anti-embedding in the first implementation because hard exclusions are easier to reason about and
 audit.
@@ -341,6 +345,9 @@ mean the draft model is weak, the topic is vague, or the threshold is too loose.
 Phase 1: Add docs, settings, cache tables, and embedding service tests.
 
 Phase 2: Add semantic selector behind a feature flag while keeping keyword prefilter as fallback.
+
+During this phase, semantic-only topics may exist in admin data, but they should stay inert until
+the semantic-selector feature flag is enabled for detection.
 
 Phase 3: Log semantic scores and compare selector behavior against current keyword matching.
 

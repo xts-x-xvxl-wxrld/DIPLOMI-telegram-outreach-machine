@@ -737,3 +737,12 @@ Renamed the discovery-side collection worker, queue job, bot controls, and API e
 community snapshots while keeping `collection.run` reserved for engagement collection. Updated the
 discovery, collection, queue, API, bot, database, and account-pool specs so discovery stores
 community snapshots and engagement owns message collection.
+
+## [2026-04-21] code | Aligned engagement detector for semantic matching
+
+Resolved the main semantic-selector blockers before implementation. Active topics may now rely on
+semantic profile text instead of mandatory trigger keywords, detector input uses one selected
+`source_post` plus optional `reply_context`, joined-membership and post-join/replyable gates run
+before drafting, detector calls are capped per run, and compact candidate metadata can retain
+future `semantic_match` audit fields. Updated the engagement specs and embedding-matching plan to
+match the new rollout contract.

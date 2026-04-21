@@ -19,6 +19,14 @@ class Settings(BaseSettings):
         default="gpt-4o-mini",
         validation_alias="OPENAI_ENGAGEMENT_MODEL",
     )
+    openai_embedding_model: str = Field(
+        default="text-embedding-3-small",
+        validation_alias="OPENAI_EMBEDDING_MODEL",
+    )
+    openai_embedding_dimensions: int = Field(
+        default=512,
+        validation_alias="OPENAI_EMBEDDING_DIMENSIONS",
+    )
     telegram_api_id: str = Field(default="", validation_alias="TELEGRAM_API_ID")
     telegram_api_hash: str = Field(default="", validation_alias="TELEGRAM_API_HASH")
     sessions_dir: str = Field(default="/sessions", validation_alias="SESSIONS_DIR")
@@ -37,6 +45,30 @@ class Settings(BaseSettings):
     engagement_scheduler_interval_seconds: int = Field(
         default=3600,
         validation_alias="ENGAGEMENT_SCHEDULER_INTERVAL_SECONDS",
+    )
+    engagement_semantic_matching_enabled: bool = Field(
+        default=False,
+        validation_alias="ENGAGEMENT_SEMANTIC_MATCHING_ENABLED",
+    )
+    engagement_semantic_match_threshold: float = Field(
+        default=0.62,
+        validation_alias="ENGAGEMENT_SEMANTIC_MATCH_THRESHOLD",
+    )
+    engagement_max_semantic_matches_per_topic: int = Field(
+        default=3,
+        validation_alias="ENGAGEMENT_MAX_SEMANTIC_MATCHES_PER_TOPIC",
+    )
+    engagement_max_embedding_messages_per_run: int = Field(
+        default=100,
+        validation_alias="ENGAGEMENT_MAX_EMBEDDING_MESSAGES_PER_RUN",
+    )
+    engagement_max_detector_calls_per_run: int = Field(
+        default=5,
+        validation_alias="ENGAGEMENT_MAX_DETECTOR_CALLS_PER_RUN",
+    )
+    engagement_message_embedding_retention_days: int = Field(
+        default=14,
+        validation_alias="ENGAGEMENT_MESSAGE_EMBEDDING_RETENTION_DAYS",
     )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

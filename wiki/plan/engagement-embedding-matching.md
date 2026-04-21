@@ -25,6 +25,14 @@ That cost-control shape is good and should stay. The weak point is recall: users
 discussion exactly like the configured keyword list. Embeddings should replace the brittle trigger
 match while keeping deterministic safety gates, dedupe, timing rules, and the final model decision.
 
+As of 2026-04-21, the detector and wiki contracts were aligned so semantic rollout can land cleanly:
+
+- active topics may rely on semantic profile text instead of mandatory trigger keywords
+- detector input uses one selected `source_post` plus optional `reply_context`
+- joined-membership and post-join/replyable gates are enforced before drafting
+- semantic-only topics stay inert until the semantic-selector feature flag is enabled
+- detector calls are capped per community run through settings
+
 ## Design Decisions
 
 - Use `text-embedding-3-small` by default.
@@ -56,7 +64,7 @@ Acceptance:
 
 ## Slice 2: Settings And Schema
 
-Status: pending.
+Status: in_progress.
 
 Add settings:
 
@@ -68,6 +76,7 @@ ENGAGEMENT_MAX_SEMANTIC_MATCHES_PER_TOPIC
 ENGAGEMENT_MAX_EMBEDDING_MESSAGES_PER_RUN
 ENGAGEMENT_MAX_DETECTOR_CALLS_PER_RUN
 ENGAGEMENT_MESSAGE_EMBEDDING_RETENTION_DAYS
+ENGAGEMENT_SEMANTIC_MATCHING_ENABLED
 ```
 
 Add Alembic migration and models for:
@@ -77,6 +86,7 @@ Add Alembic migration and models for:
 
 Acceptance:
 
+- Settings are available in app configuration before selector integration.
 - Migration upgrades and downgrades cleanly.
 - Cache uniqueness includes model, dimensions, and normalized text hash.
 - Message cache rows can expire.

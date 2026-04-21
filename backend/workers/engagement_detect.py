@@ -22,6 +22,7 @@ from backend.services.community_engagement import (
     EngagementValidationError,
     create_engagement_candidate,
     get_engagement_settings,
+    get_joined_membership_for_send,
     has_engagement_target_permission,
     list_active_style_rules_for_prompt,
     list_active_topics,
@@ -60,6 +61,7 @@ class DetectionMessage:
     text: str
     message_date: datetime | None
     reply_context: str | None = None
+    is_replyable: bool = False
 
 
 @dataclass(frozen=True)
@@ -164,6 +166,14 @@ async def process_engagement_detect(
                 permission="detect",
             ):
                 return _skipped("engagement_target_detect_not_approved", validated_payload.community_id)
+            membership = await get_joined_membership_for_send(
+                session,
+                community_id=validated_payload.community_id,
+            )
+            if membership is None:
+                return _skipped("no_joined_engagement_membership", validated_payload.community_id)
+            if membership.joined_at is None:
+                return _skipped("missing_joined_at", validated_payload.community_id)
 
             topics = await active_topics_fn(session)
             if not topics:
@@ -176,16 +186,33 @@ async def process_engagement_detect(
             )
             if not messages:
                 return _skipped("no_recent_samples", validated_payload.community_id)
+            eligible_messages = _filter_detection_messages(
+                messages,
+                joined_at=membership.joined_at,
+                reply_only=engagement_settings.reply_only,
+            )
+            if not eligible_messages:
+                return _skipped("no_trigger_opportunities", validated_payload.community_id)
 
             community_context = await context_loader(session, community=community)
             prompt_selection = await select_active_prompt_profile(session)
             summary = DetectionSummary(community_id=validated_payload.community_id)
             for topic in topics:
                 summary.topics_checked += 1
-                matching_messages = _prefilter_messages(topic, messages)
+                if (
+                    not runtime_settings.engagement_semantic_matching_enabled
+                    and not (topic.trigger_keywords or [])
+                ):
+                    summary.skipped_no_signal += 1
+                    continue
+                matching_messages = _prefilter_messages(topic, eligible_messages)
                 if not matching_messages:
                     summary.skipped_no_signal += 1
                     continue
+                if summary.detector_calls >= runtime_settings.engagement_max_detector_calls_per_run:
+                    summary.skipped_detector_cap += 1
+                    break
+                source_message = _select_source_message(matching_messages)
 
                 style_rules = await _load_style_bundle(
                     session,
@@ -196,7 +223,7 @@ async def process_engagement_detect(
                 model_input = _build_model_input(
                     community=community,
                     topic=topic,
-                    messages=matching_messages[:MAX_MESSAGES_PER_MODEL_CALL],
+                    source_message=source_message,
                     community_context=community_context,
                     style_rules=style_rules,
                 )
@@ -216,16 +243,19 @@ async def process_engagement_detect(
                 if not decision.suggested_reply:
                     summary.skipped_validation += 1
                     continue
-
-                source_message = _select_source_message(matching_messages, decision.source_tg_message_id)
+                if (
+                    decision.source_tg_message_id is not None
+                    and source_message.tg_message_id is not None
+                    and decision.source_tg_message_id != source_message.tg_message_id
+                ):
+                    summary.skipped_validation += 1
+                    continue
                 try:
                     creation = await candidate_creator(
                         session,
                         community_id=validated_payload.community_id,
                         topic_id=topic.id,
-                        source_tg_message_id=decision.source_tg_message_id
-                        if decision.source_tg_message_id is not None
-                        else source_message.tg_message_id,
+                        source_tg_message_id=source_message.tg_message_id,
                         source_excerpt=source_message.text,
                         detected_reason=decision.reason,
                         suggested_reply=decision.suggested_reply,
@@ -265,11 +295,11 @@ async def load_recent_detection_samples(
     window_minutes: int,
 ) -> list[DetectionMessage]:
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
-    artifact_messages = await _load_latest_artifact_messages(session, community.id, cutoff=cutoff)
+    artifact_messages = await _load_latest_artifact_messages(session, community, cutoff=cutoff)
     if artifact_messages:
         return artifact_messages
     if community.store_messages:
-        return await _load_stored_messages(session, community.id, cutoff=cutoff)
+        return await _load_stored_messages(session, community, cutoff=cutoff)
     return []
 
 
@@ -302,6 +332,7 @@ class DetectionSummary:
     candidates_created: int = 0
     topics_checked: int = 0
     detector_calls: int = 0
+    skipped_detector_cap: int = 0
     skipped_no_signal: int = 0
     skipped_dedupe: int = 0
     skipped_validation: int = 0
@@ -314,6 +345,7 @@ class DetectionSummary:
             "candidates_created": self.candidates_created,
             "topics_checked": self.topics_checked,
             "detector_calls": self.detector_calls,
+            "skipped_detector_cap": self.skipped_detector_cap,
             "skipped_no_signal": self.skipped_no_signal,
             "skipped_dedupe": self.skipped_dedupe,
             "skipped_validation": self.skipped_validation,
@@ -338,10 +370,15 @@ def _build_model_input(
     *,
     community: Community,
     topic: EngagementTopic,
-    messages: list[DetectionMessage],
+    source_message: DetectionMessage,
     community_context: CommunityContext,
     style_rules: dict[str, list[str]],
 ) -> dict[str, Any]:
+    source_post = {
+        "tg_message_id": source_message.tg_message_id,
+        "text": _truncate_text(source_message.text, MAX_MESSAGE_CHARS),
+        "message_date": source_message.message_date.isoformat() if source_message.message_date else None,
+    }
     return {
         "community": {
             "id": str(community.id),
@@ -360,17 +397,12 @@ def _build_model_input(
             "example_good_replies": list(topic.example_good_replies or []),
             "example_bad_replies": list(topic.example_bad_replies or []),
         },
-        "messages": [
-            {
-                "tg_message_id": message.tg_message_id,
-                "text": _truncate_text(message.text, MAX_MESSAGE_CHARS),
-                "message_date": message.message_date.isoformat() if message.message_date else None,
-                "reply_context": _truncate_text(message.reply_context, MAX_MESSAGE_CHARS)
-                if message.reply_context
-                else None,
-            }
-            for message in messages[:MAX_MESSAGES_PER_MODEL_CALL]
-        ],
+        "source_post": source_post,
+        "reply_context": _truncate_text(source_message.reply_context, MAX_MESSAGE_CHARS)
+        if source_message.reply_context
+        else None,
+        # Keep a single-message compatibility alias for older prompt templates during the transition.
+        "messages": [source_post],
         "style": style_rules,
         "community_context": {
             "latest_summary": _truncate_text(community_context.latest_summary, 2000)
@@ -455,6 +487,7 @@ def _prompt_render_summary(
             "topic": len(style.get("topic") or []),
         },
         "message_count": len(model_input.get("messages") or []),
+        "source_post_present": isinstance(model_input.get("source_post"), dict),
         "serialized_input_bytes": _serialized_size(_public_model_input(model_input)),
     }
 
@@ -471,25 +504,31 @@ def _fit_model_input(model_input: dict[str, Any]) -> dict[str, Any]:
 
 def _select_source_message(
     messages: list[DetectionMessage],
-    source_tg_message_id: int | None,
+    source_tg_message_id: int | None = None,
 ) -> DetectionMessage:
     if source_tg_message_id is not None:
         for message in messages:
             if message.tg_message_id == source_tg_message_id:
                 return message
-    return messages[0]
+    return max(
+        messages,
+        key=lambda message: (
+            _sortable_datetime(message.message_date),
+            message.tg_message_id or -1,
+        ),
+    )
 
 
 async def _load_latest_artifact_messages(
     session: AsyncSession,
-    community_id: object,
+    community: Community,
     *,
     cutoff: datetime,
 ) -> list[DetectionMessage]:
     result = await session.scalars(
         select(CollectionRun)
         .where(
-            CollectionRun.community_id == community_id,
+            CollectionRun.community_id == community.id,
             CollectionRun.status == CollectionRunStatus.COMPLETED.value,
             CollectionRun.analysis_input.is_not(None),
         )
@@ -497,7 +536,11 @@ async def _load_latest_artifact_messages(
         .limit(5)
     )
     for run in result:
-        messages = _messages_from_analysis_input(run.analysis_input or {}, cutoff=cutoff)
+        messages = _messages_from_analysis_input(
+            run.analysis_input or {},
+            cutoff=cutoff,
+            community_is_group=bool(community.is_group),
+        )
         if messages:
             return messages
     return []
@@ -505,14 +548,14 @@ async def _load_latest_artifact_messages(
 
 async def _load_stored_messages(
     session: AsyncSession,
-    community_id: object,
+    community: Community,
     *,
     cutoff: datetime,
 ) -> list[DetectionMessage]:
     result = await session.scalars(
         select(Message)
         .where(
-            Message.community_id == community_id,
+            Message.community_id == community.id,
             Message.message_date >= cutoff,
             Message.text.is_not(None),
         )
@@ -525,6 +568,7 @@ async def _load_stored_messages(
             text=_truncate_text(message.text or "", MAX_MESSAGE_CHARS),
             message_date=message.message_date,
             reply_context=None,
+            is_replyable=bool(community.is_group and message.tg_message_id is not None),
         )
         for message in result
         if message.text
@@ -537,6 +581,7 @@ def _messages_from_analysis_input(
     analysis_input: dict[str, Any],
     *,
     cutoff: datetime,
+    community_is_group: bool,
 ) -> list[DetectionMessage]:
     messages: list[DetectionMessage] = []
     for raw_message in analysis_input.get("sample_messages") or []:
@@ -548,17 +593,23 @@ def _messages_from_analysis_input(
         message_date = _parse_datetime(raw_message.get("message_date"))
         if message_date is not None and message_date < cutoff:
             continue
+        tg_message_id = _optional_int(
+            raw_message.get("tg_message_id")
+            or raw_message.get("message_id")
+            or raw_message.get("id")
+        )
         message = DetectionMessage(
-            tg_message_id=_optional_int(
-                raw_message.get("tg_message_id")
-                or raw_message.get("message_id")
-                or raw_message.get("id")
-            ),
+            tg_message_id=tg_message_id,
             text=_truncate_text(text, MAX_MESSAGE_CHARS),
             message_date=message_date,
             reply_context=_truncate_text(raw_message.get("reply_context"), MAX_MESSAGE_CHARS)
             if isinstance(raw_message.get("reply_context"), str)
             else None,
+            is_replyable=_coerce_is_replyable(
+                raw_message.get("is_replyable"),
+                community_is_group=community_is_group,
+                tg_message_id=tg_message_id,
+            ),
         )
         messages.append(message)
     return messages[-100:]
@@ -567,6 +618,29 @@ def _messages_from_analysis_input(
 def _truncate_text(value: str | None, limit: int) -> str:
     sanitized = sanitize_candidate_excerpt(value) or ""
     return sanitized[:limit]
+
+
+def _filter_detection_messages(
+    messages: list[DetectionMessage],
+    *,
+    joined_at: datetime,
+    reply_only: bool,
+) -> list[DetectionMessage]:
+    joined_cutoff = _ensure_aware_utc(joined_at)
+    eligible: list[DetectionMessage] = []
+    for message in messages:
+        if not message.text.strip():
+            continue
+        if reply_only and message.tg_message_id is None:
+            continue
+        if message.message_date is None:
+            continue
+        if _ensure_aware_utc(message.message_date) < joined_cutoff:
+            continue
+        if not message.is_replyable:
+            continue
+        eligible.append(message)
+    return eligible
 
 
 def _parse_datetime(value: object) -> datetime | None:
@@ -589,6 +663,35 @@ def _optional_int(value: object) -> int | None:
         return int(value) if value is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def _coerce_is_replyable(
+    value: object,
+    *,
+    community_is_group: bool,
+    tg_message_id: int | None,
+) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().casefold()
+        if lowered in {"true", "1", "yes"}:
+            return True
+        if lowered in {"false", "0", "no"}:
+            return False
+    return bool(community_is_group and tg_message_id is not None)
+
+
+def _sortable_datetime(value: datetime | None) -> datetime:
+    if value is None:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    return _ensure_aware_utc(value)
+
+
+def _ensure_aware_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def _serialized_size(value: dict[str, Any]) -> int:

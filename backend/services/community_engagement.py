@@ -613,6 +613,7 @@ async def resolve_engagement_target(
 
 async def create_topic(db: AsyncSession, *, payload: Any) -> EngagementTopic:
     name = _required_text(payload.name, field="name")
+    description = _optional_text(payload.description)
     stance_guidance = _required_text(payload.stance_guidance, field="stance_guidance")
     trigger_keywords = normalize_keywords(payload.trigger_keywords)
     negative_keywords = normalize_keywords(payload.negative_keywords)
@@ -621,8 +622,10 @@ async def create_topic(db: AsyncSession, *, payload: Any) -> EngagementTopic:
 
     validate_topic_policy(
         name=name,
+        description=description,
         stance_guidance=stance_guidance,
         trigger_keywords=trigger_keywords,
+        example_good_replies=example_good_replies,
         active=payload.active,
     )
     await _ensure_unique_topic_name(db, name)
@@ -631,7 +634,7 @@ async def create_topic(db: AsyncSession, *, payload: Any) -> EngagementTopic:
     topic = EngagementTopic(
         id=uuid.uuid4(),
         name=name,
-        description=_optional_text(payload.description),
+        description=description,
         stance_guidance=stance_guidance,
         trigger_keywords=trigger_keywords,
         negative_keywords=negative_keywords,
@@ -679,8 +682,10 @@ async def update_topic(db: AsyncSession, *, topic_id: UUID, payload: Any) -> Eng
 
     validate_topic_policy(
         name=next_name,
+        description=next_description,
         stance_guidance=next_guidance,
         trigger_keywords=next_trigger_keywords,
+        example_good_replies=next_good_replies,
         active=next_active,
     )
     if next_name.casefold() != topic.name.casefold():
@@ -1638,16 +1643,19 @@ def normalize_text_list(values: list[str] | None) -> list[str]:
 def validate_topic_policy(
     *,
     name: str,
+    description: str | None,
     stance_guidance: str,
     trigger_keywords: list[str],
+    example_good_replies: list[str],
     active: bool,
 ) -> None:
     _required_text(name, field="name")
     guidance = _required_text(stance_guidance, field="stance_guidance")
-    if active and not trigger_keywords:
+    has_semantic_profile = bool(description or trigger_keywords or example_good_replies)
+    if active and not has_semantic_profile:
         raise EngagementValidationError(
-            "topic_requires_trigger_keyword",
-            "Active engagement topics require at least one trigger keyword",
+            "topic_requires_semantic_profile",
+            "Active engagement topics require description, trigger keywords, or good examples",
         )
 
     lowered = guidance.casefold()
@@ -2259,6 +2267,7 @@ def _compact_model_output(value: dict[str, Any] | None) -> dict[str, Any] | None
         "reason",
         "suggested_reply",
         "risk_notes",
+        "semantic_match",
     }
     return {key: value[key] for key in allowed_keys if key in value}
 
@@ -2271,7 +2280,9 @@ def _compact_prompt_render_summary(value: dict[str, Any] | None) -> dict[str, An
         "version_number",
         "style_rule_counts",
         "message_count",
+        "source_post_present",
         "serialized_input_bytes",
+        "semantic_match",
     }
     return {key: value[key] for key in allowed_keys if key in value}
 
@@ -2298,7 +2309,10 @@ def _default_prompt_preview() -> EngagementPromptPreview:
             "Global style: {{style.global}}\n"
             "Account style: {{style.account}}\n"
             "Community style: {{style.community}}\n"
-            "Messages: {{messages}}\n"
+            "Source post: {{source_post.text}}\n"
+            "Source message id: {{source_post.tg_message_id}}\n"
+            "Source date: {{source_post.message_date}}\n"
+            "Reply context: {{reply_context}}\n"
             "Community context: {{community_context.latest_summary}}\n"
             "Themes: {{community_context.dominant_themes}}"
         ),
@@ -2367,6 +2381,11 @@ def _validate_prompt_template(template: str) -> None:
 
 
 def _synthetic_prompt_variables() -> dict[str, Any]:
+    source_post = {
+        "tg_message_id": 123,
+        "text": "Has anyone compared open-source CRM options?",
+        "message_date": "2026-04-20T10:00:00+00:00",
+    }
     return {
         "community": {
             "title": "Example Operators",
@@ -2388,13 +2407,9 @@ def _synthetic_prompt_variables() -> dict[str, Any]:
             "community": ["Keep replies under 3 sentences."],
             "topic": ["Discuss practical evaluation criteria."],
         },
-        "messages": [
-            {
-                "tg_message_id": 123,
-                "text": "Has anyone compared open-source CRM options?",
-                "message_date": "2026-04-20T10:00:00+00:00",
-            }
-        ],
+        "source_post": source_post,
+        "reply_context": "A previous message asks about migration effort and data export.",
+        "messages": [source_post],
         "community_context": {
             "latest_summary": "Members compare sales and support tooling.",
             "dominant_themes": ["crm", "automation"],
@@ -2499,6 +2514,10 @@ _ALLOWED_PROMPT_VARIABLES = {
     "style.account",
     "style.community",
     "style.topic",
+    "source_post.text",
+    "source_post.tg_message_id",
+    "source_post.message_date",
+    "reply_context",
     "messages",
     "community_context.latest_summary",
     "community_context.dominant_themes",

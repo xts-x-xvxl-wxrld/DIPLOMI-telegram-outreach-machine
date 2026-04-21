@@ -278,7 +278,7 @@ Mode meanings:
 | Mode | Meaning |
 |---|---|
 | `disabled` | Do not join, detect, draft, or send. |
-| `observe` | Detect topic moments but do not draft replies. |
+| `observe` | Reserved observe-only mode. In the current MVP, detection exits early without drafting or creating reply opportunities. |
 | `suggest` | Draft reply opportunities for operator review. |
 | `require_approval` | Operator approval is required before every send. |
 | `auto_limited` | Future mode for tightly capped automatic replies after policy is proven safe. |
@@ -458,7 +458,10 @@ Validation contract:
 
 - `name` is required and should be unique case-insensitively.
 - `stance_guidance` is required.
-- `trigger_keywords` must contain at least one item for active topics in MVP.
+- Active topics must provide at least one semantic-profile input: `description`, `trigger_keywords`,
+  or `example_good_replies`.
+- `trigger_keywords` remain useful as a deterministic fallback and negative-audit surface, but they
+  are not required for every active topic before semantic selection is enabled.
 - Keywords are case-folded and trimmed before storage.
 - `example_bad_replies` should be used in prompts as negative examples only.
 - Disallowed guidance includes instructions to deceive, impersonate, harass, target individuals,
@@ -750,7 +753,10 @@ Rules:
   draft-generation input to the selected trigger, optional reply context, topic guidance, style
   rules, and community-level context.
 - For normal scheduled detection, the model input must contain exactly one selected trigger post as
-  `source_post`. Broad recent `messages` arrays are allowed only for observe/debug experiments.
+  `source_post`.
+- A legacy `messages` alias may contain only that same selected source post for template
+  compatibility during rollout. Broad recent message batches are allowed only for observe/debug
+  experiments and must not be used in normal reply-opportunity drafting.
 - Detection should surface reviewable opportunities quickly enough for an operator to respond while
   the discussion is active. When a fresh collection artifact is available for an engagement-enabled
   community, the target SLO is to create and notify on a qualifying reply opportunity within 10
@@ -954,8 +960,9 @@ Rules for input:
 - `reply_context` maximum length is 500 characters.
 - `community_context.latest_summary` should be capped to 2,000 characters and must remain
   community-level.
-- The legacy `messages` array may be used only for observe/debug or later experiments; normal
-  reply opportunity drafting must not include broad recent message batches.
+- The legacy `messages` array may be used only as a single-item compatibility alias for the
+  selected `source_post` in normal drafting, or as a broader array for observe/debug or later
+  experiments. Normal reply-opportunity drafting must not include broad recent message batches.
 - Maximum serialized model input target: 64 KB.
 
 Structured output contract:
