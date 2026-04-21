@@ -291,7 +291,7 @@ Completed:
 
 ## Slice 7: Topic Examples And Style Rules
 
-Status: planned.
+Status: completed on 2026-04-21.
 
 Add bot support for:
 
@@ -323,6 +323,21 @@ Acceptance:
 - Bad examples are never presented as templates to copy.
 - Style rule scope and priority are visible in every rule card.
 - Unsafe guidance is still rejected by backend validation.
+
+Completed:
+
+- Added backend topic/style detail routes so the bot can open one topic or one style rule without
+  overfetching full lists.
+- Added `/engagement_topic`, `/topic_remove_example`, `/topic_keywords`, and
+  `/edit_topic_guidance`, including guided long-text editing for topic guidance and command-driven
+  keyword/example mutation.
+- Topic cards now clearly label good examples vs. bad examples, mark bad examples as avoid-copy
+  guidance, and expose inline open/edit/remove controls.
+- Added `/engagement_style [scope] [scope_id]`, `/engagement_style_rule`, `/create_style_rule`,
+  `/edit_style_rule`, and `/toggle_style_rule`, with scoped style-rule list filters plus inline
+  open/edit/toggle controls.
+- Style rule cards now always show scope, priority, and direct command hints, while long rule-text
+  edits reuse the shared config-edit preview/save flow.
 
 ## Slice 8: Advanced Community Settings
 

@@ -12,9 +12,12 @@ from bot.main import (
     archive_engagement_target_command,
     activate_engagement_prompt_command,
     callback_query,
+    create_style_rule_command,
     create_engagement_topic_command,
     detect_engagement_command,
     duplicate_engagement_prompt_command,
+    edit_style_rule_command,
+    edit_topic_guidance_command,
     edit_engagement_prompt_command,
     engagement_admin_command,
     engagement_actions_command,
@@ -25,6 +28,9 @@ from bot.main import (
     engagement_prompt_versions_command,
     engagement_rollout_command,
     engagement_settings_command,
+    engagement_style_command,
+    engagement_style_rule_command,
+    engagement_topic_command,
     engagement_target_command,
     engagement_targets_command,
     engagement_topics_command,
@@ -38,9 +44,14 @@ from bot.main import (
     send_reply_command,
     candidate_revisions_command,
     approve_reply_command,
+    toggle_style_rule_command,
     target_detect_command,
     target_join_command,
     target_permission_command,
+    topic_keywords_command,
+    topic_remove_example_command,
+    topic_good_reply_command,
+    topic_bad_reply_command,
     set_engagement_command,
     toggle_engagement_topic_command,
     telegram_entity_text,
@@ -102,6 +113,12 @@ class _FakeApiClient:
         self.rollback_prompt_calls: list[dict[str, Any]] = []
         self.update_prompt_calls: list[dict[str, Any]] = []
         self.style_list_calls: list[dict[str, Any]] = []
+        self.get_style_rule_calls: list[str] = []
+        self.create_style_rule_calls: list[dict[str, Any]] = []
+        self.update_style_rule_calls: list[dict[str, Any]] = []
+        self.get_topic_calls: list[str] = []
+        self.add_topic_example_calls: list[dict[str, Any]] = []
+        self.remove_topic_example_calls: list[dict[str, Any]] = []
         self.join_calls: list[dict[str, Any]] = []
         self.detect_calls: list[dict[str, Any]] = []
         self.action_calls: list[dict[str, Any]] = []
@@ -155,6 +172,8 @@ class _FakeApiClient:
                 "stance_guidance": "Be factual, brief, and non-salesy.",
                 "trigger_keywords": ["crm", "open source"],
                 "negative_keywords": [],
+                "example_good_replies": ["Compare export paths first."],
+                "example_bad_replies": ["Buy our tool now."],
                 "active": True,
             },
             {
@@ -163,7 +182,63 @@ class _FakeApiClient:
                 "stance_guidance": "Discuss practical automation tradeoffs.",
                 "trigger_keywords": ["automation"],
                 "negative_keywords": [],
+                "example_good_replies": [],
+                "example_bad_replies": [],
                 "active": False,
+            },
+        ]
+        self.style_rules = [
+            {
+                "id": "rule-1",
+                "scope_type": "global",
+                "scope_id": None,
+                "name": "Keep it brief",
+                "rule_text": "Keep replies under three sentences.",
+                "active": True,
+                "priority": 50,
+                "created_by": "operator",
+                "updated_by": "operator",
+                "created_at": "2026-04-19T10:00:00Z",
+                "updated_at": "2026-04-19T10:00:00Z",
+            },
+            {
+                "id": "rule-2",
+                "scope_type": "community",
+                "scope_id": "community-1",
+                "name": "Mention tradeoffs",
+                "rule_text": "Mention tradeoffs before recommendations.",
+                "active": False,
+                "priority": 100,
+                "created_by": "operator",
+                "updated_by": "operator",
+                "created_at": "2026-04-19T10:00:00Z",
+                "updated_at": "2026-04-19T10:00:00Z",
+            },
+            {
+                "id": "rule-3",
+                "scope_type": "account",
+                "scope_id": "account-1",
+                "name": "Be transparent",
+                "rule_text": "Be transparent about uncertainty.",
+                "active": True,
+                "priority": 120,
+                "created_by": "operator",
+                "updated_by": "operator",
+                "created_at": "2026-04-19T10:00:00Z",
+                "updated_at": "2026-04-19T10:00:00Z",
+            },
+            {
+                "id": "rule-4",
+                "scope_type": "topic",
+                "scope_id": "topic-1",
+                "name": "Lead with tradeoffs",
+                "rule_text": "Lead with tradeoffs before preferences.",
+                "active": True,
+                "priority": 150,
+                "created_by": "operator",
+                "updated_by": "operator",
+                "created_at": "2026-04-19T10:00:00Z",
+                "updated_at": "2026-04-19T10:00:00Z",
             },
         ]
         self.prompts = [
@@ -529,12 +604,49 @@ class _FakeApiClient:
     async def list_engagement_style_rules(
         self,
         *,
+        scope_type: str | None = None,
+        scope_id: str | None = None,
         limit: int = 5,
         offset: int = 0,
         **_: Any,
     ) -> dict[str, Any]:
-        self.style_list_calls.append({"limit": limit, "offset": offset})
-        return {"items": [], "total": 4, "limit": limit, "offset": offset}
+        self.style_list_calls.append(
+            {"scope_type": scope_type, "scope_id": scope_id, "limit": limit, "offset": offset}
+        )
+        items = [
+            rule
+            for rule in self.style_rules
+            if (scope_type is None or rule["scope_type"] == scope_type)
+            and (scope_id is None or rule["scope_id"] == scope_id)
+        ]
+        return {"items": items[offset : offset + limit], "total": len(items), "limit": limit, "offset": offset}
+
+    async def get_engagement_style_rule(self, rule_id: str) -> dict[str, Any]:
+        self.get_style_rule_calls.append(rule_id)
+        rule = next((item for item in self.style_rules if item["id"] == rule_id), None)
+        return dict(rule or {**self.style_rules[0], "id": rule_id})
+
+    async def create_engagement_style_rule(self, **payload: Any) -> dict[str, Any]:
+        self.create_style_rule_calls.append(dict(payload))
+        rule = {
+            "id": "rule-created",
+            "active": True,
+            "created_by": payload.get("created_by") or "operator",
+            "updated_by": payload.get("created_by") or "operator",
+            "created_at": "2026-04-21T10:00:00Z",
+            "updated_at": "2026-04-21T10:00:00Z",
+            **payload,
+        }
+        self.style_rules.append(rule)
+        return rule
+
+    async def update_engagement_style_rule(self, rule_id: str, **updates: Any) -> dict[str, Any]:
+        self.update_style_rule_calls.append({"rule_id": rule_id, "updates": updates})
+        rule = await self.get_engagement_style_rule(rule_id)
+        updated = {**rule, **{key: value for key, value in updates.items() if key != "updated_by"}}
+        updated["updated_by"] = updates.get("updated_by") or rule.get("updated_by")
+        self.style_rules = [updated if item["id"] == rule_id else item for item in self.style_rules]
+        return updated
 
     async def list_engagement_candidates(
         self,
@@ -587,6 +699,11 @@ class _FakeApiClient:
     async def list_engagement_topics(self) -> dict[str, Any]:
         return {"items": self.topics, "total": len(self.topics)}
 
+    async def get_engagement_topic(self, topic_id: str) -> dict[str, Any]:
+        self.get_topic_calls.append(topic_id)
+        topic = next((item for item in self.topics if item["id"] == topic_id), None)
+        return dict(topic or {**self.topics[0], "id": topic_id})
+
     async def create_engagement_topic(
         self,
         *,
@@ -610,6 +727,8 @@ class _FakeApiClient:
             "stance_guidance": stance_guidance,
             "trigger_keywords": trigger_keywords,
             "negative_keywords": [],
+            "example_good_replies": [],
+            "example_bad_replies": [],
             "active": active,
         }
 
@@ -623,10 +742,50 @@ class _FakeApiClient:
                 "stance_guidance": "Be useful.",
                 "trigger_keywords": ["topic"],
                 "negative_keywords": [],
+                "example_good_replies": [],
+                "example_bad_replies": [],
                 "active": True,
             }
         updated = {**topic, **updates}
+        self.topics = [updated if item["id"] == topic_id else item for item in self.topics]
         return updated
+
+    async def add_engagement_topic_example(
+        self,
+        topic_id: str,
+        *,
+        example_type: str,
+        example: str,
+    ) -> dict[str, Any]:
+        self.add_topic_example_calls.append(
+            {"topic_id": topic_id, "example_type": example_type, "example": example}
+        )
+        topic = await self.get_engagement_topic(topic_id)
+        if example_type == "good":
+            topic["example_good_replies"] = [*(topic.get("example_good_replies") or []), example]
+        else:
+            topic["example_bad_replies"] = [*(topic.get("example_bad_replies") or []), example]
+        self.topics = [topic if item["id"] == topic_id else item for item in self.topics]
+        return topic
+
+    async def remove_engagement_topic_example(
+        self,
+        topic_id: str,
+        *,
+        example_type: str,
+        index: int,
+    ) -> dict[str, Any]:
+        self.remove_topic_example_calls.append(
+            {"topic_id": topic_id, "example_type": example_type, "index": index}
+        )
+        topic = await self.get_engagement_topic(topic_id)
+        key = "example_good_replies" if example_type == "good" else "example_bad_replies"
+        values = list(topic.get(key) or [])
+        if values and 0 <= index < len(values):
+            values.pop(index)
+        topic[key] = values
+        self.topics = [topic if item["id"] == topic_id else item for item in self.topics]
+        return topic
 
     async def get_engagement_settings(self, community_id: str) -> dict[str, Any]:
         self.get_settings_calls.append(community_id)
@@ -1316,12 +1475,30 @@ async def test_engagement_topics_command_lists_topic_cards_with_toggle_controls(
     assert "Engagement topics (1-2 of 2) | active 1" in update.message.replies[0]["text"]
     assert "Open CRM" in update.message.replies[1]["text"]
     assert "Triggers: crm, open source" in update.message.replies[1]["text"]
+    assert "Good examples: #1 Compare export paths first." in update.message.replies[1]["text"]
     assert "eng:topic:toggle:topic-1:0" in _callback_data_values(
         update.message.replies[1]["reply_markup"]
     )
+    assert "eng:topic:open:topic-1" in _callback_data_values(update.message.replies[1]["reply_markup"])
     assert "eng:topic:toggle:topic-2:1" in _callback_data_values(
         update.message.replies[2]["reply_markup"]
     )
+
+
+@pytest.mark.asyncio
+async def test_engagement_topic_command_opens_detail_with_example_controls() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await engagement_topic_command(update, _context(client, "topic-1"))
+
+    assert client.get_topic_calls == ["topic-1"]
+    text = update.message.replies[0]["text"]
+    assert "Topic ID: topic-1" in text
+    assert "Bad examples (avoid copying)" in text
+    callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
+    assert "eng:topic:edit:topic-1:stance_guidance" in callbacks
+    assert "eng:topic:rmx:topic-1:g:0" in callbacks
 
 
 @pytest.mark.asyncio
@@ -1401,6 +1578,169 @@ async def test_toggle_engagement_topic_callback_edits_topic_card() -> None:
     assert client.update_topic_calls == [{"topic_id": "topic-1", "updates": {"active": False}}]
     assert update.callback_query.answers == [{"text": None, "show_alert": False}]
     assert "Status: inactive" in update.callback_query.edits[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_topic_example_commands_mutate_good_and_bad_examples() -> None:
+    client = _FakeApiClient()
+    good_update = _message_update()
+    bad_update = _message_update()
+
+    await topic_good_reply_command(good_update, _context(client, "topic-1", "|", "Lead with tradeoffs."))
+    await topic_bad_reply_command(bad_update, _context(client, "topic-1", "|", "Buy now."))
+
+    assert client.add_topic_example_calls == [
+        {"topic_id": "topic-1", "example_type": "good", "example": "Lead with tradeoffs."},
+        {"topic_id": "topic-1", "example_type": "bad", "example": "Buy now."},
+    ]
+    assert "Topic example added." in good_update.message.replies[0]["text"]
+    assert "Topic example added." in bad_update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_topic_remove_example_command_uses_one_based_operator_index() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await topic_remove_example_command(update, _context(client, "topic-1", "good", "1"))
+
+    assert client.remove_topic_example_calls == [
+        {"topic_id": "topic-1", "example_type": "good", "index": 0}
+    ]
+    assert "Removed good example #1." in update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_topic_keywords_command_updates_selected_keyword_list() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await topic_keywords_command(
+        update,
+        _context(client, "topic-1", "negative", "jobs,", "recruiting"),
+    )
+
+    assert client.update_topic_calls == [
+        {
+            "topic_id": "topic-1",
+            "updates": {"negative_keywords": ["jobs", "recruiting"]},
+        }
+    ]
+    assert "Topic negative keywords updated." in update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_edit_topic_guidance_command_starts_guided_edit() -> None:
+    client = _FakeApiClient()
+    context = _context(client, "topic-1")
+    update = _message_update()
+
+    await edit_topic_guidance_command(update, context)
+
+    assert "Editing Topic guidance" in update.message.replies[0]["text"]
+    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
+    assert pending is not None
+    assert pending.object_id == "topic-1"
+    assert pending.field == "stance_guidance"
+
+
+@pytest.mark.asyncio
+async def test_topic_open_edit_and_remove_callbacks_route_correctly() -> None:
+    client = _FakeApiClient()
+    open_update = _callback_update("eng:topic:open:topic-1")
+    edit_update = _callback_update("eng:topic:edit:topic-1:trigger_keywords")
+    remove_update = _callback_update("eng:topic:rmx:topic-1:b:0")
+    context = _context(client)
+
+    await callback_query(open_update, context)
+    await callback_query(edit_update, context)
+    await callback_query(remove_update, context)
+
+    assert client.get_topic_calls[0] == "topic-1"
+    assert "Topic ID: topic-1" in open_update.callback_query.message.replies[0]["text"]
+    assert "Editing Trigger keywords" in edit_update.callback_query.message.replies[0]["text"]
+    assert "Removed bad example #1." in remove_update.callback_query.edits[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_engagement_style_command_lists_scoped_rules_with_actions() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await engagement_style_command(update, _context(client, "community", "community-1"))
+
+    assert client.style_list_calls == [
+        {"scope_type": "community", "scope_id": "community-1", "limit": 5, "offset": 0}
+    ]
+    assert "Engagement style rules (1-1 of 1) | community community-1" in update.message.replies[0]["text"]
+    callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
+    assert "eng:admin:src" in callbacks
+    assert "eng:admin:sr:community:community-1:0" in callbacks
+    assert "eng:admin:sro:rule-2" in _callback_data_values(update.message.replies[1]["reply_markup"])
+
+
+@pytest.mark.asyncio
+async def test_engagement_style_rule_command_opens_detail() -> None:
+    client = _FakeApiClient()
+    update = _message_update()
+
+    await engagement_style_rule_command(update, _context(client, "rule-1"))
+
+    assert client.get_style_rule_calls == ["rule-1"]
+    assert "Rule ID: rule-1" in update.message.replies[0]["text"]
+    callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
+    assert "eng:admin:sre:rule-1" in callbacks
+
+
+@pytest.mark.asyncio
+async def test_create_edit_and_toggle_style_rule_commands_use_style_rule_routes() -> None:
+    client = _FakeApiClient()
+    create_update = _message_update()
+    edit_update = _message_update()
+    toggle_update = _message_update()
+    context = _context(client, "global", "-", "|", "Keep", "it", "brief", "|", "50", "|", "Stay", "concise.")
+
+    await create_style_rule_command(create_update, context)
+    await edit_style_rule_command(edit_update, _context(client, "rule-1"))
+    await toggle_style_rule_command(toggle_update, _context(client, "rule-1", "off"))
+
+    assert client.create_style_rule_calls == [
+        {
+            "scope_type": "global",
+            "scope_id": None,
+            "name": "Keep it brief",
+            "priority": 50,
+            "rule_text": "Stay concise.",
+            "created_by": "telegram:123:@operator",
+        }
+    ]
+    assert "Style rule created." in create_update.message.replies[0]["text"]
+    assert "Editing Style rule text" in edit_update.message.replies[0]["text"]
+    assert client.update_style_rule_calls[-1] == {
+        "rule_id": "rule-1",
+        "updates": {"active": False, "updated_by": "telegram:123:@operator"},
+    }
+    assert "Style rule updated." in toggle_update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_style_rule_callbacks_open_edit_toggle_and_create_help() -> None:
+    client = _FakeApiClient()
+    open_update = _callback_update("eng:admin:sro:rule-1")
+    edit_update = _callback_update("eng:admin:sre:rule-1")
+    toggle_update = _callback_update("eng:admin:srt:rule-1:0")
+    create_update = _callback_update("eng:admin:src")
+    context = _context(client)
+
+    await callback_query(open_update, context)
+    await callback_query(edit_update, context)
+    await callback_query(toggle_update, context)
+    await callback_query(create_update, context)
+
+    assert "Rule ID: rule-1" in open_update.callback_query.message.replies[0]["text"]
+    assert "Editing Style rule text" in edit_update.callback_query.message.replies[0]["text"]
+    assert "Style rule updated." in toggle_update.callback_query.edits[0]["text"]
+    assert "Create a rule with /create_style_rule" in create_update.callback_query.message.replies[0]["text"]
 
 
 @pytest.mark.asyncio

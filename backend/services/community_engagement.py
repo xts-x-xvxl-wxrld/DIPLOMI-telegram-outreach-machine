@@ -756,6 +756,13 @@ async def list_topics(db: AsyncSession) -> list[EngagementTopic]:
     return list(rows)
 
 
+async def get_topic(db: AsyncSession, topic_id: UUID) -> EngagementTopic:
+    topic = await db.get(EngagementTopic, topic_id)
+    if topic is None:
+        raise EngagementNotFound("not_found", "Engagement topic not found")
+    return topic
+
+
 async def add_topic_example(
     db: AsyncSession,
     *,
@@ -1096,6 +1103,13 @@ async def list_style_rules(
         offset=safe_offset,
         total=total,
     )
+
+
+async def get_style_rule(db: AsyncSession, rule_id: UUID) -> EngagementStyleRuleView:
+    rule = await db.get(EngagementStyleRule, rule_id)
+    if rule is None:
+        raise EngagementNotFound("style_rule_not_found", "Engagement style rule not found")
+    return _style_rule_view(rule)
 
 
 async def create_style_rule(

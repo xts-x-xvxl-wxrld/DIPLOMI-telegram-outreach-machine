@@ -746,18 +746,37 @@ def format_engagement_style_rules(data: dict[str, Any], *, offset: int = 0) -> s
     total = data.get("total", len(items))
     if not items:
         return "No engagement style rules in this view."
-    return f"Engagement style rules ({offset + 1}-{offset + len(items)} of {total})"
+    scope_type = data.get("scope_type")
+    scope_id = data.get("scope_id")
+    scope_label = "all scopes"
+    if scope_type:
+        scope_label = str(scope_type)
+        if scope_id:
+            scope_label = f"{scope_label} {scope_id}"
+    return f"Engagement style rules ({offset + 1}-{offset + len(items)} of {total}) | {scope_label}"
 
 
 def format_engagement_style_rule_card(item: dict[str, Any], *, index: int | None = None) -> str:
     rule_id = item.get("id", "unknown")
-    heading = f"{index}. {item.get('name') or 'Style rule'}" if index is not None else str(item.get("name") or "Style rule")
+    heading = (
+        f"{index}. {item.get('name') or 'Style rule'}"
+        if index is not None
+        else str(item.get("name") or "Style rule")
+    )
+    scope = str(item.get("scope_type", "global"))
+    scope_id = item.get("scope_id")
+    scope_line = f"Scope: {scope}"
+    if scope_id:
+        scope_line = f"{scope_line} {scope_id}"
     lines = [
         heading,
         f"Rule ID: {rule_id}",
-        f"Scope: {item.get('scope_type', 'global')} {item.get('scope_id') or ''}".rstrip(),
+        scope_line,
         f"Status: {'active' if item.get('active') else 'inactive'} | priority {item.get('priority', 100)}",
         f"Rule: {_shorten(str(item.get('rule_text') or ''), 500)}",
+        f"Open: /engagement_style_rule {rule_id}",
+        f"Edit: /edit_style_rule {rule_id}",
+        f"Toggle: /toggle_style_rule {rule_id} {'off' if item.get('active') else 'on'}",
     ]
     return "\n".join(lines)
 
@@ -814,6 +833,8 @@ def format_engagement_topic_card(item: dict[str, Any], *, index: int | None = No
     heading = f"{index}. {name}" if index is not None else str(name)
     keywords = item.get("trigger_keywords") or []
     negative_keywords = item.get("negative_keywords") or []
+    good_examples = item.get("example_good_replies") or []
+    bad_examples = item.get("example_bad_replies") or []
     lines = [
         heading,
         f"Status: {'active' if item.get('active') else 'inactive'}",
@@ -827,12 +848,36 @@ def format_engagement_topic_card(item: dict[str, Any], *, index: int | None = No
         lines.append(
             f"Negative keywords: {_shorten(', '.join(str(value) for value in negative_keywords), 160)}"
         )
+    lines.append(f"Guidance: {_shorten(str(item.get('stance_guidance') or ''), 260)}")
+    if good_examples:
+        lines.append(
+            "Good examples: "
+            + " | ".join(
+                f"#{index + 1} {_shorten(str(example), 100)}"
+                for index, example in enumerate(good_examples[:2])
+            )
+        )
+    if bad_examples:
+        lines.append(
+            "Bad examples (avoid copying): "
+            + " | ".join(
+                f"#{index + 1} {_shorten(str(example), 100)}"
+                for index, example in enumerate(bad_examples[:2])
+            )
+        )
     lines.extend(
         [
-            f"Guidance: {_shorten(str(item.get('stance_guidance') or ''), 260)}",
+            f"Open: /engagement_topic {topic_id}",
+            f"Edit guidance: /edit_topic_guidance {topic_id}",
+            f"Edit triggers: /topic_keywords {topic_id} trigger <comma_keywords>",
+            f"Edit negatives: /topic_keywords {topic_id} negative <comma_keywords>",
             f"Toggle: /toggle_engagement_topic {topic_id} {'off' if item.get('active') else 'on'}",
         ]
     )
+    if good_examples:
+        lines.append(f"Remove good example: /topic_remove_example {topic_id} good <index>")
+    if bad_examples:
+        lines.append(f"Remove bad example: /topic_remove_example {topic_id} bad <index>")
     return "\n".join(lines)
 
 

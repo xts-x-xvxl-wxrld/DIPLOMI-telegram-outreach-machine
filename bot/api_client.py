@@ -343,6 +343,9 @@ class BotApiClient:
     async def list_engagement_topics(self) -> dict[str, Any]:
         return await self._request("GET", "/engagement/topics")
 
+    async def get_engagement_topic(self, topic_id: str) -> dict[str, Any]:
+        return await self._request("GET", f"/engagement/topics/{topic_id}")
+
     async def create_engagement_topic(
         self,
         *,
@@ -519,6 +522,9 @@ class BotApiClient:
         if active is not None:
             params["active"] = str(active).lower()
         return await self._request("GET", "/engagement/style-rules", params=params)
+
+    async def get_engagement_style_rule(self, rule_id: str) -> dict[str, Any]:
+        return await self._request("GET", f"/engagement/style-rules/{rule_id}")
 
     async def create_engagement_style_rule(
         self,

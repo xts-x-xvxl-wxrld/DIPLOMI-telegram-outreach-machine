@@ -115,6 +115,10 @@ from bot.ui import (
     ACTION_ENGAGEMENT_SETTINGS_POST,
     ACTION_ENGAGEMENT_SETTINGS_PRESET,
     ACTION_ENGAGEMENT_STYLE,
+    ACTION_ENGAGEMENT_STYLE_CREATE,
+    ACTION_ENGAGEMENT_STYLE_EDIT,
+    ACTION_ENGAGEMENT_STYLE_OPEN,
+    ACTION_ENGAGEMENT_STYLE_TOGGLE,
     ACTION_ENGAGEMENT_TARGET_ADD,
     ACTION_ENGAGEMENT_TARGET_APPROVE,
     ACTION_ENGAGEMENT_TARGET_ARCHIVE,
@@ -125,7 +129,10 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TARGET_REJECT,
     ACTION_ENGAGEMENT_TARGET_RESOLVE,
     ACTION_ENGAGEMENT_TARGETS,
+    ACTION_ENGAGEMENT_TOPIC_EDIT,
+    ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
     ACTION_ENGAGEMENT_TOPIC_LIST,
+    ACTION_ENGAGEMENT_TOPIC_OPEN,
     ACTION_ENGAGEMENT_TOPIC_TOGGLE,
     ACTION_JOB_STATUS,
     ACTION_OP_ACCOUNTS,
@@ -165,6 +172,8 @@ from bot.ui import (
     engagement_prompt_versions_markup,
     engagement_job_markup,
     engagement_settings_markup,
+    engagement_style_list_markup,
+    engagement_style_rule_actions_markup,
     engagement_target_actions_markup,
     engagement_target_list_markup,
     engagement_topic_actions_markup,
@@ -192,6 +201,8 @@ ENGAGEMENT_ACTION_PAGE_SIZE = 5
 ENGAGEMENT_ADMIN_PAGE_SIZE = 5
 ENGAGEMENT_CANDIDATE_STATUSES = {"needs_review", "approved", "failed", "sent", "rejected"}
 ENGAGEMENT_TARGET_STATUSES = {"pending", "resolved", "approved", "rejected", "archived", "failed"}
+ENGAGEMENT_STYLE_SCOPE_VALUES = {"global", "account", "community", "topic"}
+TOPIC_KEYWORD_FIELDS = {"trigger": "trigger_keywords", "negative": "negative_keywords"}
 PROMPT_PROFILE_EDIT_FIELD_CODES = {
     "n": "name",
     "d": "description",
@@ -672,8 +683,81 @@ async def rollback_engagement_prompt_command(update: Any, context: Any) -> None:
 
 
 async def engagement_style_command(update: Any, context: Any) -> None:
+    parsed = _parse_engagement_style_args(context)
     try:
-        await _send_engagement_style_rules(update, context, offset=0)
+        await _send_engagement_style_rules(
+            update,
+            context,
+            scope_type=parsed[0],
+            scope_id=parsed[1],
+            offset=0,
+        )
+    except ValueError:
+        await _reply(update, "Usage: /engagement_style [global|account|community|topic] [scope_id]")
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def engagement_style_rule_command(update: Any, context: Any) -> None:
+    rule_id = _first_arg(context)
+    if rule_id is None:
+        await _reply(update, "Usage: /engagement_style_rule <rule_id>")
+        return
+    try:
+        await _send_engagement_style_rule(update, context, rule_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def create_style_rule_command(update: Any, context: Any) -> None:
+    parsed = _parse_create_style_rule_args(context)
+    if parsed is None:
+        await _reply(
+            update,
+            "Usage: /create_style_rule <scope> <scope_id_or_dash> | <name> | <priority> | <rule_text>",
+        )
+        return
+    scope_type, scope_id, name, priority, rule_text = parsed
+    client = _api_client(context)
+    try:
+        data = await client.create_engagement_style_rule(
+            scope_type=scope_type,
+            scope_id=scope_id,
+            name=name,
+            priority=priority,
+            rule_text=rule_text,
+            created_by=_reviewer_label(update),
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+        return
+    rule_id = str(data.get("id", "unknown"))
+    await _reply(
+        update,
+        "Style rule created.\n\n" + format_engagement_style_rule_card(data),
+        reply_markup=engagement_style_rule_actions_markup(rule_id, active=bool(data.get("active"))),
+    )
+
+
+async def edit_style_rule_command(update: Any, context: Any) -> None:
+    rule_id = _first_arg(context)
+    if rule_id is None:
+        await _reply(update, "Usage: /edit_style_rule <rule_id>")
+        return
+    await _start_config_edit(update, context, entity="style_rule", object_id=rule_id, field="rule_text")
+
+
+async def toggle_style_rule_command(update: Any, context: Any) -> None:
+    if len(context.args) < 2:
+        await _reply(update, "Usage: /toggle_style_rule <rule_id> <on|off>")
+        return
+    rule_id = str(context.args[0]).strip()
+    active = _parse_on_off(str(context.args[1]))
+    if not rule_id or active is None:
+        await _reply(update, "Usage: /toggle_style_rule <rule_id> <on|off>")
+        return
+    try:
+        await _toggle_style_rule(update, context, rule_id, active=active)
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
 
@@ -762,6 +846,17 @@ async def engagement_topics_command(update: Any, context: Any) -> None:
         await _reply(update, format_api_error(exc.message))
 
 
+async def engagement_topic_command(update: Any, context: Any) -> None:
+    topic_id = _first_arg(context)
+    if topic_id is None:
+        await _reply(update, "Usage: /engagement_topic <topic_id>")
+        return
+    try:
+        await _send_engagement_topic(update, context, topic_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
 async def create_engagement_topic_command(update: Any, context: Any) -> None:
     parsed = _parse_create_engagement_topic_args(context)
     if parsed is None:
@@ -812,6 +907,60 @@ async def topic_good_reply_command(update: Any, context: Any) -> None:
 
 async def topic_bad_reply_command(update: Any, context: Any) -> None:
     await _topic_example_command(update, context, example_type="bad")
+
+
+async def topic_remove_example_command(update: Any, context: Any) -> None:
+    if len(context.args) < 3:
+        await _reply(update, "Usage: /topic_remove_example <topic_id> <good|bad> <index>")
+        return
+    topic_id = str(context.args[0]).strip()
+    example_type = str(context.args[1]).strip().casefold()
+    if example_type not in {"good", "bad"}:
+        await _reply(update, "Usage: /topic_remove_example <topic_id> <good|bad> <index>")
+        return
+    try:
+        operator_index = int(str(context.args[2]).strip())
+    except ValueError:
+        operator_index = 0
+    if not topic_id or operator_index <= 0:
+        await _reply(update, "Usage: /topic_remove_example <topic_id> <good|bad> <index>")
+        return
+    try:
+        await _remove_topic_example(
+            update,
+            context,
+            topic_id,
+            example_type=example_type,
+            index=operator_index - 1,
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def topic_keywords_command(update: Any, context: Any) -> None:
+    if len(context.args) < 3:
+        await _reply(update, "Usage: /topic_keywords <topic_id> <trigger|negative> <comma_keywords>")
+        return
+    topic_id = str(context.args[0]).strip()
+    keyword_type = str(context.args[1]).strip().casefold()
+    field = TOPIC_KEYWORD_FIELDS.get(keyword_type)
+    raw_keywords = " ".join(str(arg) for arg in context.args[2:]).strip()
+    keywords = [keyword.strip() for keyword in raw_keywords.split(",") if keyword.strip()]
+    if not topic_id or field is None:
+        await _reply(update, "Usage: /topic_keywords <topic_id> <trigger|negative> <comma_keywords>")
+        return
+    try:
+        await _update_topic_keywords(update, context, topic_id, field=field, keywords=keywords)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def edit_topic_guidance_command(update: Any, context: Any) -> None:
+    topic_id = _first_arg(context)
+    if topic_id is None:
+        await _reply(update, "Usage: /edit_topic_guidance <topic_id>")
+        return
+    await _start_config_edit(update, context, entity="topic", object_id=topic_id, field="stance_guidance")
 
 
 async def approve_reply_command(update: Any, context: Any) -> None:
@@ -1181,7 +1330,41 @@ async def callback_query(update: Any, context: Any) -> None:
             )
             return
         if action == ACTION_ENGAGEMENT_STYLE and parts:
-            await _send_engagement_style_rules(update, context, offset=_parse_offset(parts[0]))
+            scope_type, scope_id, offset = _parse_style_callback_parts(parts)
+            await _send_engagement_style_rules(
+                update,
+                context,
+                scope_type=scope_type,
+                scope_id=scope_id,
+                offset=offset,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_STYLE_CREATE:
+            await _callback_reply(
+                update,
+                "Create a rule with /create_style_rule <scope> <scope_id_or_dash> | <name> | <priority> | <rule_text>",
+            )
+            return
+        if action == ACTION_ENGAGEMENT_STYLE_OPEN and len(parts) == 1:
+            await _send_engagement_style_rule(update, context, parts[0])
+            return
+        if action == ACTION_ENGAGEMENT_STYLE_EDIT and len(parts) == 1:
+            await _start_config_edit(
+                update,
+                context,
+                entity="style_rule",
+                object_id=parts[0],
+                field="rule_text",
+            )
+            return
+        if action == ACTION_ENGAGEMENT_STYLE_TOGGLE and len(parts) == 2:
+            await _toggle_style_rule(
+                update,
+                context,
+                parts[0],
+                active=parts[1] == "1",
+                edit_callback=True,
+            )
             return
         if action == ACTION_ENGAGEMENT_CANDIDATES and parts:
             status, offset = _engagement_callback_status_and_offset(parts)
@@ -1242,6 +1425,33 @@ async def callback_query(update: Any, context: Any) -> None:
             return
         if action == ACTION_ENGAGEMENT_TOPIC_LIST and parts:
             await _send_engagement_topics(update, context, offset=_parse_offset(parts[0]))
+            return
+        if action == ACTION_ENGAGEMENT_TOPIC_OPEN and len(parts) == 1:
+            await _send_engagement_topic(update, context, parts[0])
+            return
+        if action == ACTION_ENGAGEMENT_TOPIC_EDIT and len(parts) == 2:
+            field = parts[1]
+            if field not in {"stance_guidance", "trigger_keywords", "negative_keywords"}:
+                await _callback_reply(update, "That topic field is not editable from this button.")
+                return
+            await _start_config_edit(
+                update,
+                context,
+                entity="topic",
+                object_id=parts[0],
+                field=field,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE and len(parts) == 3:
+            example_type = "good" if parts[1] == "g" else "bad"
+            await _remove_topic_example(
+                update,
+                context,
+                parts[0],
+                example_type=example_type,
+                index=_parse_offset(parts[2]),
+                edit_callback=True,
+            )
             return
         if action == ACTION_ENGAGEMENT_TOPIC_TOGGLE and len(parts) == 2:
             await _toggle_engagement_topic(
@@ -1960,21 +2170,82 @@ async def _prompt_profile_version_by_number(
     return None
 
 
-async def _send_engagement_style_rules(update: Any, context: Any, *, offset: int) -> None:
+async def _send_engagement_style_rules(
+    update: Any,
+    context: Any,
+    *,
+    scope_type: str | None,
+    scope_id: str | None,
+    offset: int,
+) -> None:
     client = _api_client(context)
-    data = await client.list_engagement_style_rules(limit=ENGAGEMENT_ADMIN_PAGE_SIZE, offset=offset)
+    data = await client.list_engagement_style_rules(
+        scope_type=scope_type,
+        scope_id=scope_id,
+        limit=ENGAGEMENT_ADMIN_PAGE_SIZE,
+        offset=offset,
+    )
+    header_data = {
+        **data,
+        "scope_type": scope_type,
+        "scope_id": scope_id,
+    }
     await _callback_reply(
         update,
-        format_engagement_style_rules(data, offset=offset),
-        reply_markup=engagement_admin_pager_markup(
-            action=ACTION_ENGAGEMENT_STYLE,
+        format_engagement_style_rules(header_data, offset=offset),
+        reply_markup=engagement_style_list_markup(
+            scope_type=scope_type,
+            scope_id=scope_id,
             offset=offset,
             total=data.get("total", 0),
             page_size=ENGAGEMENT_ADMIN_PAGE_SIZE,
         ),
     )
     for index, item in enumerate(data.get("items") or [], start=offset + 1):
-        await _callback_reply(update, format_engagement_style_rule_card(item, index=index))
+        rule_id = str(item.get("id", "unknown"))
+        await _callback_reply(
+            update,
+            format_engagement_style_rule_card(item, index=index),
+            reply_markup=engagement_style_rule_actions_markup(
+                rule_id,
+                active=bool(item.get("active")),
+            ),
+        )
+
+
+async def _send_engagement_style_rule(update: Any, context: Any, rule_id: str) -> None:
+    client = _api_client(context)
+    data = await client.get_engagement_style_rule(rule_id)
+    await _callback_reply(
+        update,
+        format_engagement_style_rule_card(data),
+        reply_markup=engagement_style_rule_actions_markup(
+            rule_id,
+            active=bool(data.get("active")),
+        ),
+    )
+
+
+async def _toggle_style_rule(
+    update: Any,
+    context: Any,
+    rule_id: str,
+    *,
+    active: bool,
+    edit_callback: bool = False,
+) -> None:
+    client = _api_client(context)
+    data = await client.update_engagement_style_rule(
+        rule_id,
+        active=active,
+        updated_by=_reviewer_label(update),
+    )
+    message = "Style rule updated.\n\n" + format_engagement_style_rule_card(data)
+    reply_markup = engagement_style_rule_actions_markup(rule_id, active=bool(data.get("active")))
+    if edit_callback:
+        await _edit_callback_message(update, message, reply_markup=reply_markup)
+        return
+    await _reply(update, message, reply_markup=reply_markup)
 
 
 async def _send_engagement_candidates(
@@ -2228,8 +2499,25 @@ async def _send_engagement_topics(update: Any, context: Any, *, offset: int) -> 
             reply_markup=engagement_topic_actions_markup(
                 topic_id,
                 active=bool(item.get("active")),
+                good_count=len(item.get("example_good_replies") or []),
+                bad_count=len(item.get("example_bad_replies") or []),
             ),
         )
+
+
+async def _send_engagement_topic(update: Any, context: Any, topic_id: str) -> None:
+    client = _api_client(context)
+    data = await client.get_engagement_topic(topic_id)
+    await _callback_reply(
+        update,
+        format_engagement_topic_card(data),
+        reply_markup=engagement_topic_actions_markup(
+            topic_id,
+            active=bool(data.get("active")),
+            good_count=len(data.get("example_good_replies") or []),
+            bad_count=len(data.get("example_bad_replies") or []),
+        ),
+    )
 
 
 async def _toggle_engagement_topic(
@@ -2243,11 +2531,69 @@ async def _toggle_engagement_topic(
     client = _api_client(context)
     data = await client.update_engagement_topic(topic_id, active=active)
     message = format_engagement_topic_card(data)
-    reply_markup = engagement_topic_actions_markup(topic_id, active=bool(data.get("active")))
+    reply_markup = engagement_topic_actions_markup(
+        topic_id,
+        active=bool(data.get("active")),
+        good_count=len(data.get("example_good_replies") or []),
+        bad_count=len(data.get("example_bad_replies") or []),
+    )
     if edit_callback:
         await _edit_callback_message(update, message, reply_markup=reply_markup)
         return
     await _reply(update, message, reply_markup=reply_markup)
+
+
+async def _remove_topic_example(
+    update: Any,
+    context: Any,
+    topic_id: str,
+    *,
+    example_type: str,
+    index: int,
+    edit_callback: bool = False,
+) -> None:
+    client = _api_client(context)
+    data = await client.remove_engagement_topic_example(
+        topic_id,
+        example_type=example_type,
+        index=index,
+    )
+    message = (
+        f"Removed {example_type} example #{index + 1}.\n\n" + format_engagement_topic_card(data)
+    )
+    reply_markup = engagement_topic_actions_markup(
+        topic_id,
+        active=bool(data.get("active")),
+        good_count=len(data.get("example_good_replies") or []),
+        bad_count=len(data.get("example_bad_replies") or []),
+    )
+    if edit_callback:
+        await _edit_callback_message(update, message, reply_markup=reply_markup)
+        return
+    await _reply(update, message, reply_markup=reply_markup)
+
+
+async def _update_topic_keywords(
+    update: Any,
+    context: Any,
+    topic_id: str,
+    *,
+    field: str,
+    keywords: list[str],
+) -> None:
+    client = _api_client(context)
+    data = await client.update_engagement_topic(topic_id, **{field: keywords})
+    label = "triggers" if field == "trigger_keywords" else "negative keywords"
+    await _reply(
+        update,
+        f"Topic {label} updated.\n\n" + format_engagement_topic_card(data),
+        reply_markup=engagement_topic_actions_markup(
+            topic_id,
+            active=bool(data.get("active")),
+            good_count=len(data.get("example_good_replies") or []),
+            bad_count=len(data.get("example_bad_replies") or []),
+        ),
+    )
 
 
 async def _review_engagement_candidate(
@@ -2408,6 +2754,10 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("edit_engagement_prompt", edit_engagement_prompt_command))
     application.add_handler(CommandHandler("rollback_engagement_prompt", rollback_engagement_prompt_command))
     application.add_handler(CommandHandler("engagement_style", engagement_style_command))
+    application.add_handler(CommandHandler("engagement_style_rule", engagement_style_rule_command))
+    application.add_handler(CommandHandler("create_style_rule", create_style_rule_command))
+    application.add_handler(CommandHandler("edit_style_rule", edit_style_rule_command))
+    application.add_handler(CommandHandler("toggle_style_rule", toggle_style_rule_command))
     application.add_handler(CommandHandler("engagement_settings", engagement_settings_command))
     application.add_handler(CommandHandler("set_engagement", set_engagement_command))
     application.add_handler(CommandHandler("join_community", join_community_command))
@@ -2415,10 +2765,14 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("engagement_actions", engagement_actions_command))
     application.add_handler(CommandHandler("engagement_rollout", engagement_rollout_command))
     application.add_handler(CommandHandler("engagement_topics", engagement_topics_command))
+    application.add_handler(CommandHandler("engagement_topic", engagement_topic_command))
     application.add_handler(CommandHandler("create_engagement_topic", create_engagement_topic_command))
     application.add_handler(CommandHandler("toggle_engagement_topic", toggle_engagement_topic_command))
     application.add_handler(CommandHandler("topic_good_reply", topic_good_reply_command))
     application.add_handler(CommandHandler("topic_bad_reply", topic_bad_reply_command))
+    application.add_handler(CommandHandler("topic_remove_example", topic_remove_example_command))
+    application.add_handler(CommandHandler("topic_keywords", topic_keywords_command))
+    application.add_handler(CommandHandler("edit_topic_guidance", edit_topic_guidance_command))
     application.add_handler(CommandHandler("engagement_candidates", engagement_candidates_command))
     application.add_handler(CommandHandler("engagement_candidate", engagement_candidate_command))
     application.add_handler(CommandHandler("approve_reply", approve_reply_command))
@@ -2609,10 +2963,21 @@ def _saved_config_edit_response(pending: PendingEdit, data: dict[str, Any]) -> t
     if pending.entity == "topic":
         return (
             prefix + "\n\n" + format_engagement_topic_card(data),
-            engagement_topic_actions_markup(pending.object_id, active=bool(data.get("active"))),
+            engagement_topic_actions_markup(
+                pending.object_id,
+                active=bool(data.get("active")),
+                good_count=len(data.get("example_good_replies") or []),
+                bad_count=len(data.get("example_bad_replies") or []),
+            ),
         )
     if pending.entity == "style_rule":
-        return prefix + "\n\n" + format_engagement_style_rule_card(data), None
+        return (
+            prefix + "\n\n" + format_engagement_style_rule_card(data),
+            engagement_style_rule_actions_markup(
+                pending.object_id,
+                active=bool(data.get("active")),
+            ),
+        )
     if pending.entity == "settings":
         return (
             prefix + "\n\n" + format_engagement_settings(data),
@@ -2686,6 +3051,36 @@ def _engagement_actions_filter_and_offset(parts: list[str]) -> tuple[str | None,
     if len(parts) >= 2:
         return parts[0], _parse_offset(parts[1])
     return None, _parse_offset(parts[0])
+
+
+def _parse_engagement_style_args(context: Any) -> tuple[str | None, str | None]:
+    if not context.args:
+        return None, None
+    scope_type = str(context.args[0]).strip().casefold()
+    if scope_type not in ENGAGEMENT_STYLE_SCOPE_VALUES:
+        raise ValueError("invalid_style_scope")
+    scope_id = str(context.args[1]).strip() if len(context.args) > 1 else None
+    if scope_type == "global":
+        return "global", None
+    if not scope_id:
+        return scope_type, None
+    return scope_type, scope_id
+
+
+def _parse_style_callback_parts(parts: list[str]) -> tuple[str | None, str | None, int]:
+    if len(parts) >= 3:
+        scope_type = parts[0]
+        scope_id = None if parts[1] == "-" else parts[1]
+        if scope_type == "all":
+            scope_type = None
+            scope_id = None
+        return scope_type, scope_id, _parse_offset(parts[2])
+    if len(parts) == 2:
+        scope_type = parts[0]
+        if scope_type == "all":
+            return None, None, _parse_offset(parts[1])
+        return scope_type, None, _parse_offset(parts[1])
+    return None, None, _parse_offset(parts[0])
 
 
 def _engagement_settings_markup(community_id: str, data: dict[str, Any]) -> Any:
@@ -2785,6 +3180,36 @@ def _parse_create_engagement_topic_args(context: Any) -> tuple[str, str, list[st
     return name, guidance, keywords
 
 
+def _parse_create_style_rule_args(
+    context: Any,
+) -> tuple[str, str | None, str, int, str] | None:
+    raw_value = " ".join(str(arg) for arg in context.args).strip()
+    parts = [part.strip() for part in raw_value.split("|", maxsplit=3)]
+    if len(parts) != 4:
+        return None
+    scope_part, name, raw_priority, rule_text = parts
+    scope_bits = scope_part.split()
+    if len(scope_bits) != 2:
+        return None
+    scope_type = scope_bits[0].strip().casefold()
+    scope_id_token = scope_bits[1].strip()
+    if scope_type not in ENGAGEMENT_STYLE_SCOPE_VALUES:
+        return None
+    if scope_type == "global":
+        scope_id = None
+    else:
+        scope_id = None if scope_id_token == "-" else scope_id_token
+        if scope_id is None:
+            return None
+    try:
+        priority = int(raw_priority)
+    except ValueError:
+        return None
+    if not name or not rule_text:
+        return None
+    return scope_type, scope_id, name, priority, rule_text
+
+
 async def _topic_example_command(update: Any, context: Any, *, example_type: str) -> None:
     parsed = _parse_topic_example_args(context)
     if parsed is None:
@@ -2805,7 +3230,12 @@ async def _topic_example_command(update: Any, context: Any, *, example_type: str
     await _reply(
         update,
         "Topic example added.\n\n" + format_engagement_topic_card(data),
-        reply_markup=engagement_topic_actions_markup(topic_id, active=bool(data.get("active"))),
+        reply_markup=engagement_topic_actions_markup(
+            topic_id,
+            active=bool(data.get("active")),
+            good_count=len(data.get("example_good_replies") or []),
+            bad_count=len(data.get("example_bad_replies") or []),
+        ),
     )
 
 

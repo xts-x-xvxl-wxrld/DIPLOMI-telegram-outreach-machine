@@ -31,13 +31,20 @@ from bot.ui import (
     ACTION_ENGAGEMENT_JOIN,
     ACTION_ENGAGEMENT_SETTINGS_OPEN,
     ACTION_ENGAGEMENT_STYLE,
+    ACTION_ENGAGEMENT_STYLE_CREATE,
+    ACTION_ENGAGEMENT_STYLE_EDIT,
+    ACTION_ENGAGEMENT_STYLE_OPEN,
+    ACTION_ENGAGEMENT_STYLE_TOGGLE,
     ACTION_ENGAGEMENT_TARGET_APPROVE,
     ACTION_ENGAGEMENT_TARGET_DETECT,
     ACTION_ENGAGEMENT_TARGET_JOIN,
     ACTION_ENGAGEMENT_TARGET_OPEN,
     ACTION_ENGAGEMENT_TARGET_PERMISSION,
     ACTION_ENGAGEMENT_TARGETS,
+    ACTION_ENGAGEMENT_TOPIC_EDIT,
+    ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
     ACTION_ENGAGEMENT_TOPIC_LIST,
+    ACTION_ENGAGEMENT_TOPIC_OPEN,
     ACTION_OP_ACCOUNTS,
     ACTION_OP_DISCOVERY,
     ACTION_OP_HELP,
@@ -58,6 +65,8 @@ from bot.ui import (
     engagement_admin_home_markup,
     engagement_home_markup,
     engagement_settings_markup,
+    engagement_style_list_markup,
+    engagement_style_rule_actions_markup,
     engagement_target_actions_markup,
     engagement_target_list_markup,
     engagement_topic_actions_markup,
@@ -105,12 +114,19 @@ def test_parse_all_engagement_callback_namespaces() -> None:
     cases = {
         "eng:home": (ACTION_ENGAGEMENT_HOME, []),
         "eng:topic:list:10": ("eng:topic:list", ["10"]),
+        "eng:topic:open:topic-1": (ACTION_ENGAGEMENT_TOPIC_OPEN, ["topic-1"]),
+        "eng:topic:edit:topic-1:stance_guidance": (ACTION_ENGAGEMENT_TOPIC_EDIT, ["topic-1", "stance_guidance"]),
+        "eng:topic:rmx:topic-1:g:0": (ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE, ["topic-1", "g", "0"]),
         "eng:topic:toggle:topic-1:0": ("eng:topic:toggle", ["topic-1", "0"]),
         "eng:set:open:community-1": (ACTION_ENGAGEMENT_SETTINGS_OPEN, ["community-1"]),
         "eng:set:preset:community-1:ready": ("eng:set:preset", ["community-1", "ready"]),
         "eng:join:community-1": (ACTION_ENGAGEMENT_JOIN, ["community-1"]),
         "eng:detect:community-1:60": (ACTION_ENGAGEMENT_DETECT, ["community-1", "60"]),
         "eng:admin:to:target-1": (ACTION_ENGAGEMENT_TARGET_OPEN, ["target-1"]),
+        "eng:admin:src": (ACTION_ENGAGEMENT_STYLE_CREATE, []),
+        "eng:admin:sro:rule-1": (ACTION_ENGAGEMENT_STYLE_OPEN, ["rule-1"]),
+        "eng:admin:sre:rule-1": (ACTION_ENGAGEMENT_STYLE_EDIT, ["rule-1"]),
+        "eng:admin:srt:rule-1:0": (ACTION_ENGAGEMENT_STYLE_TOGGLE, ["rule-1", "0"]),
         "eng:admin:tp:target-1:p:1": (ACTION_ENGAGEMENT_TARGET_PERMISSION, ["target-1", "p", "1"]),
         "eng:admin:tj:target-1": (ACTION_ENGAGEMENT_TARGET_JOIN, ["target-1"]),
         "eng:admin:td:target-1:60": (ACTION_ENGAGEMENT_TARGET_DETECT, ["target-1", "60"]),
@@ -331,13 +347,34 @@ def test_engagement_target_actions_markup_exposes_safe_target_controls() -> None
 
 def test_engagement_topic_markup_pages_and_toggles() -> None:
     pager = engagement_topic_pager_markup(offset=0, total=12, page_size=5)
-    actions = engagement_topic_actions_markup("topic-1", active=True)
+    actions = engagement_topic_actions_markup("topic-1", active=True, good_count=1, bad_count=1)
 
     assert ACTION_ENGAGEMENT_HOME in _callbacks(pager)
     assert "eng:topic:list:5" in _callbacks(pager)
-    assert actions.inline_keyboard[0][0].callback_data == "eng:topic:toggle:topic-1:0"
+    assert f"{ACTION_ENGAGEMENT_TOPIC_OPEN}:topic-1" in _callbacks(actions)
+    assert f"{ACTION_ENGAGEMENT_TOPIC_EDIT}:topic-1:stance_guidance" in _callbacks(actions)
+    assert f"{ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE}:topic-1:g:0" in _callbacks(actions)
+    assert actions.inline_keyboard[2][1].callback_data == "eng:topic:toggle:topic-1:0"
     assert "eng:topic:list:0" in _callbacks(actions)
     assert ACTION_OP_HOME in _callbacks(actions)
+
+
+def test_engagement_style_markup_filters_pages_and_controls() -> None:
+    list_markup = engagement_style_list_markup(
+        scope_type="community",
+        scope_id="community-1",
+        offset=5,
+        total=12,
+        page_size=5,
+    )
+    rule_markup = engagement_style_rule_actions_markup("rule-1", active=True)
+
+    assert ACTION_ENGAGEMENT_STYLE_CREATE in _callbacks(list_markup)
+    assert f"{ACTION_ENGAGEMENT_STYLE}:community:community-1:0" in _callbacks(list_markup)
+    assert f"{ACTION_ENGAGEMENT_STYLE}:community:community-1:10" in _callbacks(list_markup)
+    assert f"{ACTION_ENGAGEMENT_STYLE_OPEN}:rule-1" in _callbacks(rule_markup)
+    assert f"{ACTION_ENGAGEMENT_STYLE_EDIT}:rule-1" in _callbacks(rule_markup)
+    assert f"{ACTION_ENGAGEMENT_STYLE_TOGGLE}:rule-1:0" in _callbacks(rule_markup)
 
 
 def test_engagement_candidate_send_and_filter_markup() -> None:

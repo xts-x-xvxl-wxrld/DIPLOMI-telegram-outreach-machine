@@ -76,6 +76,8 @@ from backend.services.community_engagement import (
     get_engagement_candidate,
     get_engagement_target,
     get_engagement_settings,
+    get_style_rule,
+    get_topic,
     list_candidate_revisions,
     get_prompt_profile,
     list_engagement_actions,
@@ -304,6 +306,18 @@ async def get_engagement_topics(db: DbSession) -> EngagementTopicListResponse:
     return EngagementTopicListResponse(
         items=[EngagementTopicOut.model_validate(topic) for topic in topics]
     )
+
+
+@router.get("/engagement/topics/{topic_id}", response_model=EngagementTopicOut)
+async def get_engagement_topic_detail(
+    topic_id: UUID,
+    db: DbSession,
+) -> EngagementTopicOut:
+    try:
+        topic = await get_topic(db, topic_id)
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+    return EngagementTopicOut.model_validate(topic)
 
 
 @router.post("/engagement/topics", response_model=EngagementTopicOut, status_code=201)
@@ -553,6 +567,18 @@ async def get_engagement_style_rules(
         offset=result.offset,
         total=result.total,
     )
+
+
+@router.get("/engagement/style-rules/{rule_id}", response_model=EngagementStyleRuleOut)
+async def get_engagement_style_rule_detail(
+    rule_id: UUID,
+    db: DbSession,
+) -> EngagementStyleRuleOut:
+    try:
+        rule = await get_style_rule(db, rule_id)
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+    return EngagementStyleRuleOut.model_validate(rule)
 
 
 @router.post("/engagement/style-rules", response_model=EngagementStyleRuleOut, status_code=201)

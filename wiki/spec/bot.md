@@ -55,12 +55,20 @@ Engagement commands are optional and operator-controlled:
 /target_detect <target_id> [window_minutes]
 /engagement_prompts
 /engagement_prompt_preview <profile_id>
-/engagement_style
+/engagement_style [scope] [scope_id]
+/engagement_style_rule <rule_id>
+/create_style_rule <scope> <scope_id_or_dash> | <name> | <priority> | <rule_text>
+/edit_style_rule <rule_id>
+/toggle_style_rule <rule_id> <on|off>
 /engagement_topics
+/engagement_topic <topic_id>
 /create_engagement_topic <name> | <guidance> | <comma_keywords>
 /toggle_engagement_topic <topic_id> <on|off>
 /topic_good_reply <topic_id> | <example>
 /topic_bad_reply <topic_id> | <example>
+/topic_remove_example <topic_id> <good|bad> <index>
+/topic_keywords <topic_id> <trigger|negative> <comma_keywords>
+/edit_topic_guidance <topic_id>
 /engagement_settings <community_id>
 /set_engagement <community_id> <off|observe|suggest|ready>
 /join_community <community_id>
@@ -394,14 +402,38 @@ Lists prompt profile cards with active state, model parameters, current version,
 Renders a prompt profile preview through the API. The bot displays rendered text only; the preview
 endpoint does not call OpenAI.
 
-### `/engagement_style`
+### `/engagement_style [scope] [scope_id]`
 
-Lists configured style rules with scope, active state, priority, and capped rule text.
+Lists configured style rules with optional `global`, `account`, `community`, or `topic` scope
+filters. Cards show scope, active state, priority, capped rule text, and inline open/edit/toggle
+controls.
+
+### `/engagement_style_rule <rule_id>`
+
+Calls `GET /api/engagement/style-rules/{rule_id}` and shows one style-rule detail card.
+
+### `/create_style_rule <scope> <scope_id_or_dash> | <name> | <priority> | <rule_text>`
+
+Creates a style rule through `POST /api/engagement/style-rules`.
+
+### `/edit_style_rule <rule_id>`
+
+Starts the shared guided config-edit flow for the style rule text.
+
+### `/toggle_style_rule <rule_id> <on|off>`
+
+Calls `PATCH /api/engagement/style-rules/{rule_id}` with only the `active` field.
 
 ### `/engagement_topics`
 
 Calls `GET /api/engagement/topics` and lists configured topics with active state, trigger keyword
-preview, and concise guidance text.
+preview, concise guidance text, and clearly separated good vs. bad examples.
+
+### `/engagement_topic <topic_id>`
+
+Calls `GET /api/engagement/topics/{topic_id}` and shows one topic detail card with guidance,
+trigger and negative keywords, labeled good examples, labeled bad examples that are marked as
+avoid-copy guidance, and inline edit/remove controls.
 
 ### `/create_engagement_topic <name> | <guidance> | <comma_keywords>`
 
@@ -421,6 +453,18 @@ Adds a positive reply example to a topic through the topic examples API.
 ### `/topic_bad_reply <topic_id> | <example>`
 
 Adds a negative reply example to a topic. Bad examples are avoid-this guidance, not templates.
+
+### `/topic_remove_example <topic_id> <good|bad> <index>`
+
+Removes one topic example. Bot-facing indexes are one-based for operator readability.
+
+### `/topic_keywords <topic_id> <trigger|negative> <comma_keywords>`
+
+Replaces the selected keyword list through `PATCH /api/engagement/topics/{topic_id}`.
+
+### `/edit_topic_guidance <topic_id>`
+
+Starts the shared guided config-edit flow for topic guidance.
 
 ### `/engagement_settings <community_id>`
 

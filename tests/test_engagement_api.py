@@ -16,8 +16,11 @@ from backend.api.routes.engagement import (
     get_engagement_candidate_revisions,
     get_engagement_candidates,
     get_engagement_semantic_rollout,
+    get_engagement_style_rule_detail,
     get_engagement_target_detail,
+    get_engagement_topic_detail,
     get_community_engagement_settings,
+    patch_engagement_style_rule,
     patch_engagement_topic,
     post_community_join_job,
     post_community_engagement_detect_job,
@@ -27,6 +30,7 @@ from backend.api.routes.engagement import (
     post_engagement_candidate_reject,
     post_engagement_candidate_retry,
     post_engagement_candidate_send_job,
+    post_engagement_style_rule,
     post_engagement_target,
     post_engagement_target_detect_job,
     post_engagement_target_join_job,
@@ -45,6 +49,8 @@ from backend.api.schemas import (
     EngagementJoinJobRequest,
     EngagementSendJobRequest,
     EngagementSettingsUpdate,
+    EngagementStyleRuleCreateRequest,
+    EngagementStyleRuleUpdateRequest,
     EngagementTargetCreateRequest,
     EngagementTargetResolveJobRequest,
     EngagementTargetUpdateRequest,
@@ -70,6 +76,7 @@ from backend.db.models import (
     EngagementCandidateRevision,
     EngagementTarget,
     EngagementTopic,
+    EngagementStyleRule,
     TelegramAccount,
 )
 from backend.queue.client import QueuedJob, QueueUnavailable
@@ -551,6 +558,17 @@ async def test_create_active_topic_requires_semantic_profile_text() -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_engagement_topic_detail_returns_topic() -> None:
+    topic_id = uuid4()
+    db = FakeDb(topic=_topic(topic_id, name="CRM"))
+
+    response = await get_engagement_topic_detail(topic_id, db)  # type: ignore[arg-type]
+
+    assert response.id == topic_id
+    assert response.name == "CRM"
+
+
+@pytest.mark.asyncio
 async def test_update_topic_rejects_unsafe_guidance() -> None:
     topic_id = uuid4()
     db = FakeDb(
@@ -577,6 +595,49 @@ async def test_update_topic_rejects_unsafe_guidance() -> None:
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail["code"] == "unsafe_topic_guidance"
+
+
+@pytest.mark.asyncio
+async def test_style_rule_routes_create_update_and_detail() -> None:
+    rule_id = uuid4()
+    db = FakeDb(
+        style_rule=EngagementStyleRule(
+            id=rule_id,
+            scope_type="global",
+            scope_id=None,
+            name="Keep it brief",
+            rule_text="Keep replies under three sentences.",
+            active=True,
+            priority=50,
+            created_by="operator",
+            updated_by="operator",
+            created_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
+        )
+    )
+
+    created = await post_engagement_style_rule(
+        EngagementStyleRuleCreateRequest(
+            scope_type="global",
+            scope_id=None,
+            name="Mention tradeoffs",
+            priority=75,
+            rule_text="Mention tradeoffs before recommendations.",
+            created_by="telegram:123",
+        ),
+        FakeDb(),  # type: ignore[arg-type]
+    )
+    detail = await get_engagement_style_rule_detail(rule_id, db)  # type: ignore[arg-type]
+    updated = await patch_engagement_style_rule(
+        rule_id,
+        EngagementStyleRuleUpdateRequest(active=False, updated_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert created.name == "Mention tradeoffs"
+    assert created.priority == 75
+    assert detail.id == rule_id
+    assert updated.active is False
 
 
 @pytest.mark.asyncio
@@ -1142,6 +1203,7 @@ class FakeDb:
         community: Community | None = None,
         settings: CommunityEngagementSettings | None = None,
         topic: EngagementTopic | None = None,
+        style_rule: EngagementStyleRule | None = None,
         target: EngagementTarget | None = None,
         candidate: EngagementCandidate | None = None,
         candidates: list[EngagementCandidate] | None = None,
@@ -1153,6 +1215,7 @@ class FakeDb:
         self.community = community
         self.settings = settings
         self.topic = topic
+        self.style_rule = style_rule
         self.target = target
         self.candidate = candidate
         self.candidates = candidates
@@ -1169,6 +1232,8 @@ class FakeDb:
             return self.community
         if model is EngagementTopic:
             return self.topic
+        if model is EngagementStyleRule:
+            return self.style_rule
         if model is EngagementTarget:
             return self.target
         if model is EngagementCandidate:

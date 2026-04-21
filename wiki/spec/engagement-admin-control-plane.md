@@ -55,7 +55,15 @@ Recommended bot entrypoints:
 /engagement_settings <engagement_target_or_community_id>
 /engagement_prompts
 /engagement_prompt <prompt_profile_id>
-/engagement_style <scope> <id>
+/engagement_style [scope] [scope_id]
+/engagement_style_rule <rule_id>
+/create_style_rule <scope> <scope_id_or_dash> | <name> | <priority> | <rule_text>
+/edit_style_rule <rule_id>
+/toggle_style_rule <rule_id> <on|off>
+/engagement_topic <topic_id>
+/topic_remove_example <topic_id> <good|bad> <index>
+/topic_keywords <topic_id> <trigger|negative> <comma_keywords>
+/edit_topic_guidance <topic_id>
 /engagement_candidates [status]
 /edit_reply <candidate_id> | <new final reply>
 /approve_reply <candidate_id>
@@ -394,11 +402,13 @@ POST /api/engagement/prompt-profiles/{profile_id}/preview
 GET  /api/engagement/prompt-profiles/{profile_id}/versions
 
 GET  /api/engagement/style-rules
+GET  /api/engagement/style-rules/{rule_id}
 POST /api/engagement/style-rules
 PATCH /api/engagement/style-rules/{rule_id}
 
+GET  /api/engagement/topics/{topic_id}
 POST /api/engagement/topics/{topic_id}/examples
-DELETE /api/engagement/topics/{topic_id}/examples/{example_id}
+DELETE /api/engagement/topics/{topic_id}/examples/{example_type}/{index}
 
 POST /api/engagement/candidates/{candidate_id}/edit
 ```

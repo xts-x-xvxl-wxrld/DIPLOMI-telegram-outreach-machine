@@ -368,7 +368,8 @@ The current main engagement menu exposes:
 - `/set_engagement <community_id> <off|observe|suggest|ready>`.
 - `/join_community <community_id>`.
 - `/detect_engagement <community_id> [window_minutes]`.
-- `/engagement_topics`, topic creation, topic active-state toggles, and good/bad topic examples.
+- `/engagement_topics`, `/engagement_topic <topic_id>`, topic creation, topic active-state toggles,
+  good/bad topic examples, example removal, keyword updates, and guided topic-guidance editing.
 - `/engagement_admin` with inline `Communities`, `Topics`, `Voice rules`, `Limits/accounts`,
   `Advanced`, and back-to-engagement buttons.
 - `/engagement_targets [status]`, `/engagement_target`, `/add_engagement_target`,
@@ -392,7 +393,11 @@ The current main engagement menu exposes:
   explicit confirmation card before calling the rollback API.
 - Prompt template edits reject unsupported variables, including sender identity variables, before
   calling the API when possible.
-- `/engagement_style` as a read-only style-rule list.
+- `/engagement_style [scope] [scope_id]`, `/engagement_style_rule <rule_id>`,
+  `/create_style_rule <scope> <scope_id_or_dash> | <name> | <priority> | <rule_text>`,
+  `/edit_style_rule <rule_id>`, and `/toggle_style_rule <rule_id> <on|off>`.
+- Style-rule lists now expose scope filters plus inline create-help, open, edit, and toggle
+  controls.
 
 ### Missing From Daily Engagement
 
@@ -410,25 +415,11 @@ The current main engagement menu exposes:
 
 ### Missing From Topics And Examples
 
-- Topic detail/open command: `/engagement_topic <topic_id>`.
-- Remove topic example command: `/topic_remove_example <topic_id> <good|bad> <index>`.
-- Topic keyword editing command:
-  `/topic_keywords <topic_id> <trigger|negative> <comma_keywords>`.
-- Topic guidance editing command: `/edit_topic_guidance <topic_id>`.
-- Inline buttons for adding and removing examples.
-- Conversation-state editing for topic guidance.
+- Inline buttons for adding topic examples from Telegram conversation state.
 
 ### Missing From Style Rules
 
-- Style rule detail/open command: `/engagement_style_rule <rule_id>`.
-- Style rule creation:
-  `/create_style_rule <scope> <scope_id_or_dash> | <name> | <priority> | <rule_text>`.
-- Style rule editing: `/edit_style_rule <rule_id>`.
-- Style rule active-state toggles: `/toggle_style_rule <rule_id> <on|off>`.
-- Scope filters for style-rule lists. The API client supports scope filters, but the menu does not
-  expose them.
-- Inline style-rule detail, create, edit, and toggle controls.
-- Conversation-state editing for long style rule text.
+- Inline style-rule creation form beyond the current command-led create entrypoint.
 
 ### Missing From Community Controls
 
@@ -1258,9 +1249,11 @@ POST   /api/engagement/prompt-profiles/{profile_id}/preview
 GET    /api/engagement/prompt-profiles/{profile_id}/versions
 
 GET    /api/engagement/style-rules
+GET    /api/engagement/style-rules/{rule_id}
 POST   /api/engagement/style-rules
 PATCH  /api/engagement/style-rules/{rule_id}
 
+GET    /api/engagement/topics/{topic_id}
 POST   /api/engagement/topics/{topic_id}/examples
 DELETE /api/engagement/topics/{topic_id}/examples/{example_type}/{index}
 POST   /api/engagement/candidates/{candidate_id}/edit

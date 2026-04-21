@@ -54,6 +54,8 @@ ACTION_ENGAGEMENT_CANDIDATE_RETRY = "eng:cand:retry"
 ACTION_ENGAGEMENT_TOPIC_LIST = "eng:topic:list"
 ACTION_ENGAGEMENT_TOPIC_OPEN = "eng:topic:open"
 ACTION_ENGAGEMENT_TOPIC_TOGGLE = "eng:topic:toggle"
+ACTION_ENGAGEMENT_TOPIC_EDIT = "eng:topic:edit"
+ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE = "eng:topic:rmx"
 ACTION_ENGAGEMENT_SETTINGS_OPEN = "eng:set:open"
 ACTION_ENGAGEMENT_SETTINGS_PRESET = "eng:set:preset"
 ACTION_ENGAGEMENT_SETTINGS_JOIN = "eng:set:join"
@@ -83,6 +85,10 @@ ACTION_ENGAGEMENT_PROMPT_ACTIVATE_CONFIRM = "eng:admin:pac"
 ACTION_ENGAGEMENT_PROMPT_ROLLBACK = "eng:admin:prb"
 ACTION_ENGAGEMENT_PROMPT_ROLLBACK_CONFIRM = "eng:admin:prbc"
 ACTION_ENGAGEMENT_STYLE = "eng:admin:sr"
+ACTION_ENGAGEMENT_STYLE_CREATE = "eng:admin:src"
+ACTION_ENGAGEMENT_STYLE_OPEN = "eng:admin:sro"
+ACTION_ENGAGEMENT_STYLE_EDIT = "eng:admin:sre"
+ACTION_ENGAGEMENT_STYLE_TOGGLE = "eng:admin:srt"
 ACTION_ENGAGEMENT_ADMIN_LIMITS = "eng:admin:lim"
 ACTION_ENGAGEMENT_ADMIN_ADVANCED = "eng:admin:adv"
 ACTION_CONFIG_EDIT_SAVE = "eng:edit:save"
@@ -536,6 +542,85 @@ def engagement_admin_pager_markup(
     return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_ADMIN))
 
 
+def engagement_style_list_markup(
+    *,
+    scope_type: str | None,
+    scope_id: str | None,
+    offset: int,
+    total: int,
+    page_size: int,
+):
+    selected = scope_type or "all"
+    scope_token = scope_type or "all"
+    scope_id_token = scope_id or "-"
+    rows = [
+        [_button("Create", ACTION_ENGAGEMENT_STYLE_CREATE)],
+        [
+            _button("* All" if selected == "all" else "All", ACTION_ENGAGEMENT_STYLE, "all", "-", "0"),
+            _button(
+                "* Global" if selected == "global" else "Global",
+                ACTION_ENGAGEMENT_STYLE,
+                "global",
+                "-",
+                "0",
+            ),
+        ],
+        [
+            _button(
+                "* Account" if selected == "account" else "Account",
+                ACTION_ENGAGEMENT_STYLE,
+                "account",
+                scope_id_token if selected == "account" else "-",
+                "0",
+            ),
+            _button(
+                "* Community" if selected == "community" else "Community",
+                ACTION_ENGAGEMENT_STYLE,
+                "community",
+                scope_id_token if selected == "community" else "-",
+                "0",
+            ),
+        ],
+        [
+            _button(
+                "* Topic" if selected == "topic" else "Topic",
+                ACTION_ENGAGEMENT_STYLE,
+                "topic",
+                scope_id_token if selected == "topic" else "-",
+                "0",
+            )
+        ],
+    ]
+    pager_row = _offset_pager_row(
+        action=ACTION_ENGAGEMENT_STYLE,
+        offset=offset,
+        total=total,
+        page_size=page_size,
+        prefix_parts=[scope_token, scope_id_token],
+    )
+    if pager_row:
+        rows.append(pager_row)
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_ADMIN))
+
+
+def engagement_style_rule_actions_markup(rule_id: str, *, active: bool):
+    rows = [
+        [
+            _button("Open", ACTION_ENGAGEMENT_STYLE_OPEN, rule_id),
+            _button("Edit", ACTION_ENGAGEMENT_STYLE_EDIT, rule_id),
+        ],
+        [
+            _button(
+                "Disable" if active else "Enable",
+                ACTION_ENGAGEMENT_STYLE_TOGGLE,
+                rule_id,
+                "0" if active else "1",
+            )
+        ],
+    ]
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_STYLE, back_parts=["all", "-", "0"]))
+
+
 def engagement_settings_markup(community_id: str, *, allow_join: bool, allow_post: bool):
     rows = [
         [
@@ -588,17 +673,52 @@ def engagement_topic_pager_markup(
     return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))
 
 
-def engagement_topic_actions_markup(topic_id: str, *, active: bool):
+def engagement_topic_actions_markup(
+    topic_id: str,
+    *,
+    active: bool,
+    good_count: int = 0,
+    bad_count: int = 0,
+):
     rows = [
+        [_button("Open", ACTION_ENGAGEMENT_TOPIC_OPEN, topic_id)],
         [
+            _button("Edit guidance", ACTION_ENGAGEMENT_TOPIC_EDIT, topic_id, "stance_guidance"),
+            _button("Edit triggers", ACTION_ENGAGEMENT_TOPIC_EDIT, topic_id, "trigger_keywords"),
+        ],
+        [
+            _button("Edit negatives", ACTION_ENGAGEMENT_TOPIC_EDIT, topic_id, "negative_keywords"),
             _button(
                 "Deactivate" if active else "Activate",
                 ACTION_ENGAGEMENT_TOPIC_TOGGLE,
                 topic_id,
                 "0" if active else "1",
-            )
+            ),
         ],
     ]
+    if good_count > 0 or bad_count > 0:
+        remove_row = []
+        if good_count > 0:
+            remove_row.append(
+                _button(
+                    "Remove good #1",
+                    ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
+                    topic_id,
+                    "g",
+                    "0",
+                )
+            )
+        if bad_count > 0:
+            remove_row.append(
+                _button(
+                    "Remove bad #1",
+                    ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
+                    topic_id,
+                    "b",
+                    "0",
+                )
+            )
+        rows.append(remove_row)
     return _inline_markup(
         _with_navigation(rows, back_action=ACTION_ENGAGEMENT_TOPIC_LIST, back_parts=["0"])
     )

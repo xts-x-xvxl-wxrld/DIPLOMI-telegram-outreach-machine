@@ -806,3 +806,12 @@ multi-surface retrieval across entity search, post search, graph expansion, and 
 search, plus evidence-based normalization, ranking, review, and promotion of strong hits into
 seeds. Added the corresponding `wiki/plan/search-rebuild.md` planning page and linked both from the
 wiki index.
+
+## [2026-04-21] code | Added topic example and style rule bot controls
+
+Completed Bot Engagement Controls Slice 7. The backend now exposes topic and style-rule detail
+routes for the bot, while the Telegram bot adds topic detail, example removal, keyword updates,
+guided topic-guidance editing, scoped style-rule lists, style-rule detail, style-rule creation, and
+guided/toggle style-rule admin flows. Topic cards now clearly separate good examples from bad
+examples and mark bad examples as avoid-copy guidance, and focused bot/API tests cover the new
+controls.

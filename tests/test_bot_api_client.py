@@ -571,6 +571,7 @@ async def test_engagement_topic_methods_use_topic_routes() -> None:
     )
 
     await client.list_engagement_topics()
+    await client.get_engagement_topic("topic-1")
     await client.create_engagement_topic(
         name="Open CRM",
         stance_guidance="Be useful.",
@@ -580,9 +581,85 @@ async def test_engagement_topic_methods_use_topic_routes() -> None:
     await client.aclose()
 
     assert seen[0] == ("GET", "/api/engagement/topics", None)
-    assert seen[1][0:2] == ("POST", "/api/engagement/topics")
-    assert seen[1][2]["trigger_keywords"] == ["crm"]
-    assert seen[2] == ("PATCH", "/api/engagement/topics/topic-1", {"active": False})
+    assert seen[1] == ("GET", "/api/engagement/topics/topic-1", None)
+    assert seen[2][0:2] == ("POST", "/api/engagement/topics")
+    assert seen[2][2]["trigger_keywords"] == ["crm"]
+    assert seen[3] == ("PATCH", "/api/engagement/topics/topic-1", {"active": False})
+
+
+@pytest.mark.asyncio
+async def test_engagement_style_rule_methods_use_style_rule_routes() -> None:
+    seen: list[tuple[str, str, dict[str, object] | None, dict[str, str]]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content) if request.content else None
+        seen.append((request.method, request.url.path, payload, dict(request.url.params)))
+        if request.method == "GET" and request.url.path.endswith("/engagement/style-rules"):
+            return httpx.Response(200, json={"items": [], "limit": 5, "offset": 0, "total": 0})
+        return httpx.Response(
+            200 if request.method != "POST" else 201,
+            json={
+                "id": "rule-1",
+                "scope_type": "global",
+                "scope_id": None,
+                "name": "Keep it brief",
+                "rule_text": "Keep replies under three sentences.",
+                "active": True,
+                "priority": 50,
+                "created_by": "operator",
+                "updated_by": "operator",
+                "created_at": "2026-04-21T10:00:00Z",
+                "updated_at": "2026-04-21T10:00:00Z",
+            },
+        )
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    await client.list_engagement_style_rules(scope_type="community", scope_id="community-1")
+    await client.get_engagement_style_rule("rule-1")
+    await client.create_engagement_style_rule(
+        scope_type="global",
+        scope_id=None,
+        name="Keep it brief",
+        priority=50,
+        rule_text="Keep replies under three sentences.",
+        created_by="telegram:123",
+    )
+    await client.update_engagement_style_rule(
+        "rule-1",
+        active=False,
+        updated_by="telegram:123",
+    )
+    await client.aclose()
+
+    assert seen[0] == (
+        "GET",
+        "/api/engagement/style-rules",
+        None,
+        {"limit": "5", "offset": "0", "scope_type": "community", "scope_id": "community-1"},
+    )
+    assert seen[1] == ("GET", "/api/engagement/style-rules/rule-1", None, {})
+    assert seen[2][0:3] == (
+        "POST",
+        "/api/engagement/style-rules",
+        {
+            "scope_type": "global",
+            "scope_id": None,
+            "name": "Keep it brief",
+            "priority": 50,
+            "rule_text": "Keep replies under three sentences.",
+            "created_by": "telegram:123",
+        },
+    )
+    assert seen[3][0:3] == (
+        "PATCH",
+        "/api/engagement/style-rules/rule-1",
+        {"active": False, "updated_by": "telegram:123"},
+    )
 
 
 @pytest.mark.asyncio

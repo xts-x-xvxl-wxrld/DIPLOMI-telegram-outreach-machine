@@ -890,6 +890,11 @@ Response `202`:
 
 Lists configured engagement topics.
 
+### `GET /api/engagement/topics/{topic_id}`
+
+Returns one engagement topic with guidance, trigger keywords, negative keywords, and ordered good
+and bad example arrays.
+
 ### `POST /api/engagement/topics`
 
 Creates an engagement topic.
@@ -935,6 +940,11 @@ Lists immutable prompt profile versions newest first.
 ### `GET /api/engagement/style-rules`
 
 Lists style rules by optional scope, scope ID, active state, limit, and offset.
+
+### `GET /api/engagement/style-rules/{rule_id}`
+
+Returns one style rule with scope, scope ID, active state, priority, rule text, and update
+metadata.
 
 ### `POST /api/engagement/style-rules`
 

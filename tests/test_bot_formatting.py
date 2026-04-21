@@ -17,6 +17,8 @@ from bot.formatting import (
     format_engagement_job_response,
     format_engagement_settings,
     format_engagement_semantic_rollout,
+    format_engagement_style_rule_card,
+    format_engagement_style_rules,
     format_engagement_target_card,
     format_engagement_target_mutation,
     format_engagement_topic_card,
@@ -431,6 +433,55 @@ def test_format_engagement_topics_and_card_truncate_guidance() -> None:
     assert "Triggers: crm, sales pipeline" in card
     assert "Guidance: " in card
     assert len(card) < 700
+
+
+def test_format_engagement_topic_card_labels_good_and_bad_examples() -> None:
+    card = format_engagement_topic_card(
+        {
+            "id": "topic-1",
+            "name": "Open CRM",
+            "stance_guidance": "Be factual.",
+            "trigger_keywords": ["crm"],
+            "negative_keywords": ["jobs"],
+            "example_good_replies": ["Compare export paths first."],
+            "example_bad_replies": ["Buy our tool now."],
+            "active": True,
+        }
+    )
+
+    assert "Good examples: #1 Compare export paths first." in card
+    assert "Bad examples (avoid copying): #1 Buy our tool now." in card
+    assert "/topic_remove_example topic-1 good <index>" in card
+    assert "/topic_remove_example topic-1 bad <index>" in card
+
+
+def test_format_engagement_style_rules_and_card_include_scope_priority_and_commands() -> None:
+    message = format_engagement_style_rules(
+        {
+            "items": [{"id": "rule-1"}],
+            "total": 1,
+            "scope_type": "community",
+            "scope_id": "community-1",
+        }
+    )
+    card = format_engagement_style_rule_card(
+        {
+            "id": "rule-1",
+            "scope_type": "community",
+            "scope_id": "community-1",
+            "name": "Keep it brief",
+            "rule_text": "Keep replies under three sentences.",
+            "active": True,
+            "priority": 50,
+        }
+    )
+
+    assert message == "Engagement style rules (1-1 of 1) | community community-1"
+    assert "Scope: community community-1" in card
+    assert "priority 50" in card
+    assert "/engagement_style_rule rule-1" in card
+    assert "/edit_style_rule rule-1" in card
+    assert "/toggle_style_rule rule-1 off" in card
 
 
 def test_format_engagement_job_response_reports_refresh_command() -> None:
