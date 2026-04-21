@@ -233,10 +233,14 @@ def cosine_similarity(left: list[float], right: list[float]) -> float:
 async def select_semantic_trigger_messages(
     db,
     *,
+    community_id,
     topic,
     messages,
     settings,
 ) -> list[SemanticTriggerMatch]:
+    ...
+
+async def delete_expired_message_embeddings(db, *, now=None) -> int:
     ...
 ```
 

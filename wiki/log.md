@@ -746,3 +746,13 @@ semantic profile text instead of mandatory trigger keywords, detector input uses
 before drafting, detector calls are capped per run, and compact candidate metadata can retain
 future `semantic_match` audit fields. Updated the engagement specs and embedding-matching plan to
 match the new rollout contract.
+
+## [2026-04-21] code | Added engagement embedding cache schema and service
+
+Added Postgres-backed `engagement_topic_embeddings` and `engagement_message_embeddings` cache tables
+with the matching Alembic migration and SQLAlchemy models. Implemented
+`backend/services/engagement_embeddings.py` for semantic-profile/message text normalization, hashing,
+batched OpenAI embedding calls, cache reuse, cosine similarity scoring, stable top-K semantic match
+selection, and expired message-cache cleanup. Added focused schema and service tests, and updated
+the database and embedding-matching wiki specs plus the index entries for the new implementation
+roots.

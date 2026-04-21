@@ -473,6 +473,45 @@ created_at            timestamptz NOT NULL DEFAULT now()
 updated_at            timestamptz NOT NULL DEFAULT now()
 ```
 
+### `engagement_topic_embeddings`
+
+Cached topic-profile embeddings used by semantic engagement matching.
+
+```sql
+id                    uuid PRIMARY KEY
+topic_id              uuid NOT NULL REFERENCES engagement_topics(id)
+model                 text NOT NULL
+dimensions            int NOT NULL
+profile_text_hash     text NOT NULL
+embedding             jsonb NOT NULL
+created_at            timestamptz NOT NULL DEFAULT now()
+
+UNIQUE (topic_id, model, dimensions, profile_text_hash)
+```
+
+### `engagement_message_embeddings`
+
+Cached public-message embeddings used by semantic engagement matching.
+
+```sql
+id                    uuid PRIMARY KEY
+community_id          uuid NOT NULL REFERENCES communities(id)
+tg_message_id         bigint
+source_text_hash      text NOT NULL
+model                 text NOT NULL
+dimensions            int NOT NULL
+embedding             jsonb NOT NULL
+expires_at            timestamptz NOT NULL
+created_at            timestamptz NOT NULL DEFAULT now()
+
+UNIQUE (community_id, tg_message_id, source_text_hash, model, dimensions)
+```
+
+The first implementation keeps message embeddings in Postgres JSONB and validates dimensions in the
+service layer before cache writes and reads. When `tg_message_id` is null, service logic still looks
+up rows by `(community_id, source_text_hash, model, dimensions)` so semantic-only artifacts can
+reuse recent cache entries even though the database uniqueness guard is weaker for null IDs.
+
 ### `engagement_prompt_profiles`
 
 Admin-editable prompt profile state used by `engagement.detect`.
@@ -642,6 +681,9 @@ CREATE INDEX ON engagement_targets (submitted_ref);
 CREATE INDEX ON community_engagement_settings (community_id);
 CREATE INDEX ON community_account_memberships (community_id, telegram_account_id);
 CREATE INDEX ON engagement_topics (active);
+CREATE INDEX ON engagement_topic_embeddings (topic_id);
+CREATE INDEX ON engagement_message_embeddings (community_id, source_text_hash, model, dimensions);
+CREATE INDEX ON engagement_message_embeddings (expires_at);
 CREATE INDEX ON engagement_candidates (status, created_at);
 CREATE INDEX ON engagement_candidates (community_id, topic_id, status);
 CREATE INDEX ON engagement_actions (community_id, created_at);

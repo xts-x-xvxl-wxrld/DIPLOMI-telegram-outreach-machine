@@ -533,6 +533,51 @@ class EngagementTopic(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
+class EngagementTopicEmbedding(Base):
+    __tablename__ = "engagement_topic_embeddings"
+    __table_args__ = (
+        UniqueConstraint("topic_id", "model", "dimensions", "profile_text_hash"),
+        Index("ix_engagement_topic_embeddings_topic_id", "topic_id"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    topic_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("engagement_topics.id"), nullable=False)
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    dimensions: Mapped[int] = mapped_column(Integer, nullable=False)
+    profile_text_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(postgresql.JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    topic: Mapped[EngagementTopic] = relationship()
+
+
+class EngagementMessageEmbedding(Base):
+    __tablename__ = "engagement_message_embeddings"
+    __table_args__ = (
+        UniqueConstraint("community_id", "tg_message_id", "source_text_hash", "model", "dimensions"),
+        Index(
+            "ix_engagement_message_embeddings_lookup",
+            "community_id",
+            "source_text_hash",
+            "model",
+            "dimensions",
+        ),
+        Index("ix_engagement_message_embeddings_expires_at", "expires_at"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    community_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("communities.id"), nullable=False)
+    tg_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    source_text_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    dimensions: Mapped[int] = mapped_column(Integer, nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(postgresql.JSONB, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    community: Mapped[Community] = relationship()
+
+
 class EngagementPromptProfile(Base):
     __tablename__ = "engagement_prompt_profiles"
     __table_args__ = (

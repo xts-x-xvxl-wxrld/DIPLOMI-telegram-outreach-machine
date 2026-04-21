@@ -64,7 +64,7 @@ Acceptance:
 
 ## Slice 2: Settings And Schema
 
-Status: in_progress.
+Status: completed.
 
 Add settings:
 
@@ -93,7 +93,7 @@ Acceptance:
 
 ## Slice 3: Embedding Service
 
-Status: pending.
+Status: completed.
 
 Add `backend/services/engagement_embeddings.py` with:
 

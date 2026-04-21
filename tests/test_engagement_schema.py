@@ -23,10 +23,12 @@ from backend.db.models import (
     EngagementAction,
     EngagementCandidate,
     EngagementCandidateRevision,
+    EngagementMessageEmbedding,
     EngagementPromptProfile,
     EngagementPromptProfileVersion,
     EngagementStyleRule,
     EngagementTarget,
+    EngagementTopicEmbedding,
     EngagementTopic,
     TelegramAccount,
 )
@@ -116,6 +118,11 @@ def test_engagement_uniqueness_constraints_are_declared() -> None:
     assert _has_unique_constraint(CommunityEngagementSettings, ["community_id"])
     assert _has_unique_constraint(EngagementTarget, ["community_id"])
     assert _has_unique_constraint(CommunityAccountMembership, ["community_id", "telegram_account_id"])
+    assert _has_unique_constraint(EngagementTopicEmbedding, ["topic_id", "model", "dimensions", "profile_text_hash"])
+    assert _has_unique_constraint(
+        EngagementMessageEmbedding,
+        ["community_id", "tg_message_id", "source_text_hash", "model", "dimensions"],
+    )
     assert _has_unique_constraint(EngagementAction, ["idempotency_key"])
     assert _has_unique_constraint(EngagementPromptProfileVersion, ["prompt_profile_id", "version_number"])
     assert _has_unique_constraint(EngagementCandidateRevision, ["candidate_id", "revision_number"])
@@ -129,6 +136,12 @@ def test_engagement_indexes_are_declared() -> None:
     assert _has_index(EngagementTarget, ["submitted_ref"])
     assert _has_index(CommunityAccountMembership, ["community_id", "telegram_account_id"])
     assert _has_index(EngagementTopic, ["active"])
+    assert _has_index(EngagementTopicEmbedding, ["topic_id"])
+    assert _has_index(
+        EngagementMessageEmbedding,
+        ["community_id", "source_text_hash", "model", "dimensions"],
+    )
+    assert _has_index(EngagementMessageEmbedding, ["expires_at"])
     assert _has_index(EngagementCandidate, ["status", "created_at"])
     assert _has_index(EngagementCandidate, ["community_id", "topic_id", "status"])
     assert _has_index(EngagementAction, ["community_id", "created_at"])
@@ -147,6 +160,8 @@ def test_engagement_tables_compile_for_postgresql() -> None:
         EngagementTarget,
         CommunityAccountMembership,
         EngagementTopic,
+        EngagementTopicEmbedding,
+        EngagementMessageEmbedding,
         EngagementPromptProfile,
         EngagementPromptProfileVersion,
         EngagementStyleRule,

@@ -74,6 +74,7 @@
 - `backend/api/routes/engagement.py` - engagement settings, topics, candidate review, and job enqueue API endpoints
 - `backend/api/routes/telegram_entities.py` - direct Telegram handle intake API endpoints
 - `backend/services/community_engagement.py` - engagement settings and topic validation/state service
+- `backend/services/engagement_embeddings.py` - embedding text normalization, cache lookup/create, cosine scoring, and semantic trigger selection
 - `backend/workers/community_join.py` - `community.join` orchestration with membership and audit updates
 - `backend/workers/community_snapshot.py` - `community.snapshot` orchestration for discovery metadata/member snapshots
 - `backend/workers/telegram_snapshot.py` - Telethon adapter for discovery community snapshots
@@ -98,6 +99,8 @@
 - `alembic/versions/20260419_0007_engagement_targets.py` - manual engagement target permission gate migration
 - `alembic/versions/20260420_0008_engagement_admin_control_plane.py` - prompt profiles, style rules, prompt provenance, and reply revision migration
 - `alembic/versions/20260420_0009_telegram_account_pools.py` - Telegram account pool separation migration
+- `alembic/versions/20260421_0010_engagement_embeddings.py` - topic/message embedding cache migration for semantic engagement matching
+- `tests/test_engagement_embeddings.py` - embedding cache reuse, dimension validation, selector ordering, and cleanup tests
 - `tests/test_engagement_schema.py` - engagement schema enum/default/constraint/index tests
 - `tests/test_engagement_targets.py` - engagement target resolution and permission gate tests
 - `tests/test_engagement_prompt_controls.py` - prompt template variable privacy tests
