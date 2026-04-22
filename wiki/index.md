@@ -50,6 +50,7 @@
 - [Semantic Matching Observability + Evaluation Fixtures](plan/semantic-matching-observability-evaluation-fixtures.md) - Slice 5a counters, logs, and sanitized eval fixtures for semantic matching
 - [Semantic Matching Rollout Review Surface](plan/semantic-matching-rollout-review-surface.md) - Slice 5b aggregate operator review surface for semantic rollout outcomes
 - [Timely Reply Opportunities](plan/timely-reply-opportunities.md) - freshness SLO, reply opportunity terminology, detection cadence, and operator notification contract
+- [Engagement MVP Testing Readiness](plan/engagement-mvp-testing-readiness.md) - remaining collection, detection, scheduler, operator, and runbook gates before staged Telegram engagement testing
 - [Engagement Operator Controls](plan/engagement-operator-controls.md) - Telegram bot control surface for settings, topics, joins, detection, reply opportunity sends, and audit views
 - [Engagement Admin Control Plane](plan/engagement-admin-control-plane.md) - manual engagement targets, prompt/profile admin, style rules, and editable reply implementation plan
 - [Bot Engagement Controls](plan/bot-engagement-controls.md) - next bot slices for target admin, prompt/style controls, reply opportunity editing, and advanced settings

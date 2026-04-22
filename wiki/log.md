@@ -975,3 +975,10 @@ for tracked files. Wired the guardrail into GitHub Actions before Ruff and pytes
 enforcement in the context fragmentation plan and agent instructions, and linked the script from the
 wiki implementation roots. The append-only wiki log remains exempt, and current oversized files are
 grandfathered at fixed ceilings so they cannot grow before being split.
+
+## [2026-04-22] spec | Defined engagement MVP testing readiness
+
+Added a focused readiness plan for finishing engagement before staged Telegram testing. The plan
+turns the collection/detection audit into implementation slices for the real `collection.run`
+worker, exact `engagement_messages` batches, `collection_run_id` detection payloads, timely reply
+opportunity fields, active collection scheduling, operator controls, and a staged Telegram runbook.
