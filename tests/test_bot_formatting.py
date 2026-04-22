@@ -17,6 +17,7 @@ from bot.formatting import (
     format_engagement_home,
     format_engagement_job_response,
     format_engagement_settings,
+    format_engagement_settings_lookup,
     format_engagement_semantic_rollout,
     format_engagement_style_rule_card,
     format_engagement_style_rules,
@@ -337,6 +338,7 @@ def test_format_engagement_home_reports_operational_counts() -> None:
 
     assert "Review replies: 2" in message
     assert "Approved to send: 1" in message
+    assert "Settings lookup: /engagement_settings <community_id>" in message
     assert "/engagement_topics" in message
     assert "score" not in message.lower()
 
@@ -359,36 +361,52 @@ def test_format_engagement_settings_shows_safe_controls() -> None:
         assigned_account_label="account-1 | +123*****89",
     )
 
-    assert "Mode: suggest" in message
+    assert "Posting posture: draft replies for review" in message
     assert "Readiness: Drafting replies" in message
-    assert "Join allowed: no" in message
-    assert "Reply only: yes" in message
+    assert "Joining allowed: no" in message
+    assert "Safety floor: reply-only yes, approval required yes" in message
     assert "/set_engagement community-1" in message
     assert "/set_engagement_limits community-1" in message
     assert "/set_engagement_quiet_hours community-1 <HH:MM> <HH:MM>" in message
     assert "/assign_engagement_account community-1 <telegram_account_id>" in message
     assert "Quiet hours: 22:00-07:00" in message
-    assert "Assigned account: account-1 | +123*****89" in message
+    assert "Engagement account: account-1 | +123*****89" in message
+    assert message.index("Readiness: Drafting replies") < message.index("Community ID: community-1")
     assert "phone" not in message.lower()
 
 
-def test_format_engagement_target_card_starts_with_readiness() -> None:
-    message = format_engagement_target_card(
-        {
-            "id": "target-1",
-            "submitted_ref": "username:founders",
-            "status": "approved",
-            "community_id": "community-1",
-            "allow_join": True,
-            "allow_detect": True,
-            "allow_post": False,
-        },
-        index=1,
+def test_format_engagement_settings_lookup_points_to_button_led_lookup() -> None:
+    message = format_engagement_settings_lookup(
+        {"items": [{"community_id": "community-1"}], "total": 3},
+        offset=1,
     )
 
-    assert "1. username:founders" in message
+    assert "Settings lookup (2-2 of 3)" in message
+    assert "readiness, posting limits, quiet hours, and account assignment" in message
+    assert "/engagement_settings <community_id>" in message
+
+
+def test_format_engagement_target_card_is_compact_by_default_and_audit_friendly_in_detail() -> None:
+    target = {
+        "id": "target-1",
+        "submitted_ref": "username:founders",
+        "status": "approved",
+        "community_id": "community-1",
+        "community_title": "Founder Circle",
+        "allow_join": True,
+        "allow_detect": True,
+        "allow_post": False,
+    }
+    message = format_engagement_target_card(target, index=1)
+    detail = format_engagement_target_card(target, detail=True)
+
+    assert "1. Founder Circle" in message
     assert "Readiness: Drafting replies" in message
-    assert message.index("Readiness: Drafting replies") < message.index("Target ID: target-1")
+    assert "Allowed: watch/draft yes, join yes, post reviewed replies no" in message
+    assert "Settings: /engagement_settings community-1" in message
+    assert "Target ID: target-1" not in message
+    assert "Target ID: target-1" in detail
+    assert "Raw permissions: allow_join=yes, allow_detect=yes, allow_post=no" in detail
     assert "/target_detect target-1" in message
 
 
@@ -493,7 +511,7 @@ def test_format_engagement_topics_and_card_truncate_guidance() -> None:
 
     assert message == "Engagement topics (1-2 of 2) | active 1"
     assert "1. Open CRM" in card
-    assert "Triggers: crm, sales pipeline" in card
+    assert "Notice: crm, sales pipeline" in card
     assert "Guidance: " in card
     assert len(card) < 700
 
@@ -545,6 +563,60 @@ def test_format_engagement_style_rules_and_card_include_scope_priority_and_comma
     assert "/engagement_style_rule rule-1" in card
     assert "/edit_style_rule rule-1" in card
     assert "/toggle_style_rule rule-1 off" in card
+
+
+def test_format_default_topic_and_style_cards_keep_ids_for_detail_views() -> None:
+    topic = {
+        "id": "topic-1",
+        "name": "Open CRM",
+        "stance_guidance": "Be factual.",
+        "trigger_keywords": ["crm"],
+        "active": True,
+    }
+    rule = {
+        "id": "rule-1",
+        "scope_type": "community",
+        "scope_id": "community-1",
+        "name": "Keep it brief",
+        "rule_text": "Keep replies under three sentences.",
+        "active": True,
+        "priority": 50,
+    }
+
+    assert "Topic ID: topic-1" not in format_engagement_topic_card(topic)
+    assert "Topic ID: topic-1" in format_engagement_topic_card(topic, detail=True)
+    assert "Rule ID: rule-1" not in format_engagement_style_rule_card(rule)
+    assert "Rule ID: rule-1" in format_engagement_style_rule_card(rule, detail=True)
+
+
+def test_readiness_uses_backend_block_reasons_without_inventing_detail() -> None:
+    settings = format_engagement_settings(
+        {
+            "community_id": "community-1",
+            "mode": "require_approval",
+            "allow_join": True,
+            "allow_post": True,
+            "reply_only": True,
+            "require_approval": True,
+            "max_posts_per_day": 1,
+            "min_minutes_between_posts": 240,
+            "quiet_hours_active": True,
+        }
+    )
+    target = format_engagement_target_card(
+        {
+            "id": "target-1",
+            "submitted_ref": "username:founders",
+            "status": "approved",
+            "allow_join": True,
+            "allow_detect": True,
+            "allow_post": True,
+            "posting_block_reason": "no joined engagement account",
+        }
+    )
+
+    assert "Readiness: Blocked: quiet hours active" in settings
+    assert "Readiness: Blocked: no joined engagement account" in target
 
 
 def test_format_engagement_job_response_reports_refresh_command() -> None:

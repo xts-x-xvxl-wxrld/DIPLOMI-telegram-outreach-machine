@@ -455,9 +455,10 @@ keeps the core command behavior visible in the main bot spec.
 
 Shows a compact engagement cockpit with counts for replies needing review, approved replies waiting
 to send, failed candidates needing attention, and active topics. It offers intention-first inline
-buttons for today, review replies, approved-to-send replies, communities, topics, recent actions,
-and engagement admin. When the bot can determine locally that the caller is not an engagement
-admin, it should hide the `Admin` button while keeping the daily review buttons available.
+buttons for today, review replies, approved-to-send replies, communities, topics, settings lookup,
+recent actions, and engagement admin. When the bot can determine locally that the caller is not an
+engagement admin, it should hide the `Admin` button while keeping the daily review buttons
+available.
 
 ### `/engagement_admin`
 
@@ -470,9 +471,11 @@ authoritative.
 ### `/engagement_targets [status]`
 
 Lists manual engagement targets and their approval/posting permissions, optionally filtered by
-target status. Target cards start with a human-readable readiness summary before raw target IDs and
-permission fields, and expose target-scoped open, resolve, reject, archive, permission, join, and
-detect controls.
+target status. Default target cards start with a human-readable readiness summary and
+operator-facing permission labels before raw target IDs. Opened detail cards remain audit-friendly
+and expose target IDs, raw status, raw permissions, and diagnostic fields. Target cards expose
+target-scoped open, settings, resolve, reject, archive, permission, join, and detect controls when
+those actions apply.
 
 ### `/engagement_target <target_id>`
 
@@ -647,6 +650,9 @@ Calls `GET /api/communities/{community_id}/engagement-settings`.
 
 The bot should show mode, join/post flags, reply-only and approval requirements, rate limits, quiet
 hours when configured, and the assigned engagement account as an ID or masked non-secret label.
+The daily engagement menu also exposes a Settings lookup button that lists approved resolved
+engagement targets and opens this same settings card without requiring the operator to type a
+community ID.
 Admins can start guided button-led edits for posting limits, quiet-hour start/end, and assigned
 account from the settings card. These guided saves preserve `reply_only=true` and
 `require_approval=true` and rely on the API for bounds and engagement-account pool validation.

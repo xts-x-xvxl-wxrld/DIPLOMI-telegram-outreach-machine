@@ -58,6 +58,7 @@ ACTION_ENGAGEMENT_TOPIC_EDIT = "eng:topic:edit"
 ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD = "eng:topic:addx"
 ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE = "eng:topic:rmx"
 ACTION_ENGAGEMENT_SETTINGS_OPEN = "eng:set:open"
+ACTION_ENGAGEMENT_SETTINGS_LOOKUP = "eng:set:lookup"
 ACTION_ENGAGEMENT_SETTINGS_PRESET = "eng:set:preset"
 ACTION_ENGAGEMENT_SETTINGS_JOIN = "eng:set:join"
 ACTION_ENGAGEMENT_SETTINGS_POST = "eng:set:post"
@@ -344,7 +345,10 @@ def engagement_home_markup(*, show_admin: bool = True):
             _button("Communities", ACTION_ENGAGEMENT_TARGETS, "0"),
             _button("Topics", ACTION_ENGAGEMENT_TOPIC_LIST, "0"),
         ],
-        [_button("Recent actions", ACTION_ENGAGEMENT_ACTIONS, "0")],
+        [
+            _button("Settings lookup", ACTION_ENGAGEMENT_SETTINGS_LOOKUP, "0"),
+            _button("Recent actions", ACTION_ENGAGEMENT_ACTIONS, "0"),
+        ],
     ]
     if show_admin:
         rows.append([_button("Admin", ACTION_ENGAGEMENT_ADMIN)])
@@ -367,8 +371,44 @@ def engagement_admin_home_markup():
 
 
 def engagement_admin_limits_markup():
-    rows = [[_button("Communities", ACTION_ENGAGEMENT_TARGETS, "0")]]
+    rows = [
+        [_button("Settings lookup", ACTION_ENGAGEMENT_SETTINGS_LOOKUP, "0")],
+        [_button("Communities", ACTION_ENGAGEMENT_TARGETS, "0")],
+    ]
     return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_ADMIN))
+
+
+def engagement_settings_lookup_markup(
+    items: Sequence[dict[str, object]],
+    *,
+    offset: int,
+    total: int,
+    page_size: int,
+):
+    rows = []
+    for item in items:
+        community_id = item.get("community_id")
+        if not community_id:
+            continue
+        label = str(item.get("community_title") or item.get("submitted_ref") or community_id)
+        rows.append(
+            [
+                _button(
+                    f"Settings: {_compact_label(label, 38)}",
+                    ACTION_ENGAGEMENT_SETTINGS_OPEN,
+                    str(community_id),
+                )
+            ]
+        )
+    pager_row = _offset_pager_row(
+        action=ACTION_ENGAGEMENT_SETTINGS_LOOKUP,
+        offset=offset,
+        total=total,
+        page_size=page_size,
+    )
+    if pager_row:
+        rows.append(pager_row)
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))
 
 
 def engagement_admin_advanced_markup():
@@ -406,6 +446,7 @@ def engagement_target_actions_markup(
     target_id: str,
     *,
     status: str,
+    community_id: str | None = None,
     allow_join: bool = False,
     allow_detect: bool = False,
     allow_post: bool = False,
@@ -413,6 +454,8 @@ def engagement_target_actions_markup(
 ):
     rows = []
     rows.append([_button("Open", ACTION_ENGAGEMENT_TARGET_OPEN, target_id)])
+    if community_id:
+        rows.append([_button("Settings", ACTION_ENGAGEMENT_SETTINGS_OPEN, community_id)])
     if can_manage and status in {"pending", "failed"}:
         rows.append([_button("Resolve", ACTION_ENGAGEMENT_TARGET_RESOLVE, target_id)])
     if can_manage and status == "resolved":
@@ -1063,6 +1106,12 @@ def _offset_pager_row(
     if next_offset < total:
         buttons.append(_button("Next", action, *prefix_parts, str(next_offset)))
     return buttons
+
+
+def _compact_label(value: str, limit: int) -> str:
+    if len(value) <= limit:
+        return value
+    return value[: limit - 3].rstrip() + "..."
 
 
 def _target_status_filter_rows(status: str | None):

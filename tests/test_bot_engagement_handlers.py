@@ -1067,6 +1067,7 @@ async def test_engagement_command_builds_home_counts_from_api_client() -> None:
         "Approved to send",
         "Communities",
         "Topics",
+        "Settings lookup",
         "Recent actions",
         "Admin",
         "Home",
@@ -1076,6 +1077,7 @@ async def test_engagement_command_builds_home_counts_from_api_client() -> None:
     assert "eng:cand:list:needs_review:0" in callbacks
     assert "eng:cand:list:approved:0" in callbacks
     assert "eng:admin:tgt:0" in callbacks
+    assert "eng:set:lookup:0" in callbacks
     assert [call["status"] for call in client.list_candidate_calls] == [
         "needs_review",
         "approved",
@@ -1126,6 +1128,19 @@ async def test_engagement_admin_limit_and_advanced_callbacks_have_destinations()
     assert "Prompt profiles: /engagement_prompts" in (
         advanced_update.callback_query.message.replies[0]["text"]
     )
+
+
+@pytest.mark.asyncio
+async def test_engagement_settings_lookup_callback_lists_settings_buttons() -> None:
+    client = _FakeApiClient()
+    update = _callback_update("eng:set:lookup:0")
+
+    await callback_query(update, _context(client))
+
+    assert client.target_list_calls[-1] == {"status": "approved", "limit": 5, "offset": 0}
+    assert "Settings lookup" in update.callback_query.message.replies[0]["text"]
+    callbacks = _callback_data_values(update.callback_query.message.replies[0]["reply_markup"])
+    assert "eng:set:open:community-1" in callbacks
 
 
 @pytest.mark.asyncio
@@ -1183,7 +1198,7 @@ async def test_prompt_profile_activate_requires_confirmation() -> None:
         {"profile_id": "prompt-draft", "updated_by": "telegram:123:@operator"}
     ]
     assert "Confirm prompt activation" in confirm_update.message.replies[0]["text"]
-    assert "Status: active" in save_update.callback_query.edits[0]["text"]
+    assert "State: active" in save_update.callback_query.edits[0]["text"]
 
 
 @pytest.mark.asyncio
@@ -1355,6 +1370,7 @@ async def test_engagement_targets_command_filters_and_shows_target_controls() ->
     assert "Readiness: Drafting replies" in card["text"]
     callbacks = _callback_data_values(card["reply_markup"])
     assert "eng:admin:to:target-approved" in callbacks
+    assert "eng:set:open:community-1" in callbacks
     assert "eng:admin:tp:target-approved:p:1" in callbacks
     assert "eng:admin:tj:target-approved" in callbacks
     assert "eng:admin:td:target-approved:60" in callbacks
@@ -1645,8 +1661,8 @@ async def test_engagement_settings_command_shows_disabled_synthetic_settings() -
     await engagement_settings_command(update, _context(client, "community-1"))
 
     assert client.get_settings_calls == ["community-1"]
-    assert "Mode: disabled" in update.message.replies[0]["text"]
-    assert "Join allowed: no" in update.message.replies[0]["text"]
+    assert "Posting posture: paused" in update.message.replies[0]["text"]
+    assert "Joining allowed: no" in update.message.replies[0]["text"]
     callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
     assert "eng:set:preset:community-1:ready" in callbacks
     assert "eng:join:community-1" in callbacks
@@ -1674,8 +1690,8 @@ async def test_set_engagement_ready_preset_preserves_safe_fields() -> None:
             },
         }
     ]
-    assert "Mode: require_approval" in update.message.replies[0]["text"]
-    assert "Join allowed: yes" in update.message.replies[0]["text"]
+    assert "Posting posture: ready with review" in update.message.replies[0]["text"]
+    assert "Joining allowed: yes" in update.message.replies[0]["text"]
 
 
 @pytest.mark.asyncio
@@ -1687,7 +1703,7 @@ async def test_settings_preset_callback_edits_settings_card() -> None:
 
     assert client.update_settings_calls[0]["updates"]["mode"] == "observe"
     assert update.callback_query.answers == [{"text": None, "show_alert": False}]
-    assert "Mode: observe" in update.callback_query.edits[0]["text"]
+    assert "Posting posture: watch only" in update.callback_query.edits[0]["text"]
 
 
 @pytest.mark.asyncio
@@ -1702,7 +1718,7 @@ async def test_settings_join_toggle_callback_reads_then_patches_setting() -> Non
     assert client.update_settings_calls[0]["updates"]["mode"] == "suggest"
     assert client.update_settings_calls[0]["updates"]["allow_join"] is True
     assert client.update_settings_calls[0]["updates"]["reply_only"] is True
-    assert "Join allowed: yes" in update.callback_query.edits[0]["text"]
+    assert "Joining allowed: yes" in update.callback_query.edits[0]["text"]
 
 
 @pytest.mark.asyncio
@@ -1802,7 +1818,7 @@ async def test_set_engagement_limits_command_preserves_safe_fields() -> None:
             },
         }
     ]
-    assert "Rate limit: 2 per day, 180 minutes apart" in update.message.replies[0]["text"]
+    assert "Pacing: 2 per day, 180 minutes apart" in update.message.replies[0]["text"]
 
 
 @pytest.mark.asyncio
@@ -1888,7 +1904,7 @@ async def test_assign_engagement_account_command_uses_uuid_and_masked_label() ->
     ]
     assert client.accounts_calls == 2
     text = confirm_update.callback_query.edits[0]["text"]
-    assert f"Assigned account: {account_id} | +123*****89" in text
+    assert f"Engagement account: {account_id} | +123*****89" in text
     assert "+123456789" not in text
 
 
@@ -1930,7 +1946,7 @@ async def test_clear_engagement_account_command_removes_assignment() -> None:
             },
         }
     ]
-    assert "Assigned account:" not in confirm_update.callback_query.edits[0]["text"]
+    assert "Engagement account: not assigned" in confirm_update.callback_query.edits[0]["text"]
 
 
 @pytest.mark.asyncio
@@ -2066,7 +2082,7 @@ async def test_engagement_topics_command_lists_topic_cards_with_toggle_controls(
 
     assert "Engagement topics (1-2 of 2) | active 1" in update.message.replies[0]["text"]
     assert "Open CRM" in update.message.replies[1]["text"]
-    assert "Triggers: crm, open source" in update.message.replies[1]["text"]
+    assert "Notice: crm, open source" in update.message.replies[1]["text"]
     assert "Good examples: #1 Compare export paths first." in update.message.replies[1]["text"]
     assert "eng:topic:toggle:topic-1:0" in _callback_data_values(
         update.message.replies[1]["reply_markup"]

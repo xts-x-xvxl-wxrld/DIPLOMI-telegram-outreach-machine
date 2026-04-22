@@ -34,6 +34,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_PROMPT_CREATE,
     ACTION_ENGAGEMENT_PROMPTS,
     ACTION_ENGAGEMENT_SETTINGS_EDIT,
+    ACTION_ENGAGEMENT_SETTINGS_LOOKUP,
     ACTION_ENGAGEMENT_SETTINGS_OPEN,
     ACTION_ENGAGEMENT_STYLE,
     ACTION_ENGAGEMENT_STYLE_CREATE,
@@ -76,6 +77,7 @@ from bot.ui import (
     engagement_home_markup,
     engagement_prompt_list_markup,
     engagement_settings_markup,
+    engagement_settings_lookup_markup,
     engagement_style_list_markup,
     engagement_style_rule_actions_markup,
     engagement_target_actions_markup,
@@ -133,6 +135,7 @@ def test_parse_all_engagement_callback_namespaces() -> None:
         "eng:topic:rmx:topic-1:g:0": (ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE, ["topic-1", "g", "0"]),
         "eng:topic:toggle:topic-1:0": ("eng:topic:toggle", ["topic-1", "0"]),
         "eng:set:open:community-1": (ACTION_ENGAGEMENT_SETTINGS_OPEN, ["community-1"]),
+        "eng:set:lookup:0": (ACTION_ENGAGEMENT_SETTINGS_LOOKUP, ["0"]),
         "eng:set:preset:community-1:ready": ("eng:set:preset", ["community-1", "ready"]),
         "eng:set:e:community-1:mp": (
             ACTION_ENGAGEMENT_SETTINGS_EDIT,
@@ -177,9 +180,11 @@ def test_engagement_uuid_callback_data_stays_under_telegram_limit() -> None:
 
     data = encode_callback_data("eng:set:preset", community_id, "ready")
     edit_data = encode_callback_data(ACTION_ENGAGEMENT_SETTINGS_EDIT, community_id, "mp")
+    lookup_data = encode_callback_data(ACTION_ENGAGEMENT_SETTINGS_LOOKUP, "0")
 
     assert len(data) <= 64
     assert len(edit_data) <= 64
+    assert len(lookup_data) <= 64
 
 
 def test_config_edit_callback_data_stays_under_telegram_limit() -> None:
@@ -316,8 +321,10 @@ def test_engagement_home_markup_links_core_surfaces() -> None:
     assert rows[2][0].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:0"
     assert rows[2][1].text == "Topics"
     assert rows[2][1].callback_data == f"{ACTION_ENGAGEMENT_TOPIC_LIST}:0"
-    assert rows[3][0].text == "Recent actions"
-    assert rows[3][0].callback_data == f"{ACTION_ENGAGEMENT_ACTIONS}:0"
+    assert rows[3][0].text == "Settings lookup"
+    assert rows[3][0].callback_data == f"{ACTION_ENGAGEMENT_SETTINGS_LOOKUP}:0"
+    assert rows[3][1].text == "Recent actions"
+    assert rows[3][1].callback_data == f"{ACTION_ENGAGEMENT_ACTIONS}:0"
     assert rows[4][0].callback_data == ACTION_ENGAGEMENT_ADMIN
 
 
@@ -358,6 +365,29 @@ def test_engagement_settings_markup_exposes_presets_and_jobs() -> None:
     assert f"{ACTION_ENGAGEMENT_SETTINGS_EDIT}:community-1:acct" in callbacks
     assert f"{ACTION_ENGAGEMENT_JOIN}:community-1" in callbacks
     assert f"{ACTION_ENGAGEMENT_DETECT}:community-1:60" in callbacks
+
+
+def test_engagement_settings_lookup_markup_lists_approved_communities() -> None:
+    community_id = "12345678-1234-1234-1234-123456789abc"
+    markup = engagement_settings_lookup_markup(
+        [
+            {
+                "community_id": community_id,
+                "community_title": "Founder Circle With A Very Long Name",
+            }
+        ],
+        offset=0,
+        total=1,
+        page_size=5,
+    )
+
+    callbacks = _callbacks(markup)
+    labels = _labels(markup)
+
+    assert f"{ACTION_ENGAGEMENT_SETTINGS_OPEN}:{community_id}" in callbacks
+    assert any(label.startswith("Settings: Founder Circle") for label in labels)
+    assert ACTION_ENGAGEMENT_HOME in callbacks
+    assert ACTION_OP_HOME in callbacks
 
 
 def test_engagement_target_list_markup_filters_and_pages() -> None:

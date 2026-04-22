@@ -340,8 +340,8 @@ The current main engagement menu exposes:
 
 - `/engagement` cockpit.
 - Inline intention-first `Today`, `Review replies`, `Approved to send`, `Communities`, `Topics`,
-  `Recent actions`, and `Admin` buttons, with the `Admin` entry hidden when the bot can identify
-  the caller as a non-admin locally.
+  `Settings lookup`, `Recent actions`, and `Admin` buttons, with the `Admin` entry hidden when the
+  bot can identify the caller as a non-admin locally.
 - Candidate queue filters for `needs_review`, `approved`, `failed`, `sent`, and `rejected`.
 - Candidate cards with readiness summaries and state-relevant approve, reject, edit, audit, and
   queue-send command hints.
@@ -367,6 +367,15 @@ The current main engagement menu exposes:
 - `/engagement_settings <community_id>`.
 - Community settings cards with readiness summaries before raw mode, permission, and rate-limit
   fields.
+- A daily `Settings lookup` page lists approved engagement targets that have resolved communities
+  and opens the existing community settings card through the `eng:set:open` callback.
+- Resolved target cards include a direct `Settings` button when the backend exposes a community ID.
+- Default target, prompt-profile, topic, and style-rule list cards prioritize operator-facing
+  labels and keep raw IDs lower or on opened detail cards; audit/detail views still expose IDs,
+  raw state, and diagnostic fields.
+- Readiness summaries use backend-provided readiness labels or concrete block reasons when present,
+  including quiet-hour, rate-limit, account, membership, or posting-block fields, and otherwise fall
+  back to conservative local summaries.
 - `/set_engagement <community_id> <off|observe|suggest|ready>`.
 - `/set_engagement_limits <community_id> <max_posts_per_day> <min_minutes_between_posts>`.
 - `/set_engagement_quiet_hours <community_id> <HH:MM> <HH:MM>`.

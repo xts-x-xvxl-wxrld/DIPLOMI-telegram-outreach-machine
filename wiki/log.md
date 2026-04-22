@@ -913,3 +913,13 @@ style-rule creation flow behind the existing `Create` button. Creation flows sta
 preview before saving when button-led, and use existing engagement API routes. Focused bot
 config-editing, UI, API-client, and engagement-handler coverage passed with 151 tests; the full
 repo suite passed with 410 tests.
+
+## [2026-04-22] code | Polished engagement menu disclosure
+
+Completed Bot Engagement Controls Slice 14. The daily `/engagement` menu now has a direct
+`Settings lookup` route that lists approved resolved engagement targets and opens the existing
+community settings card with inline buttons. Target cards now expose direct settings buttons when a
+community is resolved, default target/prompt/topic/style cards are more compact and
+operator-facing, and detail views still preserve raw IDs and audit fields. Readiness formatting now
+uses backend-provided labels or concrete block reasons when present. Focused bot UI, formatting,
+and engagement-handler coverage passed with 162 tests.

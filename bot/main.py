@@ -47,6 +47,7 @@ from bot.formatting import (
     format_engagement_prompt_rollback_confirmation,
     format_engagement_prompt_versions,
     format_engagement_settings,
+    format_engagement_settings_lookup,
     format_engagement_semantic_rollout,
     format_engagement_style_rule_card,
     format_engagement_style_rules,
@@ -119,6 +120,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_SEND,
     ACTION_ENGAGEMENT_SETTINGS_JOIN,
     ACTION_ENGAGEMENT_SETTINGS_EDIT,
+    ACTION_ENGAGEMENT_SETTINGS_LOOKUP,
     ACTION_ENGAGEMENT_SETTINGS_OPEN,
     ACTION_ENGAGEMENT_SETTINGS_POST,
     ACTION_ENGAGEMENT_SETTINGS_PRESET,
@@ -185,6 +187,7 @@ from bot.ui import (
     engagement_prompt_versions_markup,
     engagement_job_markup,
     engagement_settings_markup,
+    engagement_settings_lookup_markup,
     engagement_style_list_markup,
     engagement_style_rule_actions_markup,
     engagement_target_actions_markup,
@@ -495,7 +498,7 @@ async def add_engagement_target_command(update: Any, context: Any) -> None:
         return
     await _reply(
         update,
-        "Engagement target added.\n\n" + format_engagement_target_card(data),
+        "Engagement target added.\n\n" + format_engagement_target_card(data, detail=True),
         reply_markup=engagement_target_actions_markup(
             str(data.get("id", "unknown")),
             status=str(data.get("status") or "pending"),
@@ -691,7 +694,7 @@ async def create_engagement_prompt_command(update: Any, context: Any) -> None:
     profile_id = str(data.get("id", "unknown"))
     await _reply(
         update,
-        "Prompt profile created.\n\n" + format_engagement_prompt_profile_card(data),
+        "Prompt profile created.\n\n" + format_engagement_prompt_profile_card(data, detail=True),
         reply_markup=engagement_prompt_actions_markup(profile_id, active=bool(data.get("active"))),
     )
 
@@ -732,7 +735,7 @@ async def duplicate_engagement_prompt_command(update: Any, context: Any) -> None
         return
     await _reply(
         update,
-        "Prompt profile duplicated.\n\n" + format_engagement_prompt_profile_card(data),
+        "Prompt profile duplicated.\n\n" + format_engagement_prompt_profile_card(data, detail=True),
         reply_markup=engagement_prompt_actions_markup(str(data.get("id", profile_id)), active=bool(data.get("active"))),
     )
 
@@ -827,7 +830,7 @@ async def create_style_rule_command(update: Any, context: Any) -> None:
     rule_id = str(data.get("id", "unknown"))
     await _reply(
         update,
-        "Style rule created.\n\n" + format_engagement_style_rule_card(data),
+        "Style rule created.\n\n" + format_engagement_style_rule_card(data, detail=True),
         reply_markup=engagement_style_rule_actions_markup(rule_id, active=bool(data.get("active"))),
     )
 
@@ -1137,7 +1140,7 @@ async def create_engagement_topic_command(update: Any, context: Any) -> None:
     topic_id = str(data.get("id", "unknown"))
     await _reply(
         update,
-        "Engagement topic created.\n\n" + format_engagement_topic_card(data),
+        "Engagement topic created.\n\n" + format_engagement_topic_card(data, detail=True),
         reply_markup=engagement_topic_actions_markup(topic_id, active=bool(data.get("active"))),
     )
 
@@ -1702,6 +1705,13 @@ async def callback_query(update: Any, context: Any) -> None:
         if action == ACTION_ENGAGEMENT_SETTINGS_OPEN and len(parts) == 1:
             await _send_engagement_settings(update, context, parts[0])
             return
+        if action == ACTION_ENGAGEMENT_SETTINGS_LOOKUP and parts:
+            await _send_engagement_settings_lookup(
+                update,
+                context,
+                offset=_parse_offset(parts[0]),
+            )
+            return
         if action == ACTION_ENGAGEMENT_SETTINGS_PRESET and len(parts) == 2:
             preset = parts[1] if parts[1] in ENGAGEMENT_SETTING_PRESETS else "off"
             await _apply_engagement_preset(
@@ -2182,6 +2192,26 @@ async def _send_engagement_admin_limits(update: Any) -> None:
     )
 
 
+async def _send_engagement_settings_lookup(update: Any, context: Any, *, offset: int) -> None:
+    client = _api_client(context)
+    data = await client.list_engagement_targets(
+        status="approved",
+        limit=ENGAGEMENT_ADMIN_PAGE_SIZE,
+        offset=offset,
+    )
+    items = data.get("items") or []
+    await _callback_reply(
+        update,
+        format_engagement_settings_lookup(data, offset=offset),
+        reply_markup=engagement_settings_lookup_markup(
+            items,
+            offset=offset,
+            total=data.get("total", 0),
+            page_size=ENGAGEMENT_ADMIN_PAGE_SIZE,
+        ),
+    )
+
+
 async def _send_engagement_admin_advanced(update: Any) -> None:
     await _callback_reply(
         update,
@@ -2223,6 +2253,7 @@ async def _send_engagement_targets(
             reply_markup=engagement_target_actions_markup(
                 str(item.get("id", "unknown")),
                 status=str(item.get("status") or "pending"),
+                community_id=str(item["community_id"]) if item.get("community_id") else None,
                 allow_join=bool(item.get("allow_join")),
                 allow_detect=bool(item.get("allow_detect")),
                 allow_post=bool(item.get("allow_post")),
@@ -2236,7 +2267,7 @@ async def _send_engagement_target(update: Any, context: Any, target_id: str) -> 
     data = await client.get_engagement_target(target_id)
     await _callback_reply(
         update,
-        format_engagement_target_card(data),
+        format_engagement_target_card(data, detail=True),
         reply_markup=_engagement_target_markup(
             target_id,
             data,
@@ -2434,7 +2465,7 @@ async def _send_engagement_prompts(update: Any, context: Any, *, offset: int) ->
     )
     for index, item in enumerate(data.get("items") or [], start=offset + 1):
         await _callback_reply(
-            update,
+        update,
             format_engagement_prompt_profile_card(item, index=index),
             reply_markup=engagement_prompt_actions_markup(
                 str(item.get("id", "unknown")),
@@ -2448,7 +2479,7 @@ async def _send_engagement_prompt_detail(update: Any, context: Any, profile_id: 
     data = await client.get_engagement_prompt_profile(profile_id)
     await _callback_reply(
         update,
-        format_engagement_prompt_profile_card(data),
+        format_engagement_prompt_profile_card(data, detail=True),
         reply_markup=engagement_prompt_actions_markup(profile_id, active=bool(data.get("active"))),
     )
 
@@ -2498,7 +2529,7 @@ async def _activate_engagement_prompt(
         profile_id,
         updated_by=_reviewer_label(update),
     )
-    message = format_engagement_prompt_profile_card(data)
+    message = format_engagement_prompt_profile_card(data, detail=True)
     markup = engagement_prompt_actions_markup(profile_id, active=bool(data.get("active")))
     if edit_callback:
         await _edit_callback_message(update, message, reply_markup=markup)
@@ -2514,7 +2545,7 @@ async def _duplicate_engagement_prompt_default(update: Any, context: Any, profil
     )
     await _callback_reply(
         update,
-        "Prompt profile duplicated.\n\n" + format_engagement_prompt_profile_card(data),
+        "Prompt profile duplicated.\n\n" + format_engagement_prompt_profile_card(data, detail=True),
         reply_markup=engagement_prompt_actions_markup(
             str(data.get("id", profile_id)),
             active=bool(data.get("active")),
@@ -2568,7 +2599,7 @@ async def _rollback_engagement_prompt(
         version_id=str(version.get("id")),
         updated_by=_reviewer_label(update),
     )
-    message = "Prompt profile rolled back.\n\n" + format_engagement_prompt_profile_card(data)
+    message = "Prompt profile rolled back.\n\n" + format_engagement_prompt_profile_card(data, detail=True)
     markup = engagement_prompt_actions_markup(profile_id, active=bool(data.get("active")))
     if edit_callback:
         await _edit_callback_message(update, message, reply_markup=markup)
@@ -2639,7 +2670,7 @@ async def _send_engagement_style_rule(update: Any, context: Any, rule_id: str) -
     data = await client.get_engagement_style_rule(rule_id)
     await _callback_reply(
         update,
-        format_engagement_style_rule_card(data),
+        format_engagement_style_rule_card(data, detail=True),
         reply_markup=engagement_style_rule_actions_markup(
             rule_id,
             active=bool(data.get("active")),
@@ -2662,7 +2693,7 @@ async def _toggle_style_rule(
         active=active,
         updated_by=_reviewer_label(update),
     )
-    message = "Style rule updated.\n\n" + format_engagement_style_rule_card(data)
+    message = "Style rule updated.\n\n" + format_engagement_style_rule_card(data, detail=True)
     reply_markup = engagement_style_rule_actions_markup(rule_id, active=bool(data.get("active")))
     if edit_callback:
         await _edit_callback_message(update, message, reply_markup=reply_markup)
@@ -3098,7 +3129,7 @@ async def _send_engagement_topic(update: Any, context: Any, topic_id: str) -> No
     data = await client.get_engagement_topic(topic_id)
     await _callback_reply(
         update,
-        format_engagement_topic_card(data),
+        format_engagement_topic_card(data, detail=True),
         reply_markup=engagement_topic_actions_markup(
             topic_id,
             active=bool(data.get("active")),
@@ -3119,7 +3150,7 @@ async def _toggle_engagement_topic(
 ) -> None:
     client = _api_client(context)
     data = await client.update_engagement_topic(topic_id, active=active)
-    message = format_engagement_topic_card(data)
+    message = format_engagement_topic_card(data, detail=True)
     reply_markup = engagement_topic_actions_markup(
         topic_id,
         active=bool(data.get("active")),
@@ -3148,7 +3179,8 @@ async def _remove_topic_example(
         index=index,
     )
     message = (
-        f"Removed {example_type} example #{index + 1}.\n\n" + format_engagement_topic_card(data)
+        f"Removed {example_type} example #{index + 1}.\n\n"
+        + format_engagement_topic_card(data, detail=True)
     )
     reply_markup = engagement_topic_actions_markup(
         topic_id,
@@ -3175,7 +3207,7 @@ async def _update_topic_keywords(
     label = "triggers" if field == "trigger_keywords" else "negative keywords"
     await _reply(
         update,
-        f"Topic {label} updated.\n\n" + format_engagement_topic_card(data),
+        f"Topic {label} updated.\n\n" + format_engagement_topic_card(data, detail=True),
         reply_markup=engagement_topic_actions_markup(
             topic_id,
             active=bool(data.get("active")),
@@ -3628,23 +3660,23 @@ def _saved_config_edit_response(pending: PendingEdit, data: dict[str, Any]) -> t
         )
     if pending.entity == "target":
         return (
-            prefix + "\n\n" + format_engagement_target_card(data),
+            prefix + "\n\n" + format_engagement_target_card(data, detail=True),
             _engagement_target_markup(pending.object_id, data),
         )
     if pending.entity == "prompt_profile":
         return (
-            prefix + "\n\n" + format_engagement_prompt_profile_card(data),
+            prefix + "\n\n" + format_engagement_prompt_profile_card(data, detail=True),
             engagement_prompt_actions_markup(pending.object_id, active=bool(data.get("active"))),
         )
     if pending.entity == "prompt_profile_create":
         profile_id = str(data.get("id", "unknown"))
         return (
-            "Prompt profile created.\n\n" + format_engagement_prompt_profile_card(data),
+            "Prompt profile created.\n\n" + format_engagement_prompt_profile_card(data, detail=True),
             engagement_prompt_actions_markup(profile_id, active=bool(data.get("active"))),
         )
     if pending.entity == "topic":
         return (
-            prefix + "\n\n" + format_engagement_topic_card(data),
+            prefix + "\n\n" + format_engagement_topic_card(data, detail=True),
             engagement_topic_actions_markup(
                 pending.object_id,
                 active=bool(data.get("active")),
@@ -3654,7 +3686,7 @@ def _saved_config_edit_response(pending: PendingEdit, data: dict[str, Any]) -> t
         )
     if pending.entity == "topic_example":
         return (
-            "Topic example added.\n\n" + format_engagement_topic_card(data),
+            "Topic example added.\n\n" + format_engagement_topic_card(data, detail=True),
             engagement_topic_actions_markup(
                 pending.object_id,
                 active=bool(data.get("active")),
@@ -3664,7 +3696,7 @@ def _saved_config_edit_response(pending: PendingEdit, data: dict[str, Any]) -> t
         )
     if pending.entity == "style_rule":
         return (
-            prefix + "\n\n" + format_engagement_style_rule_card(data),
+            prefix + "\n\n" + format_engagement_style_rule_card(data, detail=True),
             engagement_style_rule_actions_markup(
                 pending.object_id,
                 active=bool(data.get("active")),
@@ -3673,7 +3705,7 @@ def _saved_config_edit_response(pending: PendingEdit, data: dict[str, Any]) -> t
     if pending.entity == "style_rule_create":
         rule_id = str(data.get("id", "unknown"))
         return (
-            "Style rule created.\n\n" + format_engagement_style_rule_card(data),
+            "Style rule created.\n\n" + format_engagement_style_rule_card(data, detail=True),
             engagement_style_rule_actions_markup(
                 rule_id,
                 active=bool(data.get("active")),
@@ -3822,6 +3854,7 @@ def _engagement_target_markup(
     return engagement_target_actions_markup(
         target_id,
         status=str(data.get("status") or "pending"),
+        community_id=str(data["community_id"]) if data.get("community_id") else None,
         allow_join=bool(data.get("allow_join")),
         allow_detect=bool(data.get("allow_detect")),
         allow_post=bool(data.get("allow_post")),
@@ -4026,7 +4059,7 @@ async def _topic_example_command(update: Any, context: Any, *, example_type: str
         return
     await _reply(
         update,
-        "Topic example added.\n\n" + format_engagement_topic_card(data),
+        "Topic example added.\n\n" + format_engagement_topic_card(data, detail=True),
         reply_markup=engagement_topic_actions_markup(
             topic_id,
             active=bool(data.get("active")),

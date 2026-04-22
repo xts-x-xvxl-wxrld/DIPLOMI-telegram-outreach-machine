@@ -516,6 +516,7 @@ def format_engagement_home(data: dict[str, Any]) -> str:
             "Review replies: /engagement_candidates needs_review",
             "Approved to send: /engagement_candidates approved",
             "Communities: /engagement_targets",
+            "Settings lookup: /engagement_settings <community_id>",
             "Topics: /engagement_topics",
             "Recent actions: /engagement_actions",
             "Admin: /engagement_admin",
@@ -554,6 +555,29 @@ def format_engagement_admin_limits_home() -> str:
     )
 
 
+def format_engagement_settings_lookup(data: dict[str, Any], *, offset: int = 0) -> str:
+    items = data.get("items") or []
+    total = data.get("total", len(items))
+    if not items:
+        return "\n".join(
+            [
+                "Settings lookup",
+                "No approved engagement communities are ready for settings lookup.",
+                "",
+                "Approve an engagement target first, or open one directly with:",
+                "/engagement_settings <community_id>",
+            ]
+        )
+    return "\n".join(
+        [
+            f"Settings lookup ({offset + 1}-{offset + len(items)} of {total})",
+            "Open a community below to review readiness, posting limits, quiet hours, and account assignment.",
+            "",
+            "Direct command: /engagement_settings <community_id>",
+        ]
+    )
+
+
 def format_engagement_admin_advanced_home() -> str:
     return "\n".join(
         [
@@ -585,30 +609,51 @@ def format_engagement_targets(data: dict[str, Any], *, offset: int = 0) -> str:
     )
 
 
-def format_engagement_target_card(item: dict[str, Any], *, index: int | None = None) -> str:
+def format_engagement_target_card(
+    item: dict[str, Any],
+    *,
+    index: int | None = None,
+    detail: bool = False,
+) -> str:
     target_id = item.get("id", "unknown")
     label = item.get("community_title") or item.get("submitted_ref") or "Target"
     heading = f"{index}. {label}" if index is not None else str(label)
     lines = [
         heading,
         f"Readiness: {_engagement_target_readiness(item)}",
-        "",
-        f"Target ID: {target_id}",
-        f"Submitted: {item.get('submitted_ref', 'unknown')}",
-        f"Status: {item.get('status', 'unknown')}",
+        f"Status: {_target_status_label(item)}",
         (
-            "Permissions: "
-            f"join={_yes_no(item.get('allow_join'))}, "
-            f"detect={_yes_no(item.get('allow_detect'))}, "
-            f"post={_yes_no(item.get('allow_post'))}"
+            "Allowed: "
+            f"watch/draft {_yes_no(item.get('allow_detect'))}, "
+            f"join {_yes_no(item.get('allow_join'))}, "
+            f"post reviewed replies {_yes_no(item.get('allow_post'))}"
         ),
     ]
+    if item.get("submitted_ref"):
+        lines.append(f"Submitted: {item['submitted_ref']}")
     if item.get("community_id"):
-        lines.append(f"Community ID: {item['community_id']}")
+        lines.append(f"Settings: /engagement_settings {item['community_id']}")
+    if item.get("community_id"):
+        lines.append(f"Community: {item.get('community_title') or item['community_id']}")
     if item.get("notes"):
         lines.append(f"Notes: {_shorten(str(item['notes']), 240)}")
     if item.get("last_error"):
         lines.append(f"Error: {_shorten(str(item['last_error']), 240)}")
+    if detail:
+        lines.extend(
+            [
+                "",
+                f"Target ID: {target_id}",
+                f"Community ID: {item.get('community_id') or 'unresolved'}",
+                f"Raw status: {item.get('status', 'unknown')}",
+                (
+                    "Raw permissions: "
+                    f"allow_join={_yes_no(item.get('allow_join'))}, "
+                    f"allow_detect={_yes_no(item.get('allow_detect'))}, "
+                    f"allow_post={_yes_no(item.get('allow_post'))}"
+                ),
+            ]
+        )
     lines.extend(["", *_engagement_target_next_actions(target_id, str(item.get("status") or "unknown"))])
     return "\n".join(lines)
 
@@ -625,7 +670,7 @@ def format_engagement_target_mutation(
             f"Before: {_target_permission_summary(before)}",
             f"After: {_target_permission_summary(after)}",
             "",
-            format_engagement_target_card(after),
+            format_engagement_target_card(after, detail=True),
         ]
     )
 
@@ -675,25 +720,37 @@ def format_engagement_prompt_profiles(data: dict[str, Any], *, offset: int = 0) 
     return f"Engagement prompt profiles ({offset + 1}-{offset + len(items)} of {total})"
 
 
-def format_engagement_prompt_profile_card(item: dict[str, Any], *, index: int | None = None) -> str:
+def format_engagement_prompt_profile_card(
+    item: dict[str, Any],
+    *,
+    index: int | None = None,
+    detail: bool = False,
+) -> str:
     profile_id = item.get("id", "unknown")
     name = item.get("name") or "Prompt profile"
     heading = f"{index}. {name}" if index is not None else str(name)
     active = "active" if item.get("active") else "inactive"
     lines = [
         heading,
-        f"Profile ID: {profile_id}",
-        f"Status: {active}",
-        f"Version: {item.get('current_version_number') or 'none'}",
+        f"State: {active} | version {item.get('current_version_number') or 'none'}",
         f"Model: {item.get('model', 'unknown')} | temp {item.get('temperature', 0.2)} | max {item.get('max_output_tokens', 1000)}",
-        f"Output schema: {item.get('output_schema_name', 'engagement_detection_v1')}",
     ]
     if item.get("description"):
         lines.append(f"Description: {_shorten(str(item['description']), 180)}")
-    if item.get("system_prompt"):
-        lines.append(f"System: {_shorten(str(item['system_prompt']), 400)}")
-    if item.get("user_prompt_template"):
-        lines.append(f"User template: {_shorten(str(item['user_prompt_template']), 500)}")
+    if detail:
+        lines.extend(
+            [
+                "",
+                f"Profile ID: {profile_id}",
+                f"Output schema: {item.get('output_schema_name', 'engagement_detection_v1')}",
+            ]
+        )
+        if item.get("current_version_id"):
+            lines.append(f"Current version ID: {item['current_version_id']}")
+        if item.get("system_prompt"):
+            lines.append(f"System: {_shorten(str(item['system_prompt']), 400)}")
+        if item.get("user_prompt_template"):
+            lines.append(f"User template: {_shorten(str(item['user_prompt_template']), 500)}")
     lines.extend(
         [
             f"Open: /engagement_prompt {profile_id}",
@@ -795,7 +852,12 @@ def format_engagement_style_rules(data: dict[str, Any], *, offset: int = 0) -> s
     return f"Engagement style rules ({offset + 1}-{offset + len(items)} of {total}) | {scope_label}"
 
 
-def format_engagement_style_rule_card(item: dict[str, Any], *, index: int | None = None) -> str:
+def format_engagement_style_rule_card(
+    item: dict[str, Any],
+    *,
+    index: int | None = None,
+    detail: bool = False,
+) -> str:
     rule_id = item.get("id", "unknown")
     heading = (
         f"{index}. {item.get('name') or 'Style rule'}"
@@ -809,14 +871,25 @@ def format_engagement_style_rule_card(item: dict[str, Any], *, index: int | None
         scope_line = f"{scope_line} {scope_id}"
     lines = [
         heading,
-        f"Rule ID: {rule_id}",
         scope_line,
         f"Status: {'active' if item.get('active') else 'inactive'} | priority {item.get('priority', 100)}",
         f"Rule: {_shorten(str(item.get('rule_text') or ''), 500)}",
+    ]
+    if detail:
+        lines.extend(
+            [
+                "",
+                f"Rule ID: {rule_id}",
+                f"Scope ID: {scope_id or '-'}",
+            ]
+        )
+    lines.extend(
+        [
         f"Open: /engagement_style_rule {rule_id}",
         f"Edit: /edit_style_rule {rule_id}",
         f"Toggle: /toggle_style_rule {rule_id} {'off' if item.get('active') else 'on'}",
-    ]
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -826,18 +899,16 @@ def format_engagement_settings(
     assigned_account_label: str | None = None,
 ) -> str:
     community_id = data.get("community_id", "unknown")
+    title = data.get("community_title") or data.get("title") or data.get("community_name")
     lines = [
-        "Engagement settings",
+        f"Engagement settings | {title}" if title else "Engagement settings",
         f"Readiness: {_engagement_settings_readiness(data)}",
-        "",
-        f"Community ID: {community_id}",
-        f"Mode: {data.get('mode', 'disabled')}",
-        f"Join allowed: {_yes_no(data.get('allow_join'))}",
-        f"Post allowed: {_yes_no(data.get('allow_post'))}",
-        f"Reply only: {_yes_no(data.get('reply_only'))}",
-        f"Approval required: {_yes_no(data.get('require_approval'))}",
+        f"Posting posture: {_settings_mode_label(data.get('mode'))}",
+        f"Joining allowed: {_yes_no(data.get('allow_join'))}",
+        f"Reviewed public replies allowed: {_yes_no(data.get('allow_post'))}",
+        f"Safety floor: reply-only {_yes_no(data.get('reply_only'))}, approval required {_yes_no(data.get('require_approval'))}",
         (
-            "Rate limit: "
+            "Pacing: "
             f"{data.get('max_posts_per_day', 1)} per day, "
             f"{data.get('min_minutes_between_posts', 240)} minutes apart"
         ),
@@ -850,9 +921,18 @@ def format_engagement_settings(
         )
     if data.get("assigned_account_id"):
         lines.append(
-            "Assigned account: "
+            "Engagement account: "
             f"{assigned_account_label or data['assigned_account_id']}"
         )
+    else:
+        lines.append("Engagement account: not assigned")
+    lines.extend(
+        [
+            "",
+            f"Community ID: {community_id}",
+            f"Raw mode: {data.get('mode', 'disabled')}",
+        ]
+    )
     lines.extend(
         [
             "",
@@ -905,7 +985,12 @@ def format_engagement_topics(data: dict[str, Any], *, offset: int = 0) -> str:
     return f"Engagement topics ({offset + 1}-{offset + len(items)} of {total}) | active {active_count}"
 
 
-def format_engagement_topic_card(item: dict[str, Any], *, index: int | None = None) -> str:
+def format_engagement_topic_card(
+    item: dict[str, Any],
+    *,
+    index: int | None = None,
+    detail: bool = False,
+) -> str:
     topic_id = item.get("id", "unknown")
     name = item.get("name") or "Untitled topic"
     heading = f"{index}. {name}" if index is not None else str(name)
@@ -916,15 +1001,16 @@ def format_engagement_topic_card(item: dict[str, Any], *, index: int | None = No
     lines = [
         heading,
         f"Status: {'active' if item.get('active') else 'inactive'}",
-        f"Topic ID: {topic_id}",
     ]
+    if detail:
+        lines.append(f"Topic ID: {topic_id}")
     if item.get("description"):
         lines.append(f"Description: {_shorten(str(item['description']), 160)}")
     if keywords:
-        lines.append(f"Triggers: {_shorten(', '.join(str(value) for value in keywords), 160)}")
+        lines.append(f"Notice: {_shorten(', '.join(str(value) for value in keywords), 160)}")
     if negative_keywords:
         lines.append(
-            f"Negative keywords: {_shorten(', '.join(str(value) for value in negative_keywords), 160)}"
+            f"Avoid: {_shorten(', '.join(str(value) for value in negative_keywords), 160)}"
         )
     lines.append(f"Guidance: {_shorten(str(item.get('stance_guidance') or ''), 260)}")
     if good_examples:
@@ -1258,9 +1344,13 @@ def format_access_denied(user_id: int | None, username: str | None = None) -> st
 
 
 def _engagement_candidate_readiness(item: dict[str, Any]) -> str:
-    readiness = item.get("readiness") or item.get("send_readiness")
+    readiness = _backend_readiness_text(item, "readiness", "send_readiness", "readiness_summary")
     if readiness:
-        return str(readiness)
+        return readiness
+
+    block_reason = _backend_block_reason(item, "send_block_reason", "blocked_reason", "block_reason")
+    if block_reason:
+        return block_reason
 
     status = str(item.get("status") or "unknown")
     if status == "needs_review":
@@ -1317,9 +1407,18 @@ def _engagement_candidate_next_actions(candidate_id: str, status: str) -> list[s
 
 
 def _engagement_target_readiness(item: dict[str, Any]) -> str:
-    readiness = item.get("readiness") or item.get("community_readiness")
+    readiness = _backend_readiness_text(
+        item,
+        "readiness",
+        "community_readiness",
+        "readiness_summary",
+    )
     if readiness:
-        return str(readiness)
+        return readiness
+
+    block_reason = _backend_block_reason(item, "posting_block_reason", "blocked_reason", "block_reason")
+    if block_reason:
+        return block_reason
 
     status = str(item.get("status") or "unknown")
     allow_detect = bool(item.get("allow_detect"))
@@ -1375,9 +1474,27 @@ def _target_permission_summary(item: dict[str, Any]) -> str:
 
 
 def _engagement_settings_readiness(data: dict[str, Any]) -> str:
-    readiness = data.get("readiness") or data.get("community_readiness")
+    readiness = _backend_readiness_text(
+        data,
+        "readiness",
+        "community_readiness",
+        "readiness_summary",
+    )
     if readiness:
-        return str(readiness)
+        return readiness
+
+    block_reason = _backend_block_reason(data, "posting_block_reason", "blocked_reason", "block_reason")
+    if block_reason:
+        return block_reason
+    if data.get("quiet_hours_active") is True:
+        return "Blocked: quiet hours active"
+    if data.get("rate_limit_active") is True or data.get("rate_limited") is True:
+        return "Blocked: rate limit active"
+    if data.get("has_joined_engagement_account") is False:
+        return "Blocked: no joined engagement account"
+    account_status = str(data.get("assigned_account_status") or "").strip().casefold()
+    if account_status in {"rate_limited", "banned"}:
+        return f"Blocked: account {account_status.replace('_', ' ')}"
 
     mode = str(data.get("mode") or "disabled")
     allow_post = bool(data.get("allow_post"))
@@ -1394,6 +1511,64 @@ def _engagement_settings_readiness(data: dict[str, Any]) -> str:
     if allow_join:
         return "Approved, not joined"
     return "Blocked: posting permission off"
+
+
+def _backend_readiness_text(data: dict[str, Any], *keys: str) -> str | None:
+    for key in keys:
+        raw_value = data.get(key)
+        if not raw_value:
+            continue
+        if isinstance(raw_value, dict):
+            for nested_key in ("label", "summary", "message", "reason", "status"):
+                nested_value = raw_value.get(nested_key)
+                if nested_value:
+                    return str(nested_value)
+            continue
+        return str(raw_value)
+    return None
+
+
+def _backend_block_reason(data: dict[str, Any], *keys: str) -> str | None:
+    for key in keys:
+        raw_value = data.get(key)
+        if not raw_value:
+            continue
+        text = str(raw_value).strip()
+        if not text:
+            continue
+        if text.casefold().startswith("blocked:"):
+            return text
+        return f"Blocked: {text}"
+    reasons = data.get("readiness_reasons") or data.get("blocked_reasons")
+    if isinstance(reasons, list) and reasons:
+        first_reason = str(reasons[0]).strip()
+        if first_reason:
+            if first_reason.casefold().startswith("blocked:"):
+                return first_reason
+            return f"Blocked: {first_reason}"
+    return None
+
+
+def _target_status_label(item: dict[str, Any]) -> str:
+    status = str(item.get("status") or "unknown").replace("_", " ")
+    if status == "approved":
+        return "approved for engagement"
+    if status == "resolved":
+        return "resolved, awaiting approval"
+    if status == "pending":
+        return "waiting for resolution"
+    return status
+
+
+def _settings_mode_label(value: Any) -> str:
+    mode = str(value or "disabled")
+    labels = {
+        "disabled": "paused",
+        "observe": "watch only",
+        "suggest": "draft replies for review",
+        "require_approval": "ready with review",
+    }
+    return labels.get(mode, mode.replace("_", " "))
 
 
 def _candidate_community(item: dict[str, Any]) -> dict[str, Any]:

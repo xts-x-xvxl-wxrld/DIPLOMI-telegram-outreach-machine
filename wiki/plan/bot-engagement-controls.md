@@ -621,7 +621,7 @@ Completed:
 
 ## Follow-Up Slice 14: Menu And Progressive Disclosure Polish
 
-Status: planned.
+Status: completed on 2026-04-22.
 
 Purpose:
 
@@ -651,6 +651,22 @@ Tests:
 - UI tests assert the Settings lookup button exists and callback data stays within Telegram limits.
 - Formatting tests cover compact default cards and detail-card ID visibility.
 - Readiness formatting tests cover backend-provided readiness strings and fallback behavior.
+
+Completed:
+
+- `/engagement` now exposes a direct `Settings lookup` button in the daily engagement menu.
+- Added a button-led settings lookup page that lists approved engagement targets with resolved
+  communities and opens the existing `/engagement_settings <community_id>` settings surface through
+  `eng:set:open`.
+- Resolved target cards now include a direct `Settings` button when a community ID is available.
+- Default target, prompt profile, topic, and style-rule list cards are more compact and
+  operator-facing; raw IDs and diagnostic fields are still present on opened detail cards and
+  mutation results.
+- Community settings cards now lead with posting posture, safety floor, pacing, quiet hours, and
+  engagement-account language before raw community/mode fields.
+- Readiness helpers now prefer backend-provided readiness summaries and concrete block reasons, and
+  fall back to local summaries only when the backend does not provide a reason.
+- Focused bot UI, formatting, and engagement-handler coverage passed with 162 tests.
 
 ## Follow-Up Slice 15: Backend Capability Boundary
 
