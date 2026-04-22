@@ -37,7 +37,7 @@ Completed notes:
 
 ## Slice 6: Staged Telegram Runbook
 
-Status: planned.
+Status: completed.
 
 Tasks:
 
@@ -64,6 +64,14 @@ Acceptance:
 - The runbook includes expected database/API/bot evidence for collection, detection, review, send,
   and audit.
 - The runbook explicitly forbids DMs, auto-send, and bulk posting during MVP testing.
+
+Completed notes:
+
+- Added the operator-facing runbook at
+  `wiki/plan/engagement-mvp-testing-readiness/staged-telegram-runbook.md`.
+- The runbook covers local fake-adapter gates, controlled group dry run, observe-only real-community
+  testing, one approved reply-only send, conservative preflights, expected evidence, and abort
+  switches.
 
 ## MVP Test Definition Of Done
 

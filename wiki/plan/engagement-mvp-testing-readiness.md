@@ -61,7 +61,7 @@ approved engagement target
 | Timely Reply Opportunity Fields | completed |
 | Active Engagement Collection Scheduler | completed |
 | Operator Staged-Test Controls | completed |
-| Staged Telegram Runbook | planned |
+| Staged Telegram Runbook | completed |
 
 ## Test Gate Summary
 

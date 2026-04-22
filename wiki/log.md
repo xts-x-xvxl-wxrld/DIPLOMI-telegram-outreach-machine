@@ -6,6 +6,12 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-04-22] docs | Added staged Telegram engagement runbook
+
+- Added an operator-facing runbook for fake-adapter gates, controlled Telegram dry run,
+  observe-only real-community testing, one reply-only send, expected evidence, and abort switches.
+- Marked the staged runbook readiness slice complete and updated the wiki index shard description.
+
 ## [2026-04-22] fix | Restored CI lint pass
 
 - Added a CI lint fix plan and index pointer.
