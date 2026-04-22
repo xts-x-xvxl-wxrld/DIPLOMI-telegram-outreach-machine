@@ -13,10 +13,12 @@ Top-level routing contract for clean-sheet query-driven Telegram search. Details
 - `alembic/versions/20260421_0011_search_schema.py` - search schema.
 - `backend/api/routes/search.py` - Slice 2 API skeleton for search runs, queries, candidates, rerank jobs, and reviews.
 - `backend/services/search.py` - search run persistence, list/detail views, candidate list shaping, and review audit helpers.
+- `backend/workers/search_plan.py` - deterministic `search.plan` worker that normalizes operator queries, writes `search_queries`, and enqueues retrieval.
 - `backend/queue/client.py` - `search.plan` and `search.rank` enqueue helpers.
 - `tests/test_search_schema.py` - schema contract tests.
 - `tests/test_search_api.py` - API skeleton contract tests.
-- Future `backend/workers/search_*` modules - search job implementation roots.
+- `tests/test_search_planner.py` - deterministic planner and idempotent worker coverage.
+- Future `backend/workers/search_*` modules - remaining retrieval, ranking, and expansion job roots.
 
 ## Shards
 

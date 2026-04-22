@@ -76,6 +76,7 @@ The first planner is `deterministic_v1`:
 - trim and normalize the operator query
 - reject empty or whitespace-only queries
 - casefold duplicate generated query texts
+- emit the full normalized term query plus contiguous 2-term or 3-term windows, capped at 5 total queries
 - preserve API-supplied `language_hints` and `locale_hints`
 - create one or more `search_queries` with `adapter = 'telegram_entity_search'`
 - store `include_terms`, `exclusion_terms`, and `planner_metadata`

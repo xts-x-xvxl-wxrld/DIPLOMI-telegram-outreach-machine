@@ -13,6 +13,9 @@ from backend.queue.client import (
     enqueue_engagement_send,
     enqueue_engagement_target_resolve,
     enqueue_job,
+    enqueue_search_plan,
+    enqueue_search_rank,
+    enqueue_search_retrieve,
     enqueue_seed_expansion,
     enqueue_seed_resolve,
     enqueue_telegram_entity_resolve,
@@ -27,6 +30,9 @@ from backend.queue.payloads import (
     EngagementDetectPayload,
     EngagementSendPayload,
     EngagementTargetResolvePayload,
+    SearchPlanPayload,
+    SearchRankPayload,
+    SearchRetrievePayload,
     SeedExpandPayload,
     SeedResolvePayload,
     TelegramEntityResolvePayload,
@@ -107,6 +113,48 @@ def test_telegram_entity_resolve_payload_matches_contract() -> None:
 
     assert dumped == {
         "intake_id": str(intake_id),
+        "requested_by": "telegram_bot",
+    }
+
+
+def test_search_plan_payload_matches_contract() -> None:
+    search_run_id = uuid4()
+    payload = SearchPlanPayload(search_run_id=search_run_id, requested_by="telegram_bot")
+
+    dumped = payload.model_dump(mode="json")
+
+    assert dumped == {
+        "search_run_id": str(search_run_id),
+        "requested_by": "telegram_bot",
+    }
+
+
+def test_search_retrieve_payload_matches_contract() -> None:
+    search_run_id = uuid4()
+    search_query_id = uuid4()
+    payload = SearchRetrievePayload(
+        search_run_id=search_run_id,
+        search_query_id=search_query_id,
+        requested_by="telegram_bot",
+    )
+
+    dumped = payload.model_dump(mode="json")
+
+    assert dumped == {
+        "search_run_id": str(search_run_id),
+        "search_query_id": str(search_query_id),
+        "requested_by": "telegram_bot",
+    }
+
+
+def test_search_rank_payload_matches_contract() -> None:
+    search_run_id = uuid4()
+    payload = SearchRankPayload(search_run_id=search_run_id, requested_by="telegram_bot")
+
+    dumped = payload.model_dump(mode="json")
+
+    assert dumped == {
+        "search_run_id": str(search_run_id),
         "requested_by": "telegram_bot",
     }
 
@@ -275,6 +323,123 @@ def test_enqueue_telegram_entity_resolve_uses_default_queue(monkeypatch) -> None
         },
         "queue_name": "default",
         "job_id": None,
+    }
+
+
+def test_enqueue_search_plan_uses_default_queue_and_stable_job_id(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_enqueue_job(
+        job_type: str,
+        payload: dict[str, object],
+        *,
+        queue_name: str,
+        job_id: str | None = None,
+    ) -> QueuedJob:
+        captured.update(
+            {
+                "job_type": job_type,
+                "payload": payload,
+                "queue_name": queue_name,
+                "job_id": job_id,
+            }
+        )
+        return QueuedJob(id="job-search-plan", type=job_type)
+
+    monkeypatch.setattr("backend.queue.client.enqueue_job", fake_enqueue_job)
+    search_run_id = uuid4()
+
+    job = enqueue_search_plan(search_run_id, requested_by="operator")
+
+    assert job == QueuedJob(id="job-search-plan", type="search.plan")
+    assert captured == {
+        "job_type": "search.plan",
+        "payload": {
+            "search_run_id": str(search_run_id),
+            "requested_by": "operator",
+        },
+        "queue_name": "default",
+        "job_id": f"search.plan:{search_run_id}",
+    }
+
+
+def test_enqueue_search_retrieve_uses_default_queue_and_query_job_id(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_enqueue_job(
+        job_type: str,
+        payload: dict[str, object],
+        *,
+        queue_name: str,
+        job_id: str | None = None,
+    ) -> QueuedJob:
+        captured.update(
+            {
+                "job_type": job_type,
+                "payload": payload,
+                "queue_name": queue_name,
+                "job_id": job_id,
+            }
+        )
+        return QueuedJob(id="job-search-retrieve", type=job_type)
+
+    monkeypatch.setattr("backend.queue.client.enqueue_job", fake_enqueue_job)
+    search_run_id = uuid4()
+    search_query_id = uuid4()
+
+    job = enqueue_search_retrieve(
+        search_run_id,
+        search_query_id,
+        requested_by="operator",
+    )
+
+    assert job == QueuedJob(id="job-search-retrieve", type="search.retrieve")
+    assert captured == {
+        "job_type": "search.retrieve",
+        "payload": {
+            "search_run_id": str(search_run_id),
+            "search_query_id": str(search_query_id),
+            "requested_by": "operator",
+        },
+        "queue_name": "default",
+        "job_id": f"search.retrieve:{search_run_id}:{search_query_id}",
+    }
+
+
+def test_enqueue_search_rank_uses_default_queue(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_enqueue_job(
+        job_type: str,
+        payload: dict[str, object],
+        *,
+        queue_name: str,
+        job_id: str | None = None,
+    ) -> QueuedJob:
+        captured.update(
+            {
+                "job_type": job_type,
+                "payload": payload,
+                "queue_name": queue_name,
+                "job_id": job_id,
+            }
+        )
+        return QueuedJob(id="job-search-rank", type=job_type)
+
+    monkeypatch.setattr("backend.queue.client.enqueue_job", fake_enqueue_job)
+    search_run_id = uuid4()
+
+    job = enqueue_search_rank(search_run_id, requested_by="operator")
+
+    assert job == QueuedJob(id="job-search-rank", type="search.rank")
+    assert captured == {
+        "job_type": "search.rank",
+        "payload": {
+            "search_run_id": str(search_run_id),
+            "requested_by": "operator",
+        },
+        "queue_name": "default",
+        "job_id": f"search.rank:{search_run_id}",
     }
 
 
@@ -755,4 +920,47 @@ def test_dispatch_recognizes_engagement_job_types(monkeypatch) -> None:
         "status": "processed",
         "job_type": "engagement.send",
         "payload": {"candidate_id": candidate_id, "approved_by": "op"},
+    }
+
+
+def test_dispatch_recognizes_search_job_types(monkeypatch) -> None:
+    monkeypatch.setattr("backend.workers.jobs.set_job_status", lambda *_args: None)
+    monkeypatch.setattr(
+        "backend.workers.jobs.run_search_plan",
+        lambda payload: {"status": "processed", "job_type": "search.plan", "payload": payload},
+    )
+    search_run_id = str(uuid4())
+    search_query_id = str(uuid4())
+
+    assert dispatch_job(
+        "search.plan",
+        {"search_run_id": search_run_id, "requested_by": "operator"},
+    ) == {
+        "status": "processed",
+        "job_type": "search.plan",
+        "payload": {"search_run_id": search_run_id, "requested_by": "operator"},
+    }
+    assert dispatch_job(
+        "search.retrieve",
+        {
+            "search_run_id": search_run_id,
+            "search_query_id": search_query_id,
+            "requested_by": "operator",
+        },
+    ) == {
+        "status": "stubbed",
+        "job_type": "search.retrieve",
+        "payload": {
+            "search_run_id": search_run_id,
+            "search_query_id": search_query_id,
+            "requested_by": "operator",
+        },
+    }
+    assert dispatch_job(
+        "search.rank",
+        {"search_run_id": search_run_id, "requested_by": "operator"},
+    ) == {
+        "status": "stubbed",
+        "job_type": "search.rank",
+        "payload": {"search_run_id": search_run_id, "requested_by": "operator"},
     }

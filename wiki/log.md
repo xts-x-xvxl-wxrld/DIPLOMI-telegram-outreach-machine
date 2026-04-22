@@ -1013,3 +1013,8 @@ while preserving the staged testing contract.
 - Added `wiki/plan/bot-copy-readability-refresh.md`, updated the bot UX/formatting specs, and
   passed `python -m pytest -q tests/test_bot_formatting.py tests/test_bot_ui.py` plus
   `python scripts/check_fragmentation.py`.
+## [2026-04-22] impl | Deterministic search planner slice
+
+- added `backend/workers/search_plan.py` for deterministic `search.plan` execution, query persistence, idempotent reuse, and retrieval enqueueing
+- added `search.retrieve` queue payload/helper wiring plus search job dispatch coverage for planner, retrieve, and rank jobs
+- added focused planner tests for simple queries, duplicate terms, empty-query failure handling, locale hints, and same-run idempotency

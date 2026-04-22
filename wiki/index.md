@@ -21,7 +21,6 @@
 - [Deployment](spec/deployment.md) - GitHub CI, VPS deploy, secrets, and server-agent branch safety
 
 ## Plan files
-
 - [Git CI Convenience](plan/git-ci.md) - repo-local command for staging and committing changes
 - [VPS GitHub Pipeline](plan/vps-github-pipeline.md) - safe branch-to-GitHub-to-VPS deployment workflow
 - [CI Packaging Install](plan/ci-packaging-install.md) - explicit package discovery for CI and Docker installs
@@ -95,7 +94,7 @@
 - `ops/vps/AGENT_CONTEXT.md` - redacted VPS architecture map for coding agents
 - `.github/workflows/ci.yml` - branch and pull-request validation workflow
 - `.github/workflows/deploy-vps.yml` - staging VPS deployment workflow
-- `backend/api/routes/search.py`, `backend/services/search.py` - search run API skeleton, list/detail shaping, rerank enqueueing, and run-scoped review persistence
+- `backend/api/routes/search.py`, `backend/services/search.py`, `backend/workers/search_plan.py` - search run API skeleton, list/detail shaping, deterministic query planning, retrieval enqueueing, and run-scoped review persistence
 - `backend/api/routes/seeds.py` - manual seed import and seed-group API endpoints
 - `backend/api/routes/engagement*.py` - engagement route facade plus target, settings/topic, prompt/style, candidate/action endpoint shards
 - `backend/api/routes/telegram_entities.py` - direct Telegram handle intake API endpoints
@@ -132,6 +131,7 @@
 - `alembic/versions/20260422_0012_engagement_candidate_timeliness.py` - reply-opportunity freshness, deadline, and operator-notification schema fields
 - `tests/test_search_api.py` - search run API create/list/detail/query/candidate/rerank/review contract tests
 - `tests/test_search_schema.py` - search enum, model default, uniqueness, nullable candidate, foreign key, DDL, and schema validation tests
+- `tests/test_search_planner.py` - deterministic query planning, idempotent `search.plan`, locale hints, and validation-failure tests
 - `tests/test_engagement_embeddings.py` - embedding cache reuse, dimension validation, selector ordering, and cleanup tests
 - `tests/test_engagement_semantic_eval_fixtures.py` - sanitized semantic matching evaluation fixture contract tests
 - `tests/fixtures/engagement_semantic_eval.jsonl` - synthetic sanitized semantic matching threshold evaluation examples

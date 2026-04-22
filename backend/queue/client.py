@@ -18,6 +18,7 @@ from backend.queue.payloads import (
     EngagementTargetResolvePayload,
     ExpansionPayload,
     SearchPlanPayload,
+    SearchRetrievePayload,
     SearchRankPayload,
     SeedExpandPayload,
     SeedResolvePayload,
@@ -154,6 +155,25 @@ def enqueue_search_rank(
         payload.model_dump(mode="json"),
         queue_name="default",
         job_id=f"search.rank:{search_run_id}",
+    )
+
+
+def enqueue_search_retrieve(
+    search_run_id: UUID,
+    search_query_id: UUID,
+    *,
+    requested_by: str | None = None,
+) -> QueuedJob:
+    payload = SearchRetrievePayload(
+        search_run_id=search_run_id,
+        search_query_id=search_query_id,
+        requested_by=requested_by,
+    )
+    return enqueue_job(
+        "search.retrieve",
+        payload.model_dump(mode="json"),
+        queue_name="default",
+        job_id=f"search.retrieve:{search_run_id}:{search_query_id}",
     )
 
 

@@ -43,6 +43,12 @@ class SearchPlanPayload(BaseModel):
     requested_by: str | None = None
 
 
+class SearchRetrievePayload(BaseModel):
+    search_run_id: UUID
+    search_query_id: UUID
+    requested_by: str | None = None
+
+
 class SearchRankPayload(BaseModel):
     search_run_id: UUID
     requested_by: str | None = None

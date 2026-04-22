@@ -10,6 +10,7 @@ from backend.workers.community_snapshot import run_community_snapshot_job
 from backend.workers.engagement_detect import run_engagement_detect_job
 from backend.workers.engagement_send import run_engagement_send_job
 from backend.workers.engagement_target_resolve import run_engagement_target_resolve_job
+from backend.workers.search_plan import run_search_plan_job
 from backend.workers.seed_expand import run_seed_expand_job
 from backend.workers.seed_resolve import run_seed_resolve_job
 from backend.workers.telegram_entity_resolve import run_telegram_entity_resolve_job
@@ -23,6 +24,9 @@ def dispatch_job(job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         "seed.resolve": run_seed_resolve,
         "seed.expand": run_seed_expand,
         "telegram_entity.resolve": run_telegram_entity_resolve,
+        "search.plan": run_search_plan,
+        "search.retrieve": run_search_retrieve,
+        "search.rank": run_search_rank,
         "expansion.run": run_expansion,
         "community.snapshot": run_community_snapshot,
         "collection.run": run_collection,
@@ -58,6 +62,18 @@ def run_seed_expand(payload: dict[str, Any]) -> dict[str, Any]:
 
 def run_telegram_entity_resolve(payload: dict[str, Any]) -> dict[str, Any]:
     return run_telegram_entity_resolve_job(payload)
+
+
+def run_search_plan(payload: dict[str, Any]) -> dict[str, Any]:
+    return run_search_plan_job(payload)
+
+
+def run_search_retrieve(payload: dict[str, Any]) -> dict[str, Any]:
+    return {"status": "stubbed", "job_type": "search.retrieve", "payload": payload}
+
+
+def run_search_rank(payload: dict[str, Any]) -> dict[str, Any]:
+    return {"status": "stubbed", "job_type": "search.rank", "payload": payload}
 
 
 def run_expansion(payload: dict[str, Any]) -> dict[str, Any]:
