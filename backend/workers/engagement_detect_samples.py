@@ -8,15 +8,45 @@ async def load_recent_detection_samples(
     session: AsyncSession,
     *,
     community: Community,
+    collection_run_id: Any | None = None,
     window_minutes: int,
 ) -> list[DetectionMessage]:
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
-    artifact_messages = await _load_latest_artifact_messages(session, community, cutoff=cutoff)
-    if artifact_messages:
-        return artifact_messages
+    if collection_run_id is not None:
+        return await _load_exact_collection_run_messages(
+            session,
+            community,
+            collection_run_id=collection_run_id,
+            cutoff=cutoff,
+        )
     if community.store_messages:
-        return await _load_stored_messages(session, community, cutoff=cutoff)
-    return []
+        stored_messages = await _load_stored_messages(session, community, cutoff=cutoff)
+        if stored_messages:
+            return stored_messages
+    return await _load_latest_artifact_messages(session, community, cutoff=cutoff)
+
+
+async def _load_exact_collection_run_messages(
+    session: AsyncSession,
+    community: Community,
+    *,
+    collection_run_id: Any,
+    cutoff: datetime,
+) -> list[DetectionMessage]:
+    run = await session.get(CollectionRun, collection_run_id)
+    if (
+        run is None
+        or run.community_id != community.id
+        or run.status != CollectionRunStatus.COMPLETED.value
+        or not run.analysis_input
+    ):
+        return []
+    return _messages_from_analysis_input(
+        run.analysis_input or {},
+        key="engagement_messages",
+        cutoff=cutoff,
+        community_is_group=bool(community.is_group),
+    )
 
 
 async def load_community_context(
@@ -57,6 +87,7 @@ async def _load_latest_artifact_messages(
     for run in result:
         messages = _messages_from_analysis_input(
             run.analysis_input or {},
+            key="sample_messages",
             cutoff=cutoff,
             community_is_group=bool(community.is_group),
         )
@@ -99,11 +130,12 @@ async def _load_stored_messages(
 def _messages_from_analysis_input(
     analysis_input: dict[str, Any],
     *,
+    key: str,
     cutoff: datetime,
     community_is_group: bool,
 ) -> list[DetectionMessage]:
     messages: list[DetectionMessage] = []
-    for raw_message in analysis_input.get("sample_messages") or []:
+    for raw_message in analysis_input.get(key) or []:
         if not isinstance(raw_message, dict):
             continue
         text = raw_message.get("text")

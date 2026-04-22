@@ -367,6 +367,7 @@ def test_engagement_detect_payload_matches_contract_defaults() -> None:
 
     assert dumped == {
         "community_id": str(community_id),
+        "collection_run_id": None,
         "window_minutes": 60,
         "requested_by": None,
     }
@@ -468,6 +469,7 @@ def test_enqueue_engagement_detect_uses_engagement_queue(monkeypatch) -> None:
     assert captured["job_type"] == "engagement.detect"
     assert captured["payload"] == {
         "community_id": str(community_id),
+        "collection_run_id": None,
         "window_minutes": 30,
         "requested_by": "operator",
     }
@@ -545,13 +547,59 @@ def test_enqueue_manual_engagement_detect_uses_distinct_job_id_prefix(monkeypatc
     assert job == QueuedJob(id="job-manual-detect", type="engagement.detect")
     assert captured == {
         "job_type": "engagement.detect",
-        "payload": {
-            "community_id": str(community_id),
-            "window_minutes": 45,
-            "requested_by": "operator",
-        },
+            "payload": {
+                "community_id": str(community_id),
+                "collection_run_id": None,
+                "window_minutes": 45,
+                "requested_by": "operator",
+            },
         "queue_name": "engagement",
         "job_id": f"engagement.detect.manual:{community_id}:2026041913",
+    }
+
+
+def test_enqueue_engagement_detect_with_collection_run_uses_exact_job_id(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_enqueue_job(
+        job_type: str,
+        payload: dict[str, object],
+        *,
+        queue_name: str,
+        job_id: str | None = None,
+    ) -> QueuedJob:
+        captured.update(
+            {
+                "job_type": job_type,
+                "payload": payload,
+                "queue_name": queue_name,
+                "job_id": job_id,
+            }
+        )
+        return QueuedJob(id="job-exact-detect", type=job_type)
+
+    monkeypatch.setattr("backend.queue.client.enqueue_job", fake_enqueue_job)
+    community_id = uuid4()
+    collection_run_id = uuid4()
+
+    job = enqueue_engagement_detect(
+        community_id,
+        collection_run_id=collection_run_id,
+        window_minutes=10,
+        requested_by=None,
+    )
+
+    assert job == QueuedJob(id="job-exact-detect", type="engagement.detect")
+    assert captured == {
+        "job_type": "engagement.detect",
+        "payload": {
+            "community_id": str(community_id),
+            "collection_run_id": str(collection_run_id),
+            "window_minutes": 10,
+            "requested_by": None,
+        },
+        "queue_name": "engagement",
+        "job_id": f"engagement.detect:{community_id}:{collection_run_id}",
     }
 
 

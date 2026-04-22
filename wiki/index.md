@@ -1,5 +1,4 @@
 # Wiki Index
-
 ## Spec files
 
 - [Architecture](spec/architecture.md) - Docker Compose layout, seed-first data flow, job types, key design rules
@@ -104,6 +103,7 @@
 - `backend/api/routes/telegram_entities.py` - direct Telegram handle intake API endpoints
 - `backend/db/models*.py` - SQLAlchemy model facade plus core, search, and engagement model shards
 - `backend/services/community_engagement*.py` - engagement service facade plus settings, targets, topics, prompts, style, candidates, actions, and view shards
+- `backend/services/community_collection.py`, `backend/workers/collection.py`, `backend/workers/telegram_collection.py` - engagement collection persistence, orchestration, and Telethon reads
 - `backend/services/engagement_embeddings.py` - embedding text normalization, cache lookup/create, cosine scoring, and semantic trigger selection
 - `backend/workers/community_join.py` - `community.join` orchestration with membership and audit updates
 - `backend/workers/community_snapshot.py` - `community.snapshot` orchestration for discovery metadata/member snapshots
@@ -139,7 +139,7 @@
 - `tests/test_engagement_targets.py` - engagement target resolution and permission gate tests
 - `tests/test_engagement_api.py` - engagement API route tests for targets, settings, topics, style rules, prompts, candidates, actions, and rollout summaries
 - `tests/test_engagement_prompt_controls.py` - prompt template variable privacy tests
-- `tests/test_engagement_detect_worker.py` - engagement detection worker prefiltering, candidate creation, and dedupe tests
+- `tests/test_engagement_detect_worker.py`, `tests/test_collection_worker.py` - engagement detection and collection worker tests
 - `tests/test_engagement_send_worker.py` - engagement send worker preflight, rate-limit, idempotency, and Telethon error-mapping tests
 - `tests/test_bot_access.py` - bot operator and engagement-admin allowlist tests
 - `tests/test_bot_api_client.py` - bot HTTP client route and payload contract tests

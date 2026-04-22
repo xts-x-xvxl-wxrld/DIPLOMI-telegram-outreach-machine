@@ -8,18 +8,21 @@ from uuid import uuid4
 import pytest
 
 from backend.db.enums import (
+    CollectionRunStatus,
     CommunityStatus,
     EngagementCandidateStatus,
     EngagementMode,
     EngagementTargetStatus,
 )
 from backend.db.models import (
+    CollectionRun,
     Community,
     CommunityAccountMembership,
     CommunityEngagementSettings,
     EngagementCandidate,
     EngagementTarget,
     EngagementTopic,
+    Message,
 )
 from backend.services.community_engagement import create_engagement_candidate
 from backend.services.engagement_embeddings import SemanticTriggerMatch
@@ -27,6 +30,7 @@ from backend.workers.engagement_detect import (
     CommunityContext,
     DetectionMessage,
     EngagementDetectionDecision,
+    load_recent_detection_samples,
     process_engagement_detect,
 )
 
@@ -585,6 +589,88 @@ async def test_engagement_detect_skips_duplicate_active_candidate() -> None:
     assert session.candidates == []
 
 
+@pytest.mark.asyncio
+async def test_detection_samples_prefer_exact_collection_run_batch() -> None:
+    community_id = uuid4()
+    collection_run_id = uuid4()
+    now = datetime.now(timezone.utc)
+    community = _community(community_id)
+    community.store_messages = True
+    run = CollectionRun(
+        id=collection_run_id,
+        community_id=community_id,
+        status=CollectionRunStatus.COMPLETED.value,
+        analysis_input={
+            "engagement_messages": [
+                {
+                    "tg_message_id": 200,
+                    "text": "Exact batch CRM question",
+                    "message_date": now.isoformat(),
+                    "is_replyable": True,
+                }
+            ],
+        },
+    )
+    stored = Message(
+        id=uuid4(),
+        community_id=community_id,
+        tg_message_id=100,
+        text="Stored fallback CRM question",
+        message_date=now,
+    )
+
+    messages = await load_recent_detection_samples(
+        DetectionSampleSession(runs={collection_run_id: run}, stored_messages=[stored]),
+        community=community,
+        collection_run_id=collection_run_id,
+        window_minutes=60,
+    )
+
+    assert [message.tg_message_id for message in messages] == [200]
+    assert messages[0].text == "Exact batch CRM question"
+
+
+@pytest.mark.asyncio
+async def test_detection_samples_skip_wrong_community_collection_run() -> None:
+    community_id = uuid4()
+    other_community_id = uuid4()
+    collection_run_id = uuid4()
+    now = datetime.now(timezone.utc)
+    community = _community(community_id)
+    community.store_messages = True
+    run = CollectionRun(
+        id=collection_run_id,
+        community_id=other_community_id,
+        status=CollectionRunStatus.COMPLETED.value,
+        analysis_input={
+            "engagement_messages": [
+                {
+                    "tg_message_id": 200,
+                    "text": "Wrong community batch",
+                    "message_date": now.isoformat(),
+                    "is_replyable": True,
+                }
+            ],
+        },
+    )
+    stored = Message(
+        id=uuid4(),
+        community_id=community_id,
+        tg_message_id=100,
+        text="Stored fallback should not be used",
+        message_date=now,
+    )
+
+    messages = await load_recent_detection_samples(
+        DetectionSampleSession(runs={collection_run_id: run}, stored_messages=[stored]),
+        community=community,
+        collection_run_id=collection_run_id,
+        window_minutes=60,
+    )
+
+    assert messages == []
+
+
 class FakeSession:
     def __init__(
         self,
@@ -640,6 +726,32 @@ class FakeSession:
 
     async def rollback(self) -> None:
         self.rollbacks += 1
+
+
+class DetectionSampleSession:
+    def __init__(
+        self,
+        *,
+        runs: dict[object, CollectionRun] | None = None,
+        stored_messages: list[Message] | None = None,
+        artifact_runs: list[CollectionRun] | None = None,
+    ) -> None:
+        self.runs = runs or {}
+        self.stored_messages = stored_messages or []
+        self.artifact_runs = artifact_runs or []
+
+    async def get(self, model: object, item_id: object) -> object | None:
+        if model is CollectionRun:
+            return self.runs.get(item_id)
+        return None
+
+    async def scalars(self, statement: object) -> list[object]:
+        entity = statement.column_descriptions[0]["entity"]  # type: ignore[attr-defined]
+        if entity is Message:
+            return self.stored_messages
+        if entity is CollectionRun:
+            return self.artifact_runs
+        return []
 
 
 async def _async_result(value: object) -> object:

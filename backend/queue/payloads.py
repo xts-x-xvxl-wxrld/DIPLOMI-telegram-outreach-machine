@@ -77,6 +77,7 @@ class EngagementTargetResolvePayload(BaseModel):
 
 class EngagementDetectPayload(BaseModel):
     community_id: UUID
+    collection_run_id: UUID | None = None
     window_minutes: int = Field(default=60, ge=1)
     requested_by: str | None = None
 

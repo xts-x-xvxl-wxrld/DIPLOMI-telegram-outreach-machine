@@ -151,6 +151,16 @@ After a successful engagement collection run:
 3. Pass only `community_id`, `collection_run_id`, and timing/window metadata in the queue payload.
 4. Let `engagement.detect` load the batch and decide whether any reply opportunity exists.
 
+Implementation note:
+
+- `backend/workers/collection.py` owns `collection.run` orchestration, account lease cleanup, and
+  collection-triggered detection enqueueing.
+- `backend/services/community_collection.py` owns persistence of exact
+  `analysis_input.engagement_messages` batches, checkpoints, optional raw `messages` rows, and
+  visible-user activity updates.
+- `backend/workers/telegram_collection.py` is the fakeable Telethon adapter for engagement
+  collection reads.
+
 Default cadence for engagement collection should be shorter than analysis collection. The current
 target is every 10 minutes for engagement-enabled communities, with the engagement scheduler acting
 as a fallback rather than the primary trigger.

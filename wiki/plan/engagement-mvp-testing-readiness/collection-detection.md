@@ -2,7 +2,7 @@
 
 ## Slice 1: Engagement Collection Worker
 
-Status: planned.
+Status: completed.
 
 Tasks:
 
@@ -33,7 +33,7 @@ Acceptance:
 
 ## Slice 2: Exact Batch And Detection Payload Contract
 
-Status: planned.
+Status: completed.
 
 Tasks:
 

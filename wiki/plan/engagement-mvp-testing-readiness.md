@@ -56,8 +56,8 @@ approved engagement target
 
 | Slice | Status |
 |---|---|
-| Engagement Collection Worker | planned |
-| Exact Batch And Detection Payload Contract | planned |
+| Engagement Collection Worker | completed |
+| Exact Batch And Detection Payload Contract | completed |
 | Timely Reply Opportunity Fields | planned |
 | Active Engagement Collection Scheduler | planned |
 | Operator Staged-Test Controls | planned |

@@ -988,3 +988,8 @@ opportunity fields, active collection scheduling, operator controls, and a stage
 Split the engagement MVP testing readiness plan into focused shard files for collection/detection,
 timeliness/scheduling, and the operator runbook so the plan stays within the fragmentation guardrail
 while preserving the staged testing contract.
+## [2026-04-22] implementation | Engagement collection exact-batch detection slice
+
+- Implemented `collection.run` orchestration with account lease cleanup, fakeable Telethon message collection, exact `analysis_input.engagement_messages` batches, checkpoints, optional raw-message storage, and visible-user activity updates.
+- Extended `engagement.detect` payloads with optional `collection_run_id` and deterministic exact-batch job IDs, with detection preferring exact collection batches and skipping mismatched run/community pairs.
+- Added collection, queue payload, and detection sample tests; full suite passed with 433 tests and fragmentation guard passed.
