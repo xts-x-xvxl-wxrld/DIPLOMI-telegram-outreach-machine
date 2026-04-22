@@ -335,6 +335,13 @@ class AccountDebugResponse(BaseModel):
     items: list[AccountDebugItem]
 
 
+class OperatorCapabilitiesOut(BaseModel):
+    operator_user_id: int | None = None
+    backend_capabilities_available: bool
+    engagement_admin: bool | None = None
+    source: str
+
+
 class EngagementSettingsUpdate(BaseModel):
     mode: EngagementMode = EngagementMode.SUGGEST
     allow_join: bool = False

@@ -103,6 +103,74 @@ def test_join_job_route_requires_api_auth() -> None:
     assert response.status_code == 401
 
 
+def test_operator_capabilities_use_backend_admin_allowlist() -> None:
+    app = create_app()
+    app.dependency_overrides[settings_dep] = lambda: SimpleNamespace(
+        bot_api_token="token",
+        engagement_admin_user_ids="123, 999",
+    )
+    client = TestClient(app)
+
+    admin_response = client.get(
+        "/api/operator/capabilities",
+        headers={"Authorization": "Bearer token", "X-Telegram-User-Id": "123"},
+    )
+    non_admin_response = client.get(
+        "/api/operator/capabilities",
+        headers={"Authorization": "Bearer token", "X-Telegram-User-Id": "456"},
+    )
+
+    assert admin_response.status_code == 200
+    assert admin_response.json()["backend_capabilities_available"] is True
+    assert admin_response.json()["engagement_admin"] is True
+    assert non_admin_response.status_code == 200
+    assert non_admin_response.json()["engagement_admin"] is False
+
+
+def test_operator_capabilities_report_unconfigured_backend_for_rollout_fallback() -> None:
+    app = create_app()
+    app.dependency_overrides[settings_dep] = lambda: SimpleNamespace(
+        bot_api_token="token",
+        engagement_admin_user_ids="",
+    )
+    client = TestClient(app)
+
+    response = client.get(
+        "/api/operator/capabilities",
+        headers={"Authorization": "Bearer token", "X-Telegram-User-Id": "123"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "operator_user_id": 123,
+        "backend_capabilities_available": False,
+        "engagement_admin": None,
+        "source": "unconfigured",
+    }
+
+
+def test_admin_mutation_route_rejects_non_admin_when_backend_capabilities_are_configured() -> None:
+    app = create_app()
+    app.dependency_overrides[settings_dep] = lambda: SimpleNamespace(
+        bot_api_token="token",
+        engagement_admin_user_ids="123",
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/engagement/topics",
+        headers={"Authorization": "Bearer token", "X-Telegram-User-Id": "456"},
+        json={
+            "name": "CRM",
+            "stance_guidance": "Be concise.",
+            "trigger_keywords": ["crm"],
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "engagement_admin_required"
+
+
 @pytest.mark.asyncio
 async def test_get_engagement_settings_returns_disabled_default() -> None:
     community_id = uuid4()

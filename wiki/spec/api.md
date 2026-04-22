@@ -31,6 +31,36 @@ Unauthorized requests return `401`.
 
 The API is intended for internal Docker network access. It should not be publicly exposed without additional authentication.
 
+Bot requests that need operator-specific capability checks may include:
+
+```http
+X-Telegram-User-Id: <numeric Telegram user id>
+```
+
+When backend-owned engagement admin capabilities are configured through `ENGAGEMENT_ADMIN_USER_IDS`,
+protected engagement-admin mutation routes use this header to authorize prompt, style, topic,
+target, and advanced community-setting changes. If backend capabilities are unconfigured, those
+routes preserve the transitional rollout behavior and the Telegram bot may fall back to its local
+`TELEGRAM_ADMIN_USER_IDS` allowlist.
+
+### `GET /api/operator/capabilities`
+
+Returns the backend capability view for the current bot request and Telegram operator ID.
+
+Response:
+
+```json
+{
+  "operator_user_id": 123456,
+  "backend_capabilities_available": true,
+  "engagement_admin": true,
+  "source": "backend_admin_user_ids"
+}
+```
+
+If `ENGAGEMENT_ADMIN_USER_IDS` is not configured, `backend_capabilities_available` is `false` and
+`engagement_admin` is `null`, which tells the bot to use its transitional fallback.
+
 ## Response Conventions
 
 IDs are UUID strings unless otherwise noted.
@@ -53,6 +83,7 @@ Common status codes:
 - `202` accepted/enqueued
 - `400` validation error
 - `401` unauthorized
+- `403` forbidden
 - `404` not found
 - `409` conflict
 - `500` unexpected server error
@@ -1034,6 +1065,12 @@ Response:
 
 Engagement endpoints are optional/future. They must remain operator-controlled and separate from
 discovery snapshots and analysis.
+
+Admin-only engagement mutations are authorized by backend capabilities when
+`ENGAGEMENT_ADMIN_USER_IDS` is configured. The bot sends `X-Telegram-User-Id`; protected target,
+prompt-profile, style-rule, topic, and community engagement-settings mutation routes return
+`403 engagement_admin_required` for non-admin operators. Read-only daily review routes and ordinary
+candidate review/send routes remain available to allowed operators when the backend permits them.
 
 ### `GET /api/engagement/targets`
 

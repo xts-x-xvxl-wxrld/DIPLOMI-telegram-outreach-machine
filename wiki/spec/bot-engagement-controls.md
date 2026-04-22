@@ -341,7 +341,7 @@ The current main engagement menu exposes:
 - `/engagement` cockpit.
 - Inline intention-first `Today`, `Review replies`, `Approved to send`, `Communities`, `Topics`,
   `Settings lookup`, `Recent actions`, and `Admin` buttons, with the `Admin` entry hidden when the
-  bot can identify the caller as a non-admin locally.
+  bot can identify the caller as a non-admin through backend capabilities or the local fallback.
 - Candidate queue filters for `needs_review`, `approved`, `failed`, `sent`, and `rejected`.
 - Candidate cards with readiness summaries and state-relevant approve, reject, edit, audit, and
   queue-send command hints.
@@ -387,8 +387,14 @@ The current main engagement menu exposes:
 - Account assignment and account clearing commands now show before/after masked account labels and
   require a confirmation callback before saving.
 - Non-admin operators now get read-only target/topic/settings cards where the bot can identify them
-  locally, and admin-only prompt/style/admin-menu callbacks are rejected before protected mutation
-  API calls.
+  through backend capabilities or the local fallback, and admin-only prompt/style/admin-menu
+  callbacks are rejected before protected mutation API calls.
+- The bot now prefers `GET /api/operator/capabilities` for engagement admin checks. During rollout,
+  it falls back to `TELEGRAM_ADMIN_USER_IDS` only when backend capabilities are unconfigured or the
+  endpoint is unavailable.
+- Protected backend target, prompt-profile, style-rule, topic, and community engagement-settings
+  mutation routes require the backend engagement-admin capability when `ENGAGEMENT_ADMIN_USER_IDS`
+  is configured.
 - Assigned engagement accounts render as account IDs plus masked-phone labels from
   `/api/debug/accounts` when available.
 - `/join_community <community_id>`.
@@ -1320,8 +1326,9 @@ Minimum tests for implementation:
 
 ## Open Questions
 
-- Long-term admin permission should move to backend capabilities. The shipped bot also has a
-  transitional `TELEGRAM_ADMIN_USER_IDS` allowlist for early local hiding/rejection.
+- Admin permission now prefers backend capabilities. The shipped bot still has a transitional
+  `TELEGRAM_ADMIN_USER_IDS` allowlist for rollout fallback when backend capabilities are
+  unconfigured or unavailable.
 - Prompt duplicate and rollback are now first-class API routes.
 - Should engagement target approval create default community engagement settings, or remain a
   separate explicit settings action?

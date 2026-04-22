@@ -210,6 +210,7 @@ from bot.ui import (
 API_CLIENT_KEY = "api_client"
 CONFIG_EDIT_STORE_KEY = "config_edit_store"
 ACCOUNT_CONFIRM_STORE_KEY = "account_confirm_store"
+OPERATOR_CAPABILITY_CACHE_KEY = "operator_capabilities"
 CANDIDATE_PAGE_SIZE = 5
 CHANNEL_PAGE_SIZE = 5
 MEMBER_PAGE_SIZE = 10
@@ -492,6 +493,7 @@ async def add_engagement_target_command(update: Any, context: Any) -> None:
         data = await client.create_engagement_target(
             target_ref=target_ref,
             added_by=_reviewer_label(update),
+            operator_user_id=_telegram_user_id(update),
         )
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
@@ -687,6 +689,7 @@ async def create_engagement_prompt_command(update: Any, context: Any) -> None:
         data = await client.create_engagement_prompt_profile(
             **parsed,
             created_by=_reviewer_label(update),
+            operator_user_id=_telegram_user_id(update),
         )
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
@@ -729,6 +732,7 @@ async def duplicate_engagement_prompt_command(update: Any, context: Any) -> None
             profile_id,
             name=new_name,
             created_by=_reviewer_label(update),
+            operator_user_id=_telegram_user_id(update),
         )
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
@@ -823,6 +827,7 @@ async def create_style_rule_command(update: Any, context: Any) -> None:
             priority=priority,
             rule_text=rule_text,
             created_by=_reviewer_label(update),
+            operator_user_id=_telegram_user_id(update),
         )
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
@@ -1132,6 +1137,7 @@ async def create_engagement_topic_command(update: Any, context: Any) -> None:
             stance_guidance=guidance,
             trigger_keywords=keywords,
             active=True,
+            operator_user_id=_telegram_user_id(update),
         )
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
@@ -1428,9 +1434,10 @@ async def callback_query(update: Any, context: Any) -> None:
     await query.answer()
     action, parts = parse_callback_data(query.data)
 
-    if _callback_action_requires_engagement_admin(action, parts) and not _is_engagement_admin(
-        update, context
-    ):
+    if _callback_action_requires_engagement_admin(
+        action,
+        parts,
+    ) and not await _is_engagement_admin_async(update, context):
         await _callback_reply(update, ENGAGEMENT_ADMIN_ONLY_MESSAGE)
         return
 
@@ -2159,7 +2166,9 @@ async def _send_engagement_home(update: Any, context: Any) -> None:
     await _callback_reply(
         update,
         format_engagement_home(data),
-        reply_markup=engagement_home_markup(show_admin=_is_engagement_admin(update, context)),
+        reply_markup=engagement_home_markup(
+            show_admin=await _is_engagement_admin_async(update, context),
+        ),
     )
 
 
@@ -2228,7 +2237,7 @@ async def _send_engagement_targets(
     offset: int,
 ) -> None:
     client = _api_client(context)
-    can_manage = _is_engagement_admin(update, context)
+    can_manage = await _is_engagement_admin_async(update, context)
     data = await client.list_engagement_targets(
         status=status,
         limit=ENGAGEMENT_ADMIN_PAGE_SIZE,
@@ -2271,7 +2280,7 @@ async def _send_engagement_target(update: Any, context: Any, target_id: str) -> 
         reply_markup=_engagement_target_markup(
             target_id,
             data,
-            can_manage=_is_engagement_admin(update, context),
+            can_manage=await _is_engagement_admin_async(update, context),
         ),
     )
 
@@ -2316,6 +2325,7 @@ async def _approve_engagement_target(
         allow_detect=True,
         allow_post=True,
         updated_by=_reviewer_label(update),
+        operator_user_id=_telegram_user_id(update),
     )
     message = format_engagement_target_mutation(action="approved", before=before, after=data)
     markup = _engagement_target_markup(target_id, data)
@@ -2368,6 +2378,7 @@ async def _set_engagement_target_status(
         target_id,
         status=status,
         updated_by=_reviewer_label(update),
+        operator_user_id=_telegram_user_id(update),
     )
     message = format_engagement_target_mutation(action=status, before=before, after=data)
     markup = _engagement_target_markup(target_id, data)
@@ -2392,6 +2403,7 @@ async def _set_engagement_target_permission(
     data = await client.update_engagement_target(
         target_id,
         **{field_name: enabled, "updated_by": _reviewer_label(update)},
+        operator_user_id=_telegram_user_id(update),
     )
     action = f"{permission} {'enabled' if enabled else 'disabled'}"
     message = format_engagement_target_mutation(action=action, before=before, after=data)
@@ -2404,7 +2416,11 @@ async def _set_engagement_target_permission(
 
 async def _resolve_engagement_target(update: Any, context: Any, target_id: str) -> None:
     client = _api_client(context)
-    data = await client.resolve_engagement_target(target_id, requested_by=_reviewer_label(update))
+    data = await client.resolve_engagement_target(
+        target_id,
+        requested_by=_reviewer_label(update),
+        operator_user_id=_telegram_user_id(update),
+    )
     job_id = str((data.get("job") or {}).get("id", "unknown"))
     await _callback_reply(
         update,
@@ -2528,6 +2544,7 @@ async def _activate_engagement_prompt(
     data = await client.activate_engagement_prompt_profile(
         profile_id,
         updated_by=_reviewer_label(update),
+        operator_user_id=_telegram_user_id(update),
     )
     message = format_engagement_prompt_profile_card(data, detail=True)
     markup = engagement_prompt_actions_markup(profile_id, active=bool(data.get("active")))
@@ -2542,6 +2559,7 @@ async def _duplicate_engagement_prompt_default(update: Any, context: Any, profil
     data = await client.duplicate_engagement_prompt_profile(
         profile_id,
         created_by=_reviewer_label(update),
+        operator_user_id=_telegram_user_id(update),
     )
     await _callback_reply(
         update,
@@ -2598,6 +2616,7 @@ async def _rollback_engagement_prompt(
         profile_id,
         version_id=str(version.get("id")),
         updated_by=_reviewer_label(update),
+        operator_user_id=_telegram_user_id(update),
     )
     message = "Prompt profile rolled back.\n\n" + format_engagement_prompt_profile_card(data, detail=True)
     markup = engagement_prompt_actions_markup(profile_id, active=bool(data.get("active")))
@@ -2628,7 +2647,7 @@ async def _send_engagement_style_rules(
     offset: int,
 ) -> None:
     client = _api_client(context)
-    can_manage = _is_engagement_admin(update, context)
+    can_manage = await _is_engagement_admin_async(update, context)
     data = await client.list_engagement_style_rules(
         scope_type=scope_type,
         scope_id=scope_id,
@@ -2674,7 +2693,7 @@ async def _send_engagement_style_rule(update: Any, context: Any, rule_id: str) -
         reply_markup=engagement_style_rule_actions_markup(
             rule_id,
             active=bool(data.get("active")),
-            can_manage=_is_engagement_admin(update, context),
+            can_manage=await _is_engagement_admin_async(update, context),
         ),
     )
 
@@ -2692,6 +2711,7 @@ async def _toggle_style_rule(
         rule_id,
         active=active,
         updated_by=_reviewer_label(update),
+        operator_user_id=_telegram_user_id(update),
     )
     message = "Style rule updated.\n\n" + format_engagement_style_rule_card(data, detail=True)
     reply_markup = engagement_style_rule_actions_markup(rule_id, active=bool(data.get("active")))
@@ -2830,6 +2850,7 @@ async def _apply_engagement_preset(
     data = await client.update_engagement_settings(
         community_id,
         **_engagement_preset_payload(preset),
+        operator_user_id=_telegram_user_id(update),
     )
     await _reply_with_engagement_settings(
         update,
@@ -2869,7 +2890,11 @@ async def _update_engagement_settings_from_current(
     client = _api_client(context)
     current = await client.get_engagement_settings(community_id)
     payload = _engagement_settings_payload_from_current(current, **updates)
-    data = await client.update_engagement_settings(community_id, **payload)
+    data = await client.update_engagement_settings(
+        community_id,
+        **payload,
+        operator_user_id=_telegram_user_id(update),
+    )
     await _reply_with_engagement_settings(
         update,
         context,
@@ -2971,7 +2996,7 @@ async def _reply_with_engagement_settings(
     reply_markup = _engagement_settings_markup(
         community_id,
         data,
-        can_manage=_is_engagement_admin(update, context),
+        can_manage=await _is_engagement_admin_async(update, context),
     )
     if edit_callback:
         await _edit_callback_message(update, message, reply_markup=reply_markup)
@@ -3093,7 +3118,7 @@ async def _send_engagement_actions(
 
 async def _send_engagement_topics(update: Any, context: Any, *, offset: int) -> None:
     client = _api_client(context)
-    can_manage = _is_engagement_admin(update, context)
+    can_manage = await _is_engagement_admin_async(update, context)
     data = await client.list_engagement_topics()
     items = data.get("items") or []
     total = int(data.get("total", len(items)) or 0)
@@ -3135,7 +3160,7 @@ async def _send_engagement_topic(update: Any, context: Any, topic_id: str) -> No
             active=bool(data.get("active")),
             good_count=len(data.get("example_good_replies") or []),
             bad_count=len(data.get("example_bad_replies") or []),
-            can_manage=_is_engagement_admin(update, context),
+            can_manage=await _is_engagement_admin_async(update, context),
         ),
     )
 
@@ -3149,7 +3174,11 @@ async def _toggle_engagement_topic(
     edit_callback: bool = False,
 ) -> None:
     client = _api_client(context)
-    data = await client.update_engagement_topic(topic_id, active=active)
+    data = await client.update_engagement_topic(
+        topic_id,
+        active=active,
+        operator_user_id=_telegram_user_id(update),
+    )
     message = format_engagement_topic_card(data, detail=True)
     reply_markup = engagement_topic_actions_markup(
         topic_id,
@@ -3177,6 +3206,7 @@ async def _remove_topic_example(
         topic_id,
         example_type=example_type,
         index=index,
+        operator_user_id=_telegram_user_id(update),
     )
     message = (
         f"Removed {example_type} example #{index + 1}.\n\n"
@@ -3203,7 +3233,11 @@ async def _update_topic_keywords(
     keywords: list[str],
 ) -> None:
     client = _api_client(context)
-    data = await client.update_engagement_topic(topic_id, **{field: keywords})
+    data = await client.update_engagement_topic(
+        topic_id,
+        **{field: keywords},
+        operator_user_id=_telegram_user_id(update),
+    )
     label = "triggers" if field == "trigger_keywords" else "negative keywords"
     await _reply(
         update,
@@ -3516,7 +3550,7 @@ async def _handle_config_edit_text(update: Any, context: Any, raw_text: str) -> 
     pending = store.get(operator_id)
     if pending is None:
         return False
-    if pending.admin_only and not _is_engagement_admin(update, context):
+    if pending.admin_only and not await _is_engagement_admin_async(update, context):
         store.cancel(operator_id)
         await _reply(update, ENGAGEMENT_ADMIN_ONLY_MESSAGE)
         return True
@@ -3569,7 +3603,7 @@ async def _save_config_edit_callback(update: Any, context: Any) -> None:
     if pending is None:
         await _callback_reply(update, "No pending edit to save.")
         return
-    if pending.admin_only and not _is_engagement_admin(update, context):
+    if pending.admin_only and not await _is_engagement_admin_async(update, context):
         await _callback_reply(update, ENGAGEMENT_ADMIN_ONLY_MESSAGE)
         return
     if pending.raw_value is None:
@@ -3594,6 +3628,7 @@ async def _save_config_edit(update: Any, context: Any, pending: PendingEdit) -> 
     client = _api_client(context)
     value = pending.parsed_value
     reviewer = _reviewer_label(update)
+    operator_user_id = _telegram_user_id(update)
 
     if pending.entity == "candidate" and pending.field == "final_reply":
         return await client.edit_engagement_candidate(
@@ -3606,12 +3641,14 @@ async def _save_config_edit(update: Any, context: Any, pending: PendingEdit) -> 
         return await client.update_engagement_target(
             pending.object_id,
             **{pending.field: value, "updated_by": reviewer},
+            operator_user_id=operator_user_id,
         )
 
     if pending.entity == "prompt_profile":
         return await client.update_engagement_prompt_profile(
             pending.object_id,
             **{pending.field: value, "updated_by": reviewer},
+            operator_user_id=operator_user_id,
         )
 
     if pending.entity == "prompt_profile_create":
@@ -3620,33 +3657,48 @@ async def _save_config_edit(update: Any, context: Any, pending: PendingEdit) -> 
         return await client.create_engagement_prompt_profile(
             **value,
             created_by=reviewer,
+            operator_user_id=operator_user_id,
         )
 
     if pending.entity == "topic":
-        return await client.update_engagement_topic(pending.object_id, **{pending.field: value})
+        return await client.update_engagement_topic(
+            pending.object_id,
+            **{pending.field: value},
+            operator_user_id=operator_user_id,
+        )
 
     if pending.entity == "topic_example":
         return await client.add_engagement_topic_example(
             pending.object_id,
             example_type=pending.field,
             example=str(value),
+            operator_user_id=operator_user_id,
         )
 
     if pending.entity == "style_rule":
         return await client.update_engagement_style_rule(
             pending.object_id,
             **{pending.field: value, "updated_by": reviewer},
+            operator_user_id=operator_user_id,
         )
 
     if pending.entity == "style_rule_create":
         if not isinstance(value, dict):
             raise BotApiError("Style rule creation details are incomplete.")
-        return await client.create_engagement_style_rule(**value, created_by=reviewer)
+        return await client.create_engagement_style_rule(
+            **value,
+            created_by=reviewer,
+            operator_user_id=operator_user_id,
+        )
 
     if pending.entity == "settings":
         current = await client.get_engagement_settings(pending.object_id)
         payload = _engagement_settings_payload_from_current(current, **{pending.field: value})
-        return await client.update_engagement_settings(pending.object_id, **payload)
+        return await client.update_engagement_settings(
+            pending.object_id,
+            **payload,
+            operator_user_id=operator_user_id,
+        )
 
     raise BotApiError("That edit type is not available yet.")
 
@@ -4053,6 +4105,7 @@ async def _topic_example_command(update: Any, context: Any, *, example_type: str
             topic_id,
             example_type=example_type,
             example=example,
+            operator_user_id=_telegram_user_id(update),
         )
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
@@ -4180,6 +4233,9 @@ def _is_authorized_update(update: Any, settings: BotSettings) -> bool:
 
 
 def _is_engagement_admin(update: Any, context: Any) -> bool:
+    cached = _cached_backend_engagement_admin(update, context)
+    if cached is not None:
+        return cached
     settings = _bot_settings(context)
     if settings is None or not settings.admin_user_ids:
         return True
@@ -4188,10 +4244,60 @@ def _is_engagement_admin(update: Any, context: Any) -> bool:
 
 
 async def _require_engagement_admin(update: Any, context: Any) -> bool:
-    if _is_engagement_admin(update, context):
+    if await _is_engagement_admin_async(update, context):
         return True
     await _callback_reply(update, ENGAGEMENT_ADMIN_ONLY_MESSAGE)
     return False
+
+
+async def _is_engagement_admin_async(update: Any, context: Any) -> bool:
+    backend_capability = await _backend_engagement_admin_capability(update, context)
+    if backend_capability is not None:
+        return backend_capability
+    return _is_engagement_admin(update, context)
+
+
+async def _backend_engagement_admin_capability(update: Any, context: Any) -> bool | None:
+    user_id = _telegram_user_id(update)
+    cached = _cached_backend_engagement_admin(update, context)
+    if cached is not None:
+        return cached
+
+    try:
+        data = await _api_client(context).get_operator_capabilities(user_id)
+    except (AttributeError, BotApiError):
+        return None
+
+    if not data.get("backend_capabilities_available"):
+        return None
+
+    engagement_admin = data.get("engagement_admin")
+    if not isinstance(engagement_admin, bool):
+        return None
+
+    if user_id is not None:
+        _capability_cache(context)[user_id] = engagement_admin
+    return engagement_admin
+
+
+def _cached_backend_engagement_admin(update: Any, context: Any) -> bool | None:
+    user_id = _telegram_user_id(update)
+    if user_id is None:
+        return None
+    cached = _capability_cache(context).get(user_id)
+    return cached if isinstance(cached, bool) else None
+
+
+def _capability_cache(context: Any) -> dict[int, bool]:
+    application = getattr(context, "application", None)
+    bot_data = getattr(application, "bot_data", None)
+    if not isinstance(bot_data, dict):
+        return {}
+    cache = bot_data.get(OPERATOR_CAPABILITY_CACHE_KEY)
+    if not isinstance(cache, dict):
+        cache = {}
+        bot_data[OPERATOR_CAPABILITY_CACHE_KEY] = cache
+    return cache
 
 
 def _callback_action_requires_engagement_admin(action: str, parts: list[str]) -> bool:

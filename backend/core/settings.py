@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     )
     redis_url: str = Field(default="redis://redis:6379/0", validation_alias="REDIS_URL")
     bot_api_token: str = Field(default="", validation_alias="BOT_API_TOKEN")
+    engagement_admin_user_ids: str = Field(default="", validation_alias="ENGAGEMENT_ADMIN_USER_IDS")
     openai_api_key: str = Field(default="", validation_alias="OPENAI_API_KEY")
     openai_brief_model: str = Field(default="gpt-4o-mini", validation_alias="OPENAI_BRIEF_MODEL")
     openai_engagement_model: str = Field(

@@ -923,3 +923,12 @@ community is resolved, default target/prompt/topic/style cards are more compact 
 operator-facing, and detail views still preserve raw IDs and audit fields. Readiness formatting now
 uses backend-provided labels or concrete block reasons when present. Focused bot UI, formatting,
 and engagement-handler coverage passed with 162 tests.
+
+## [2026-04-22] code | Added backend engagement admin capabilities
+
+Completed Bot Engagement Controls Slice 15. Added `GET /api/operator/capabilities` and backend
+`ENGAGEMENT_ADMIN_USER_IDS` capability checks for protected engagement-admin mutation routes. The
+bot now sends `X-Telegram-User-Id`, prefers backend capability decisions for admin hiding/rejection,
+and falls back to `TELEGRAM_ADMIN_USER_IDS` only when backend capabilities are unconfigured or
+unavailable. Focused bot access, API-client, engagement-handler, and engagement API coverage passed
+with 159 tests.

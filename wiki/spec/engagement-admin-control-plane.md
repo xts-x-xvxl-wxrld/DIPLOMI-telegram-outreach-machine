@@ -83,10 +83,12 @@ approval as engagement approval.
 
 Callback prefixes should remain under `eng:*`. Admin-only controls may use `eng:admin:*`.
 
-When the backend does not yet expose a capability or role endpoint for the bot, the Telegram bot
-may apply a transitional local admin allowlist such as `TELEGRAM_ADMIN_USER_IDS` to hide and reject
-admin-only bot mutations early. This is a UX boundary only; backend authorization remains the
-source of truth.
+The backend exposes `GET /api/operator/capabilities` for the bot's current Telegram operator
+context. The bot sends `X-Telegram-User-Id` and uses the returned `engagement_admin` capability as
+the primary admin boundary. When backend capabilities are unconfigured or unavailable, the Telegram
+bot may apply a transitional local admin allowlist such as `TELEGRAM_ADMIN_USER_IDS` to hide and
+reject admin-only bot mutations early. This fallback is a UX boundary only; backend authorization
+remains the source of truth when configured.
 
 ## Engagement Targets
 
@@ -206,8 +208,8 @@ Admin access:
   reply-only, no DMs, no fake consensus, or prefer no reply.
 - Prompt activation and rollback require explicit confirmation in the bot.
 - Prompt profile detail, preview, version history, duplicate, edit, activate, and rollback controls
-  are admin-only. The bot may reject locally identified non-admin operators before protected API
-  mutations, while backend authorization remains authoritative.
+  are admin-only. The bot prefers backend capabilities for local hiding/rejection and falls back to
+  `TELEGRAM_ADMIN_USER_IDS` only during rollout, while backend authorization remains authoritative.
 
 Safety floor:
 

@@ -414,6 +414,66 @@ async def test_engagement_target_note_update_uses_target_patch_route() -> None:
 
 
 @pytest.mark.asyncio
+async def test_operator_capabilities_sends_operator_header() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/operator/capabilities"
+        assert request.headers["x-telegram-user-id"] == "123"
+        return httpx.Response(
+            200,
+            json={
+                "operator_user_id": 123,
+                "backend_capabilities_available": True,
+                "engagement_admin": True,
+                "source": "backend_admin_user_ids",
+            },
+        )
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    response = await client.get_operator_capabilities(123)
+    await client.aclose()
+
+    assert response["engagement_admin"] is True
+
+
+@pytest.mark.asyncio
+async def test_admin_mutation_methods_can_send_operator_header() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "PATCH"
+        assert request.url.path == "/api/engagement/targets/target-1"
+        assert request.headers["x-telegram-user-id"] == "123"
+        assert json.loads(request.content) == {
+            "allow_post": True,
+            "updated_by": "telegram:123",
+        }
+        return httpx.Response(
+            200,
+            json={"id": "target-1", "status": "approved", "allow_post": True},
+        )
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    response = await client.update_engagement_target(
+        "target-1",
+        allow_post=True,
+        updated_by="telegram:123",
+        operator_user_id=123,
+    )
+    await client.aclose()
+
+    assert response["allow_post"] is True
+
+
+@pytest.mark.asyncio
 async def test_approve_engagement_candidate_posts_reviewer() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"

@@ -4,7 +4,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend.api.deps import DbSession, require_bot_token
+from backend.api.deps import (
+    DbSession,
+    OperatorCapabilitiesDep,
+    require_bot_token,
+    require_engagement_admin_capability,
+)
 from backend.api.schemas import (
     EngagementActionListResponse,
     EngagementActionOut,
@@ -49,6 +54,7 @@ from backend.api.schemas import (
     EngagementTopicOut,
     EngagementTopicUpdate,
     JobResponse,
+    OperatorCapabilitiesOut,
 )
 from backend.db.enums import EngagementCandidateStatus
 from backend.db.models import Community, EngagementCandidate
@@ -103,6 +109,18 @@ from backend.services.community_engagement import (
 router = APIRouter(dependencies=[Depends(require_bot_token)])
 
 
+@router.get("/operator/capabilities", response_model=OperatorCapabilitiesOut)
+async def get_operator_capabilities(
+    capabilities: OperatorCapabilitiesDep,
+) -> OperatorCapabilitiesOut:
+    return OperatorCapabilitiesOut(
+        operator_user_id=capabilities.operator_user_id,
+        backend_capabilities_available=capabilities.backend_capabilities_available,
+        engagement_admin=capabilities.engagement_admin,
+        source=capabilities.source,
+    )
+
+
 @router.get("/engagement/targets", response_model=EngagementTargetListResponse)
 async def get_engagement_targets(
     db: DbSession,
@@ -136,7 +154,12 @@ async def get_engagement_target_detail(
     return EngagementTargetOut.model_validate(target)
 
 
-@router.post("/engagement/targets", response_model=EngagementTargetOut, status_code=201)
+@router.post(
+    "/engagement/targets",
+    response_model=EngagementTargetOut,
+    status_code=201,
+    dependencies=[Depends(require_engagement_admin_capability)],
+)
 async def post_engagement_target(
     payload: EngagementTargetCreateRequest,
     db: DbSession,
@@ -155,7 +178,11 @@ async def post_engagement_target(
     return EngagementTargetOut.model_validate(target)
 
 
-@router.patch("/engagement/targets/{target_id}", response_model=EngagementTargetOut)
+@router.patch(
+    "/engagement/targets/{target_id}",
+    response_model=EngagementTargetOut,
+    dependencies=[Depends(require_engagement_admin_capability)],
+)
 async def patch_engagement_target(
     target_id: UUID,
     payload: EngagementTargetUpdateRequest,
@@ -179,6 +206,7 @@ async def patch_engagement_target(
     "/engagement/targets/{target_id}/resolve-jobs",
     response_model=JobResponse,
     status_code=202,
+    dependencies=[Depends(require_engagement_admin_capability)],
 )
 async def post_engagement_target_resolve_job(
     target_id: UUID,
@@ -280,6 +308,7 @@ async def get_community_engagement_settings(
 @router.put(
     "/communities/{community_id}/engagement-settings",
     response_model=EngagementSettingsOut,
+    dependencies=[Depends(require_engagement_admin_capability)],
 )
 async def put_community_engagement_settings(
     community_id: UUID,
@@ -320,7 +349,12 @@ async def get_engagement_topic_detail(
     return EngagementTopicOut.model_validate(topic)
 
 
-@router.post("/engagement/topics", response_model=EngagementTopicOut, status_code=201)
+@router.post(
+    "/engagement/topics",
+    response_model=EngagementTopicOut,
+    status_code=201,
+    dependencies=[Depends(require_engagement_admin_capability)],
+)
 async def post_engagement_topic(
     payload: EngagementTopicCreate,
     db: DbSession,
@@ -334,7 +368,11 @@ async def post_engagement_topic(
     return EngagementTopicOut.model_validate(topic)
 
 
-@router.patch("/engagement/topics/{topic_id}", response_model=EngagementTopicOut)
+@router.patch(
+    "/engagement/topics/{topic_id}",
+    response_model=EngagementTopicOut,
+    dependencies=[Depends(require_engagement_admin_capability)],
+)
 async def patch_engagement_topic(
     topic_id: UUID,
     payload: EngagementTopicUpdate,
@@ -349,7 +387,11 @@ async def patch_engagement_topic(
     return EngagementTopicOut.model_validate(topic)
 
 
-@router.post("/engagement/topics/{topic_id}/examples", response_model=EngagementTopicOut)
+@router.post(
+    "/engagement/topics/{topic_id}/examples",
+    response_model=EngagementTopicOut,
+    dependencies=[Depends(require_engagement_admin_capability)],
+)
 async def post_engagement_topic_example(
     topic_id: UUID,
     payload: EngagementTopicExampleCreateRequest,
@@ -368,7 +410,11 @@ async def post_engagement_topic_example(
     return EngagementTopicOut.model_validate(topic)
 
 
-@router.delete("/engagement/topics/{topic_id}/examples/{example_type}/{index}", response_model=EngagementTopicOut)
+@router.delete(
+    "/engagement/topics/{topic_id}/examples/{example_type}/{index}",
+    response_model=EngagementTopicOut,
+    dependencies=[Depends(require_engagement_admin_capability)],
+)
 async def delete_engagement_topic_example(
     topic_id: UUID,
     example_type: str,
@@ -403,7 +449,12 @@ async def get_engagement_prompt_profiles(
     )
 
 
-@router.post("/engagement/prompt-profiles", response_model=EngagementPromptProfileOut, status_code=201)
+@router.post(
+    "/engagement/prompt-profiles",
+    response_model=EngagementPromptProfileOut,
+    status_code=201,
+    dependencies=[Depends(require_engagement_admin_capability)],
+)
 async def post_engagement_prompt_profile(
     payload: EngagementPromptProfileCreateRequest,
     db: DbSession,
@@ -432,7 +483,11 @@ async def get_engagement_prompt_profile(
     return EngagementPromptProfileOut.model_validate(profile)
 
 
-@router.patch("/engagement/prompt-profiles/{profile_id}", response_model=EngagementPromptProfileOut)
+@router.patch(
+    "/engagement/prompt-profiles/{profile_id}",
+    response_model=EngagementPromptProfileOut,
+    dependencies=[Depends(require_engagement_admin_capability)],
+)
 async def patch_engagement_prompt_profile(
     profile_id: UUID,
     payload: EngagementPromptProfileUpdateRequest,
@@ -451,7 +506,11 @@ async def patch_engagement_prompt_profile(
     return EngagementPromptProfileOut.model_validate(profile)
 
 
-@router.post("/engagement/prompt-profiles/{profile_id}/activate", response_model=EngagementPromptProfileOut)
+@router.post(
+    "/engagement/prompt-profiles/{profile_id}/activate",
+    response_model=EngagementPromptProfileOut,
+    dependencies=[Depends(require_engagement_admin_capability)],
+)
 async def post_engagement_prompt_profile_activate(
     profile_id: UUID,
     payload: EngagementPromptProfileActivateRequest,
@@ -469,7 +528,11 @@ async def post_engagement_prompt_profile_activate(
     return EngagementPromptProfileOut.model_validate(profile)
 
 
-@router.post("/engagement/prompt-profiles/{profile_id}/duplicate", response_model=EngagementPromptProfileOut)
+@router.post(
+    "/engagement/prompt-profiles/{profile_id}/duplicate",
+    response_model=EngagementPromptProfileOut,
+    dependencies=[Depends(require_engagement_admin_capability)],
+)
 async def post_engagement_prompt_profile_duplicate(
     profile_id: UUID,
     payload: EngagementPromptProfileDuplicateRequest,
@@ -488,7 +551,11 @@ async def post_engagement_prompt_profile_duplicate(
     return EngagementPromptProfileOut.model_validate(profile)
 
 
-@router.post("/engagement/prompt-profiles/{profile_id}/rollback", response_model=EngagementPromptProfileOut)
+@router.post(
+    "/engagement/prompt-profiles/{profile_id}/rollback",
+    response_model=EngagementPromptProfileOut,
+    dependencies=[Depends(require_engagement_admin_capability)],
+)
 async def post_engagement_prompt_profile_rollback(
     profile_id: UUID,
     payload: EngagementPromptProfileRollbackRequest,
@@ -581,7 +648,12 @@ async def get_engagement_style_rule_detail(
     return EngagementStyleRuleOut.model_validate(rule)
 
 
-@router.post("/engagement/style-rules", response_model=EngagementStyleRuleOut, status_code=201)
+@router.post(
+    "/engagement/style-rules",
+    response_model=EngagementStyleRuleOut,
+    status_code=201,
+    dependencies=[Depends(require_engagement_admin_capability)],
+)
 async def post_engagement_style_rule(
     payload: EngagementStyleRuleCreateRequest,
     db: DbSession,
@@ -598,7 +670,11 @@ async def post_engagement_style_rule(
     return EngagementStyleRuleOut.model_validate(rule)
 
 
-@router.patch("/engagement/style-rules/{rule_id}", response_model=EngagementStyleRuleOut)
+@router.patch(
+    "/engagement/style-rules/{rule_id}",
+    response_model=EngagementStyleRuleOut,
+    dependencies=[Depends(require_engagement_admin_capability)],
+)
 async def patch_engagement_style_rule(
     rule_id: UUID,
     payload: EngagementStyleRuleUpdateRequest,

@@ -670,7 +670,7 @@ Completed:
 
 ## Follow-Up Slice 15: Backend Capability Boundary
 
-Status: deferred.
+Status: completed on 2026-04-22.
 
 Purpose:
 
@@ -692,11 +692,27 @@ Acceptance:
 - Protected backend routes remain authoritative even if bot-side checks are misconfigured.
 - Tests cover both backend-capability and transitional-allowlist behavior.
 
+Completed:
+
+- Added `GET /api/operator/capabilities`, which reports whether backend engagement-admin
+  capabilities are configured and whether the caller's `X-Telegram-User-Id` has the admin
+  capability.
+- Added backend-owned `ENGAGEMENT_ADMIN_USER_IDS` configuration. When configured, protected
+  target, prompt-profile, style-rule, topic, and community engagement-settings mutation routes
+  reject non-admin callers with `403 engagement_admin_required`.
+- Updated the bot API client and admin mutation calls to send the Telegram operator ID as
+  `X-Telegram-User-Id`.
+- Updated bot admin gating to prefer backend capabilities and fall back to
+  `TELEGRAM_ADMIN_USER_IDS` only when the backend reports capabilities are unconfigured or the
+  endpoint is unavailable.
+- Added focused backend capability, API-client header, bot access, and engagement-handler tests.
+
 ## Open Questions
 
 - Prompt duplicate and rollback are first-class API routes in the shipped implementation.
-- Admin permission currently uses a transitional bot allowlist through `TELEGRAM_ADMIN_USER_IDS`;
-  a backend capability or role model remains the preferred long-term authority.
+- Admin permission now prefers backend capabilities from `GET /api/operator/capabilities` backed by
+  `ENGAGEMENT_ADMIN_USER_IDS`; `TELEGRAM_ADMIN_USER_IDS` remains a transitional bot-side fallback
+  when backend capabilities are unconfigured.
 - Should target approval also create default engagement settings? Current recommendation: keep
   approval and settings separate until product review chooses otherwise.
 - Should conversation-state edits survive bot restarts? Current recommendation: keep short-lived

@@ -117,6 +117,13 @@ class BotApiClient:
     async def get_accounts(self) -> dict[str, Any]:
         return await self._request("GET", "/debug/accounts")
 
+    async def get_operator_capabilities(self, operator_user_id: int | None = None) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            "/operator/capabilities",
+            operator_user_id=operator_user_id,
+        )
+
     async def get_community(self, community_id: str) -> dict[str, Any]:
         return await self._request("GET", f"/communities/{community_id}")
 
@@ -197,29 +204,43 @@ class BotApiClient:
         target_ref: str,
         added_by: str,
         notes: str | None = None,
+        operator_user_id: int | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {"target_ref": target_ref, "added_by": added_by}
         if notes is not None:
             payload["notes"] = notes
-        return await self._request("POST", "/engagement/targets", json=payload)
+        return await self._request(
+            "POST",
+            "/engagement/targets",
+            json=payload,
+            operator_user_id=operator_user_id,
+        )
 
     async def update_engagement_target(
         self,
         target_id: str,
+        operator_user_id: int | None = None,
         **updates: Any,
     ) -> dict[str, Any]:
-        return await self._request("PATCH", f"/engagement/targets/{target_id}", json=updates)
+        return await self._request(
+            "PATCH",
+            f"/engagement/targets/{target_id}",
+            json=updates,
+            operator_user_id=operator_user_id,
+        )
 
     async def resolve_engagement_target(
         self,
         target_id: str,
         *,
         requested_by: str | None = None,
+        operator_user_id: int | None = None,
     ) -> dict[str, Any]:
         return await self._request(
             "POST",
             f"/engagement/targets/{target_id}/resolve-jobs",
             json={"requested_by": requested_by},
+            operator_user_id=operator_user_id,
         )
 
     async def start_engagement_target_join(
@@ -321,6 +342,7 @@ class BotApiClient:
         quiet_hours_start: str | None = None,
         quiet_hours_end: str | None = None,
         assigned_account_id: str | None = None,
+        operator_user_id: int | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "mode": mode,
@@ -338,6 +360,7 @@ class BotApiClient:
             "PUT",
             f"/communities/{community_id}/engagement-settings",
             json=payload,
+            operator_user_id=operator_user_id,
         )
 
     async def list_engagement_topics(self) -> dict[str, Any]:
@@ -357,6 +380,7 @@ class BotApiClient:
         example_good_replies: list[str] | None = None,
         example_bad_replies: list[str] | None = None,
         active: bool = True,
+        operator_user_id: int | None = None,
     ) -> dict[str, Any]:
         return await self._request(
             "POST",
@@ -371,17 +395,20 @@ class BotApiClient:
                 "example_bad_replies": example_bad_replies or [],
                 "active": active,
             },
+            operator_user_id=operator_user_id,
         )
 
     async def update_engagement_topic(
         self,
         topic_id: str,
+        operator_user_id: int | None = None,
         **updates: Any,
     ) -> dict[str, Any]:
         return await self._request(
             "PATCH",
             f"/engagement/topics/{topic_id}",
             json=updates,
+            operator_user_id=operator_user_id,
         )
 
     async def add_engagement_topic_example(
@@ -390,11 +417,13 @@ class BotApiClient:
         *,
         example_type: str,
         example: str,
+        operator_user_id: int | None = None,
     ) -> dict[str, Any]:
         return await self._request(
             "POST",
             f"/engagement/topics/{topic_id}/examples",
             json={"example_type": example_type, "example": example},
+            operator_user_id=operator_user_id,
         )
 
     async def remove_engagement_topic_example(
@@ -403,10 +432,12 @@ class BotApiClient:
         *,
         example_type: str,
         index: int,
+        operator_user_id: int | None = None,
     ) -> dict[str, Any]:
         return await self._request(
             "DELETE",
             f"/engagement/topics/{topic_id}/examples/{example_type}/{index}",
+            operator_user_id=operator_user_id,
         )
 
     async def list_engagement_prompt_profiles(
@@ -426,19 +457,27 @@ class BotApiClient:
 
     async def create_engagement_prompt_profile(
         self,
+        operator_user_id: int | None = None,
         **payload: Any,
     ) -> dict[str, Any]:
-        return await self._request("POST", "/engagement/prompt-profiles", json=payload)
+        return await self._request(
+            "POST",
+            "/engagement/prompt-profiles",
+            json=payload,
+            operator_user_id=operator_user_id,
+        )
 
     async def update_engagement_prompt_profile(
         self,
         profile_id: str,
+        operator_user_id: int | None = None,
         **updates: Any,
     ) -> dict[str, Any]:
         return await self._request(
             "PATCH",
             f"/engagement/prompt-profiles/{profile_id}",
             json=updates,
+            operator_user_id=operator_user_id,
         )
 
     async def activate_engagement_prompt_profile(
@@ -446,6 +485,7 @@ class BotApiClient:
         profile_id: str,
         *,
         updated_by: str | None = None,
+        operator_user_id: int | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {}
         if updated_by is not None:
@@ -454,6 +494,7 @@ class BotApiClient:
             "POST",
             f"/engagement/prompt-profiles/{profile_id}/activate",
             json=payload,
+            operator_user_id=operator_user_id,
         )
 
     async def duplicate_engagement_prompt_profile(
@@ -462,6 +503,7 @@ class BotApiClient:
         *,
         name: str | None = None,
         created_by: str | None = None,
+        operator_user_id: int | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {}
         if name is not None:
@@ -472,6 +514,7 @@ class BotApiClient:
             "POST",
             f"/engagement/prompt-profiles/{profile_id}/duplicate",
             json=payload,
+            operator_user_id=operator_user_id,
         )
 
     async def rollback_engagement_prompt_profile(
@@ -480,6 +523,7 @@ class BotApiClient:
         *,
         version_id: str,
         updated_by: str | None = None,
+        operator_user_id: int | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {"version_id": version_id}
         if updated_by is not None:
@@ -488,6 +532,7 @@ class BotApiClient:
             "POST",
             f"/engagement/prompt-profiles/{profile_id}/rollback",
             json=payload,
+            operator_user_id=operator_user_id,
         )
 
     async def preview_engagement_prompt_profile(
@@ -528,19 +573,27 @@ class BotApiClient:
 
     async def create_engagement_style_rule(
         self,
+        operator_user_id: int | None = None,
         **payload: Any,
     ) -> dict[str, Any]:
-        return await self._request("POST", "/engagement/style-rules", json=payload)
+        return await self._request(
+            "POST",
+            "/engagement/style-rules",
+            json=payload,
+            operator_user_id=operator_user_id,
+        )
 
     async def update_engagement_style_rule(
         self,
         rule_id: str,
+        operator_user_id: int | None = None,
         **updates: Any,
     ) -> dict[str, Any]:
         return await self._request(
             "PATCH",
             f"/engagement/style-rules/{rule_id}",
             json=updates,
+            operator_user_id=operator_user_id,
         )
 
     async def edit_engagement_candidate(
@@ -657,7 +710,18 @@ class BotApiClient:
             params["topic_id"] = topic_id
         return await self._request("GET", "/engagement/semantic-rollout", params=params)
 
-    async def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        operator_user_id: int | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        if operator_user_id is not None:
+            headers = dict(kwargs.pop("headers", {}) or {})
+            headers["X-Telegram-User-Id"] = str(operator_user_id)
+            kwargs["headers"] = headers
         try:
             response = await self._client.request(method, path, **kwargs)
         except httpx.RequestError as exc:

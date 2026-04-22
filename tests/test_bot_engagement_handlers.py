@@ -135,6 +135,8 @@ class _FakeApiClient:
         self.action_calls: list[dict[str, Any]] = []
         self.rollout_calls: list[dict[str, Any]] = []
         self.accounts_calls = 0
+        self.capability_calls: list[int | None] = []
+        self.capabilities: dict[str, Any] | None = None
         self.settings = {
             "community_id": "community-1",
             "mode": "disabled",
@@ -428,6 +430,17 @@ class _FakeApiClient:
             ],
         }
 
+    async def get_operator_capabilities(self, operator_user_id: int | None = None) -> dict[str, Any]:
+        self.capability_calls.append(operator_user_id)
+        if self.capabilities is not None:
+            return self.capabilities
+        return {
+            "operator_user_id": operator_user_id,
+            "backend_capabilities_available": False,
+            "engagement_admin": None,
+            "source": "unconfigured",
+        }
+
     async def list_engagement_targets(
         self,
         *,
@@ -460,6 +473,7 @@ class _FakeApiClient:
         target_ref: str,
         added_by: str,
         notes: str | None = None,
+        operator_user_id: int | None = None,
     ) -> dict[str, Any]:
         self.create_target_calls.append(
             {"target_ref": target_ref, "added_by": added_by, "notes": notes}
@@ -470,7 +484,12 @@ class _FakeApiClient:
             "submitted_ref": f"username:{target_ref.lstrip('@')}",
         }
 
-    async def update_engagement_target(self, target_id: str, **updates: Any) -> dict[str, Any]:
+    async def update_engagement_target(
+        self,
+        target_id: str,
+        operator_user_id: int | None = None,
+        **updates: Any,
+    ) -> dict[str, Any]:
         self.update_target_calls.append({"target_id": target_id, "updates": updates})
         target = await self.get_engagement_target(target_id)
         updated = {**target, **{key: value for key, value in updates.items() if key != "updated_by"}}
@@ -486,6 +505,7 @@ class _FakeApiClient:
         target_id: str,
         *,
         requested_by: str | None = None,
+        operator_user_id: int | None = None,
     ) -> dict[str, Any]:
         self.resolve_target_calls.append({"target_id": target_id, "requested_by": requested_by})
         return {"job": {"id": "target-resolve-job", "type": "engagement_target.resolve", "status": "queued"}}
@@ -565,7 +585,11 @@ class _FakeApiClient:
         self.prompt_versions_calls.append(profile_id)
         return {"items": list(self.prompt_versions.get(profile_id, []))}
 
-    async def create_engagement_prompt_profile(self, **payload: Any) -> dict[str, Any]:
+    async def create_engagement_prompt_profile(
+        self,
+        operator_user_id: int | None = None,
+        **payload: Any,
+    ) -> dict[str, Any]:
         self.create_prompt_calls.append(dict(payload))
         profile = {
             "id": "prompt-created",
@@ -593,6 +617,7 @@ class _FakeApiClient:
         profile_id: str,
         *,
         updated_by: str | None = None,
+        operator_user_id: int | None = None,
     ) -> dict[str, Any]:
         self.activate_prompt_calls.append({"profile_id": profile_id, "updated_by": updated_by})
         self.prompts = [
@@ -607,6 +632,7 @@ class _FakeApiClient:
         *,
         name: str | None = None,
         created_by: str | None = None,
+        operator_user_id: int | None = None,
     ) -> dict[str, Any]:
         self.duplicate_prompt_calls.append(
             {"profile_id": profile_id, "name": name, "created_by": created_by}
@@ -631,6 +657,7 @@ class _FakeApiClient:
         *,
         version_id: str,
         updated_by: str | None = None,
+        operator_user_id: int | None = None,
     ) -> dict[str, Any]:
         self.rollback_prompt_calls.append(
             {"profile_id": profile_id, "version_id": version_id, "updated_by": updated_by}
@@ -638,7 +665,12 @@ class _FakeApiClient:
         prompt = await self.get_engagement_prompt_profile(profile_id)
         return {**prompt, "current_version_number": 3, "current_version_id": "prompt-version-3"}
 
-    async def update_engagement_prompt_profile(self, profile_id: str, **updates: Any) -> dict[str, Any]:
+    async def update_engagement_prompt_profile(
+        self,
+        profile_id: str,
+        operator_user_id: int | None = None,
+        **updates: Any,
+    ) -> dict[str, Any]:
         self.update_prompt_calls.append({"profile_id": profile_id, "updates": updates})
         prompt = await self.get_engagement_prompt_profile(profile_id)
         changed = {**prompt, **{key: value for key, value in updates.items() if key != "updated_by"}}
@@ -671,7 +703,11 @@ class _FakeApiClient:
         rule = next((item for item in self.style_rules if item["id"] == rule_id), None)
         return dict(rule or {**self.style_rules[0], "id": rule_id})
 
-    async def create_engagement_style_rule(self, **payload: Any) -> dict[str, Any]:
+    async def create_engagement_style_rule(
+        self,
+        operator_user_id: int | None = None,
+        **payload: Any,
+    ) -> dict[str, Any]:
         self.create_style_rule_calls.append(dict(payload))
         rule = {
             "id": "rule-created",
@@ -685,7 +721,12 @@ class _FakeApiClient:
         self.style_rules.append(rule)
         return rule
 
-    async def update_engagement_style_rule(self, rule_id: str, **updates: Any) -> dict[str, Any]:
+    async def update_engagement_style_rule(
+        self,
+        rule_id: str,
+        operator_user_id: int | None = None,
+        **updates: Any,
+    ) -> dict[str, Any]:
         self.update_style_rule_calls.append({"rule_id": rule_id, "updates": updates})
         rule = await self.get_engagement_style_rule(rule_id)
         updated = {**rule, **{key: value for key, value in updates.items() if key != "updated_by"}}
@@ -756,6 +797,7 @@ class _FakeApiClient:
         stance_guidance: str,
         trigger_keywords: list[str],
         active: bool = True,
+        operator_user_id: int | None = None,
         **_: Any,
     ) -> dict[str, Any]:
         self.create_topic_calls.append(
@@ -777,7 +819,12 @@ class _FakeApiClient:
             "active": active,
         }
 
-    async def update_engagement_topic(self, topic_id: str, **updates: Any) -> dict[str, Any]:
+    async def update_engagement_topic(
+        self,
+        topic_id: str,
+        operator_user_id: int | None = None,
+        **updates: Any,
+    ) -> dict[str, Any]:
         self.update_topic_calls.append({"topic_id": topic_id, "updates": updates})
         topic = next((item for item in self.topics if item["id"] == topic_id), None)
         if topic is None:
@@ -801,6 +848,7 @@ class _FakeApiClient:
         *,
         example_type: str,
         example: str,
+        operator_user_id: int | None = None,
     ) -> dict[str, Any]:
         self.add_topic_example_calls.append(
             {"topic_id": topic_id, "example_type": example_type, "example": example}
@@ -819,6 +867,7 @@ class _FakeApiClient:
         *,
         example_type: str,
         index: int,
+        operator_user_id: int | None = None,
     ) -> dict[str, Any]:
         self.remove_topic_example_calls.append(
             {"topic_id": topic_id, "example_type": example_type, "index": index}
@@ -836,7 +885,12 @@ class _FakeApiClient:
         self.get_settings_calls.append(community_id)
         return {**self.settings, "community_id": community_id}
 
-    async def update_engagement_settings(self, community_id: str, **updates: Any) -> dict[str, Any]:
+    async def update_engagement_settings(
+        self,
+        community_id: str,
+        operator_user_id: int | None = None,
+        **updates: Any,
+    ) -> dict[str, Any]:
         self.update_settings_calls.append({"community_id": community_id, "updates": updates})
         self.settings = {**self.settings, **updates, "community_id": community_id}
         return self.settings
@@ -1219,6 +1273,30 @@ async def test_non_admin_cannot_open_prompt_admin_surfaces() -> None:
     assert callback_update.callback_query.message.replies[0]["text"] == (
         "This engagement admin control is limited to admin operators."
     )
+
+
+@pytest.mark.asyncio
+async def test_backend_capability_overrides_local_admin_allowlist_for_admin_controls() -> None:
+    client = _FakeApiClient()
+    client.capabilities = {
+        "operator_user_id": 123,
+        "backend_capabilities_available": True,
+        "engagement_admin": False,
+        "source": "backend_admin_user_ids",
+    }
+    settings = _settings(admin_user_ids=(123,))
+    command_update = _message_update()
+    home_update = _message_update()
+
+    await engagement_prompts_command(command_update, _context(client, settings=settings))
+    await engagement_command(home_update, _context(client, settings=settings))
+
+    assert client.prompt_list_calls == []
+    assert command_update.message.replies[0]["text"] == (
+        "This engagement admin control is limited to admin operators."
+    )
+    assert "Admin" not in _button_labels(home_update.message.replies[0]["reply_markup"])
+    assert client.capability_calls == [123, 123]
 
 
 @pytest.mark.asyncio
