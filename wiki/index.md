@@ -66,6 +66,7 @@
 - `wiki/spec/bot/` - discovery command, engagement command, and bot access/UX shards
 - `wiki/spec/bot-engagement-controls/` - engagement cockpit navigation, config editing, slice contracts, controls, formatting, and tests
 - `wiki/spec/queue/` - queue job type and operations shards
+- `wiki/plan/engagement-mvp-testing-readiness/` - engagement MVP readiness slices
 - `wiki/plan/bot-engagement-controls/`, `wiki/plan/community-engagement/`,
   `wiki/plan/engagement-operator-controls/`, `wiki/plan/search-rebuild-implementation/` - split plan shards
 

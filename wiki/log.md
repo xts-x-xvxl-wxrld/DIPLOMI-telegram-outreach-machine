@@ -982,3 +982,9 @@ Added a focused readiness plan for finishing engagement before staged Telegram t
 turns the collection/detection audit into implementation slices for the real `collection.run`
 worker, exact `engagement_messages` batches, `collection_run_id` detection payloads, timely reply
 opportunity fields, active collection scheduling, operator controls, and a staged Telegram runbook.
+
+## [2026-04-22] docs | Split engagement readiness plan shards
+
+Split the engagement MVP testing readiness plan into focused shard files for collection/detection,
+timeliness/scheduling, and the operator runbook so the plan stays within the fragmentation guardrail
+while preserving the staged testing contract.
