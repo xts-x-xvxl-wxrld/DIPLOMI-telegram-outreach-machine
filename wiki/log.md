@@ -904,3 +904,12 @@ account. Settings saves reuse the current-settings merge path so `reply_only=tru
 `require_approval=true` stay enforced, with backend validation still owning bounds and account-pool
 checks. Focused bot UI, config-editing, API-client, handler, and access coverage passed with 152
 tests.
+
+## [2026-04-22] code | Added bot engagement creation flows
+
+Completed Bot Engagement Controls Slice 13. Added `/create_engagement_prompt`, an inline
+prompt-profile create flow, topic-card good/bad example creation buttons, and a real guided
+style-rule creation flow behind the existing `Create` button. Creation flows stay admin-only,
+preview before saving when button-led, and use existing engagement API routes. Focused bot
+config-editing, UI, API-client, and engagement-handler coverage passed with 151 tests; the full
+repo suite passed with 410 tests.

@@ -559,7 +559,7 @@ Completed:
 
 ## Follow-Up Slice 13: Creation Flows
 
-Status: planned.
+Status: completed on 2026-04-22.
 
 Purpose:
 
@@ -602,6 +602,22 @@ Tests:
 - Conversation-state tests cover good example, bad example, and style-rule create flows.
 - Privacy tests prove created prompt/style/topic output does not expose sender identity, full phone
   numbers, or person-level scores.
+
+Completed:
+
+- Added `/create_engagement_prompt` with pipe-delimited input for name, description, model,
+  temperature, max tokens, system prompt, and user prompt template. New profiles are created
+  inactive and prompt-template variables are checked before the API call when possible.
+- Prompt profile lists now expose an inline `Create profile` button that starts a guided
+  preview/save flow using the shared pending-edit store.
+- Topic cards now expose `Add good example` and `Add bad example` buttons. The admin sends the
+  example as the next message, previews it, and saves through the topic examples API.
+- The style-rule `Create` button now starts a real guided creation flow instead of returning only
+  command help. The compact input uses the same scope/name/priority/rule-text shape as
+  `/create_style_rule`, then previews and saves through the style-rule API.
+- Added focused API-client, UI callback, config-editing, handler, conversation-state, and privacy
+  regression tests for prompt, topic-example, and style-rule creation.
+- Full repo coverage passed with 410 tests.
 
 ## Follow-Up Slice 14: Menu And Progressive Disclosure Polish
 

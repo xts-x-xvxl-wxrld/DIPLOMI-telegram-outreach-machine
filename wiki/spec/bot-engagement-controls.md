@@ -386,6 +386,9 @@ The current main engagement menu exposes:
 - `/detect_engagement <community_id> [window_minutes]`.
 - `/engagement_topics`, `/engagement_topic <topic_id>`, topic creation, topic active-state toggles,
   good/bad topic examples, example removal, keyword updates, and guided topic-guidance editing.
+- Topic cards expose inline `Add good example` and `Add bad example` controls. These start a
+  conversation-state preview/save flow and persist through
+  `POST /api/engagement/topics/{topic_id}/examples`.
 - `/engagement_admin` with inline `Communities`, `Topics`, `Voice rules`, `Limits/accounts`,
   `Advanced`, and back-to-engagement buttons.
 - `/engagement_targets [status]`, `/engagement_target`, `/add_engagement_target`,
@@ -400,6 +403,12 @@ The current main engagement menu exposes:
 - Target posting-permission changes now show an explicit before/after confirmation card before
   saving. Join and detect permission toggles remain direct.
 - `/engagement_prompts`, `/engagement_prompt_preview`, and direct prompt activation.
+- `/create_engagement_prompt <name> | <description_or_dash> | <model> | <temperature> |
+  <max_output_tokens> | <system_prompt> | <user_prompt_template>` creates inactive prompt profiles
+  through the prompt profile API, with local rejection of unsupported prompt-template variables when
+  possible.
+- Prompt profile lists expose an inline `Create profile` button that starts a guided input,
+  preview, save, and cancel flow backed by the same prompt profile creation API.
 - `/engagement_prompt <profile_id>` detail cards with full profile metadata and capped prompt
   previews.
 - `/engagement_prompt_versions <profile_id>` immutable version history with rollback entrypoints.
@@ -416,8 +425,9 @@ The current main engagement menu exposes:
 - `/engagement_style [scope] [scope_id]`, `/engagement_style_rule <rule_id>`,
   `/create_style_rule <scope> <scope_id_or_dash> | <name> | <priority> | <rule_text>`,
   `/edit_style_rule <rule_id>`, and `/toggle_style_rule <rule_id> <on|off>`.
-- Style-rule lists now expose scope filters plus inline create-help, open, edit, and toggle
-  controls.
+- Style-rule lists now expose scope filters plus inline create, open, edit, and toggle controls.
+- Style-rule `Create` now starts a guided compact-input flow, previews the pending rule, and saves
+  through `POST /api/engagement/style-rules`.
 - Button-led edit entrypoints now start the shared guided edit flow for candidate final replies,
   target notes, prompt profile fields, topic guidance, style-rule text, and community setting
   fields where those cards expose edit buttons.
@@ -435,16 +445,15 @@ The current main engagement menu exposes:
 
 ### Missing From Prompt Profiles
 
-- Prompt profile creation.
-- Dedicated prompt profile creation command.
+- No known Slice 13 prompt-profile creation gaps.
 
 ### Missing From Topics And Examples
 
-- Inline buttons for adding topic examples from Telegram conversation state.
+- No known Slice 13 topic-example creation gaps.
 
 ### Missing From Style Rules
 
-- Inline style-rule creation form beyond the current command-led create entrypoint.
+- No known Slice 13 style-rule creation gaps.
 
 ### Missing Cross-Cutting UX
 
@@ -624,6 +633,7 @@ Required commands:
 /engagement_prompt <profile_id>
 /engagement_prompt_versions <profile_id>
 /engagement_prompt_preview <profile_id>
+/create_engagement_prompt <name> | <description_or_dash> | <model> | <temperature> | <max_output_tokens> | <system_prompt> | <user_prompt_template>
 /activate_engagement_prompt <profile_id>
 /duplicate_engagement_prompt <profile_id> <new_name>
 /edit_engagement_prompt <profile_id> <field>
@@ -1000,6 +1010,8 @@ Rules:
 
 - Prompt profile controls belong under `Advanced` by default. Most day-to-day tuning should use
   `Topics` and `Voice rules`.
+- Prompt profile creation creates an inactive profile through `POST /api/engagement/prompt-profiles`
+  and may be started from `/create_engagement_prompt` or the inline `Create profile` button.
 - Long prompt fields should use conversation-state editing: the admin starts an edit, sends the new
   text as the next message, reviews a rendered preview, then confirms save.
 - Every edit creates or references an immutable backend version row.

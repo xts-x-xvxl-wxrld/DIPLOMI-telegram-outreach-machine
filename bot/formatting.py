@@ -122,6 +122,7 @@ def format_start() -> str:
             "/engagement_targets",
             "/engagement_target <target_id>",
             "/engagement_prompts",
+            "/create_engagement_prompt <name> | <description_or_dash> | <model> | <temperature> | <max_output_tokens> | <system_prompt> | <user_prompt_template>",
             "/engagement_style",
             "/engagement_rollout",
             "/engagement_candidate <candidate_id>",

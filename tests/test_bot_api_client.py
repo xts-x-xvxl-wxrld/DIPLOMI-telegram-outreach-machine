@@ -825,6 +825,18 @@ async def test_prompt_profile_admin_methods_use_prompt_profile_endpoints() -> No
     )
 
     await client.get_engagement_prompt_profile("profile-1")
+    await client.create_engagement_prompt_profile(
+        name="New",
+        description=None,
+        active=False,
+        model="gpt-4.1-mini",
+        temperature=0.2,
+        max_output_tokens=1000,
+        system_prompt="system",
+        user_prompt_template="user",
+        output_schema_name="engagement_detection_v1",
+        created_by="telegram:123",
+    )
     await client.duplicate_engagement_prompt_profile(
         "profile-1",
         name="Copy",
@@ -840,6 +852,22 @@ async def test_prompt_profile_admin_methods_use_prompt_profile_endpoints() -> No
 
     assert seen == [
         ("GET", "/api/engagement/prompt-profiles/profile-1", None),
+        (
+            "POST",
+            "/api/engagement/prompt-profiles",
+            {
+                "name": "New",
+                "description": None,
+                "active": False,
+                "model": "gpt-4.1-mini",
+                "temperature": 0.2,
+                "max_output_tokens": 1000,
+                "system_prompt": "system",
+                "user_prompt_template": "user",
+                "output_schema_name": "engagement_detection_v1",
+                "created_by": "telegram:123",
+            },
+        ),
         (
             "POST",
             "/api/engagement/prompt-profiles/profile-1/duplicate",

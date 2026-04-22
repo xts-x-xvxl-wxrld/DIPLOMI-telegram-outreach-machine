@@ -106,6 +106,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_JOIN,
     ACTION_ENGAGEMENT_PROMPT_ACTIVATE,
     ACTION_ENGAGEMENT_PROMPT_ACTIVATE_CONFIRM,
+    ACTION_ENGAGEMENT_PROMPT_CREATE,
     ACTION_ENGAGEMENT_PROMPT_DUPLICATE,
     ACTION_ENGAGEMENT_PROMPT_EDIT,
     ACTION_ENGAGEMENT_PROMPT_OPEN,
@@ -140,6 +141,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TARGET_RESOLVE,
     ACTION_ENGAGEMENT_TARGETS,
     ACTION_ENGAGEMENT_TOPIC_EDIT,
+    ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
     ACTION_ENGAGEMENT_TOPIC_LIST,
     ACTION_ENGAGEMENT_TOPIC_OPEN,
@@ -169,7 +171,6 @@ from bot.ui import (
     engagement_admin_advanced_markup,
     engagement_admin_home_markup,
     engagement_admin_limits_markup,
-    engagement_admin_pager_markup,
     engagement_candidate_actions_markup,
     engagement_candidate_detail_markup,
     engagement_candidate_filter_markup,
@@ -179,6 +180,7 @@ from bot.ui import (
     engagement_home_markup,
     engagement_prompt_actions_markup,
     engagement_prompt_activation_confirm_markup,
+    engagement_prompt_list_markup,
     engagement_prompt_rollback_confirm_markup,
     engagement_prompt_versions_markup,
     engagement_job_markup,
@@ -669,6 +671,31 @@ async def engagement_prompt_preview_command(update: Any, context: Any) -> None:
     await _reply(update, format_engagement_prompt_preview(data))
 
 
+async def create_engagement_prompt_command(update: Any, context: Any) -> None:
+    if not await _require_engagement_admin(update, context):
+        return
+    parsed = _parse_create_engagement_prompt_args(context)
+    if parsed is None:
+        raw_value = " ".join(str(arg) for arg in context.args).strip()
+        await _reply(update, _create_engagement_prompt_error(raw_value) or _create_engagement_prompt_usage())
+        return
+    client = _api_client(context)
+    try:
+        data = await client.create_engagement_prompt_profile(
+            **parsed,
+            created_by=_reviewer_label(update),
+        )
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+        return
+    profile_id = str(data.get("id", "unknown"))
+    await _reply(
+        update,
+        "Prompt profile created.\n\n" + format_engagement_prompt_profile_card(data),
+        reply_markup=engagement_prompt_actions_markup(profile_id, active=bool(data.get("active"))),
+    )
+
+
 async def activate_engagement_prompt_command(update: Any, context: Any) -> None:
     if not await _require_engagement_admin(update, context):
         return
@@ -781,10 +808,7 @@ async def create_style_rule_command(update: Any, context: Any) -> None:
         return
     parsed = _parse_create_style_rule_args(context)
     if parsed is None:
-        await _reply(
-            update,
-            "Usage: /create_style_rule <scope> <scope_id_or_dash> | <name> | <priority> | <rule_text>",
-        )
+        await _reply(update, _create_style_rule_usage())
         return
     scope_type, scope_id, name, priority, rule_text = parsed
     client = _api_client(context)
@@ -1589,6 +1613,9 @@ async def callback_query(update: Any, context: Any) -> None:
                     field=field,
                 )
                 return
+        if action == ACTION_ENGAGEMENT_PROMPT_CREATE:
+            await _start_prompt_profile_create(update, context)
+            return
         if action == ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM and len(parts) == 3:
             permission = _normalize_target_permission(parts[1])
             enabled = _parse_callback_bool(parts[2])
@@ -1645,10 +1672,7 @@ async def callback_query(update: Any, context: Any) -> None:
             )
             return
         if action == ACTION_ENGAGEMENT_STYLE_CREATE:
-            await _callback_reply(
-                update,
-                "Create a rule with /create_style_rule <scope> <scope_id_or_dash> | <name> | <priority> | <rule_text>",
-            )
+            await _start_style_rule_create(update, context)
             return
         if action == ACTION_ENGAGEMENT_STYLE_OPEN and len(parts) == 1:
             await _send_engagement_style_rule(update, context, parts[0])
@@ -1758,6 +1782,19 @@ async def callback_query(update: Any, context: Any) -> None:
                 entity="topic",
                 object_id=parts[0],
                 field=field,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD and len(parts) == 2:
+            example_type = "good" if parts[1] == "g" else "bad" if parts[1] == "b" else None
+            if example_type is None:
+                await _callback_reply(update, "That topic example type is not available.")
+                return
+            await _start_config_edit(
+                update,
+                context,
+                entity="topic_example",
+                object_id=parts[0],
+                field=example_type,
             )
             return
         if action == ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE and len(parts) == 3:
@@ -2389,8 +2426,7 @@ async def _send_engagement_prompts(update: Any, context: Any, *, offset: int) ->
     await _callback_reply(
         update,
         format_engagement_prompt_profiles(data, offset=offset),
-        reply_markup=engagement_admin_pager_markup(
-            action=ACTION_ENGAGEMENT_PROMPTS,
+        reply_markup=engagement_prompt_list_markup(
             offset=offset,
             total=data.get("total", 0),
             page_size=ENGAGEMENT_ADMIN_PAGE_SIZE,
@@ -3303,6 +3339,7 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("engagement_prompt", engagement_prompt_command))
     application.add_handler(CommandHandler("engagement_prompt_versions", engagement_prompt_versions_command))
     application.add_handler(CommandHandler("engagement_prompt_preview", engagement_prompt_preview_command))
+    application.add_handler(CommandHandler("create_engagement_prompt", create_engagement_prompt_command))
     application.add_handler(CommandHandler("activate_engagement_prompt", activate_engagement_prompt_command))
     application.add_handler(CommandHandler("duplicate_engagement_prompt", duplicate_engagement_prompt_command))
     application.add_handler(CommandHandler("edit_engagement_prompt", edit_engagement_prompt_command))
@@ -3419,6 +3456,26 @@ async def _start_config_edit(
     await _callback_reply(update, render_edit_request(pending))
 
 
+async def _start_prompt_profile_create(update: Any, context: Any) -> None:
+    await _start_config_edit(
+        update,
+        context,
+        entity="prompt_profile_create",
+        object_id="new",
+        field="payload",
+    )
+
+
+async def _start_style_rule_create(update: Any, context: Any) -> None:
+    await _start_config_edit(
+        update,
+        context,
+        entity="style_rule_create",
+        object_id="new",
+        field="payload",
+    )
+
+
 async def _handle_config_edit_text(update: Any, context: Any, raw_text: str) -> bool:
     operator_id = _telegram_user_id(update)
     if operator_id is None:
@@ -3431,7 +3488,30 @@ async def _handle_config_edit_text(update: Any, context: Any, raw_text: str) -> 
         store.cancel(operator_id)
         await _reply(update, ENGAGEMENT_ADMIN_ONLY_MESSAGE)
         return True
-    ok, parsed_or_error = parse_edit_value(pending, raw_text)
+    if pending.entity == "prompt_profile_create":
+        parsed = _parse_create_engagement_prompt_text(raw_text)
+        if parsed is None:
+            await _reply(
+                update,
+                _create_engagement_prompt_error(raw_text)
+                or _create_engagement_prompt_usage(command_name=None),
+            )
+            return True
+        ok, parsed_or_error = True, parsed
+    elif pending.entity == "style_rule_create":
+        parsed = _parse_create_style_rule_text(raw_text)
+        if parsed is None:
+            await _reply(update, _create_style_rule_usage(command_name=None))
+            return True
+        ok, parsed_or_error = True, {
+            "scope_type": parsed[0],
+            "scope_id": parsed[1],
+            "name": parsed[2],
+            "priority": parsed[3],
+            "rule_text": parsed[4],
+        }
+    else:
+        ok, parsed_or_error = parse_edit_value(pending, raw_text)
     if not ok:
         await _reply(update, str(parsed_or_error))
         return True
@@ -3502,14 +3582,34 @@ async def _save_config_edit(update: Any, context: Any, pending: PendingEdit) -> 
             **{pending.field: value, "updated_by": reviewer},
         )
 
+    if pending.entity == "prompt_profile_create":
+        if not isinstance(value, dict):
+            raise BotApiError("Prompt profile creation details are incomplete.")
+        return await client.create_engagement_prompt_profile(
+            **value,
+            created_by=reviewer,
+        )
+
     if pending.entity == "topic":
         return await client.update_engagement_topic(pending.object_id, **{pending.field: value})
+
+    if pending.entity == "topic_example":
+        return await client.add_engagement_topic_example(
+            pending.object_id,
+            example_type=pending.field,
+            example=str(value),
+        )
 
     if pending.entity == "style_rule":
         return await client.update_engagement_style_rule(
             pending.object_id,
             **{pending.field: value, "updated_by": reviewer},
         )
+
+    if pending.entity == "style_rule_create":
+        if not isinstance(value, dict):
+            raise BotApiError("Style rule creation details are incomplete.")
+        return await client.create_engagement_style_rule(**value, created_by=reviewer)
 
     if pending.entity == "settings":
         current = await client.get_engagement_settings(pending.object_id)
@@ -3536,9 +3636,25 @@ def _saved_config_edit_response(pending: PendingEdit, data: dict[str, Any]) -> t
             prefix + "\n\n" + format_engagement_prompt_profile_card(data),
             engagement_prompt_actions_markup(pending.object_id, active=bool(data.get("active"))),
         )
+    if pending.entity == "prompt_profile_create":
+        profile_id = str(data.get("id", "unknown"))
+        return (
+            "Prompt profile created.\n\n" + format_engagement_prompt_profile_card(data),
+            engagement_prompt_actions_markup(profile_id, active=bool(data.get("active"))),
+        )
     if pending.entity == "topic":
         return (
             prefix + "\n\n" + format_engagement_topic_card(data),
+            engagement_topic_actions_markup(
+                pending.object_id,
+                active=bool(data.get("active")),
+                good_count=len(data.get("example_good_replies") or []),
+                bad_count=len(data.get("example_bad_replies") or []),
+            ),
+        )
+    if pending.entity == "topic_example":
+        return (
+            "Topic example added.\n\n" + format_engagement_topic_card(data),
             engagement_topic_actions_markup(
                 pending.object_id,
                 active=bool(data.get("active")),
@@ -3551,6 +3667,15 @@ def _saved_config_edit_response(pending: PendingEdit, data: dict[str, Any]) -> t
             prefix + "\n\n" + format_engagement_style_rule_card(data),
             engagement_style_rule_actions_markup(
                 pending.object_id,
+                active=bool(data.get("active")),
+            ),
+        )
+    if pending.entity == "style_rule_create":
+        rule_id = str(data.get("id", "unknown"))
+        return (
+            "Style rule created.\n\n" + format_engagement_style_rule_card(data),
+            engagement_style_rule_actions_markup(
+                rule_id,
                 active=bool(data.get("active")),
             ),
         )
@@ -3783,10 +3908,79 @@ def _parse_create_engagement_topic_args(context: Any) -> tuple[str, str, list[st
     return name, guidance, keywords
 
 
+def _parse_create_engagement_prompt_args(context: Any) -> dict[str, Any] | None:
+    raw_value = " ".join(str(arg) for arg in context.args).strip()
+    return _parse_create_engagement_prompt_text(raw_value)
+
+
+def _parse_create_engagement_prompt_text(raw_value: str) -> dict[str, Any] | None:
+    parts = [part.strip() for part in raw_value.split("|", maxsplit=6)]
+    if len(parts) != 7:
+        return None
+    (
+        name,
+        description,
+        model,
+        raw_temperature,
+        raw_max_output_tokens,
+        system_prompt,
+        user_prompt_template,
+    ) = parts
+    if not name or not model or not system_prompt or not user_prompt_template:
+        return None
+    temperature_field = editable_field("prompt_profile", "temperature")
+    max_tokens_field = editable_field("prompt_profile", "max_output_tokens")
+    template_field = editable_field("prompt_profile", "user_prompt_template")
+    if temperature_field is None or max_tokens_field is None or template_field is None:
+        return None
+    temperature_ok, temperature = parse_edit_value(temperature_field, raw_temperature)
+    max_tokens_ok, max_output_tokens = parse_edit_value(max_tokens_field, raw_max_output_tokens)
+    template_ok, parsed_template = parse_edit_value(template_field, user_prompt_template)
+    if not (temperature_ok and max_tokens_ok and template_ok):
+        return None
+    return {
+        "name": name,
+        "description": None if description in {"", "-"} else description,
+        "active": False,
+        "model": model,
+        "temperature": temperature,
+        "max_output_tokens": max_output_tokens,
+        "system_prompt": system_prompt,
+        "user_prompt_template": parsed_template,
+        "output_schema_name": "engagement_detection_v1",
+    }
+
+
+def _create_engagement_prompt_error(raw_value: str) -> str | None:
+    parts = [part.strip() for part in raw_value.split("|", maxsplit=6)]
+    if len(parts) != 7:
+        return None
+    _, _, _, raw_temperature, raw_max_output_tokens, _, user_prompt_template = parts
+    checks = [
+        ("prompt_profile", "temperature", raw_temperature),
+        ("prompt_profile", "max_output_tokens", raw_max_output_tokens),
+        ("prompt_profile", "user_prompt_template", user_prompt_template),
+    ]
+    for entity, field_name, value in checks:
+        field = editable_field(entity, field_name)
+        if field is None:
+            continue
+        ok, parsed_or_error = parse_edit_value(field, value)
+        if not ok:
+            return str(parsed_or_error)
+    return None
+
+
 def _parse_create_style_rule_args(
     context: Any,
 ) -> tuple[str, str | None, str, int, str] | None:
     raw_value = " ".join(str(arg) for arg in context.args).strip()
+    return _parse_create_style_rule_text(raw_value)
+
+
+def _parse_create_style_rule_text(
+    raw_value: str,
+) -> tuple[str, str | None, str, int, str] | None:
     parts = [part.strip() for part in raw_value.split("|", maxsplit=3)]
     if len(parts) != 4:
         return None
@@ -3874,6 +4068,38 @@ def _create_engagement_topic_usage() -> str:
     )
 
 
+def _create_engagement_prompt_usage(*, command_name: str | None = "create_engagement_prompt") -> str:
+    prefix = (
+        f"Usage: /{command_name} "
+        if command_name
+        else "Send: "
+    )
+    return "\n".join(
+        [
+            (
+                prefix
+                + "<name> | <description_or_dash> | <model> | <temperature> | "
+                "<max_output_tokens> | <system_prompt> | <user_prompt_template>"
+            ),
+            "New prompt profiles are created inactive.",
+            (
+                "Allowed template variables include {{community.title}}, {{topic.name}}, "
+                "and {{source_post.text}}. Sender identity variables are not allowed."
+            ),
+        ]
+    )
+
+
+def _create_style_rule_usage(*, command_name: str | None = "create_style_rule") -> str:
+    prefix = f"Usage: /{command_name} " if command_name else "Send: "
+    return "\n".join(
+        [
+            prefix + "<scope> <scope_id_or_dash> | <name> | <priority> | <rule_text>",
+            "Scopes: global, account, community, topic. Use '-' only for global.",
+        ]
+    )
+
+
 def _parse_on_off(raw_value: str) -> bool | None:
     value = raw_value.strip().casefold()
     if value == "on":
@@ -3954,6 +4180,7 @@ def _callback_action_requires_engagement_admin(action: str, parts: list[str]) ->
         ACTION_ENGAGEMENT_PROMPT_PREVIEW,
         ACTION_ENGAGEMENT_PROMPT_VERSIONS,
         ACTION_ENGAGEMENT_PROMPT_EDIT,
+        ACTION_ENGAGEMENT_PROMPT_CREATE,
         ACTION_ENGAGEMENT_PROMPT_DUPLICATE,
         ACTION_ENGAGEMENT_PROMPT_ACTIVATE,
         ACTION_ENGAGEMENT_PROMPT_ACTIVATE_CONFIRM,
@@ -3969,6 +4196,7 @@ def _callback_action_requires_engagement_admin(action: str, parts: list[str]) ->
         ACTION_ENGAGEMENT_SETTINGS_POST,
         ACTION_ENGAGEMENT_SETTINGS_EDIT,
         ACTION_ENGAGEMENT_TOPIC_EDIT,
+        ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD,
         ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
         ACTION_ENGAGEMENT_TOPIC_TOGGLE,
     }:

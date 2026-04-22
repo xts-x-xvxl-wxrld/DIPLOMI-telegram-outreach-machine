@@ -64,6 +64,7 @@ Engagement commands are optional and operator-controlled:
 /engagement_prompt <profile_id>
 /engagement_prompt_versions <profile_id>
 /engagement_prompt_preview <profile_id>
+/create_engagement_prompt <name> | <description_or_dash> | <model> | <temperature> | <max_output_tokens> | <system_prompt> | <user_prompt_template>
 /activate_engagement_prompt <profile_id>
 /duplicate_engagement_prompt <profile_id> <new_name>
 /edit_engagement_prompt <profile_id> <field>
@@ -542,6 +543,14 @@ but rollback must show a confirmation card before calling the API.
 Renders a prompt profile preview through the API. The bot displays rendered text only; the preview
 endpoint does not call OpenAI.
 
+### `/create_engagement_prompt <name> | <description_or_dash> | <model> | <temperature> | <max_output_tokens> | <system_prompt> | <user_prompt_template>`
+
+Creates an inactive prompt profile through `POST /api/engagement/prompt-profiles`.
+
+The prompt profile list also exposes an inline `Create profile` button that starts a guided
+pipe-delimited input flow. Both paths reject unsupported prompt-template variables, including
+sender identity variables, before the API call when possible.
+
 ### `/activate_engagement_prompt <profile_id>`
 
 Shows an explicit activation confirmation card before activating the profile through the API.
@@ -577,6 +586,8 @@ Calls `GET /api/engagement/style-rules/{rule_id}` and shows one style-rule detai
 ### `/create_style_rule <scope> <scope_id_or_dash> | <name> | <priority> | <rule_text>`
 
 Creates a style rule through `POST /api/engagement/style-rules`.
+The inline style-rule `Create` button starts a guided compact-input flow that previews and confirms
+before creating the rule.
 
 ### `/edit_style_rule <rule_id>`
 
@@ -615,6 +626,8 @@ Adds a positive reply example to a topic through the topic examples API.
 ### `/topic_bad_reply <topic_id> | <example>`
 
 Adds a negative reply example to a topic. Bad examples are avoid-this guidance, not templates.
+Topic detail cards also expose button-led good/bad example entrypoints that collect the next
+message, show a preview, and save through the same topic examples API.
 
 ### `/topic_remove_example <topic_id> <good|bad> <index>`
 

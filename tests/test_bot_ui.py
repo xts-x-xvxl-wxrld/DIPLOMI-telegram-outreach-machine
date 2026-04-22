@@ -31,6 +31,8 @@ from bot.ui import (
     ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_JOIN,
+    ACTION_ENGAGEMENT_PROMPT_CREATE,
+    ACTION_ENGAGEMENT_PROMPTS,
     ACTION_ENGAGEMENT_SETTINGS_EDIT,
     ACTION_ENGAGEMENT_SETTINGS_OPEN,
     ACTION_ENGAGEMENT_STYLE,
@@ -48,6 +50,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM,
     ACTION_ENGAGEMENT_TARGETS,
     ACTION_ENGAGEMENT_TOPIC_EDIT,
+    ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
     ACTION_ENGAGEMENT_TOPIC_LIST,
     ACTION_ENGAGEMENT_TOPIC_OPEN,
@@ -71,6 +74,7 @@ from bot.ui import (
     engagement_candidate_send_markup,
     engagement_admin_home_markup,
     engagement_home_markup,
+    engagement_prompt_list_markup,
     engagement_settings_markup,
     engagement_style_list_markup,
     engagement_style_rule_actions_markup,
@@ -125,6 +129,7 @@ def test_parse_all_engagement_callback_namespaces() -> None:
         "eng:topic:list:10": ("eng:topic:list", ["10"]),
         "eng:topic:open:topic-1": (ACTION_ENGAGEMENT_TOPIC_OPEN, ["topic-1"]),
         "eng:topic:edit:topic-1:stance_guidance": (ACTION_ENGAGEMENT_TOPIC_EDIT, ["topic-1", "stance_guidance"]),
+        "eng:topic:addx:topic-1:g": (ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD, ["topic-1", "g"]),
         "eng:topic:rmx:topic-1:g:0": (ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE, ["topic-1", "g", "0"]),
         "eng:topic:toggle:topic-1:0": ("eng:topic:toggle", ["topic-1", "0"]),
         "eng:set:open:community-1": (ACTION_ENGAGEMENT_SETTINGS_OPEN, ["community-1"]),
@@ -140,6 +145,7 @@ def test_parse_all_engagement_callback_namespaces() -> None:
         "eng:admin:to:target-1": (ACTION_ENGAGEMENT_TARGET_OPEN, ["target-1"]),
         "eng:admin:tac:target-1": (ACTION_ENGAGEMENT_TARGET_APPROVE_CONFIRM, ["target-1"]),
         "eng:admin:te:target-1:notes": (ACTION_ENGAGEMENT_TARGET_EDIT, ["target-1", "notes"]),
+        "eng:admin:pc": (ACTION_ENGAGEMENT_PROMPT_CREATE, []),
         "eng:admin:src": (ACTION_ENGAGEMENT_STYLE_CREATE, []),
         "eng:admin:sro:rule-1": (ACTION_ENGAGEMENT_STYLE_OPEN, ["rule-1"]),
         "eng:admin:sre:rule-1": (ACTION_ENGAGEMENT_STYLE_EDIT, ["rule-1"]),
@@ -441,8 +447,10 @@ def test_engagement_topic_markup_pages_and_toggles() -> None:
     assert "eng:topic:list:5" in _callbacks(pager)
     assert f"{ACTION_ENGAGEMENT_TOPIC_OPEN}:topic-1" in _callbacks(actions)
     assert f"{ACTION_ENGAGEMENT_TOPIC_EDIT}:topic-1:stance_guidance" in _callbacks(actions)
+    assert f"{ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD}:topic-1:g" in _callbacks(actions)
+    assert f"{ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD}:topic-1:b" in _callbacks(actions)
     assert f"{ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE}:topic-1:g:0" in _callbacks(actions)
-    assert actions.inline_keyboard[2][1].callback_data == "eng:topic:toggle:topic-1:0"
+    assert "eng:topic:toggle:topic-1:0" in _callbacks(actions)
     assert "eng:topic:list:0" in _callbacks(actions)
     assert ACTION_OP_HOME in _callbacks(actions)
 
@@ -460,7 +468,17 @@ def test_engagement_topic_markup_hides_mutations_for_non_admins() -> None:
 
     assert f"{ACTION_ENGAGEMENT_TOPIC_OPEN}:topic-1" in callbacks
     assert f"{ACTION_ENGAGEMENT_TOPIC_EDIT}:topic-1:stance_guidance" not in callbacks
+    assert f"{ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD}:topic-1:g" not in callbacks
     assert f"{ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE}:topic-1:g:0" not in callbacks
+
+
+def test_engagement_prompt_list_markup_has_create_entrypoint_and_paging() -> None:
+    markup = engagement_prompt_list_markup(offset=5, total=12, page_size=5)
+
+    assert ACTION_ENGAGEMENT_PROMPT_CREATE in _callbacks(markup)
+    assert f"{ACTION_ENGAGEMENT_PROMPTS}:0" in _callbacks(markup)
+    assert f"{ACTION_ENGAGEMENT_PROMPTS}:10" in _callbacks(markup)
+    assert ACTION_ENGAGEMENT_ADMIN_ADVANCED in _callbacks(markup)
 
 
 def test_engagement_style_markup_filters_pages_and_controls() -> None:

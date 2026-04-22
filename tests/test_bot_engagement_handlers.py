@@ -18,6 +18,7 @@ from bot.main import (
     callback_query,
     clear_engagement_account_command,
     clear_engagement_quiet_hours_command,
+    create_engagement_prompt_command,
     create_style_rule_command,
     create_engagement_topic_command,
     detect_engagement_command,
@@ -117,6 +118,7 @@ class _FakeApiClient:
         self.get_prompt_calls: list[str] = []
         self.preview_prompt_calls: list[str] = []
         self.prompt_versions_calls: list[str] = []
+        self.create_prompt_calls: list[dict[str, Any]] = []
         self.activate_prompt_calls: list[dict[str, Any]] = []
         self.duplicate_prompt_calls: list[dict[str, Any]] = []
         self.rollback_prompt_calls: list[dict[str, Any]] = []
@@ -562,6 +564,29 @@ class _FakeApiClient:
     async def list_engagement_prompt_profile_versions(self, profile_id: str) -> dict[str, Any]:
         self.prompt_versions_calls.append(profile_id)
         return {"items": list(self.prompt_versions.get(profile_id, []))}
+
+    async def create_engagement_prompt_profile(self, **payload: Any) -> dict[str, Any]:
+        self.create_prompt_calls.append(dict(payload))
+        profile = {
+            "id": "prompt-created",
+            "name": payload["name"],
+            "description": payload.get("description"),
+            "active": payload.get("active", False),
+            "model": payload["model"],
+            "temperature": payload["temperature"],
+            "max_output_tokens": payload["max_output_tokens"],
+            "system_prompt": payload["system_prompt"],
+            "user_prompt_template": payload["user_prompt_template"],
+            "output_schema_name": payload.get("output_schema_name", "engagement_detection_v1"),
+            "current_version_number": 1,
+            "current_version_id": "prompt-created-version-1",
+            "created_by": payload.get("created_by") or "operator",
+            "updated_by": payload.get("created_by") or "operator",
+            "created_at": "2026-04-22T10:00:00Z",
+            "updated_at": "2026-04-22T10:00:00Z",
+        }
+        self.prompts.append(profile)
+        return profile
 
     async def activate_engagement_prompt_profile(
         self,
@@ -1229,6 +1254,92 @@ async def test_duplicate_prompt_profile_command_uses_prompt_api() -> None:
         }
     ]
     assert "Prompt profile duplicated." in update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_create_prompt_profile_command_uses_prompt_api_and_rejects_private_variables() -> None:
+    client = _FakeApiClient()
+    create_update = _message_update()
+    bad_update = _message_update()
+
+    await create_engagement_prompt_command(
+        create_update,
+        _context(
+            client,
+            "New",
+            "profile",
+            "|",
+            "-",
+            "|",
+            "gpt-4.1-mini",
+            "|",
+            "0.3",
+            "|",
+            "900",
+            "|",
+            "Stay public-only.",
+            "|",
+            "Community: {{community.title}} Source: {{source_post.text}}",
+        ),
+    )
+    await create_engagement_prompt_command(
+        bad_update,
+        _context(
+            client,
+            "Bad",
+            "|",
+            "-",
+            "|",
+            "gpt-4.1-mini",
+            "|",
+            "0.3",
+            "|",
+            "900",
+            "|",
+            "System",
+            "|",
+            "Sender: {{sender.username}}",
+        ),
+    )
+
+    assert client.create_prompt_calls == [
+        {
+            "name": "New profile",
+            "description": None,
+            "active": False,
+            "model": "gpt-4.1-mini",
+            "temperature": 0.3,
+            "max_output_tokens": 900,
+            "system_prompt": "Stay public-only.",
+            "user_prompt_template": "Community: {{community.title}} Source: {{source_post.text}}",
+            "output_schema_name": "engagement_detection_v1",
+            "created_by": "telegram:123:@operator",
+        }
+    ]
+    assert "Prompt profile created." in create_update.message.replies[0]["text"]
+    assert "Unsupported prompt variable: sender.username" in bad_update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_prompt_profile_inline_create_flow_previews_then_saves() -> None:
+    client = _FakeApiClient()
+    context = _context(client)
+    start_update = _callback_update("eng:admin:pc")
+    text_update = _message_update(
+        "Inline profile | Guided path | gpt-4.1-mini | 0.2 | 1000 | "
+        "Stay public-only. | Community: {{community.title}}"
+    )
+    save_update = _callback_update("eng:edit:save")
+
+    await callback_query(start_update, context)
+    await telegram_entity_text(text_update, context)
+    await callback_query(save_update, context)
+
+    assert "Editing Prompt profile creation details" in start_update.callback_query.message.replies[0]["text"]
+    assert "Review Prompt profile creation details" in text_update.message.replies[0]["text"]
+    assert client.create_prompt_calls[-1]["name"] == "Inline profile"
+    assert client.create_prompt_calls[-1]["created_by"] == "telegram:123:@operator"
+    assert "Prompt profile created." in save_update.callback_query.edits[0]["text"]
 
 
 @pytest.mark.asyncio
@@ -2153,17 +2264,43 @@ async def test_topic_open_edit_and_remove_callbacks_route_correctly() -> None:
     client = _FakeApiClient()
     open_update = _callback_update("eng:topic:open:topic-1")
     edit_update = _callback_update("eng:topic:edit:topic-1:trigger_keywords")
+    add_update = _callback_update("eng:topic:addx:topic-1:g")
     remove_update = _callback_update("eng:topic:rmx:topic-1:b:0")
     context = _context(client)
 
     await callback_query(open_update, context)
     await callback_query(edit_update, context)
+    await callback_query(add_update, context)
     await callback_query(remove_update, context)
 
     assert client.get_topic_calls[0] == "topic-1"
     assert "Topic ID: topic-1" in open_update.callback_query.message.replies[0]["text"]
     assert "Editing Trigger keywords" in edit_update.callback_query.message.replies[0]["text"]
+    assert "Editing Good topic example" in add_update.callback_query.message.replies[0]["text"]
     assert "Removed bad example #1." in remove_update.callback_query.edits[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_topic_example_inline_create_flow_previews_then_saves() -> None:
+    client = _FakeApiClient()
+    context = _context(client)
+    start_update = _callback_update("eng:topic:addx:topic-1:b")
+    text_update = _message_update("Never pressure people to buy immediately.")
+    save_update = _callback_update("eng:edit:save")
+
+    await callback_query(start_update, context)
+    await telegram_entity_text(text_update, context)
+    await callback_query(save_update, context)
+
+    assert "Bad topic example" in start_update.callback_query.message.replies[0]["text"]
+    assert "Review Bad topic example" in text_update.message.replies[0]["text"]
+    assert client.add_topic_example_calls[-1] == {
+        "topic_id": "topic-1",
+        "example_type": "bad",
+        "example": "Never pressure people to buy immediately.",
+    }
+    assert "Topic example added." in save_update.callback_query.edits[0]["text"]
+    assert "Bad examples (avoid copying)" in save_update.callback_query.edits[0]["text"]
 
 
 @pytest.mark.asyncio
@@ -2228,7 +2365,7 @@ async def test_create_edit_and_toggle_style_rule_commands_use_style_rule_routes(
 
 
 @pytest.mark.asyncio
-async def test_style_rule_callbacks_open_edit_toggle_and_create_help() -> None:
+async def test_style_rule_callbacks_open_edit_toggle_and_create_flow() -> None:
     client = _FakeApiClient()
     open_update = _callback_update("eng:admin:sro:rule-1")
     edit_update = _callback_update("eng:admin:sre:rule-1")
@@ -2244,7 +2381,31 @@ async def test_style_rule_callbacks_open_edit_toggle_and_create_help() -> None:
     assert "Rule ID: rule-1" in open_update.callback_query.message.replies[0]["text"]
     assert "Editing Style rule text" in edit_update.callback_query.message.replies[0]["text"]
     assert "Style rule updated." in toggle_update.callback_query.edits[0]["text"]
-    assert "Create a rule with /create_style_rule" in create_update.callback_query.message.replies[0]["text"]
+    assert "Editing Style rule creation details" in create_update.callback_query.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_style_rule_inline_create_flow_previews_then_saves() -> None:
+    client = _FakeApiClient()
+    context = _context(client)
+    start_update = _callback_update("eng:admin:src")
+    text_update = _message_update("global - | Keep it brief | 75 | Stay under three sentences.")
+    save_update = _callback_update("eng:edit:save")
+
+    await callback_query(start_update, context)
+    await telegram_entity_text(text_update, context)
+    await callback_query(save_update, context)
+
+    assert "Review Style rule creation details" in text_update.message.replies[0]["text"]
+    assert client.create_style_rule_calls[-1] == {
+        "scope_type": "global",
+        "scope_id": None,
+        "name": "Keep it brief",
+        "priority": 75,
+        "rule_text": "Stay under three sentences.",
+        "created_by": "telegram:123:@operator",
+    }
+    assert "Style rule created." in save_update.callback_query.edits[0]["text"]
 
 
 @pytest.mark.asyncio

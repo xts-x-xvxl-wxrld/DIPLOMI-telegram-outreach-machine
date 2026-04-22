@@ -57,6 +57,7 @@ Recommended bot entrypoints:
 /engagement_prompt <prompt_profile_id>
 /engagement_prompt_versions <prompt_profile_id>
 /engagement_prompt_preview <prompt_profile_id>
+/create_engagement_prompt <name> | <description_or_dash> | <model> | <temperature> | <max_output_tokens> | <system_prompt> | <user_prompt_template>
 /activate_engagement_prompt <prompt_profile_id>
 /duplicate_engagement_prompt <prompt_profile_id> <new_name>
 /edit_engagement_prompt <prompt_profile_id> <field>
@@ -279,6 +280,8 @@ Rules:
 - Bad examples show what to avoid.
 - Bad examples must be passed to the model as negative examples only.
 - Examples are examples, not templates. The model should not copy them word for word.
+- The bot may offer inline good/bad example buttons that collect the next message, preview it, and
+  save through the same topic examples API.
 - Topic guidance and examples are versioned through normal topic updates or an explicit topic
   history table in a later implementation.
 
@@ -333,6 +336,8 @@ Rules:
 - Style rules may not permit DMs, impersonation, hidden sponsorship, harassment, fake consensus, or
   moderation evasion.
 - The bot should offer list, create, edit, activate, deactivate, and preview controls.
+- Inline create controls should collect compact scope/name/priority/rule-text input, preview it,
+  and call the style-rule create API only after confirmation.
 
 ## Editable Candidate Replies
 

@@ -9,6 +9,9 @@ def test_editable_field_registry_exposes_slice_four_fields() -> None:
     candidate_field = editable_field("candidate", "final_reply")
     target_field = editable_field("target", "notes")
     prompt_field = editable_field("prompt_profile", "system_prompt")
+    prompt_create_field = editable_field("prompt_profile_create", "payload")
+    topic_example_field = editable_field("topic_example", "bad")
+    style_create_field = editable_field("style_rule_create", "payload")
     settings_field = editable_field("settings", "assigned_account_id")
 
     assert candidate_field is not None
@@ -19,6 +22,14 @@ def test_editable_field_registry_exposes_slice_four_fields() -> None:
     assert target_field.admin_only is True
     assert prompt_field is not None
     assert prompt_field.admin_only is True
+    assert prompt_create_field is not None
+    assert prompt_create_field.api_method == "create_engagement_prompt_profile"
+    assert prompt_create_field.admin_only is True
+    assert topic_example_field is not None
+    assert topic_example_field.api_method == "add_engagement_topic_example"
+    assert topic_example_field.requires_confirmation is True
+    assert style_create_field is not None
+    assert style_create_field.api_method == "create_engagement_style_rule"
     assert settings_field is not None
     assert settings_field.value_type == "uuid"
 

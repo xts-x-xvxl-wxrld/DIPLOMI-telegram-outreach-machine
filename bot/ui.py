@@ -55,6 +55,7 @@ ACTION_ENGAGEMENT_TOPIC_LIST = "eng:topic:list"
 ACTION_ENGAGEMENT_TOPIC_OPEN = "eng:topic:open"
 ACTION_ENGAGEMENT_TOPIC_TOGGLE = "eng:topic:toggle"
 ACTION_ENGAGEMENT_TOPIC_EDIT = "eng:topic:edit"
+ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD = "eng:topic:addx"
 ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE = "eng:topic:rmx"
 ACTION_ENGAGEMENT_SETTINGS_OPEN = "eng:set:open"
 ACTION_ENGAGEMENT_SETTINGS_PRESET = "eng:set:preset"
@@ -85,6 +86,7 @@ ACTION_ENGAGEMENT_PROMPT_OPEN = "eng:admin:po"
 ACTION_ENGAGEMENT_PROMPT_PREVIEW = "eng:admin:pp"
 ACTION_ENGAGEMENT_PROMPT_VERSIONS = "eng:admin:pv"
 ACTION_ENGAGEMENT_PROMPT_EDIT = "eng:admin:pe"
+ACTION_ENGAGEMENT_PROMPT_CREATE = "eng:admin:pc"
 ACTION_ENGAGEMENT_PROMPT_DUPLICATE = "eng:admin:pd"
 ACTION_ENGAGEMENT_PROMPT_ACTIVATE = "eng:admin:pa"
 ACTION_ENGAGEMENT_PROMPT_ACTIVATE_CONFIRM = "eng:admin:pac"
@@ -529,6 +531,24 @@ def engagement_prompt_actions_markup(profile_id: str, *, active: bool):
     )
 
 
+def engagement_prompt_list_markup(
+    *,
+    offset: int,
+    total: int,
+    page_size: int,
+):
+    rows = [[_button("Create profile", ACTION_ENGAGEMENT_PROMPT_CREATE)]]
+    pager_row = _offset_pager_row(
+        action=ACTION_ENGAGEMENT_PROMPTS,
+        offset=offset,
+        total=total,
+        page_size=page_size,
+    )
+    if pager_row:
+        rows.append(pager_row)
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_ADMIN_ADVANCED))
+
+
 def engagement_prompt_activation_confirm_markup(profile_id: str):
     return _inline_markup(
         _with_navigation(
@@ -810,6 +830,10 @@ def engagement_topic_actions_markup(
                         topic_id,
                         "0" if active else "1",
                     ),
+                ],
+                [
+                    _button("Add good example", ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD, topic_id, "g"),
+                    _button("Add bad example", ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD, topic_id, "b"),
                 ],
             ]
         )
