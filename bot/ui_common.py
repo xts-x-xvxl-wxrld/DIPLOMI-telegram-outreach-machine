@@ -168,8 +168,6 @@ def _button_label(label: str, action: str, parts: Sequence[str]) -> str:
         return "Home"
     if label.endswith("Today"):
         return "Today"
-    if label.endswith("Engagement"):
-        return "Engagement"
     key = (action, tuple(parts))
     overrides = {
         (ACTION_ENGAGEMENT_CANDIDATES, ("needs_review", "0")): "Review replies",

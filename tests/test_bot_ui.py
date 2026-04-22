@@ -622,6 +622,7 @@ def test_operator_cockpit_markup_button_labels() -> None:
 
     assert any(label.endswith("Discovery") for label in labels)
     assert any(label.endswith("Engagement") for label in labels)
+    assert any(label.startswith("💬 ") and label.endswith("Engagement") for label in labels)
     assert any(label.endswith("Accounts") for label in labels)
     assert any(label.endswith("Help") for label in labels)
 

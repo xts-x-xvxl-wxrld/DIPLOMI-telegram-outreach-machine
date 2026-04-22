@@ -1062,3 +1062,9 @@ while preserving the staged testing contract.
 - Added target-scoped manual collection API/client controls with approval and detect-permission gates, plus recent collection-run status listing for operator verification.
 - Wired bot commands and target-card next steps for collect-now and collection-run status while preserving join, detect, review, approve, send, and audit controls.
 - Refreshed reply-review copy to say reply opportunity while keeping legacy candidate IDs visible; focused engagement operator, bot API/UI, bot handler, and engagement API tests passed.
+
+## [2026-04-23] fix | Restore engagement cockpit emoji
+
+- Preserved the top-level Engagement inline button's speech-bubble emoji instead of rewriting it to a plain label.
+- Added a bot UI regression assertion and passed `python -m pytest tests/test_bot_ui.py -q`.
+- `python scripts/check_fragmentation.py` was run; it is currently blocked by unrelated `backend/api/schemas.py` size drift.
