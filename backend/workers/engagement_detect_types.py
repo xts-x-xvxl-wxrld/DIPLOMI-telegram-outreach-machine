@@ -97,6 +97,9 @@ class EngagementDetectionDecision(BaseModel):
     topic_match: str | None = None
     source_tg_message_id: int | None = None
     reason: str = ""
+    moment_strength: str | None = None
+    timeliness: str | None = None
+    reply_value: str | None = None
     suggested_reply: str | None = None
     risk_notes: list[str] = Field(default_factory=list)
 
@@ -110,6 +113,7 @@ class DetectionSummary:
     skipped_detector_cap: int = 0
     skipped_no_signal: int = 0
     skipped_dedupe: int = 0
+    skipped_stale: int = 0
     skipped_validation: int = 0
     semantic_observability: SemanticSelectionStats = field(default_factory=SemanticSelectionStats)
     semantic_candidates_created: int = 0
@@ -126,6 +130,7 @@ class DetectionSummary:
             "skipped_detector_cap": self.skipped_detector_cap,
             "skipped_no_signal": self.skipped_no_signal,
             "skipped_dedupe": self.skipped_dedupe,
+            "skipped_stale": self.skipped_stale,
             "skipped_validation": self.skipped_validation,
             "semantic_topic_embedding_cache_hits": semantic["topic_embedding_cache_hits"],
             "semantic_topic_embedding_cache_misses": semantic["topic_embedding_cache_misses"],

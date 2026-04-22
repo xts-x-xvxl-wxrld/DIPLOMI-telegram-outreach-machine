@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
@@ -29,6 +29,8 @@ from backend.workers.telegram_engagement import (
     EngagementMessageNotReplyable,
     SendResult,
 )
+
+_FIXTURE_NOW = datetime.now(timezone.utc).replace(microsecond=0)
 
 
 @pytest.mark.asyncio
@@ -145,6 +147,32 @@ async def test_engagement_send_expires_stale_candidate_without_network_call() ->
 
 
 @pytest.mark.asyncio
+async def test_engagement_send_skips_stale_candidate_by_reply_deadline() -> None:
+    community = _community()
+    account_id = uuid4()
+    candidate = _candidate(community)
+    candidate.reply_deadline_at = datetime(2000, 1, 1, tzinfo=timezone.utc)
+    session = _send_session(
+        community=community,
+        candidate=candidate,
+        membership=_membership(community.id, account_id),
+    )
+
+    result = await process_engagement_send(
+        {"candidate_id": str(candidate.id), "approved_by": "op"},
+        session_factory=lambda: session,
+        acquire_account_by_id_fn=lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("account acquisition should not run")
+        ),
+    )
+
+    assert result["status"] == "skipped"
+    assert result["reason"] == "candidate_stale"
+    assert candidate.status == EngagementCandidateStatus.EXPIRED.value
+    assert session.action is None
+
+
+@pytest.mark.asyncio
 async def test_engagement_send_skips_without_joined_membership() -> None:
     community = _community()
     candidate = _candidate(community)
@@ -176,7 +204,7 @@ async def test_engagement_send_records_success_and_releases_account() -> None:
     membership = _membership(community.id, account_id)
     session = _send_session(community=community, candidate=candidate, membership=membership)
     releases: list[dict[str, object]] = []
-    sent_at = datetime(2026, 4, 19, 12, 30, tzinfo=timezone.utc)
+    sent_at = _now() + timedelta(minutes=30)
     adapter = FakeSendAdapter(result=SendResult(sent_tg_message_id=456, sent_at=sent_at))
 
     result = await process_engagement_send(
@@ -528,13 +556,20 @@ def _candidate(
         topic_id=topic.id,
         source_tg_message_id=123,
         source_excerpt="The group is comparing CRM tools.",
+        source_message_date=_now() - timedelta(minutes=30),
+        detected_at=_now(),
         detected_reason="The group is comparing CRM tools.",
+        moment_strength="good",
+        timeliness="fresh",
+        reply_value="practical_tip",
         suggested_reply="Compare ownership and integrations first.",
         final_reply="Compare ownership and integrations first." if status == EngagementCandidateStatus.APPROVED.value else None,
         risk_notes=[],
         status=status,
         reviewed_by="op",
         reviewed_at=_now(),
+        review_deadline_at=_now() + timedelta(minutes=30),
+        reply_deadline_at=_now() + timedelta(minutes=60),
         expires_at=datetime(2999, 4, 20, tzinfo=timezone.utc),
         created_at=_now(),
         updated_at=_now(),
@@ -550,7 +585,7 @@ def _membership(community_id: object, account_id: object) -> CommunityAccountMem
         community_id=community_id,
         telegram_account_id=account_id,
         status=CommunityAccountMembershipStatus.JOINED.value,
-        joined_at=datetime(2026, 4, 18, tzinfo=timezone.utc),
+        joined_at=_now() - timedelta(days=1),
     )
 
 
@@ -597,12 +632,12 @@ def _lease(account_id: object, *, job_id: str) -> AccountLease:
         phone="+123456789",
         session_file_path="session",
         lease_owner=job_id,
-        lease_expires_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
+        lease_expires_at=_now() + timedelta(hours=1),
     )
 
 
 def _now() -> datetime:
-    return datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc)
+    return _FIXTURE_NOW
 
 
 def _target(community_id: object) -> EngagementTarget:

@@ -175,6 +175,27 @@ class EngagementCandidateStatus(StrEnum):
     FAILED = "failed"
 
 
+class EngagementMomentStrength(StrEnum):
+    WEAK = "weak"
+    GOOD = "good"
+    STRONG = "strong"
+
+
+class EngagementTimeliness(StrEnum):
+    FRESH = "fresh"
+    AGING = "aging"
+    STALE = "stale"
+
+
+class EngagementReplyValue(StrEnum):
+    CLARIFYING_QUESTION = "clarifying_question"
+    PRACTICAL_TIP = "practical_tip"
+    CORRECTION = "correction"
+    RESOURCE = "resource"
+    OTHER = "other"
+    NONE = "none"
+
+
 class EngagementActionType(StrEnum):
     JOIN = "join"
     REPLY = "reply"

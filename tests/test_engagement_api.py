@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -81,6 +81,8 @@ from backend.db.models import (
 )
 from backend.queue.client import QueuedJob, QueueUnavailable
 from backend.services.community_engagement import EngagementActionListResult, EngagementActionView
+
+_FIXTURE_NOW = datetime.now(timezone.utc).replace(microsecond=0)
 
 
 def test_engagement_routes_require_api_auth() -> None:
@@ -170,7 +172,6 @@ def test_admin_mutation_route_rejects_non_admin_when_backend_capabilities_are_co
     assert response.status_code == 403
     assert response.json()["detail"]["code"] == "engagement_admin_required"
 
-
 @pytest.mark.asyncio
 async def test_get_engagement_settings_returns_disabled_default() -> None:
     community_id = uuid4()
@@ -191,7 +192,6 @@ async def test_get_engagement_settings_returns_disabled_default() -> None:
     assert response.require_approval is True
     assert response.created_at is None
     assert db.added == []
-
 
 @pytest.mark.asyncio
 async def test_put_engagement_settings_forces_disabled_to_read_only() -> None:
@@ -222,7 +222,6 @@ async def test_put_engagement_settings_forces_disabled_to_read_only() -> None:
     assert db.commits == 1
     assert isinstance(db.added[0], CommunityEngagementSettings)
 
-
 @pytest.mark.asyncio
 async def test_put_engagement_settings_rejects_auto_limited() -> None:
     community_id = uuid4()
@@ -246,7 +245,6 @@ async def test_put_engagement_settings_rejects_auto_limited() -> None:
     assert exc_info.value.detail["code"] == "auto_limited_not_enabled"
     assert db.commits == 0
 
-
 @pytest.mark.asyncio
 async def test_put_engagement_settings_requires_approved_community_for_join() -> None:
     community_id = uuid4()
@@ -268,7 +266,6 @@ async def test_put_engagement_settings_requires_approved_community_for_join() ->
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail["code"] == "community_not_engagement_approved"
-
 
 @pytest.mark.asyncio
 async def test_put_engagement_settings_rejects_assigned_search_account() -> None:
@@ -301,7 +298,6 @@ async def test_put_engagement_settings_rejects_assigned_search_account() -> None
     assert exc_info.value.detail["code"] == "assigned_account_wrong_pool"
     assert db.commits == 0
 
-
 @pytest.mark.asyncio
 async def test_put_engagement_settings_accepts_assigned_engagement_account() -> None:
     community_id = uuid4()
@@ -331,7 +327,6 @@ async def test_put_engagement_settings_accepts_assigned_engagement_account() -> 
     assert response.assigned_account_id == account_id
     assert db.commits == 1
 
-
 @pytest.mark.asyncio
 async def test_create_engagement_target_from_existing_community() -> None:
     community_id = uuid4()
@@ -356,7 +351,6 @@ async def test_create_engagement_target_from_existing_community() -> None:
     assert db.commits == 1
     assert isinstance(db.added[0], EngagementTarget)
 
-
 @pytest.mark.asyncio
 async def test_create_engagement_target_from_public_username_is_pending() -> None:
     db = FakeDb()
@@ -371,7 +365,6 @@ async def test_create_engagement_target_from_public_username_is_pending() -> Non
     assert response.submitted_ref == "username:example_channel"
     assert response.submitted_ref_type == EngagementTargetRefType.TELEGRAM_USERNAME.value
     assert db.commits == 1
-
 
 @pytest.mark.asyncio
 async def test_duplicate_engagement_target_returns_existing_row() -> None:
@@ -390,7 +383,6 @@ async def test_duplicate_engagement_target_returns_existing_row() -> None:
     assert db.added == []
     assert db.commits == 1
 
-
 @pytest.mark.asyncio
 async def test_get_engagement_target_detail_returns_target_card_fields() -> None:
     community_id = uuid4()
@@ -404,7 +396,6 @@ async def test_get_engagement_target_detail_returns_target_card_fields() -> None
     assert response.community_title == "Founder Circle"
     assert response.status == EngagementTargetStatus.APPROVED.value
     assert response.allow_detect is True
-
 
 @pytest.mark.asyncio
 async def test_patch_engagement_target_approves_permissions() -> None:
@@ -435,7 +426,6 @@ async def test_patch_engagement_target_approves_permissions() -> None:
     assert response.approved_at is not None
     assert db.commits == 1
 
-
 @pytest.mark.asyncio
 async def test_engagement_target_resolve_job_enqueues_engagement_job(monkeypatch) -> None:
     target = _target(uuid4(), status=EngagementTargetStatus.PENDING.value)
@@ -457,7 +447,6 @@ async def test_engagement_target_resolve_job_enqueues_engagement_job(monkeypatch
     assert response.job.id == "target-resolve-job"
     assert response.job.type == "engagement_target.resolve"
     assert captured == {"target_id": target.id, "requested_by": "telegram:123"}
-
 
 @pytest.mark.asyncio
 async def test_engagement_target_join_job_uses_resolved_target_community(monkeypatch) -> None:
@@ -501,7 +490,6 @@ async def test_engagement_target_join_job_uses_resolved_target_community(monkeyp
         "requested_by": "telegram:123",
     }
 
-
 @pytest.mark.asyncio
 async def test_engagement_target_detect_job_uses_resolved_target_community(monkeypatch) -> None:
     community_id = uuid4()
@@ -540,7 +528,6 @@ async def test_engagement_target_detect_job_uses_resolved_target_community(monke
         "requested_by": "telegram:123",
     }
 
-
 @pytest.mark.asyncio
 async def test_engagement_target_jobs_reject_unresolved_target() -> None:
     target = _target(uuid4(), status=EngagementTargetStatus.PENDING.value)
@@ -556,7 +543,6 @@ async def test_engagement_target_jobs_reject_unresolved_target() -> None:
 
     assert exc_info.value.status_code == 409
     assert exc_info.value.detail["code"] == "target_not_resolved"
-
 
 @pytest.mark.asyncio
 async def test_create_topic_normalizes_keywords_and_returns_guidance_fields() -> None:
@@ -584,7 +570,6 @@ async def test_create_topic_normalizes_keywords_and_returns_guidance_fields() ->
     assert response.example_bad_replies == ["Buy now."]
     assert db.commits == 1
 
-
 @pytest.mark.asyncio
 async def test_create_active_topic_allows_semantic_profile_without_trigger_keyword() -> None:
     db = FakeDb()
@@ -602,7 +587,6 @@ async def test_create_active_topic_allows_semantic_profile_without_trigger_keywo
     assert response.description == "People comparing CRM migration and evaluation tradeoffs."
     assert response.trigger_keywords == []
     assert db.commits == 1
-
 
 @pytest.mark.asyncio
 async def test_create_active_topic_requires_semantic_profile_text() -> None:
@@ -624,7 +608,6 @@ async def test_create_active_topic_requires_semantic_profile_text() -> None:
     assert exc_info.value.detail["code"] == "topic_requires_semantic_profile"
     assert db.commits == 0
 
-
 @pytest.mark.asyncio
 async def test_get_engagement_topic_detail_returns_topic() -> None:
     topic_id = uuid4()
@@ -634,7 +617,6 @@ async def test_get_engagement_topic_detail_returns_topic() -> None:
 
     assert response.id == topic_id
     assert response.name == "CRM"
-
 
 @pytest.mark.asyncio
 async def test_update_topic_rejects_unsafe_guidance() -> None:
@@ -663,7 +645,6 @@ async def test_update_topic_rejects_unsafe_guidance() -> None:
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail["code"] == "unsafe_topic_guidance"
-
 
 @pytest.mark.asyncio
 async def test_style_rule_routes_create_update_and_detail() -> None:
@@ -707,7 +688,6 @@ async def test_style_rule_routes_create_update_and_detail() -> None:
     assert detail.id == rule_id
     assert updated.active is False
 
-
 @pytest.mark.asyncio
 async def test_manual_engagement_detect_job_enqueues_engagement_worker(monkeypatch) -> None:
     community_id = uuid4()
@@ -745,7 +725,6 @@ async def test_manual_engagement_detect_job_enqueues_engagement_worker(monkeypat
         "requested_by": "telegram:123",
     }
 
-
 @pytest.mark.asyncio
 async def test_manual_engagement_detect_job_rejects_unknown_community() -> None:
     with pytest.raises(HTTPException) as exc_info:
@@ -757,7 +736,6 @@ async def test_manual_engagement_detect_job_rejects_unknown_community() -> None:
 
     assert exc_info.value.status_code == 404
     assert exc_info.value.detail["code"] == "not_found"
-
 
 @pytest.mark.asyncio
 async def test_community_join_job_enqueues_join_worker(monkeypatch) -> None:
@@ -800,7 +778,6 @@ async def test_community_join_job_enqueues_join_worker(monkeypatch) -> None:
         "requested_by": "telegram:123",
     }
 
-
 @pytest.mark.asyncio
 async def test_community_join_job_rejects_unknown_community() -> None:
     with pytest.raises(HTTPException) as exc_info:
@@ -812,7 +789,6 @@ async def test_community_join_job_rejects_unknown_community() -> None:
 
     assert exc_info.value.status_code == 404
     assert exc_info.value.detail["code"] == "not_found"
-
 
 @pytest.mark.asyncio
 async def test_community_join_job_maps_queue_failure_to_503(monkeypatch) -> None:
@@ -834,7 +810,6 @@ async def test_community_join_job_maps_queue_failure_to_503(monkeypatch) -> None
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail == "redis unavailable"
 
-
 @pytest.mark.asyncio
 async def test_list_engagement_candidates_returns_pending_review_cards() -> None:
     community = _community(uuid4(), title="Founder Circle")
@@ -848,7 +823,6 @@ async def test_list_engagement_candidates_returns_pending_review_cards() -> None
     assert response.items[0].community_title == "Founder Circle"
     assert response.items[0].topic_name == "Open-source CRM"
     assert response.items[0].source_excerpt == "The group is comparing CRM tools."
-
 
 @pytest.mark.asyncio
 async def test_list_engagement_candidates_passes_community_and_topic_filters(monkeypatch) -> None:
@@ -879,7 +853,6 @@ async def test_list_engagement_candidates_passes_community_and_topic_filters(mon
         "limit": 10,
         "offset": 5,
     }
-
 
 @pytest.mark.asyncio
 async def test_list_engagement_actions_returns_filtered_audit_rows() -> None:
@@ -923,7 +896,6 @@ async def test_list_engagement_actions_returns_filtered_audit_rows() -> None:
     assert response.items[0].action_type == "reply"
     assert response.items[0].status == "sent"
     assert not hasattr(response.items[0], "phone")
-
 
 @pytest.mark.asyncio
 async def test_list_engagement_actions_passes_filters_and_pagination(monkeypatch) -> None:
@@ -982,7 +954,6 @@ async def test_list_engagement_actions_passes_filters_and_pagination(monkeypatch
         "offset": 14,
     }
 
-
 @pytest.mark.asyncio
 async def test_semantic_rollout_summary_groups_operator_outcomes_by_similarity_band() -> None:
     community = _community(uuid4(), title="Founder Circle")
@@ -1018,7 +989,6 @@ async def test_semantic_rollout_summary_groups_operator_outcomes_by_similarity_b
     assert bands["0.70-0.79"].rejected == 1
     assert bands["0.62-0.69"].pending == 1
 
-
 @pytest.mark.asyncio
 async def test_approve_engagement_candidate_records_review_metadata() -> None:
     community = _community(uuid4(), title="Founder Circle")
@@ -1037,7 +1007,6 @@ async def test_approve_engagement_candidate_records_review_metadata() -> None:
     assert response.reviewed_at is not None
     assert response.final_reply == candidate.suggested_reply
     assert db.commits == 1
-
 
 @pytest.mark.asyncio
 async def test_edit_engagement_candidate_creates_final_reply_revision() -> None:
@@ -1062,7 +1031,6 @@ async def test_edit_engagement_candidate_creates_final_reply_revision() -> None:
     assert db.added[0].revision_number == 1
     assert db.added[0].edited_by == "telegram:123"
 
-
 @pytest.mark.asyncio
 async def test_get_candidate_detail_returns_one_candidate() -> None:
     community = _community(uuid4(), title="Founder Circle")
@@ -1075,7 +1043,13 @@ async def test_get_candidate_detail_returns_one_candidate() -> None:
     assert response.id == candidate.id
     assert response.community_title == "Founder Circle"
     assert response.topic_name == "Open-source CRM"
-
+    assert response.source_message_date == _now() - timedelta(minutes=30)
+    assert response.detected_at == _now() - timedelta(minutes=25)
+    assert response.moment_strength == "good"
+    assert response.timeliness == "fresh"
+    assert response.reply_value == "practical_tip"
+    assert response.review_deadline_at == _now() + timedelta(minutes=30)
+    assert response.reply_deadline_at == _now() + timedelta(minutes=60)
 
 @pytest.mark.asyncio
 async def test_candidate_revisions_route_returns_revision_history() -> None:
@@ -1099,7 +1073,6 @@ async def test_candidate_revisions_route_returns_revision_history() -> None:
     assert response.items[0].revision_number == 2
     assert response.items[0].reply_text == "Edited final reply."
 
-
 @pytest.mark.asyncio
 async def test_approve_engagement_candidate_uses_edited_final_reply() -> None:
     community = _community(uuid4(), title="Founder Circle")
@@ -1117,7 +1090,6 @@ async def test_approve_engagement_candidate_uses_edited_final_reply() -> None:
     assert response.status == EngagementCandidateStatus.APPROVED.value
     assert response.final_reply == "Edited final reply."
 
-
 @pytest.mark.asyncio
 async def test_expire_engagement_candidate_moves_review_candidate_to_expired() -> None:
     community = _community(uuid4(), title="Founder Circle")
@@ -1133,7 +1105,6 @@ async def test_expire_engagement_candidate_moves_review_candidate_to_expired() -
 
     assert response.status == EngagementCandidateStatus.EXPIRED.value
     assert db.commits == 1
-
 
 @pytest.mark.asyncio
 async def test_retry_engagement_candidate_reopens_failed_candidate() -> None:
@@ -1156,7 +1127,6 @@ async def test_retry_engagement_candidate_reopens_failed_candidate() -> None:
     assert response.reviewed_at is None
     assert db.commits == 1
 
-
 @pytest.mark.asyncio
 async def test_retry_engagement_candidate_rejects_non_failed_candidate() -> None:
     community = _community(uuid4(), title="Founder Circle")
@@ -1174,7 +1144,6 @@ async def test_retry_engagement_candidate_rejects_non_failed_candidate() -> None
     assert exc_info.value.status_code == 409
     assert exc_info.value.detail["code"] == "candidate_not_retryable"
     assert db.commits == 0
-
 
 @pytest.mark.asyncio
 async def test_approve_engagement_candidate_rejects_expired_candidate() -> None:
@@ -1199,6 +1168,24 @@ async def test_approve_engagement_candidate_rejects_expired_candidate() -> None:
     assert exc_info.value.detail["code"] == "candidate_expired"
     assert db.commits == 0
 
+@pytest.mark.asyncio
+async def test_approve_engagement_candidate_rejects_stale_candidate() -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    topic = _topic(uuid4(), name="Open-source CRM")
+    candidate = _candidate(uuid4(), community, topic)
+    candidate.reply_deadline_at = datetime(2000, 1, 1, tzinfo=timezone.utc)
+    db = FakeDb(scalar_result=candidate)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await post_engagement_candidate_approve(
+            candidate.id,
+            EngagementCandidateApproveRequest(reviewed_by="telegram:123"),
+            db,  # type: ignore[arg-type]
+        )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail["code"] == "candidate_stale"
+    assert db.commits == 0
 
 @pytest.mark.asyncio
 async def test_reject_engagement_candidate_records_review_metadata() -> None:
@@ -1217,7 +1204,6 @@ async def test_reject_engagement_candidate_records_review_metadata() -> None:
     assert response.reviewed_by == "telegram:123"
     assert response.reviewed_at is not None
     assert db.commits == 1
-
 
 @pytest.mark.asyncio
 async def test_engagement_send_job_enqueues_for_approved_candidate(monkeypatch) -> None:
@@ -1244,7 +1230,6 @@ async def test_engagement_send_job_enqueues_for_approved_candidate(monkeypatch) 
     assert response.job.id == "send-job"
     assert response.job.type == "engagement.send"
     assert captured == {"candidate_id": candidate.id, "approved_by": "telegram:123"}
-
 
 @pytest.mark.asyncio
 async def test_engagement_send_job_rejects_unapproved_candidate() -> None:
@@ -1360,8 +1345,8 @@ def _topic(topic_id: object, *, name: str) -> EngagementTopic:
         example_good_replies=[],
         example_bad_replies=[],
         active=True,
-        created_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
+        created_at=_now(),
+        updated_at=_now(),
     )
 
 
@@ -1378,13 +1363,20 @@ def _candidate(
         topic_id=topic.id,
         source_tg_message_id=123,
         source_excerpt="The group is comparing CRM tools.",
+        source_message_date=_now() - timedelta(minutes=30),
+        detected_at=_now() - timedelta(minutes=25),
         detected_reason="The group is comparing CRM alternatives.",
+        moment_strength="good",
+        timeliness="fresh",
+        reply_value="practical_tip",
         suggested_reply="Compare data ownership, integrations, and exit paths first.",
         risk_notes=[],
         status=EngagementCandidateStatus.NEEDS_REVIEW.value,
+        review_deadline_at=_now() + timedelta(minutes=30),
+        reply_deadline_at=_now() + timedelta(minutes=60),
         expires_at=expires_at or datetime(2999, 4, 20, tzinfo=timezone.utc),
-        created_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
+        created_at=_now(),
+        updated_at=_now(),
     )
     candidate.community = community
     candidate.topic = topic
@@ -1407,8 +1399,12 @@ def _target(
         allow_detect=True,
         allow_post=True,
         added_by="telegram:123",
-        created_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
+        created_at=_now(),
+        updated_at=_now(),
     )
     target.community = community
     return target
+
+
+def _now() -> datetime:
+    return _FIXTURE_NOW

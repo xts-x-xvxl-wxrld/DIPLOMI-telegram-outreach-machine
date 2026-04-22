@@ -43,6 +43,10 @@ class Settings(BaseSettings):
         default=60,
         validation_alias="ENGAGEMENT_DETECTION_WINDOW_MINUTES",
     )
+    engagement_reply_deadline_minutes: int = Field(
+        default=90,
+        validation_alias="ENGAGEMENT_REPLY_DEADLINE_MINUTES",
+    )
     engagement_scheduler_interval_seconds: int = Field(
         default=3600,
         validation_alias="ENGAGEMENT_SCHEDULER_INTERVAL_SECONDS",

@@ -7,6 +7,12 @@ from backend.workers.engagement_detect_samples import *
 from backend.workers.engagement_detect_selection import *
 from backend.workers.engagement_detect_prompt import *
 from backend.workers.engagement_detect_openai import *
+from backend.db.enums import EngagementTimeliness
+from backend.services.community_engagement_candidates import (
+    infer_candidate_timeliness,
+    normalize_moment_strength,
+    normalize_reply_value,
+)
 
 
 async def process_engagement_detect(
@@ -25,6 +31,8 @@ async def process_engagement_detect(
     runtime_settings = settings or get_settings()
     sample_loader = sample_loader or load_recent_detection_samples
     context_loader = context_loader or load_community_context
+    allow_stale_candidates = _is_manual_detect_request(validated_payload)
+    reply_deadline_minutes = _reply_deadline_minutes(runtime_settings)
 
     async with session_factory() as session:
         try:
@@ -148,7 +156,39 @@ async def process_engagement_detect(
                     ):
                         summary.skipped_validation += 1
                         continue
+                    detected_at = _utcnow()
+                    inferred_timeliness = infer_candidate_timeliness(
+                        detected_at=detected_at,
+                        review_deadline_at=_infer_review_deadline_at(
+                            source_message_date=source_message.message_date,
+                            detected_at=detected_at,
+                            reply_deadline_minutes=reply_deadline_minutes,
+                        ),
+                        reply_deadline_at=_infer_reply_deadline_at(
+                            source_message_date=source_message.message_date,
+                            detected_at=detected_at,
+                            reply_deadline_minutes=reply_deadline_minutes,
+                        ),
+                    )
+                    if (
+                        inferred_timeliness == EngagementTimeliness.STALE.value
+                        and not allow_stale_candidates
+                    ):
+                        summary.skipped_stale += 1
+                        continue
+                    try:
+                        moment_strength = normalize_moment_strength(decision.moment_strength)
+                        reply_value = normalize_reply_value(
+                            decision.reply_value,
+                            has_reply=bool(decision.suggested_reply),
+                        )
+                    except EngagementValidationError:
+                        summary.skipped_validation += 1
+                        continue
                     model_output = decision.model_dump(mode="json", exclude_none=True)
+                    model_output["moment_strength"] = moment_strength
+                    model_output["timeliness"] = inferred_timeliness
+                    model_output["reply_value"] = reply_value
                     semantic_summary = _semantic_match_for_storage(trigger_candidate.semantic_match)
                     if semantic_summary is not None:
                         model_output["semantic_match"] = semantic_summary
@@ -159,8 +199,11 @@ async def process_engagement_detect(
                             topic_id=topic.id,
                             source_tg_message_id=source_message.tg_message_id,
                             source_excerpt=source_message.text,
+                            source_message_date=source_message.message_date,
                             detected_reason=decision.reason,
                             suggested_reply=decision.suggested_reply,
+                            moment_strength=moment_strength,
+                            reply_value=reply_value,
                             model=str(prompt_runtime["model"]),
                             model_output=model_output,
                             risk_notes=decision.risk_notes,
@@ -170,6 +213,8 @@ async def process_engagement_detect(
                                 model_input,
                                 prompt_runtime=prompt_runtime,
                             ),
+                            detected_at=detected_at,
+                            reply_deadline_minutes=reply_deadline_minutes,
                         )
                     except EngagementValidationError:
                         summary.skipped_validation += 1
@@ -455,6 +500,21 @@ def _skipped(reason: str, community_id: object) -> dict[str, object]:
     }
 
 
+def _is_manual_detect_request(payload: EngagementDetectPayload) -> bool:
+    job_id = _current_job_id()
+    if job_id is not None and job_id.startswith("engagement.detect.manual:"):
+        return True
+    return payload.collection_run_id is None and payload.requested_by is not None
+
+
+def _reply_deadline_minutes(runtime_settings: object) -> int:
+    value = getattr(runtime_settings, "engagement_reply_deadline_minutes", 90)
+    try:
+        return max(int(value), 1)
+    except (TypeError, ValueError):
+        return 90
+
+
 async def detect_with_openai(model_input: dict[str, Any]) -> EngagementDetectionDecision:
     try:
         from openai import AsyncOpenAI
@@ -518,6 +578,31 @@ def _ensure_aware_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+def _infer_reply_deadline_at(
+    *,
+    source_message_date: datetime | None,
+    detected_at: datetime,
+    reply_deadline_minutes: int,
+) -> datetime:
+    source_time = _ensure_aware_utc(source_message_date or detected_at)
+    return source_time + timedelta(minutes=max(reply_deadline_minutes, 1))
+
+
+def _infer_review_deadline_at(
+    *,
+    source_message_date: datetime | None,
+    detected_at: datetime,
+    reply_deadline_minutes: int,
+) -> datetime | None:
+    if source_message_date is None:
+        return None
+    return _infer_reply_deadline_at(
+        source_message_date=source_message_date,
+        detected_at=detected_at,
+        reply_deadline_minutes=reply_deadline_minutes,
+    ) - timedelta(minutes=30)
 
 
 async def _has_active_candidate_duplicate(
@@ -609,6 +694,22 @@ def _sortable_datetime(value: datetime | None) -> datetime:
     if value is None:
         return datetime.min.replace(tzinfo=timezone.utc)
     return _ensure_aware_utc(value)
+
+
+def _current_job_id() -> str | None:
+    try:
+        from rq import get_current_job
+    except Exception:
+        return None
+
+    job = get_current_job()
+    if job is None:
+        return None
+    return str(job.id)
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 __all__ = [
     "process_engagement_detect",

@@ -2,7 +2,7 @@
 
 ## Slice 3: Timely Reply Opportunity Fields
 
-Status: planned.
+Status: completed.
 
 Tasks:
 
@@ -19,6 +19,16 @@ Tasks:
 - Use `reply_deadline_at`, not `expires_at`, as send preflight's conversation freshness gate.
 - Preserve compatibility with existing `engagement_candidates` and `candidate_id` names while using
   reply opportunity language in operator-facing text.
+
+Delivered:
+
+- Added Alembic migration `20260422_0012` plus SQLAlchemy/service/API field support for reply
+  opportunity freshness, timeliness, and review/send deadlines.
+- Detection now derives `timeliness` from source-post timestamps, normalizes
+  `moment_strength`/`reply_value`, and skips stale automatic reply opportunities before creation.
+- Approval rejects stale reply opportunities, and `engagement.send` now uses `reply_deadline_at`
+  as the freshness gate before Telethon work starts.
+- Operator-facing candidate cards now surface freshness and review/reply deadlines.
 
 Acceptance:
 

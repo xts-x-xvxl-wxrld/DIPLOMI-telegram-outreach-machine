@@ -663,18 +663,18 @@ class EngagementCandidateOut(BaseModel):
     community_title: str | None = None
     topic_id: UUID
     topic_name: str
-    source_tg_message_id: int | None = None
-    source_excerpt: str | None = None
-    detected_reason: str
+    source_tg_message_id: int | None = None; source_excerpt: str | None = None
+    source_message_date: datetime | None = None; detected_at: datetime; detected_reason: str
+    moment_strength: str; timeliness: str; reply_value: str
     suggested_reply: str | None = None
     final_reply: str | None = None
-    prompt_profile_id: UUID | None = None
-    prompt_profile_version_id: UUID | None = None
+    prompt_profile_id: UUID | None = None; prompt_profile_version_id: UUID | None = None
     prompt_render_summary: dict[str, Any] | None = None
     risk_notes: list[str]
     status: str
-    reviewed_by: str | None = None
-    reviewed_at: datetime | None = None
+    reviewed_by: str | None = None; reviewed_at: datetime | None = None
+    review_deadline_at: datetime | None = None; reply_deadline_at: datetime
+    operator_notified_at: datetime | None = None
     expires_at: datetime
     created_at: datetime
 

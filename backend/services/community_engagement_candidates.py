@@ -22,8 +22,11 @@ from backend.db.enums import (
     EngagementActionStatus,
     EngagementActionType,
     EngagementCandidateStatus,
+    EngagementMomentStrength,
     EngagementMode,
+    EngagementReplyValue,
     EngagementStyleRuleScope,
+    EngagementTimeliness,
     EngagementTargetRefType,
     EngagementTargetStatus,
     TelegramEntityIntakeStatus,
@@ -84,6 +87,8 @@ _ALLOWED_PROMPT_VARIABLES = {
     "community_context.latest_summary",
     "community_context.dominant_themes",
 }
+DEFAULT_REPLY_DEADLINE_MINUTES = 90
+REVIEW_WINDOW_MINUTES = 30
 
 async def edit_candidate_reply(
     db: AsyncSession,
@@ -212,6 +217,8 @@ async def approve_candidate(
         )
     if _candidate_is_expired(candidate, _utcnow()):
         raise EngagementConflict("candidate_expired", "Expired candidates cannot be approved")
+    if _candidate_is_stale(candidate, _utcnow()):
+        raise EngagementConflict("candidate_stale", "Stale reply opportunities cannot be approved")
 
     reply_source = final_reply if final_reply is not None else candidate.final_reply or candidate.suggested_reply
     reply = validate_suggested_reply(reply_source)
@@ -345,21 +352,49 @@ async def create_engagement_candidate(
     topic_id: UUID,
     source_tg_message_id: int | None,
     source_excerpt: str | None,
+    source_message_date: datetime | None,
     detected_reason: str,
     suggested_reply: str | None,
+    moment_strength: str | None,
+    reply_value: str | None,
     model: str | None,
     model_output: dict[str, Any] | None,
     risk_notes: list[str] | None,
     prompt_profile_id: UUID | None = None,
     prompt_profile_version_id: UUID | None = None,
     prompt_render_summary: dict[str, Any] | None = None,
+    detected_at: datetime | None = None,
+    operator_notified_at: datetime | None = None,
+    reply_deadline_minutes: int = DEFAULT_REPLY_DEADLINE_MINUTES,
     now: datetime | None = None,
 ) -> EngagementCandidateCreationResult:
-    current_time = now or _utcnow()
+    current_time = now or detected_at or _utcnow()
     excerpt = sanitize_candidate_excerpt(source_excerpt)
     reason = _required_text(detected_reason, field="detected_reason")[:500]
     reply = validate_suggested_reply(suggested_reply)
     notes = normalize_text_list(risk_notes)[:8]
+    normalized_detected_at = _ensure_aware_utc(detected_at or current_time)
+    normalized_source_message_date = (
+        _ensure_aware_utc(source_message_date)
+        if source_message_date is not None
+        else None
+    )
+    reply_deadline_at = calculate_reply_deadline_at(
+        source_message_date=normalized_source_message_date,
+        detected_at=normalized_detected_at,
+        reply_deadline_minutes=reply_deadline_minutes,
+    )
+    review_deadline_at = calculate_review_deadline_at(
+        source_message_date=normalized_source_message_date,
+        reply_deadline_at=reply_deadline_at,
+    )
+    timeliness = infer_candidate_timeliness(
+        detected_at=normalized_detected_at,
+        review_deadline_at=review_deadline_at,
+        reply_deadline_at=reply_deadline_at,
+    )
+    normalized_moment_strength = normalize_moment_strength(moment_strength)
+    normalized_reply_value = normalize_reply_value(reply_value, has_reply=reply is not None)
 
     existing = await _find_active_candidate_duplicate(
         db,
@@ -381,7 +416,12 @@ async def create_engagement_candidate(
         topic_id=topic_id,
         source_tg_message_id=source_tg_message_id,
         source_excerpt=excerpt,
+        source_message_date=normalized_source_message_date,
+        detected_at=normalized_detected_at,
         detected_reason=reason,
+        moment_strength=normalized_moment_strength,
+        timeliness=timeliness,
+        reply_value=normalized_reply_value,
         suggested_reply=reply,
         model=model,
         model_output=_compact_model_output(model_output),
@@ -390,6 +430,13 @@ async def create_engagement_candidate(
         prompt_render_summary=_compact_prompt_render_summary(prompt_render_summary),
         risk_notes=notes,
         status=EngagementCandidateStatus.NEEDS_REVIEW.value,
+        review_deadline_at=review_deadline_at,
+        reply_deadline_at=reply_deadline_at,
+        operator_notified_at=(
+            _ensure_aware_utc(operator_notified_at)
+            if operator_notified_at is not None
+            else None
+        ),
         expires_at=current_time + timedelta(hours=24),
         created_at=current_time,
         updated_at=current_time,
@@ -469,7 +516,12 @@ def _candidate_view(candidate: EngagementCandidate) -> EngagementCandidateView:
         topic_name=topic.name if topic is not None else "Unknown topic",
         source_tg_message_id=candidate.source_tg_message_id,
         source_excerpt=candidate.source_excerpt,
+        source_message_date=candidate.source_message_date,
+        detected_at=candidate.detected_at,
         detected_reason=candidate.detected_reason,
+        moment_strength=candidate.moment_strength,
+        timeliness=candidate.timeliness,
+        reply_value=candidate.reply_value,
         suggested_reply=candidate.suggested_reply,
         final_reply=candidate.final_reply,
         prompt_profile_id=candidate.prompt_profile_id,
@@ -479,6 +531,9 @@ def _candidate_view(candidate: EngagementCandidate) -> EngagementCandidateView:
         status=candidate.status,
         reviewed_by=candidate.reviewed_by,
         reviewed_at=candidate.reviewed_at,
+        review_deadline_at=candidate.review_deadline_at,
+        reply_deadline_at=candidate.reply_deadline_at,
+        operator_notified_at=candidate.operator_notified_at,
         expires_at=candidate.expires_at,
         created_at=candidate.created_at,
     )
@@ -554,6 +609,13 @@ def _candidate_is_expired(candidate: EngagementCandidate, now: datetime) -> bool
     return _ensure_aware_utc(candidate.expires_at) <= _ensure_aware_utc(now)
 
 
+def _candidate_is_stale(candidate: EngagementCandidate, now: datetime) -> bool:
+    deadline = getattr(candidate, "reply_deadline_at", None)
+    if deadline is None:
+        return False
+    return _ensure_aware_utc(deadline) <= _ensure_aware_utc(now)
+
+
 def _compact_model_output(value: dict[str, Any] | None) -> dict[str, Any] | None:
     if value is None:
         return None
@@ -562,6 +624,9 @@ def _compact_model_output(value: dict[str, Any] | None) -> dict[str, Any] | None
         "topic_match",
         "source_tg_message_id",
         "reason",
+        "moment_strength",
+        "timeliness",
+        "reply_value",
         "suggested_reply",
         "risk_notes",
         "semantic_match",
@@ -624,6 +689,70 @@ def _ensure_aware_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+def calculate_reply_deadline_at(
+    *,
+    source_message_date: datetime | None,
+    detected_at: datetime,
+    reply_deadline_minutes: int = DEFAULT_REPLY_DEADLINE_MINUTES,
+) -> datetime:
+    base_time = _ensure_aware_utc(source_message_date or detected_at)
+    return base_time + timedelta(minutes=max(reply_deadline_minutes, 1))
+
+
+def calculate_review_deadline_at(
+    *,
+    source_message_date: datetime | None,
+    reply_deadline_at: datetime,
+) -> datetime | None:
+    if source_message_date is None:
+        return None
+    review_deadline = _ensure_aware_utc(reply_deadline_at) - timedelta(minutes=REVIEW_WINDOW_MINUTES)
+    source_time = _ensure_aware_utc(source_message_date)
+    return max(review_deadline, source_time)
+
+
+def infer_candidate_timeliness(
+    *,
+    detected_at: datetime,
+    review_deadline_at: datetime | None,
+    reply_deadline_at: datetime,
+) -> str:
+    detected_time = _ensure_aware_utc(detected_at)
+    if detected_time >= _ensure_aware_utc(reply_deadline_at):
+        return EngagementTimeliness.STALE.value
+    if review_deadline_at is not None and detected_time >= _ensure_aware_utc(review_deadline_at):
+        return EngagementTimeliness.AGING.value
+    return EngagementTimeliness.FRESH.value
+
+
+def normalize_moment_strength(value: str | None) -> str:
+    cleaned = _optional_text(value)
+    if cleaned is None:
+        return EngagementMomentStrength.GOOD.value
+    normalized = cleaned.casefold()
+    allowed = {item.value for item in EngagementMomentStrength}
+    if normalized not in allowed:
+        raise EngagementValidationError(
+            "invalid_moment_strength",
+            "moment_strength must be weak, good, or strong",
+        )
+    return normalized
+
+
+def normalize_reply_value(value: str | None, *, has_reply: bool) -> str:
+    cleaned = _optional_text(value)
+    if cleaned is None:
+        return EngagementReplyValue.OTHER.value if has_reply else EngagementReplyValue.NONE.value
+    normalized = cleaned.casefold()
+    allowed = {item.value for item in EngagementReplyValue}
+    if normalized not in allowed:
+        raise EngagementValidationError(
+            "invalid_reply_value",
+            "reply_value must describe the public reply type, not a person-level score",
+        )
+    return normalized
 
 __all__ = [
     "edit_candidate_reply",

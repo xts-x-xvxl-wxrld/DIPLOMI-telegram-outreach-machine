@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -34,6 +34,8 @@ from backend.workers.engagement_detect import (
     process_engagement_detect,
 )
 
+_FIXTURE_NOW = datetime.now(timezone.utc).replace(microsecond=0)
+
 
 @pytest.mark.asyncio
 async def test_engagement_detect_skips_model_when_keyword_prefilter_has_no_signal() -> None:
@@ -54,7 +56,7 @@ async def test_engagement_detect_skips_model_when_keyword_prefilter_has_no_signa
                 DetectionMessage(
                     tg_message_id=10,
                     text="Does anyone have newsletter tooling recommendations?",
-                    message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                    message_date=_now() - timedelta(minutes=30),
                     is_replyable=True,
                 )
             ]
@@ -105,7 +107,7 @@ async def test_engagement_detect_creates_candidate_without_sender_identity() -> 
                 DetectionMessage(
                     tg_message_id=123,
                     text="We are comparing CRM options. Call me at +1 555 123 4567 if you know one.",
-                    message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                    message_date=_now() - timedelta(minutes=30),
                     is_replyable=True,
                 )
             ]
@@ -129,6 +131,13 @@ async def test_engagement_detect_creates_candidate_without_sender_identity() -> 
     assert candidate.source_tg_message_id == 123
     assert "[phone redacted]" in (candidate.source_excerpt or "")
     assert "+1 555" not in (candidate.source_excerpt or "")
+    assert candidate.source_message_date == _now() - timedelta(minutes=30)
+    assert candidate.detected_at >= candidate.source_message_date
+    assert candidate.moment_strength == "good"
+    assert candidate.timeliness == "fresh"
+    assert candidate.reply_value == "other"
+    assert candidate.review_deadline_at == _now() + timedelta(minutes=30)
+    assert candidate.reply_deadline_at == _now() + timedelta(minutes=60)
     assert candidate.suggested_reply is not None
     assert candidate.model == "test-model"
     assert "source_post" in captured_inputs[0]
@@ -161,7 +170,7 @@ async def test_engagement_detect_skips_without_approved_engagement_target() -> N
                 DetectionMessage(
                     tg_message_id=123,
                     text="We are comparing CRM options.",
-                    message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                    message_date=_now() - timedelta(minutes=30),
                     is_replyable=True,
                 )
             ]
@@ -204,7 +213,7 @@ async def test_engagement_detect_skips_without_joined_membership() -> None:
                 DetectionMessage(
                     tg_message_id=123,
                     text="We are comparing CRM options.",
-                    message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                    message_date=_now() - timedelta(minutes=30),
                     is_replyable=True,
                 )
             ]
@@ -243,7 +252,7 @@ async def test_engagement_detect_skips_semantic_only_topic_until_selector_is_ena
                 DetectionMessage(
                     tg_message_id=123,
                     text="We are comparing CRM options.",
-                    message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                    message_date=_now() - timedelta(minutes=30),
                     is_replyable=True,
                 )
             ]
@@ -273,7 +282,7 @@ async def test_engagement_detect_uses_semantic_selector_when_enabled(
     message = DetectionMessage(
         tg_message_id=123,
         text="We are weighing whether to migrate CRM data now or wait.",
-        message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+        message_date=_now() - timedelta(minutes=30),
         reply_context="Earlier thread asked about export access.",
         is_replyable=True,
     )
@@ -378,7 +387,7 @@ async def test_engagement_detect_skips_semantic_only_topic_when_selector_finds_n
                 DetectionMessage(
                     tg_message_id=123,
                     text="We are comparing CRM options.",
-                    message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                    message_date=_now() - timedelta(minutes=30),
                     is_replyable=True,
                 )
             ]
@@ -429,7 +438,7 @@ async def test_engagement_detect_keeps_keyword_fallback_when_semantic_has_no_mat
                 DetectionMessage(
                     tg_message_id=123,
                     text="We are comparing CRM options.",
-                    message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                    message_date=_now() - timedelta(minutes=30),
                     is_replyable=True,
                 )
             ]
@@ -459,13 +468,13 @@ async def test_engagement_detect_caps_semantic_detector_calls_per_run() -> None:
     first = DetectionMessage(
         tg_message_id=101,
         text="CRM migration plan A",
-        message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+        message_date=_now() - timedelta(minutes=30),
         is_replyable=True,
     )
     second = DetectionMessage(
         tg_message_id=102,
         text="CRM migration plan B",
-        message_date=datetime(2026, 4, 19, 12, 1, tzinfo=timezone.utc),
+        message_date=_now() - timedelta(minutes=29),
         is_replyable=True,
     )
     session = FakeSession(community=_community(community_id), settings=_settings(community_id))
@@ -536,11 +545,18 @@ async def test_engagement_detect_skips_duplicate_active_candidate() -> None:
         topic_id=topic.id,
         source_tg_message_id=123,
         source_excerpt="We are comparing CRM options.",
+        source_message_date=_now() - timedelta(minutes=30),
+        detected_at=_now() - timedelta(minutes=25),
         detected_reason="Existing candidate",
+        moment_strength="good",
+        timeliness="fresh",
+        reply_value="other",
         suggested_reply="Existing reply",
         status=EngagementCandidateStatus.NEEDS_REVIEW.value,
         risk_notes=[],
-        expires_at=datetime(2026, 4, 20, tzinfo=timezone.utc),
+        review_deadline_at=_now() + timedelta(minutes=30),
+        reply_deadline_at=_now() + timedelta(minutes=60),
+        expires_at=_now() + timedelta(days=1),
     )
     session = FakeSession(
         community=_community(community_id),
@@ -568,7 +584,7 @@ async def test_engagement_detect_skips_duplicate_active_candidate() -> None:
                 DetectionMessage(
                     tg_message_id=123,
                     text="We are comparing CRM options.",
-                    message_date=datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc),
+                    message_date=_now() - timedelta(minutes=30),
                     is_replyable=True,
                 )
             ]
@@ -586,6 +602,103 @@ async def test_engagement_detect_skips_duplicate_active_candidate() -> None:
 
     assert result["candidates_created"] == 0
     assert result["skipped_dedupe"] == 1
+    assert session.candidates == []
+
+
+@pytest.mark.asyncio
+async def test_engagement_detect_skips_stale_candidate_for_automatic_runs() -> None:
+    community_id = uuid4()
+    topic = _topic(trigger_keywords=["crm"])
+    session = FakeSession(community=_community(community_id), settings=_settings(community_id))
+
+    async def detector(_model_input: dict[str, object]) -> EngagementDetectionDecision:
+        return EngagementDetectionDecision(
+            should_engage=True,
+            topic_match="CRM",
+            source_tg_message_id=123,
+            reason="The group is comparing CRM tools.",
+            suggested_reply="Compare export access and integrations first.",
+            risk_notes=[],
+        )
+
+    result = await process_engagement_detect(
+        {"community_id": str(community_id), "window_minutes": 180, "requested_by": None},
+        session_factory=lambda: session,
+        detector=detector,
+        active_topics_fn=lambda _session: _async_result([topic]),
+        sample_loader=lambda *_args, **_kwargs: _async_result(
+            [
+                DetectionMessage(
+                    tg_message_id=123,
+                    text="We are comparing CRM options.",
+                    message_date=_now() - timedelta(minutes=120),
+                    is_replyable=True,
+                )
+            ]
+        ),
+        context_loader=lambda *_args, **_kwargs: _async_result(
+            CommunityContext(latest_summary=None, dominant_themes=[])
+        ),
+        candidate_creator=create_engagement_candidate,
+        settings=SimpleNamespace(
+            openai_engagement_model="test-model",
+            engagement_max_detector_calls_per_run=5,
+            engagement_semantic_matching_enabled=False,
+            engagement_reply_deadline_minutes=90,
+        ),  # type: ignore[arg-type]
+    )
+
+    assert result["candidates_created"] == 0
+    assert result["skipped_stale"] == 1
+    assert session.candidates == []
+
+
+@pytest.mark.asyncio
+async def test_engagement_detect_rejects_person_level_reply_value_labels() -> None:
+    community_id = uuid4()
+    topic = _topic(trigger_keywords=["crm"])
+    session = FakeSession(community=_community(community_id), settings=_settings(community_id))
+
+    async def detector(_model_input: dict[str, object]) -> EngagementDetectionDecision:
+        return EngagementDetectionDecision(
+            should_engage=True,
+            topic_match="CRM",
+            source_tg_message_id=123,
+            reason="The group is comparing CRM tools.",
+            reply_value="high_intent_buyer",
+            suggested_reply="Compare data ownership and export access first.",
+            risk_notes=[],
+        )
+
+    result = await process_engagement_detect(
+        {"community_id": str(community_id), "window_minutes": 60, "requested_by": None},
+        session_factory=lambda: session,
+        detector=detector,
+        active_topics_fn=lambda _session: _async_result([topic]),
+        sample_loader=lambda *_args, **_kwargs: _async_result(
+            [
+                DetectionMessage(
+                    tg_message_id=123,
+                    text="We are comparing CRM options.",
+                    message_date=_now() - timedelta(minutes=30),
+                    is_replyable=True,
+                )
+            ]
+        ),
+        context_loader=lambda *_args, **_kwargs: _async_result(
+            CommunityContext(latest_summary=None, dominant_themes=[])
+        ),
+        candidate_creator=create_engagement_candidate,
+        settings=SimpleNamespace(
+            openai_engagement_model="test-model",
+            engagement_max_detector_calls_per_run=5,
+            engagement_semantic_matching_enabled=False,
+            engagement_reply_deadline_minutes=90,
+        ),  # type: ignore[arg-type]
+    )
+
+    assert result["candidates_created"] == 0
+    assert result["skipped_validation"] == 1
     assert session.candidates == []
 
 
@@ -796,8 +909,8 @@ def _topic(*, trigger_keywords: list[str]) -> EngagementTopic:
         example_good_replies=[],
         example_bad_replies=[],
         active=True,
-        created_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
+        created_at=_now(),
+        updated_at=_now(),
     )
 
 
@@ -821,5 +934,9 @@ def _membership(community_id: object) -> CommunityAccountMembership:
         community_id=community_id,
         telegram_account_id=uuid4(),
         status="joined",
-        joined_at=datetime(2026, 4, 19, 11, 0, tzinfo=timezone.utc),
+        joined_at=_now() - timedelta(hours=3),
     )
+
+
+def _now() -> datetime:
+    return _FIXTURE_NOW

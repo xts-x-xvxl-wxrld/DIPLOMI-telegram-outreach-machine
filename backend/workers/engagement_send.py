@@ -109,6 +109,11 @@ async def process_engagement_send(
                 candidate.updated_at = now
                 await session.commit()
                 return _skipped("candidate_expired", candidate.id)
+            if _is_stale(candidate, now):
+                candidate.status = EngagementCandidateStatus.EXPIRED.value
+                candidate.updated_at = now
+                await session.commit()
+                return _skipped("candidate_stale", candidate.id)
 
             settings = await get_engagement_settings(session, candidate.community_id)
             if settings.mode == EngagementMode.DISABLED.value or not settings.allow_post:
@@ -613,6 +618,13 @@ def _action_sent_at(action: EngagementAction | None) -> datetime | None:
 
 def _is_expired(candidate: EngagementCandidate, now: datetime) -> bool:
     return _ensure_aware_utc(candidate.expires_at) <= _ensure_aware_utc(now)
+
+
+def _is_stale(candidate: EngagementCandidate, now: datetime) -> bool:
+    deadline = getattr(candidate, "reply_deadline_at", None)
+    if deadline is None:
+        return False
+    return _ensure_aware_utc(deadline) <= _ensure_aware_utc(now)
 
 
 def _ensure_aware_utc(value: datetime) -> datetime:

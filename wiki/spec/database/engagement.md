@@ -212,7 +212,15 @@ community_id             uuid NOT NULL REFERENCES communities(id)
 topic_id                 uuid NOT NULL REFERENCES engagement_topics(id)
 source_tg_message_id     bigint
 source_excerpt           text
+source_message_date      timestamptz
+detected_at              timestamptz NOT NULL
 detected_reason          text NOT NULL
+moment_strength          text NOT NULL
+                         -- weak | good | strong
+timeliness               text NOT NULL
+                         -- fresh | aging | stale
+reply_value              text NOT NULL
+                         -- clarifying_question | practical_tip | correction | resource | other | none
 suggested_reply          text
 model                    text
 model_output             jsonb
@@ -225,6 +233,9 @@ status                   text NOT NULL DEFAULT 'needs_review'
 final_reply              text
 reviewed_by              text
 reviewed_at              timestamptz
+review_deadline_at       timestamptz
+reply_deadline_at        timestamptz NOT NULL
+operator_notified_at     timestamptz
 expires_at               timestamptz NOT NULL
 created_at               timestamptz NOT NULL DEFAULT now()
 updated_at               timestamptz NOT NULL DEFAULT now()

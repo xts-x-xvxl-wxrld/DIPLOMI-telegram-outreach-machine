@@ -148,7 +148,12 @@ class EngagementCandidateView:
     topic_name: str
     source_tg_message_id: int | None
     source_excerpt: str | None
+    source_message_date: datetime | None
+    detected_at: datetime
     detected_reason: str
+    moment_strength: str
+    timeliness: str
+    reply_value: str
     suggested_reply: str | None
     final_reply: str | None
     prompt_profile_id: UUID | None
@@ -158,6 +163,9 @@ class EngagementCandidateView:
     status: str
     reviewed_by: str | None
     reviewed_at: datetime | None
+    review_deadline_at: datetime | None
+    reply_deadline_at: datetime
+    operator_notified_at: datetime | None
     expires_at: datetime
     created_at: datetime
 

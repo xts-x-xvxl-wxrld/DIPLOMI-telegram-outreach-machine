@@ -12,8 +12,11 @@ from backend.db.enums import (
     EngagementActionStatus,
     EngagementActionType,
     EngagementCandidateStatus,
+    EngagementMomentStrength,
     EngagementMode,
+    EngagementReplyValue,
     EngagementStyleRuleScope,
+    EngagementTimeliness,
     EngagementTargetRefType,
     EngagementTargetStatus,
 )
@@ -72,6 +75,16 @@ def test_engagement_status_enums_match_contract() -> None:
         "sent",
         "expired",
         "failed",
+    ]
+    assert [item.value for item in EngagementMomentStrength] == ["weak", "good", "strong"]
+    assert [item.value for item in EngagementTimeliness] == ["fresh", "aging", "stale"]
+    assert [item.value for item in EngagementReplyValue] == [
+        "clarifying_question",
+        "practical_tip",
+        "correction",
+        "resource",
+        "other",
+        "none",
     ]
     assert [item.value for item in EngagementActionType] == ["join", "reply", "post", "skip"]
     assert [item.value for item in EngagementActionStatus] == ["queued", "sent", "failed", "skipped"]
@@ -150,6 +163,19 @@ def test_engagement_indexes_are_declared() -> None:
     assert _has_index(EngagementPromptProfileVersion, ["prompt_profile_id"])
     assert _has_index(EngagementStyleRule, ["scope_type", "scope_id", "active", "priority"])
     assert _has_index(EngagementCandidateRevision, ["candidate_id", "revision_number"])
+
+
+def test_engagement_candidate_columns_include_timeliness_contract_fields() -> None:
+    candidate_columns = EngagementCandidate.__table__.c
+
+    assert "source_message_date" in candidate_columns
+    assert "detected_at" in candidate_columns
+    assert "moment_strength" in candidate_columns
+    assert "timeliness" in candidate_columns
+    assert "reply_value" in candidate_columns
+    assert "review_deadline_at" in candidate_columns
+    assert "reply_deadline_at" in candidate_columns
+    assert "operator_notified_at" in candidate_columns
 
 
 def test_engagement_tables_compile_for_postgresql() -> None:

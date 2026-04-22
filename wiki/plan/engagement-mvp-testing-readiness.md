@@ -58,7 +58,7 @@ approved engagement target
 |---|---|
 | Engagement Collection Worker | completed |
 | Exact Batch And Detection Payload Contract | completed |
-| Timely Reply Opportunity Fields | planned |
+| Timely Reply Opportunity Fields | completed |
 | Active Engagement Collection Scheduler | planned |
 | Operator Staged-Test Controls | planned |
 | Staged Telegram Runbook | planned |
