@@ -18,16 +18,15 @@ from .formatting_common import (
     _status_icon,
     _yes_no,
     _format_time_value,
-    _percent,
 )
 from .formatting_engagement_review import (
-    format_engagement_action_card,
-    format_engagement_actions,
-    format_engagement_candidate_card,
-    format_engagement_candidate_review,
-    format_engagement_candidate_revisions,
-    format_engagement_candidates,
-    format_engagement_semantic_rollout,
+    format_engagement_action_card as format_engagement_action_card,
+    format_engagement_actions as format_engagement_actions,
+    format_engagement_candidate_card as format_engagement_candidate_card,
+    format_engagement_candidate_review as format_engagement_candidate_review,
+    format_engagement_candidate_revisions as format_engagement_candidate_revisions,
+    format_engagement_candidates as format_engagement_candidates,
+    format_engagement_semantic_rollout as format_engagement_semantic_rollout,
 )
 
 def format_engagement_home(data: dict[str, Any]) -> str:

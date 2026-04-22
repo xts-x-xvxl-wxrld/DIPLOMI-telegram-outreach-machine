@@ -24,6 +24,7 @@
 - [Git CI Convenience](plan/git-ci.md) - repo-local command for staging and committing changes
 - [VPS GitHub Pipeline](plan/vps-github-pipeline.md) - safe branch-to-GitHub-to-VPS deployment workflow
 - [CI Packaging Install](plan/ci-packaging-install.md) - explicit package discovery for CI and Docker installs
+- [CI Lint Fix](plan/ci-lint-fix.md) - Ruff cleanup for API schemas and bot formatter facade exports
 - [Backend Contracts](plan/backend-contracts.md) - account manager, queue, and API contract plan
 - [Brief Discovery Slice](plan/brief-discovery-slice.md) - legacy/optional brief-first discovery plan
 - [Manual Seed CSV Import](plan/manual-seed-csv-import.md) - bot CSV upload for named manual seed groups
@@ -64,7 +65,6 @@
 - `wiki/spec/queue/` - queue job type and operations shards
 - `wiki/plan/engagement-mvp-testing-readiness/` - engagement MVP readiness slices
 - `wiki/plan/bot-engagement-controls/`, `wiki/plan/community-engagement/`, `wiki/plan/engagement-operator-controls/`, `wiki/plan/search-rebuild-implementation/` - split plan shards
-
 ## Implementation roots
 
 - `bot/api_client.py` - bot HTTP client for backend API endpoints

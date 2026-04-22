@@ -388,8 +388,8 @@ class EngagementTargetUpdateRequest(BaseModel):
     updated_by: str | None = Field(default=None, min_length=1, max_length=200)
 
 
-class EngagementTargetResolveJobRequest(BaseModel): requested_by: str | None = Field(default=None, min_length=1, max_length=200)
-class EngagementCollectionJobRequest(BaseModel): window_days: int = Field(default=90, ge=1, le=365); requested_by: str | None = Field(default=None, min_length=1, max_length=200)
+class EngagementTargetResolveJobRequest(BaseModel): requested_by: str | None = Field(default=None, min_length=1, max_length=200)  # noqa: E701
+class EngagementCollectionJobRequest(BaseModel): window_days: int = Field(default=90, ge=1, le=365); requested_by: str | None = Field(default=None, min_length=1, max_length=200)  # noqa: E701,E702
 
 
 class EngagementTargetOut(BaseModel):
@@ -663,17 +663,17 @@ class EngagementCandidateOut(BaseModel):
     community_title: str | None = None
     topic_id: UUID
     topic_name: str
-    source_tg_message_id: int | None = None; source_excerpt: str | None = None
-    source_message_date: datetime | None = None; detected_at: datetime; detected_reason: str
-    moment_strength: str; timeliness: str; reply_value: str
+    source_tg_message_id: int | None = None; source_excerpt: str | None = None  # noqa: E702
+    source_message_date: datetime | None = None; detected_at: datetime; detected_reason: str  # noqa: E702
+    moment_strength: str; timeliness: str; reply_value: str  # noqa: E702
     suggested_reply: str | None = None
     final_reply: str | None = None
-    prompt_profile_id: UUID | None = None; prompt_profile_version_id: UUID | None = None
+    prompt_profile_id: UUID | None = None; prompt_profile_version_id: UUID | None = None  # noqa: E702
     prompt_render_summary: dict[str, Any] | None = None
     risk_notes: list[str]
     status: str
-    reviewed_by: str | None = None; reviewed_at: datetime | None = None
-    review_deadline_at: datetime | None = None; reply_deadline_at: datetime
+    reviewed_by: str | None = None; reviewed_at: datetime | None = None  # noqa: E702
+    review_deadline_at: datetime | None = None; reply_deadline_at: datetime  # noqa: E702
     operator_notified_at: datetime | None = None
     expires_at: datetime
     created_at: datetime
