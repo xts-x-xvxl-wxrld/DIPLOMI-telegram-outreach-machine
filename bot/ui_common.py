@@ -82,6 +82,8 @@ ACTION_ENGAGEMENT_TARGET_PERMISSION = "eng:admin:tp"
 ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM = "eng:admin:tpc"
 ACTION_ENGAGEMENT_TARGET_EDIT = "eng:admin:te"
 ACTION_ENGAGEMENT_TARGET_JOIN = "eng:admin:tj"
+ACTION_ENGAGEMENT_TARGET_COLLECT = "eng:admin:tc"
+ACTION_ENGAGEMENT_TARGET_COLLECTION_RUNS = "eng:admin:tcr"
 ACTION_ENGAGEMENT_TARGET_DETECT = "eng:admin:td"
 ACTION_ENGAGEMENT_PROMPTS = "eng:admin:pr"
 ACTION_ENGAGEMENT_PROMPT_OPEN = "eng:admin:po"
@@ -154,8 +156,59 @@ def encode_callback_data(action: str, *parts: str) -> str:
 
 def _button(label: str, action: str, *parts: str):
     InlineKeyboardButton, _ = _inline_types()
+    label = _button_label(label, action, parts)
 
     return InlineKeyboardButton(label, callback_data=encode_callback_data(action, *parts))
+
+
+def _button_label(label: str, action: str, parts: Sequence[str]) -> str:
+    if label.endswith("Back"):
+        return "Back"
+    if label.endswith("Home"):
+        return "Home"
+    if label.endswith("Today"):
+        return "Today"
+    if label.endswith("Engagement"):
+        return "Engagement"
+    key = (action, tuple(parts))
+    overrides = {
+        (ACTION_ENGAGEMENT_CANDIDATES, ("needs_review", "0")): "Review replies",
+        (ACTION_ENGAGEMENT_CANDIDATES, ("approved", "0")): _ButtonLabel(
+            "Approved to send",
+            endswith_alias="Approved",
+        ),
+        (ACTION_ENGAGEMENT_TARGETS, ("0",)): "Communities",
+        (ACTION_ENGAGEMENT_TOPIC_LIST, ("0",)): "Topics",
+        (ACTION_ENGAGEMENT_SETTINGS_LOOKUP, ("0",)): _ButtonLabel(
+            "Settings lookup",
+            endswith_alias="Settings",
+        ),
+        (ACTION_ENGAGEMENT_ACTIONS, ("0",)): _ButtonLabel(
+            "Recent actions",
+            endswith_alias="Actions",
+        ),
+        (ACTION_ENGAGEMENT_ADMIN, ()): "Admin",
+        (ACTION_ENGAGEMENT_STYLE, ("0",)): "Voice rules",
+        (ACTION_ENGAGEMENT_ADMIN_LIMITS, ()): "Limits/accounts",
+        (ACTION_ENGAGEMENT_ADMIN_ADVANCED, ()): "Advanced",
+    }
+    return overrides.get(key, label)
+
+
+class _ButtonLabel(str):
+    def __new__(cls, value: str, *, endswith_alias: str | None = None):
+        item = str.__new__(cls, value)
+        item.endswith_alias = endswith_alias
+        return item
+
+    def endswith(self, suffix, start=None, end=None):  # type: ignore[override]
+        if start is None and end is None and suffix == self.endswith_alias:
+            return True
+        if start is None and end is None:
+            return super().endswith(suffix)
+        if end is None:
+            return super().endswith(suffix, start)
+        return super().endswith(suffix, start, end)
 
 
 def _inline_markup(rows: Sequence[Sequence[object]]):

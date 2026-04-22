@@ -4,6 +4,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import desc, select
 
 from backend.api.deps import (
     DbSession,
@@ -12,6 +13,7 @@ from backend.api.deps import (
     require_engagement_admin_capability,
 )
 from backend.api.schemas import (
+    CollectionRunListResponse,
     EngagementActionListResponse,
     EngagementActionOut,
     EngagementCandidateApproveRequest,
@@ -23,6 +25,7 @@ from backend.api.schemas import (
     EngagementCandidateRetryRequest,
     EngagementCandidateRevisionListResponse,
     EngagementCandidateRevisionOut,
+    EngagementCollectionJobRequest,
     EngagementDetectJobRequest,
     EngagementJoinJobRequest,
     EngagementPromptPreviewOut,
@@ -58,10 +61,11 @@ from backend.api.schemas import (
     OperatorCapabilitiesOut,
 )
 from backend.db.enums import EngagementCandidateStatus
-from backend.db.models import Community, EngagementCandidate
+from backend.db.models import CollectionRun, Community, EngagementCandidate
 from backend.queue.client import (
     QueueUnavailable,
     enqueue_community_join,
+    enqueue_collection,
     enqueue_engagement_send,
     enqueue_engagement_target_resolve,
     enqueue_manual_engagement_detect,
@@ -260,6 +264,61 @@ async def post_engagement_target_join_job(
 
 
 @router.post(
+    "/engagement/targets/{target_id}/collection-jobs",
+    response_model=JobResponse,
+    status_code=202,
+)
+async def post_engagement_target_collection_job(
+    target_id: UUID,
+    payload: EngagementCollectionJobRequest,
+    db: DbSession,
+) -> JobResponse:
+    try:
+        target = await get_engagement_target(db, target_id)
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+    _ensure_target_can_collect(target)
+
+    try:
+        job = enqueue_collection(
+            target.community_id,
+            reason="engagement",
+            requested_by=payload.requested_by or "operator",
+            window_days=payload.window_days,
+        )
+    except QueueUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return JobResponse(job=job)
+
+
+@router.get(
+    "/engagement/targets/{target_id}/collection-runs",
+    response_model=CollectionRunListResponse,
+)
+async def get_engagement_target_collection_runs(
+    target_id: UUID,
+    db: DbSession,
+) -> CollectionRunListResponse:
+    try:
+        target = await get_engagement_target(db, target_id)
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+    if target.community_id is None:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "target_not_resolved", "message": "Engagement target is not resolved"},
+        )
+
+    rows = await db.scalars(
+        select(CollectionRun)
+        .where(CollectionRun.community_id == target.community_id)
+        .order_by(desc(CollectionRun.started_at))
+        .limit(20)
+    )
+    return CollectionRunListResponse(items=list(rows))
+
+
+@router.post(
     "/engagement/targets/{target_id}/detect-jobs",
     response_model=JobResponse,
     status_code=202,
@@ -290,6 +349,30 @@ async def post_engagement_target_detect_job(
     return JobResponse(job=job)
 
 
+def _ensure_target_can_collect(target: object) -> None:
+    if target.community_id is None:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "target_not_resolved", "message": "Engagement target is not resolved"},
+        )
+    if target.status != "approved":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "target_not_approved",
+                "message": "Manual engagement collection requires an approved target",
+            },
+        )
+    if not target.allow_detect:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "target_detect_not_approved",
+                "message": "Engagement target must allow detection before collection",
+            },
+        )
+
+
 def _http_error(exc: EngagementServiceError) -> HTTPException:
     status_code = 400
     if isinstance(exc, EngagementNotFound):
@@ -309,5 +392,7 @@ __all__ = ["router",
     "patch_engagement_target",
     "post_engagement_target_resolve_job",
     "post_engagement_target_join_job",
+    "post_engagement_target_collection_job",
+    "get_engagement_target_collection_runs",
     "post_engagement_target_detect_job",
 ]

@@ -137,6 +137,8 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TARGET_DETECT,
     ACTION_ENGAGEMENT_TARGET_EDIT,
     ACTION_ENGAGEMENT_TARGET_JOIN,
+    ACTION_ENGAGEMENT_TARGET_COLLECT,
+    ACTION_ENGAGEMENT_TARGET_COLLECTION_RUNS,
     ACTION_ENGAGEMENT_TARGET_OPEN,
     ACTION_ENGAGEMENT_TARGET_PERMISSION,
     ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM,
@@ -406,6 +408,12 @@ async def callback_query(update: Any, context: Any) -> None:
                 return
         if action == ACTION_ENGAGEMENT_TARGET_JOIN and len(parts) == 1:
             await _start_engagement_target_join(update, context, parts[0])
+            return
+        if action == ACTION_ENGAGEMENT_TARGET_COLLECT and len(parts) == 1:
+            await _start_engagement_target_collection(update, context, parts[0])
+            return
+        if action == ACTION_ENGAGEMENT_TARGET_COLLECTION_RUNS and len(parts) == 1:
+            await _send_engagement_target_collection_runs(update, context, parts[0])
             return
         if action == ACTION_ENGAGEMENT_TARGET_DETECT and len(parts) == 2:
             await _start_engagement_target_detection(

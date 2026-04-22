@@ -84,8 +84,11 @@ def format_engagement_candidates(
     items = data.get("items") or []
     total = data.get("total", len(items))
     if not items:
-        return f"No engagement replies with status {status} right now."
-    return f"Engagement replies | {status} ({offset + 1}-{offset + len(items)} of {total})"
+        return f"No engagement replies with status {status} right now. No reply opportunities in this view."
+    return (
+        f"Reply opportunities | {status}\n"
+        f"Engagement replies | {status} ({offset + 1}-{offset + len(items)} of {total})"
+    )
 
 
 def format_engagement_candidate_card(item: dict[str, Any], *, index: int | None = None) -> str:
@@ -125,7 +128,7 @@ def format_engagement_candidate_card(item: dict[str, Any], *, index: int | None 
     risk_notes = item.get("risk_notes") or []
     if risk_notes:
         lines.append(f"Risk notes: {_shorten('; '.join(str(note) for note in risk_notes), 260)}")
-    lines.extend(["", f"Candidate ID: {candidate_id}"])
+    lines.extend(["", f"Reply opportunity ID: {candidate_id}", f"Candidate ID: {candidate_id}"])
     lines.extend(_engagement_candidate_next_actions(candidate_id, status))
     return "\n".join(lines)
 
@@ -134,6 +137,7 @@ def format_engagement_candidate_review(action: str, item: dict[str, Any]) -> str
     candidate_id = item.get("id", "unknown")
     lines = [
         item.get("community_title") or "Community",
+        f"Reply opportunity ID: {candidate_id}",
         f"Candidate ID: {candidate_id}",
         f"Decision: {action}",
         f"Status: {item.get('status', 'unknown')}",
@@ -148,8 +152,12 @@ def format_engagement_candidate_revisions(data: dict[str, Any], *, candidate_id:
     items = data.get("items") or []
     total = data.get("total", len(items))
     if not items:
-        return f"No reply revisions for candidate {candidate_id} yet."
-    lines = [f"Candidate revisions ({total})", f"Candidate ID: {candidate_id}"]
+        return f"No reply revisions for candidate {candidate_id} yet. Reply opportunity ID: {candidate_id}"
+    lines = [
+        f"Candidate revisions ({total})",
+        f"Reply opportunity ID: {candidate_id}",
+        f"Candidate ID: {candidate_id}",
+    ]
     for item in items[:10]:
         lines.extend(["", f"Revision {item.get('revision_number', '?')}", f"Edited by: {item.get('edited_by') or 'operator'}"])
         if item.get("edit_reason"):

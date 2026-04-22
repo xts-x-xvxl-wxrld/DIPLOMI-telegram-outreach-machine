@@ -412,6 +412,28 @@ async def target_join_command(update: Any, context: Any) -> None:
         await _reply(update, format_api_error(exc.message))
 
 
+async def target_collect_command(update: Any, context: Any) -> None:
+    target_id = _first_arg(context)
+    if target_id is None:
+        await _reply(update, "Usage: /target_collect <target_id>")
+        return
+    try:
+        await _start_engagement_target_collection(update, context, target_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
+async def target_collection_runs_command(update: Any, context: Any) -> None:
+    target_id = _first_arg(context)
+    if target_id is None:
+        await _reply(update, "Usage: /target_collection_runs <target_id>")
+        return
+    try:
+        await _send_engagement_target_collection_runs(update, context, target_id)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+
+
 async def target_detect_command(update: Any, context: Any) -> None:
     target_id = _first_arg(context)
     if target_id is None:
@@ -443,5 +465,7 @@ __all__ = [
     "archive_engagement_target_command",
     "target_permission_command",
     "target_join_command",
+    "target_collect_command",
+    "target_collection_runs_command",
     "target_detect_command",
 ]

@@ -259,6 +259,25 @@ class BotApiClient:
             },
         )
 
+    async def start_engagement_target_collection(
+        self,
+        target_id: str,
+        *,
+        window_days: int = 90,
+        requested_by: str | None = None,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            f"/engagement/targets/{target_id}/collection-jobs",
+            json={
+                "window_days": window_days,
+                "requested_by": requested_by,
+            },
+        )
+
+    async def list_engagement_target_collection_runs(self, target_id: str) -> dict[str, Any]:
+        return await self._request("GET", f"/engagement/targets/{target_id}/collection-runs")
+
     async def start_engagement_target_detection(
         self,
         target_id: str,

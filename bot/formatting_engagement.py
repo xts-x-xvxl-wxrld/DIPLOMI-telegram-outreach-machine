@@ -287,6 +287,43 @@ def format_engagement_target_permission_confirmation(
     )
 
 
+def format_engagement_collection_runs(
+    data: dict[str, Any],
+    *,
+    target_id: str,
+) -> str:
+    items = data.get("items") or []
+    if not items:
+        return "\n".join(
+            [
+                _headline("No collection runs for this engagement target yet.", icon=""),
+                _field("Target ID", target_id),
+                _bullet(f"Start one with /target_collect {target_id}", icon="->"),
+            ]
+        )
+
+    lines = [
+        _headline(f"Collection runs | latest {len(items)}", icon=""),
+        _field("Target ID", target_id),
+    ]
+    for index, item in enumerate(items[:10], start=1):
+        run_id = item.get("id", "unknown")
+        lines.extend(
+            [
+                "",
+                f"{index}. {item.get('status', 'unknown')}",
+                _field("Collection run ID", run_id),
+                _field("Messages seen", item.get("messages_seen", 0)),
+                _field("Members seen", item.get("members_seen", 0)),
+                _field("Started", item.get("started_at", "unknown")),
+                _field("Completed", item.get("completed_at") or "not completed"),
+            ]
+        )
+        if item.get("status") == "completed":
+            lines.append(_bullet(f"Detect latest activity: /target_detect {target_id}", icon="->"))
+    return "\n".join(lines)
+
+
 def format_engagement_prompt_profiles(data: dict[str, Any], *, offset: int = 0) -> str:
     items = data.get("items") or []
     total = data.get("total", len(items))

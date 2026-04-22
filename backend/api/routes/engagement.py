@@ -10,6 +10,7 @@ from backend.api.routes import engagement_prompts_style as _engagement_prompts_s
 from backend.api.routes import engagement_candidates_actions as _engagement_candidates_actions
 from backend.queue.client import (
     enqueue_community_join,
+    enqueue_collection,
     enqueue_engagement_send,
     enqueue_engagement_target_resolve,
     enqueue_manual_engagement_detect,
@@ -27,6 +28,7 @@ router.include_router(_engagement_candidates_actions.router)
 
 _SYNC_NAMES = (
     "enqueue_community_join",
+    "enqueue_collection",
     "enqueue_engagement_send",
     "enqueue_engagement_target_resolve",
     "enqueue_manual_engagement_detect",
@@ -80,6 +82,16 @@ async def post_engagement_target_resolve_job(*args, **kwargs):
 async def post_engagement_target_join_job(*args, **kwargs):
     _sync_route_dependencies()
     return await _engagement_targets.post_engagement_target_join_job(*args, **kwargs)
+
+
+async def post_engagement_target_collection_job(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_targets.post_engagement_target_collection_job(*args, **kwargs)
+
+
+async def get_engagement_target_collection_runs(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_targets.get_engagement_target_collection_runs(*args, **kwargs)
 
 
 async def post_engagement_target_detect_job(*args, **kwargs):
@@ -257,7 +269,7 @@ async def post_engagement_candidate_send_job(*args, **kwargs):
     return await _engagement_candidates_actions.post_engagement_candidate_send_job(*args, **kwargs)
 
 
-__all__ = ["router", "enqueue_community_join", "enqueue_engagement_send", "enqueue_engagement_target_resolve", "enqueue_manual_engagement_detect", "list_engagement_actions", "list_engagement_candidates",
+__all__ = ["router", "enqueue_community_join", "enqueue_collection", "enqueue_engagement_send", "enqueue_engagement_target_resolve", "enqueue_manual_engagement_detect", "list_engagement_actions", "list_engagement_candidates",
     "get_operator_capabilities",
     "get_engagement_targets",
     "get_engagement_target_detail",
@@ -265,6 +277,8 @@ __all__ = ["router", "enqueue_community_join", "enqueue_engagement_send", "enque
     "patch_engagement_target",
     "post_engagement_target_resolve_job",
     "post_engagement_target_join_job",
+    "post_engagement_target_collection_job",
+    "get_engagement_target_collection_runs",
     "post_engagement_target_detect_job",
     "get_community_engagement_settings",
     "put_community_engagement_settings",

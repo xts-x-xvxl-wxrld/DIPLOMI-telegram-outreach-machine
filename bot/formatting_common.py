@@ -154,6 +154,8 @@ def _engagement_target_next_actions(target_id: str, status: str) -> list[str]:
                 f"Posting: /target_permission {target_id} post <on|off>",
                 f"Joining: /target_permission {target_id} join <on|off>",
                 f"Join: /target_join {target_id}",
+                f"Collect fresh messages: /target_collect {target_id}",
+                f"Collection runs: /target_collection_runs {target_id}",
                 f"Detect: /target_detect {target_id}",
             ]
         )

@@ -10,6 +10,8 @@ Initial endpoints:
 GET  /api/communities/{community_id}/engagement-settings
 PUT  /api/communities/{community_id}/engagement-settings
 POST /api/communities/{community_id}/join-jobs
+POST /api/engagement/targets/{target_id}/collection-jobs
+GET  /api/engagement/targets/{target_id}/collection-runs
 GET  /api/engagement/topics
 POST /api/engagement/topics
 PATCH /api/engagement/topics/{topic_id}
@@ -27,6 +29,9 @@ API rules:
 - Engagement settings default to disabled unless explicitly created.
 - Reply opportunity approval records the approving operator.
 - The send endpoint enqueues a job; it should not call Telethon directly.
+- Target-scoped manual collection requires an approved engagement target with `allow_detect = true`
+  and enqueues `collection.run`; collection-run listing exposes recent status and message counts for
+  operator verification.
 - API responses must not expose phone numbers or person-level scores.
 
 ### Request And Response DTOs
@@ -133,6 +138,8 @@ The Telegram bot may expose operator controls:
 /approve_reply <candidate_id>
 /reject_reply <candidate_id>
 /join_community <community_id>
+/target_collect <target_id>
+/target_collection_runs <target_id>
 ```
 
 `/engagement_candidates` and `eng:cand:*` are legacy command/callback names. Bot copy should say

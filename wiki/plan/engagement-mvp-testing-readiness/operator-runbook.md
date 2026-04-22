@@ -2,7 +2,7 @@
 
 ## Slice 5: Operator Staged-Test Controls
 
-Status: planned.
+Status: completed.
 
 Tasks:
 
@@ -23,6 +23,17 @@ Acceptance:
 - A tester can run the whole MVP sequence from the bot without direct database edits.
 - Manual collection refuses unapproved targets.
 - Manual send still requires an approved reply opportunity and joined engagement membership.
+
+Completed notes:
+
+- Added target-scoped API controls:
+  `POST /api/engagement/targets/{target_id}/collection-jobs` and
+  `GET /api/engagement/targets/{target_id}/collection-runs`.
+- Added bot/client controls `/target_collect <target_id>` and
+  `/target_collection_runs <target_id>`, linked from target-card next steps for collect-now and
+  collection run status.
+- Reply-review cards now name the operator-facing object as a reply opportunity while preserving
+  legacy candidate IDs for API traceability.
 
 ## Slice 6: Staged Telegram Runbook
 

@@ -327,6 +327,8 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("archive_engagement_target", archive_engagement_target_command))
     application.add_handler(CommandHandler("target_permission", target_permission_command))
     application.add_handler(CommandHandler("target_join", target_join_command))
+    application.add_handler(CommandHandler("target_collect", target_collect_command))
+    application.add_handler(CommandHandler("target_collection_runs", target_collection_runs_command))
     application.add_handler(CommandHandler("target_detect", target_detect_command))
     application.add_handler(CommandHandler("engagement_prompts", engagement_prompts_command))
     application.add_handler(CommandHandler("engagement_prompt", engagement_prompt_command))

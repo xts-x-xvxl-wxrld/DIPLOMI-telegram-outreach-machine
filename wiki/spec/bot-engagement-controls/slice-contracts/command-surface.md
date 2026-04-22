@@ -51,6 +51,8 @@ Rules:
 /archive_engagement_target <target_id>
 /target_permission <target_id> <join|detect|post> <on|off>
 /target_join <target_id>
+/target_collect <target_id>
+/target_collection_runs <target_id>
 /target_detect <target_id> [window_minutes]
 ```
 
@@ -65,6 +67,8 @@ Rules:
 - Target-level join and detect controls call target-scoped API routes when available. If the API
   only supports community-scoped routes, the bot must still verify and display the approved target
   gate returned by the API.
+- Target-level collection controls call target-scoped API routes, require an approved target with
+  detection permission, and show recent collection run status with message/member counts.
 - Rejecting or archiving a target forces all permissions off through the API.
 
 ### Prompt Profile Commands

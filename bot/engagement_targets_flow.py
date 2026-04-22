@@ -56,6 +56,7 @@ from bot.formatting import (
     format_engagement_target_approval_confirmation,
     format_engagement_target_mutation,
     format_engagement_target_permission_confirmation,
+    format_engagement_collection_runs,
     format_engagement_targets,
     format_engagement_topic_card,
     format_engagement_topics,
@@ -556,6 +557,33 @@ async def _start_engagement_target_join(update: Any, context: Any, target_id: st
     )
 
 
+async def _start_engagement_target_collection(update: Any, context: Any, target_id: str) -> None:
+    client = _api_client(context)
+    data = await client.start_engagement_target_collection(
+        target_id,
+        requested_by=_reviewer_label(update),
+    )
+    job_id = str((data.get("job") or {}).get("id", "unknown"))
+    await _callback_reply(
+        update,
+        format_engagement_job_response(data, label="Target engagement collection"),
+        reply_markup=job_actions_markup(job_id),
+    )
+
+
+async def _send_engagement_target_collection_runs(
+    update: Any,
+    context: Any,
+    target_id: str,
+) -> None:
+    client = _api_client(context)
+    data = await client.list_engagement_target_collection_runs(target_id)
+    await _callback_reply(
+        update,
+        format_engagement_collection_runs(data, target_id=target_id),
+    )
+
+
 async def _start_engagement_target_detection(
     update: Any,
     context: Any,
@@ -592,5 +620,7 @@ __all__ = [
     "_set_engagement_target_permission",
     "_resolve_engagement_target",
     "_start_engagement_target_join",
+    "_start_engagement_target_collection",
+    "_send_engagement_target_collection_runs",
     "_start_engagement_target_detection",
 ]

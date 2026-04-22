@@ -388,8 +388,8 @@ class EngagementTargetUpdateRequest(BaseModel):
     updated_by: str | None = Field(default=None, min_length=1, max_length=200)
 
 
-class EngagementTargetResolveJobRequest(BaseModel):
-    requested_by: str | None = Field(default=None, min_length=1, max_length=200)
+class EngagementTargetResolveJobRequest(BaseModel): requested_by: str | None = Field(default=None, min_length=1, max_length=200)
+class EngagementCollectionJobRequest(BaseModel): window_days: int = Field(default=90, ge=1, le=365); requested_by: str | None = Field(default=None, min_length=1, max_length=200)
 
 
 class EngagementTargetOut(BaseModel):
