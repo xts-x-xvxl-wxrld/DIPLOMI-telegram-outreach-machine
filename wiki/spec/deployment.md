@@ -49,6 +49,12 @@ GitHub Actions runs on every branch push and pull request:
 
 The Docker build is a consistency check only. Runtime secrets are not available to CI.
 
+Agents should run the same local gates before committing and pushing code or wiki changes:
+`python scripts/check_fragmentation.py`, `ruff check .`, and `pytest -q`. Run `docker build .`
+locally when the slice changes packaging, dependencies, runtime startup, or Docker files. If a gate
+cannot run locally, record the limitation in the wiki log and handoff instead of sending a surprise
+failure to GitHub.
+
 ## Deployment
 
 Staging deployment is triggered by successful CI completion on `main` or by manual workflow

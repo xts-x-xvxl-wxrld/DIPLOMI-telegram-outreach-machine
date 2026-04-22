@@ -1083,3 +1083,10 @@ while preserving the staged testing contract.
 - Published Telegram bot commands on startup with `/start` first so fresh bot conversations expose a Start command entrypoint.
 - Added a startup-command regression test with a fake Telegram bot.
 - Passed `python -m pytest tests/test_bot_startup_commands.py tests/test_bot_handlers.py -q` and `python scripts/check_fragmentation.py`.
+
+## [2026-04-23] fix | Tighten agent CI guidance
+
+- Added local CI parity rules to agent guidance so slices run fragmentation, Ruff, and pytest before commit/push, with Docker build required for packaging/runtime changes.
+- Added generated pytest scratch directory ignore patterns for Git and Docker context.
+- Fixed fallback Telegram markup classes so bot UI tests pass when the real Telegram package is unavailable.
+- Verified the staged slice with fragmentation, Ruff, and pytest; `docker build .` could not run because the local Docker Desktop daemon was unavailable.

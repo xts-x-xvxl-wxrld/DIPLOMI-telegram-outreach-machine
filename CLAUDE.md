@@ -14,6 +14,7 @@ This project uses a wiki at `wiki/` as the source of truth for all specs, plans,
 1. Append to `wiki/log.md`.
 2. Update the relevant spec if the design changed.
 3. Update `wiki/index.md` if new files, specs, shards, modules, or entrypoints were created.
+4. Run local CI parity before committing: `python scripts/check_fragmentation.py`, `ruff check .`, and `pytest -q`. Run `docker build .` too when packaging, dependency, startup, or Docker files changed.
 
 ## Context Budget
 
@@ -21,6 +22,8 @@ This project uses a wiki at `wiki/` as the source of truth for all specs, plans,
 - Keep top-level specs under 300 lines and plans under 200 lines. Split larger material into focused shards and link them from the parent spec.
 - Keep production files under 800 lines and tests under 1,000 lines when practical. If a touched file is already over the cap, extract a cohesive module before adding feature-sized behavior.
 - Run `python scripts/check_fragmentation.py` after adding or reshaping wiki/code files; CI enforces the same caps.
+- Do not push when local CI parity is failing. If a local gate cannot be run, note the reason in `wiki/log.md` and the handoff.
+- Never stage generated pytest scratch directories such as `.pytest-tmp/`, `.pytest_tmp/`, `.pytest_cache/`, or `pytest-temp-*`.
 
 ## Key Rules
 

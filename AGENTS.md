@@ -54,10 +54,13 @@ Agents must keep the wiki and codebase cheap to navigate.
 ## Git Freshness Protocol
 
 - Every completed change slice must end with a Git commit if the wiki or codebase changed.
-- Push the current branch after each slice commit when a remote is configured, so GitHub stays fresh.
+- Before committing, run the local CI parity checks that GitHub will run: `python scripts/check_fragmentation.py`, `ruff check .`, and `pytest -q`. If Docker is available and the slice changes packaging, dependencies, runtime startup, or Docker files, also run `docker build .`.
+- Do not push a branch while any required local CI parity check is failing. If a check cannot be run locally, record the reason in `wiki/log.md` and say so in the handoff before pushing.
+- Push the current branch after each slice commit when a remote is configured and local CI parity is green, so GitHub stays fresh.
 - Use a focused commit message that names the completed task or slice.
 - Before staging, inspect `git status` and avoid committing unrelated dirty files from another user or agent.
 - Never commit `.env`, secrets, local session files, data volumes, caches, logs, or virtual environments.
+- Never commit generated test scratch directories such as `.pytest-tmp/`, `.pytest_tmp/`, `.pytest_cache/`, or `pytest-temp-*`.
 - `git ci "message"` may be used only when the worktree contains no unrelated changes, because it stages with `git add -A`.
 
 ## Hard Rules

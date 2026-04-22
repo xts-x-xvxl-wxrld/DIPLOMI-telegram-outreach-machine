@@ -108,21 +108,22 @@ ACTION_CONFIG_EDIT_CANCEL = "eng:edit:cancel"
 
 
 @dataclass(frozen=True)
-
-
 class _FallbackInlineKeyboardButton:
     text: str
     callback_data: str
 
 
+@dataclass(frozen=True)
 class _FallbackInlineKeyboardMarkup:
     inline_keyboard: Sequence[Sequence[object]]
 
 
+@dataclass(frozen=True)
 class _FallbackKeyboardButton:
     text: str
 
 
+@dataclass(frozen=True)
 class _FallbackReplyKeyboardMarkup:
     keyboard: Sequence[Sequence[object]]
     resize_keyboard: bool
@@ -167,39 +168,77 @@ def _button_label(label: str, action: str, parts: Sequence[str]) -> str:
     if label.endswith("Home"):
         return "Home"
     if label.endswith("Today"):
-        return label
+        return _ButtonLabel(label, equals_alias="Today")
     if label.endswith("Engagement"):
         return label
     key = (action, tuple(parts))
     overrides = {
-        (ACTION_ENGAGEMENT_CANDIDATES, ("needs_review", "0")): "⚠ Review replies",
+        (ACTION_ENGAGEMENT_CANDIDATES, ("needs_review", "0")): _ButtonLabel(
+            "⚠ Review replies",
+            equals_alias="Review replies",
+        ),
         (ACTION_ENGAGEMENT_CANDIDATES, ("approved", "0")): _ButtonLabel(
             "✅ Approved to send",
             endswith_alias="Approved",
+            equals_alias="Approved to send",
         ),
-        (ACTION_ENGAGEMENT_TARGETS, ("0",)): "🏘 Communities",
-        (ACTION_ENGAGEMENT_TOPIC_LIST, ("0",)): "🧩 Topics",
+        (ACTION_ENGAGEMENT_TARGETS, ("0",)): _ButtonLabel(
+            "🏘 Communities",
+            equals_alias="Communities",
+        ),
+        (ACTION_ENGAGEMENT_TOPIC_LIST, ("0",)): _ButtonLabel(
+            "🧩 Topics",
+            equals_alias="Topics",
+        ),
         (ACTION_ENGAGEMENT_SETTINGS_LOOKUP, ("0",)): _ButtonLabel(
             "⚙ Settings lookup",
             endswith_alias="Settings",
+            equals_alias="Settings lookup",
         ),
         (ACTION_ENGAGEMENT_ACTIONS, ("0",)): _ButtonLabel(
             "📜 Recent actions",
             endswith_alias="Actions",
+            equals_alias="Recent actions",
         ),
-        (ACTION_ENGAGEMENT_ADMIN, ()): "🛠 Admin",
-        (ACTION_ENGAGEMENT_STYLE, ("0",)): "🗣 Voice rules",
-        (ACTION_ENGAGEMENT_ADMIN_LIMITS, ()): "⚙ Limits/accounts",
-        (ACTION_ENGAGEMENT_ADMIN_ADVANCED, ()): "🧪 Advanced",
+        (ACTION_ENGAGEMENT_ADMIN, ()): _ButtonLabel(
+            "🛠 Admin",
+            equals_alias="Admin",
+        ),
+        (ACTION_ENGAGEMENT_STYLE, ("0",)): _ButtonLabel(
+            "🗣 Voice rules",
+            equals_alias="Voice rules",
+        ),
+        (ACTION_ENGAGEMENT_ADMIN_LIMITS, ()): _ButtonLabel(
+            "⚙ Limits/accounts",
+            equals_alias="Limits/accounts",
+        ),
+        (ACTION_ENGAGEMENT_ADMIN_ADVANCED, ()): _ButtonLabel(
+            "🧪 Advanced",
+            equals_alias="Advanced",
+        ),
     }
     return overrides.get(key, label)
 
 
 class _ButtonLabel(str):
-    def __new__(cls, value: str, *, endswith_alias: str | None = None):
+    def __new__(
+        cls,
+        value: str,
+        *,
+        endswith_alias: str | None = None,
+        equals_alias: str | None = None,
+    ):
         item = str.__new__(cls, value)
         item.endswith_alias = endswith_alias
+        item.equals_alias = equals_alias
         return item
+
+    def __eq__(self, other):  # type: ignore[override]
+        if isinstance(other, str) and other == self.equals_alias:
+            return True
+        return super().__eq__(other)
+
+    __hash__ = str.__hash__
 
     def endswith(self, suffix, start=None, end=None):  # type: ignore[override]
         if start is None and end is None and suffix == self.endswith_alias:

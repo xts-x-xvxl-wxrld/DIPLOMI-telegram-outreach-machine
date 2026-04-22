@@ -2,6 +2,8 @@
 .github
 .claude
 .pytest_cache
+.pytest-tmp
+.pytest-*
 .pytest_basetemp_run
 .pytest_tmp
 .tmp_pytest
