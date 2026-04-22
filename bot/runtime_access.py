@@ -19,6 +19,15 @@ async def access_gate(update: Any, context: Any) -> None:
     raise ApplicationHandlerStop
 
 
+def _clear_pending_edit_if_command(update: Any, context: Any) -> None:
+    command = _message_command_name(update)
+    if command is None or command == "cancel_edit":
+        return
+    operator_id = _telegram_user_id(update)
+    if operator_id is not None:
+        _config_edit_store(context).cancel(operator_id)
+
+
 def _is_authorized_update(update: Any, settings: BotSettings) -> bool:
     if not settings.allowed_user_ids:
         return True
@@ -219,6 +228,7 @@ def _looks_like_telegram_reference(raw_value: str) -> bool:
 
 __all__ = [
     "access_gate",
+    "_clear_pending_edit_if_command",
     "_is_authorized_update",
     "_is_engagement_admin",
     "_require_engagement_admin",

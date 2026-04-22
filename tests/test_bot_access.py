@@ -7,12 +7,15 @@ import pytest
 from bot.config import BotSettings
 from bot.main import (
     API_CLIENT_KEY,
+    CONFIG_EDIT_STORE_KEY,
+    access_gate,
     _is_authorized_update,
     _is_engagement_admin,
     _is_engagement_admin_async,
     _is_identity_command,
     _message_command_name,
 )
+from bot.config_editing import PendingEditStore, editable_field
 
 
 def _settings(
@@ -51,6 +54,30 @@ def test_whoami_command_bypasses_access_gate_for_onboarding() -> None:
 
     assert _message_command_name(update) == "whoami"
     assert _is_identity_command(update)
+
+
+@pytest.mark.asyncio
+async def test_access_gate_clears_pending_edit_for_new_command() -> None:
+    store = PendingEditStore()
+    field = editable_field("candidate", "final_reply")
+    assert field is not None
+    store.start(operator_id=456, field=field, object_id="candidate-1")
+    update = SimpleNamespace(
+        effective_user=SimpleNamespace(id=456),
+        message=SimpleNamespace(text="/engagement"),
+    )
+    context = SimpleNamespace(
+        application=SimpleNamespace(
+            bot_data={
+                "settings": _settings(456),
+                CONFIG_EDIT_STORE_KEY: store,
+            }
+        )
+    )
+
+    await access_gate(update, context)
+
+    assert store.get(456) is None
 
 
 def test_engagement_admin_defaults_open_when_no_admin_allowlist_is_configured() -> None:

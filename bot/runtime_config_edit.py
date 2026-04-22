@@ -10,15 +10,6 @@ from .runtime_access import *
 from .runtime_parsing import *
 
 
-def _clear_pending_edit_if_command(update: Any, context: Any) -> None:
-    command = _message_command_name(update)
-    if command is None or command == "cancel_edit":
-        return
-    operator_id = _telegram_user_id(update)
-    if operator_id is not None:
-        _config_edit_store(context).cancel(operator_id)
-
-
 async def _start_config_edit(
     update: Any,
     context: Any,

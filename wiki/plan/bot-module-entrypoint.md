@@ -19,9 +19,12 @@ Status: completed.
 - Add an `if __name__ == "__main__": main()` guard so the Compose command starts polling.
 - Add a focused regression test that executes `bot.main` as a module and proves the polling
   entrypoint is invoked.
+- Keep pending-edit cleanup available inside `runtime_access.access_gate` after the runtime shard
+  split so authorized commands do not raise on live bot updates.
 
 ## Verification
 
 - Run the focused bot entrypoint test.
-- Run focused bot handler/UI coverage if the facade import behavior changes.
+- Run focused bot access, handler, engagement-handler, entrypoint, and UI coverage if facade or
+  runtime access behavior changes.
 - Redeploy staging and confirm the bot container remains up.

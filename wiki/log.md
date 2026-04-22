@@ -11,6 +11,8 @@ Types: spec | plan | code | refactor | fix | decision | question
 Fixed the Docker bot service entrypoint by making `python -m bot.main` call the polling
 entrypoint instead of importing compatibility exports and exiting with code 0. Added a focused
 entrypoint regression test and documented the operational fix in the wiki index and plan.
+After staging exposed live update handling, moved pending-edit command cleanup into the access
+runtime shard and added access-gate coverage so bot commands no longer raise after startup.
 
 ## [2026-04-22] docs | Added staged Telegram engagement runbook
 
