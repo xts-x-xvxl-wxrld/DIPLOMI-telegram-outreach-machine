@@ -1,6 +1,13 @@
 .git
 .github
+.claude
 .pytest_cache
+.pytest_basetemp_run
+.pytest_tmp
+.tmp_pytest
+.tmp_pytest_local
+.tmp_pytest_workspace
+pytest-temp-*
 .ruff_cache
 .venv
 venv

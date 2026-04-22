@@ -932,3 +932,10 @@ bot now sends `X-Telegram-User-Id`, prefers backend capability decisions for adm
 and falls back to `TELEGRAM_ADMIN_USER_IDS` only when backend capabilities are unconfigured or
 unavailable. Focused bot access, API-client, engagement-handler, and engagement API coverage passed
 with 159 tests.
+
+## [2026-04-22] plan | Added context fragmentation protocol
+
+Added `wiki/plan/context-fragmentation-protocol.md` to define agent reading limits, wiki/code size
+caps, and a refactor backlog for oversized specs and core modules. Updated `AGENTS.md`,
+`CLAUDE.md`, `.gitignore`, `.dockerignore`, `wiki/spec/architecture.md`, and `wiki/index.md` so
+future agents route through smaller context slices and ignore duplicate local worktrees/temp dirs.

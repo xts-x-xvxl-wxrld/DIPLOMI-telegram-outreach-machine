@@ -106,6 +106,22 @@ GitHub and VPS deployment use the workflow described in `wiki/spec/deployment.md
 - coding agents on the VPS work in separate checkouts or worktrees on `agent/*` branches
 - application secrets remain in local/VPS `.env` files and are excluded from Docker build context
 
+## Context Fragmentation
+
+Agent-facing docs and modules must stay cheap to route through:
+
+- `wiki/index.md` is the routing table, not a full design document.
+- Top-level specs stay under roughly 300 lines and link to focused shards for detailed endpoint,
+  workflow, prompt, or rollout contracts.
+- Plans stay under roughly 200 lines. Larger work is split into slice plans.
+- `wiki/log.md` remains append-only; agents normally search its headings instead of reading the full
+  history.
+- Production files should stay under roughly 800 lines and tests under roughly 1,000 lines. When a
+  touched file is already over the cap, new feature-sized work should include a cohesive extraction
+  or be preceded by a refactor slice.
+- Local agent worktrees, caches, pytest temp directories, sessions, data volumes, and env files are
+  outside the project context and must stay ignored by Git and Docker.
+
 ---
 
 ## Data Flow

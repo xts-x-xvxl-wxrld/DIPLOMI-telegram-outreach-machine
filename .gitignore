@@ -6,6 +6,13 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+.claude/
+.pytest_basetemp_run/
+.pytest_tmp/
+.tmp_pytest/
+.tmp_pytest_local/
+.tmp_pytest_workspace/
+pytest-temp-*/
 
 .venv/
 venv/

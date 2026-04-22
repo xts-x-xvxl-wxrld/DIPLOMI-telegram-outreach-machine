@@ -55,6 +55,7 @@
 - [Bot Engagement Controls](plan/bot-engagement-controls.md) - next bot slices for target admin, prompt/style controls, reply opportunity editing, and advanced settings
 - [Bot Operator Cockpit](plan/bot-operator-cockpit.md) - inline top-level bot cockpit, callback namespace, and reply-keyboard removal rollout
 - [Telegram Account Pool Separation](plan/telegram-account-pools.md) - schema, account-manager routing, engagement guards, and onboarding plan for dedicated account pools
+- [Context Fragmentation Protocol](plan/context-fragmentation-protocol.md) - agent reading limits, wiki/code size caps, and refactor backlog for smaller context slices
 
 ## Implementation roots
 
