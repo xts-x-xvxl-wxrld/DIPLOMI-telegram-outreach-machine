@@ -20,6 +20,7 @@ This project uses a wiki at `wiki/` as the source of truth for all specs, plans,
 - Do not read `wiki/llm-wiki.md`, `wiki/llm-wiki-md.txt`, all of `wiki/log.md`, `.claude/`, pytest temp directories, env files, caches, sessions, or data volumes during normal coding.
 - Keep top-level specs under 300 lines and plans under 200 lines. Split larger material into focused shards and link them from the parent spec.
 - Keep production files under 800 lines and tests under 1,000 lines when practical. If a touched file is already over the cap, extract a cohesive module before adding feature-sized behavior.
+- Run `python scripts/check_fragmentation.py` after adding or reshaping wiki/code files; CI enforces the same caps.
 
 ## Key Rules
 

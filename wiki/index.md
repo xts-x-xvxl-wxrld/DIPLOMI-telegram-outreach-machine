@@ -72,8 +72,7 @@
 
 - `bot/api_client.py` - bot HTTP client for backend API endpoints
 - `bot/config.py` - bot environment parsing for API token, operator allowlist, and engagement admin allowlist
-- `bot/config_editing.py` - shared Telegram bot config-edit metadata, typed parsers, and
-  per-operator pending edit state
+- `bot/config_editing.py` - shared Telegram bot config-edit metadata, parsers, and pending edit state
 - `bot/formatting.py` - compatibility exports for Telegram message formatting
 - `bot/formatting_common.py` - shared bot formatting helpers
 - `bot/formatting_discovery.py` - discovery, seed, community, account, and access message formatting
@@ -87,6 +86,7 @@
 - `bot/ui_discovery.py` - operator, discovery, seed, community, member, and job markups
 - `bot/ui_engagement.py` - engagement inline markups and callback-data helpers
 - `scripts/make_seed_csv.py` - builds bot-ready seed CSV files from public Telegram usernames or links
+- `scripts/check_fragmentation.py` - CI guardrail for wiki, production, and test file size caps
 - `scripts/onboard_telegram_account.py` - local Telethon session creation and `telegram_accounts` registration
 - `scripts/vps-deploy.sh` - reset-only staging deploy script for the VPS checkout
 - `scripts/vps-deploy-env.sh` - validated environment wrapper around the deploy checkout script
@@ -146,8 +146,3 @@
 - `tests/test_bot_engagement_handlers.py` - engagement cockpit, candidate status, approve-to-send, and send callback bot tests
 - `tests/test_bot_config_editing.py` - config-edit field registry, typed parser, pending-state, and expiry tests
 - `tests/test_bot_ui.py` - inline callback parser, callback length, and Telegram markup tests
-- `scripts/` - local developer workflow helpers
-- `backend/` - FastAPI app, SQLAlchemy models, queue helpers, worker stubs
-- `bot/` - Telegram bot package placeholder
-- `alembic/` - database migration environment and schema migrations
-- `tests/` - foundation tests for app factory, queue payloads, account manager helpers, seeds, and expansion

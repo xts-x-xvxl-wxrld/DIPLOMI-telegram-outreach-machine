@@ -34,6 +34,7 @@ Agents must keep the wiki and codebase cheap to navigate.
 - Split by operational boundary, not by arbitrary helpers: API resources, bot command groups, callback routers, formatting domains, service subdomains, worker orchestration, adapters, and pure utilities.
 - Preserve public imports while refactoring by leaving compatibility wrappers where useful. Do not mix broad behavior changes with pure file moves unless tests cover the combined risk.
 - Update `wiki/index.md` implementation roots whenever a new shard or module becomes an agent entrypoint.
+- Run `python scripts/check_fragmentation.py` after adding or reshaping wiki/code files; CI rejects files over the fragmentation caps unless they are explicitly grandfathered.
 
 ## Module Map
 

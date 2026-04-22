@@ -90,6 +90,19 @@ Preferred split boundaries:
 Pure moves should preserve public imports with compatibility wrappers when that reduces risk. Broad
 behavior changes should not be mixed with file moves unless the tests cover the combined behavior.
 
+### Guardrail Enforcement
+
+`scripts/check_fragmentation.py` enforces the soft caps in CI for tracked files. It checks:
+- `wiki/index.md` at 150 lines.
+- Top-level `wiki/spec/*.md` files at 300 lines.
+- `wiki/plan/**/*.md` files at 200 lines.
+- Production Python under `backend/`, `bot/`, `scripts/`, and `alembic/` at 800 lines.
+- Tests under `tests/` at 1,000 lines.
+
+`wiki/log.md` is exempt because it is append-only. Existing oversized file debt is grandfathered at
+its current line count so the suite stays green, but those files cannot grow further before being
+split.
+
 ## Refactor Backlog
 
 Completed in the 2026-04-22 fragmentation refactor:
@@ -110,6 +123,8 @@ Completed in the 2026-04-22 fragmentation refactor:
   rules, candidates, actions, and shared view modules.
 - Split remaining oversized backend production files: engagement API routes, SQLAlchemy models, and
   engagement detection worker orchestration.
+- Added a CI guardrail that rejects new oversized wiki, production, and test files while
+  grandfathering existing oversized file debt at fixed ceilings.
 
 Remaining backlog:
 

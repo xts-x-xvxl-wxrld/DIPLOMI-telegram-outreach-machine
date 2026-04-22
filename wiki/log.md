@@ -967,3 +967,11 @@ Updated top-level bot, cockpit, engagement, admin control-plane, API, and databa
 point at the compatibility facades and shard modules created by the backend/bot fragmentation
 refactor. Clarified the remaining engagement questions around oversized tests and facade import
 compatibility.
+
+## [2026-04-22] guardrail | Added fragmentation size check to CI
+
+Added `scripts/check_fragmentation.py` and tests to enforce wiki, production, and test file size caps
+for tracked files. Wired the guardrail into GitHub Actions before Ruff and pytest, documented the
+enforcement in the context fragmentation plan and agent instructions, and linked the script from the
+wiki implementation roots. The append-only wiki log remains exempt, and current oversized files are
+grandfathered at fixed ceilings so they cannot grow before being split.

@@ -31,6 +31,9 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -e ".[dev]"
 
+      - name: Check fragmentation guardrails
+        run: python scripts/check_fragmentation.py
+
       - name: Run Ruff
         run: ruff check .
 
