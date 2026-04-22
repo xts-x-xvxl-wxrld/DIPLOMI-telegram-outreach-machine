@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, ConfigDict, Field
 
 from backend.api.deps import DbSession, require_bot_token
 from backend.api.schemas import (
@@ -37,8 +38,45 @@ from backend.services.search import (
     list_search_runs,
     review_search_candidate,
 )
+from backend.services.search_seed_conversion import convert_search_candidate_to_seed
 
 router = APIRouter(dependencies=[Depends(require_bot_token)])
+
+
+class SearchSeedConversionRequest(BaseModel):
+    seed_group_name: str | None = Field(default=None, min_length=1, max_length=200)
+    requested_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class SearchSeedGroupOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    normalized_name: str
+    created_by: str | None = None
+
+
+class SearchSeedChannelOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    seed_group_id: UUID
+    raw_value: str
+    normalized_key: str
+    username: str | None = None
+    telegram_url: str | None = None
+    title: str | None = None
+    notes: str | None = None
+    status: str
+    community_id: UUID | None = None
+
+
+class SearchSeedConversionResponse(BaseModel):
+    seed_group: SearchSeedGroupOut
+    seed_channel: SearchSeedChannelOut
+    candidate: SearchCandidateReviewOut
+    review: SearchReviewOut
 
 
 @router.post("/search-runs", response_model=SearchRunCreateResponse, status_code=201)
@@ -251,6 +289,34 @@ async def post_search_candidate_review(
     )
 
 
+@router.post(
+    "/search-candidates/{candidate_id}/convert-to-seed",
+    response_model=SearchSeedConversionResponse,
+)
+async def post_search_candidate_convert_to_seed(
+    candidate_id: UUID,
+    payload: SearchSeedConversionRequest,
+    db: DbSession,
+) -> SearchSeedConversionResponse:
+    try:
+        result = await convert_search_candidate_to_seed(
+            db,
+            candidate_id=candidate_id,
+            seed_group_name=payload.seed_group_name,
+            requested_by=payload.requested_by,
+        )
+    except SearchServiceError as exc:
+        raise _http_error(exc) from exc
+
+    await db.commit()
+    return SearchSeedConversionResponse(
+        seed_group=SearchSeedGroupOut.model_validate(result.seed_group),
+        seed_channel=SearchSeedChannelOut.model_validate(result.seed_channel),
+        candidate=SearchCandidateReviewOut.model_validate(result.candidate),
+        review=SearchReviewOut.model_validate(result.review),
+    )
+
+
 def _http_error(exc: SearchServiceError) -> HTTPException:
     status_code = 400
     if isinstance(exc, SearchNotFound):
@@ -272,4 +338,7 @@ __all__ = [
     "get_search_run_candidates",
     "post_search_rerank_job",
     "post_search_candidate_review",
+    "post_search_candidate_convert_to_seed",
+    "SearchSeedConversionRequest",
+    "SearchSeedConversionResponse",
 ]

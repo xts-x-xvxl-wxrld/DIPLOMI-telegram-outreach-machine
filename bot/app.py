@@ -250,6 +250,8 @@ ENGAGEMENT_ADMIN_ONLY_MESSAGE = (
 STARTUP_BOT_COMMANDS = (
     ("start", "Open operator cockpit"),
     ("help", "Show commands and upload help"),
+    ("search", "Start a Telegram community search"),
+    ("searches", "List community searches"),
     ("seeds", "Review discovery communities"),
     ("engagement", "Open engagement cockpit"),
     ("accounts", "Check Telegram account health"),
@@ -259,6 +261,7 @@ STARTUP_BOT_COMMANDS = (
 from .runtime import *
 from .account_handlers import *
 from .discovery_handlers import *
+from .search_handlers import *
 from .engagement_handlers import *
 from .callback_handlers import *
 
@@ -312,6 +315,14 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("whoami", whoami_command))
     application.add_handler(CommandHandler("brief", brief_command))
     application.add_handler(CommandHandler("briefs", briefs_command))
+    application.add_handler(CommandHandler("search", search_command))
+    application.add_handler(CommandHandler("searches", searches_command))
+    application.add_handler(CommandHandler("search_run", search_run_command))
+    application.add_handler(CommandHandler("search_candidates", search_candidates_command))
+    application.add_handler(CommandHandler("promote_search", promote_search_command))
+    application.add_handler(CommandHandler("reject_search", reject_search_command))
+    application.add_handler(CommandHandler("archive_search", archive_search_command))
+    application.add_handler(CommandHandler("convert_search", convert_search_command))
     application.add_handler(CommandHandler("entity", entity_command))
     application.add_handler(CommandHandler("candidates", candidates_command))
     application.add_handler(CommandHandler("approve", approve_command))

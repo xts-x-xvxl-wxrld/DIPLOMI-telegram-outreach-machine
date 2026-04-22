@@ -1090,3 +1090,9 @@ while preserving the staged testing contract.
 - Added generated pytest scratch directory ignore patterns for Git and Docker context.
 - Fixed fallback Telegram markup classes so bot UI tests pass when the real Telegram package is unavailable.
 - Verified the staged slice with fragmentation, Ruff, and pytest; `docker build .` could not run because the local Docker Desktop daemon was unavailable.
+
+## [2026-04-23] implementation | Search bot surface and seed conversion
+
+- Added bot-first search commands, candidate cards, callback paging, run-scoped promote/reject/archive actions, and promoted-candidate seed conversion controls.
+- Added `POST /api/search-candidates/{candidate_id}/convert-to-seed` with duplicate seed-channel reuse, `manual_seed` evidence, `convert_to_seed` review metadata, and converted candidate status.
+- Added focused bot/API/service/UI regression tests for Slice 6 and Slice 7.

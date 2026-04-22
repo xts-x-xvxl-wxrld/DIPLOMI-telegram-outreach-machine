@@ -252,6 +252,7 @@ ENGAGEMENT_ADMIN_ONLY_MESSAGE = (
 
 from .runtime import *
 from .discovery_handlers import *
+from .search_handlers import *
 from .engagement_handlers import *
 
 
@@ -309,6 +310,8 @@ async def callback_query(update: Any, context: Any) -> None:
             return
         if action == ACTION_JOB_STATUS and len(parts) == 1:
             await _send_job_status(update, context, parts[0])
+            return
+        if await _handle_search_callback(update, context, action, parts):
             return
         if action == ACTION_ENGAGEMENT_HOME:
             await _send_engagement_home(update, context)

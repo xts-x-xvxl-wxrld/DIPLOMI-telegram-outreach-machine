@@ -16,13 +16,15 @@ from backend.api.routes.search import (
     get_search_run_detail,
     get_search_run_queries,
     get_search_runs,
+    post_search_candidate_convert_to_seed,
     post_search_candidate_review,
     post_search_rerank_job,
     post_search_run,
+    SearchSeedConversionRequest,
 )
 from backend.api.schemas import SearchCandidateReviewRequest, SearchRunCreateRequest
 from backend.db.enums import SearchCandidateStatus, SearchReviewAction, SearchRunStatus
-from backend.db.models import SearchCandidate, SearchQuery, SearchReview, SearchRun
+from backend.db.models import SearchCandidate, SearchQuery, SearchReview, SearchRun, SeedChannel, SeedGroup
 from backend.queue.client import QueuedJob, QueueUnavailable
 from backend.services.search import (
     SearchCandidateEvidenceSummaryView,
@@ -388,6 +390,74 @@ async def test_post_search_candidate_review_rejects_unimplemented_global_actions
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail["code"] == "unsupported_review_action"
     assert db.commits == 0
+
+
+@pytest.mark.asyncio
+async def test_post_search_candidate_convert_to_seed_returns_seed_row(monkeypatch) -> None:
+    candidate = SearchCandidate(
+        id=uuid4(),
+        search_run_id=uuid4(),
+        status=SearchCandidateStatus.PROMOTED.value,
+        community_id=None,
+        score_components={},
+        first_seen_at=datetime(2026, 4, 22, tzinfo=timezone.utc),
+        last_seen_at=datetime(2026, 4, 22, tzinfo=timezone.utc),
+    )
+    seed_group = SeedGroup(
+        id=uuid4(),
+        name="Search: Hungarian SaaS",
+        normalized_name="search: hungarian saas",
+        created_by="telegram:123",
+    )
+    seed_channel = SeedChannel(
+        id=uuid4(),
+        seed_group_id=seed_group.id,
+        raw_value="https://t.me/husaas",
+        normalized_key="username:husaas",
+        username="husaas",
+        telegram_url="https://t.me/husaas",
+        status="pending",
+    )
+    review = SearchReview(
+        id=uuid4(),
+        search_run_id=candidate.search_run_id,
+        search_candidate_id=candidate.id,
+        action=SearchReviewAction.CONVERT_TO_SEED.value,
+        scope="run",
+        requested_by="telegram:123",
+        created_at=datetime(2026, 4, 22, tzinfo=timezone.utc),
+    )
+
+    async def fake_convert(db: object, **kwargs: object) -> object:
+        assert kwargs == {
+            "candidate_id": candidate.id,
+            "seed_group_name": "Search: Hungarian SaaS",
+            "requested_by": "telegram:123",
+        }
+        candidate.status = SearchCandidateStatus.CONVERTED_TO_SEED.value
+        return SimpleNamespace(
+            seed_group=seed_group,
+            seed_channel=seed_channel,
+            candidate=candidate,
+            review=review,
+        )
+
+    monkeypatch.setattr("backend.api.routes.search.convert_search_candidate_to_seed", fake_convert)
+    db = FakeDb(candidate=candidate)
+
+    response = await post_search_candidate_convert_to_seed(
+        candidate.id,
+        SearchSeedConversionRequest(
+            seed_group_name="Search: Hungarian SaaS",
+            requested_by="telegram:123",
+        ),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.seed_channel.id == seed_channel.id
+    assert response.candidate.status == SearchCandidateStatus.CONVERTED_TO_SEED.value
+    assert response.review.action == SearchReviewAction.CONVERT_TO_SEED.value
+    assert db.commits == 1
 
 
 class FakeScalarResult:

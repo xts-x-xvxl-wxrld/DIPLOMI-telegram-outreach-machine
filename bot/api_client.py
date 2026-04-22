@@ -4,6 +4,8 @@ from typing import Any
 
 import httpx
 
+from bot.api_client_search import SearchApiClientMixin
+
 
 class BotApiError(RuntimeError):
     def __init__(self, message: str, *, status_code: int | None = None) -> None:
@@ -12,7 +14,7 @@ class BotApiError(RuntimeError):
         self.status_code = status_code
 
 
-class BotApiClient:
+class BotApiClient(SearchApiClientMixin):
     def __init__(
         self,
         *,

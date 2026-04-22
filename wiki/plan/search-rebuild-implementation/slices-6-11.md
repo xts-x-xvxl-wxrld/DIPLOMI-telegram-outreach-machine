@@ -4,6 +4,9 @@ Detailed slices for bot search, seed conversion, rerank/replay, graph gate, defe
 
 ## Slice 6: Bot Search Surface
 
+Status: implemented in `bot/search_handlers.py`, `bot/formatting_search.py`, `bot/ui_search.py`,
+with API-client and callback wiring.
+
 Purpose: expose the first search workflow through the existing MVP operator UI.
 
 Commands:
@@ -29,6 +32,9 @@ Exit criteria:
 - Bot tests cover commands, callback routing, review actions, paging, and safe formatting.
 - Candidate cards do not expose raw message history or person-level signals.
 ## Slice 7: Seed Conversion
+
+Status: implemented through `POST /api/search-candidates/{candidate_id}/convert-to-seed`,
+`backend/services/search_seed_conversion.py`, and bot convert controls.
 
 Purpose: let strong search hits feed the existing seed-first ecosystem.
 

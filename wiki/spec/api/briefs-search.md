@@ -344,5 +344,21 @@ Review rules:
 
 ### `POST /api/search-candidates/{candidate_id}/convert-to-seed`
 
-Deferred seed-conversion endpoint. It will require a resolved `community_id` or public
-username/canonical URL, create or reuse a seed row, and write `convert_to_seed` review metadata.
+Converts a reviewed search candidate into a seed-group row.
+
+Request:
+
+```json
+{
+  "seed_group_name": "Search: Hungarian SaaS founders",
+  "requested_by": "telegram_user_id_or_operator"
+}
+```
+
+Rules:
+- `seed_group_name` is optional for the bot; when absent, the API uses the search run title.
+- The candidate must have a resolved `community_id` or public username/canonical URL.
+- The endpoint creates or reuses the named seed group.
+- Duplicate conversion reuses the existing `seed_channels` row for the seed group and public username.
+- Conversion writes `manual_seed` evidence and `convert_to_seed` review metadata linking the search candidate to the seed row.
+- Candidate status becomes `converted_to_seed`.

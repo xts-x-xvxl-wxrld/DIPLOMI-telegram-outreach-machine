@@ -33,6 +33,16 @@ from .formatting_accounts import (
     format_account_onboarding_command,
     format_account_onboarding_usage,
 )
+from .formatting_search import (
+    format_created_search_run,
+    format_search_candidate_card,
+    format_search_candidate_review,
+    format_search_candidates,
+    format_search_run_card,
+    format_search_run_detail,
+    format_search_runs,
+    format_search_seed_conversion,
+)
 from .formatting_engagement import (
     format_engagement_home,
     format_engagement_admin_home,
@@ -97,6 +107,14 @@ __all__ = [
     "format_access_denied",
     "format_account_onboarding_command",
     "format_account_onboarding_usage",
+    "format_created_search_run",
+    "format_search_candidate_card",
+    "format_search_candidate_review",
+    "format_search_candidates",
+    "format_search_run_card",
+    "format_search_run_detail",
+    "format_search_runs",
+    "format_search_seed_conversion",
     "format_engagement_home",
     "format_engagement_admin_home",
     "format_engagement_admin_limits_home",

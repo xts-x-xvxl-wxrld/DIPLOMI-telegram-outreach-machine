@@ -120,3 +120,10 @@ Calls `POST /api/search-candidates/{candidate_id}/review` with:
 ```
 
 Archive hides or defers the candidate within the current run only.
+
+### `/convert_search <candidate_id> [seed_group_name]`
+
+Calls `POST /api/search-candidates/{candidate_id}/convert-to-seed`.
+
+If `seed_group_name` is omitted, the API appends to the search-run-derived seed group. Inline bot
+conversion controls are shown after promotion and on promoted candidate cards.
