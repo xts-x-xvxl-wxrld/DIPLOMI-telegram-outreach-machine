@@ -11,6 +11,7 @@ from backend.workers.engagement_detect import run_engagement_detect_job
 from backend.workers.engagement_send import run_engagement_send_job
 from backend.workers.engagement_target_resolve import run_engagement_target_resolve_job
 from backend.workers.search_plan import run_search_plan_job
+from backend.workers.search_retrieve import run_search_retrieve_job
 from backend.workers.seed_expand import run_seed_expand_job
 from backend.workers.seed_resolve import run_seed_resolve_job
 from backend.workers.telegram_entity_resolve import run_telegram_entity_resolve_job
@@ -69,7 +70,7 @@ def run_search_plan(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_search_retrieve(payload: dict[str, Any]) -> dict[str, Any]:
-    return {"status": "stubbed", "job_type": "search.retrieve", "payload": payload}
+    return run_search_retrieve_job(payload)
 
 
 def run_search_rank(payload: dict[str, Any]) -> dict[str, Any]:

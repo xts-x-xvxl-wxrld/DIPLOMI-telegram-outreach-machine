@@ -929,6 +929,10 @@ def test_dispatch_recognizes_search_job_types(monkeypatch) -> None:
         "backend.workers.jobs.run_search_plan",
         lambda payload: {"status": "processed", "job_type": "search.plan", "payload": payload},
     )
+    monkeypatch.setattr(
+        "backend.workers.jobs.run_search_retrieve",
+        lambda payload: {"status": "processed", "job_type": "search.retrieve", "payload": payload},
+    )
     search_run_id = str(uuid4())
     search_query_id = str(uuid4())
 
@@ -948,7 +952,7 @@ def test_dispatch_recognizes_search_job_types(monkeypatch) -> None:
             "requested_by": "operator",
         },
     ) == {
-        "status": "stubbed",
+        "status": "processed",
         "job_type": "search.retrieve",
         "payload": {
             "search_run_id": search_run_id,
