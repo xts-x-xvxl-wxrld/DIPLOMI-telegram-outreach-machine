@@ -939,3 +939,14 @@ Added `wiki/plan/context-fragmentation-protocol.md` to define agent reading limi
 caps, and a refactor backlog for oversized specs and core modules. Updated `AGENTS.md`,
 `CLAUDE.md`, `.gitignore`, `.dockerignore`, `wiki/spec/architecture.md`, and `wiki/index.md` so
 future agents route through smaller context slices and ignore duplicate local worktrees/temp dirs.
+
+## [2026-04-22] refactor | Applied wiki and bot fragmentation slice
+
+Converted oversized top-level specs into routing contracts with focused shards for API, database,
+queue, bot, bot cockpit, engagement, bot engagement controls, engagement admin controls, search
+rebuild, and engagement embedding matching. Split oversized plan files for bot engagement controls,
+community engagement, engagement operator controls, and search rebuild implementation into shard
+directories. Split bot message formatting and inline UI helpers into common, discovery, and
+engagement modules while preserving `bot.formatting` and `bot.ui` compatibility exports. Updated
+`wiki/index.md` and `wiki/plan/context-fragmentation-protocol.md` with the new shard and module
+entrypoints.

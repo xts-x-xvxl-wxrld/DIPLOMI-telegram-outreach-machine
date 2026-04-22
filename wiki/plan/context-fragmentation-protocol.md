@@ -92,16 +92,25 @@ behavior changes should not be mixed with file moves unless the tests cover the 
 
 ## Refactor Backlog
 
-1. Split `wiki/spec/engagement.md` into parent contract plus focused shards.
-2. Split `wiki/spec/bot-engagement-controls.md` into navigation, admin controls, editing, formatting,
-   and tests shards.
-3. Split `wiki/spec/api.md` into resource-specific API shards.
-4. Split `wiki/spec/database.md` into core discovery/search/engagement schema shards.
+Completed in the 2026-04-22 fragmentation refactor:
+- Split `wiki/spec/engagement.md` into parent contract plus focused shards.
+- Split `wiki/spec/bot-engagement-controls.md` into navigation, admin controls, editing,
+  formatting, and tests shards.
+- Split `wiki/spec/api.md` into resource-specific API shards.
+- Split `wiki/spec/database.md` into core discovery/search/engagement schema shards.
+- Split remaining oversized top-level specs for queue, bot, bot cockpit, engagement admin control
+  plane, search rebuild, and engagement embedding matching.
+- Split oversized plan files for bot engagement controls, community engagement, engagement operator
+  controls, and search rebuild implementation.
+- Split `bot/formatting.py` and `bot/ui.py` by discovery vs. engagement surfaces while preserving
+  compatibility exports.
+
+Remaining backlog:
+
 5. Split `bot/main.py` by bot command group and callback namespace.
 6. Split `backend/services/community_engagement.py` by engagement target, topic, prompt/style,
    candidate/action, and rollout summary concerns.
-7. Split `bot/formatting.py` and `bot/ui.py` by discovery vs engagement surfaces.
-8. Split oversized tests after the production modules have stable entrypoints.
+7. Split oversized tests after the production modules have stable entrypoints.
 
 ## Acceptance Criteria
 

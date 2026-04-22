@@ -3,23 +3,23 @@
 ## Spec files
 
 - [Architecture](spec/architecture.md) - Docker Compose layout, seed-first data flow, job types, key design rules
-- [Database](spec/database.md) - full schema: seed groups, communities, provenance edges, members, messages, snapshots, summaries, accounts
+- [Database](spec/database.md) - schema routing contract with discovery/search/engagement shards
 - [Audience Brief](spec/audience-brief.md) - optional/future keyword extraction and search context
 - [Discovery](spec/discovery.md) - seed-first discovery model, candidate normalization, ordering, safety rules
 - [Search Rebuild](spec/search-rebuild.md) - clean-sheet multi-surface Telegram community search design
 - [Expansion](spec/expansion.md) - Telethon seed-group graph expansion and provenance
 - [Collection](spec/collection.md) - engagement message intake from approved communities
 - [Analysis](spec/analysis.md) - community summarization and relevance scoring via OpenAI
-- [Engagement](spec/engagement.md) - optional operator-approved community joining, topic detection, reply opportunities, sending, and audit logs
+- [Engagement](spec/engagement.md) - engagement routing contract with lifecycle, settings, jobs, API/bot, and test shards
 - [Engagement Embedding Matching](spec/engagement-embedding-matching.md) - semantic selector for engagement topic matching before drafting
 - [Engagement Admin Control Plane](spec/engagement-admin-control-plane.md) - separated engagement target intake, prompt profiles, style rules, examples, and editable replies
-- [Bot Engagement Controls](spec/bot-engagement-controls.md) - expanded Telegram bot controls for targets, prompts, style rules, reply editing, and admin workflows
+- [Bot Engagement Controls](spec/bot-engagement-controls.md) - bot engagement routing contract with navigation, editing, slice, and formatting shards
 - [Bot Operator Cockpit](spec/bot-operator-cockpit.md) - top-level inline Telegram bot cockpit replacing the old persistent reply-keyboard menu
 - [Account Manager](spec/account-manager.md) - Telegram account pool, session management, health tracking
 - [Telegram Account Pool Separation](spec/telegram-account-pools.md) - dedicated search vs. engagement account pools and purpose routing rules
-- [API](spec/api.md) - backend REST API, endpoints, auth
-- [Bot](spec/bot.md) - Telegram bot operator UI: seed import, candidate review, debug logs
-- [Queue](spec/queue.md) - RQ + Redis async workers, scheduling, job states
+- [API](spec/api.md) - backend REST API routing contract with resource-specific shards
+- [Bot](spec/bot.md) - Telegram bot routing contract with discovery, engagement, and access/UX shards
+- [Queue](spec/queue.md) - RQ + Redis routing contract with job type and operations shards
 - [Deployment](spec/deployment.md) - GitHub CI, VPS deploy, secrets, and server-agent branch safety
 
 ## Plan files
@@ -57,15 +57,32 @@
 - [Telegram Account Pool Separation](plan/telegram-account-pools.md) - schema, account-manager routing, engagement guards, and onboarding plan for dedicated account pools
 - [Context Fragmentation Protocol](plan/context-fragmentation-protocol.md) - agent reading limits, wiki/code size caps, and refactor backlog for smaller context slices
 
+## Shard directories
+
+- `wiki/spec/api/` - foundation, search, discovery, communities/snapshots, engagement, and jobs/debug API shards
+- `wiki/spec/database/` - foundation, search/collection, engagement, indexes, and pipeline schema shards
+- `wiki/spec/engagement/` - engagement lifecycle, settings, topics, opportunities, jobs, API/bot, observability, and tests
+- `wiki/spec/bot/` - discovery command, engagement command, and bot access/UX shards
+- `wiki/spec/bot-engagement-controls/` - engagement cockpit navigation, config editing, slice contracts, controls, formatting, and tests
+- `wiki/spec/queue/` - queue job type and operations shards
+- `wiki/plan/bot-engagement-controls/`, `wiki/plan/community-engagement/`,
+  `wiki/plan/engagement-operator-controls/`, `wiki/plan/search-rebuild-implementation/` - split plan shards
+
 ## Implementation roots
 
 - `bot/api_client.py` - bot HTTP client for backend API endpoints
 - `bot/config.py` - bot environment parsing for API token, operator allowlist, and engagement admin allowlist
 - `bot/config_editing.py` - shared Telegram bot config-edit metadata, typed parsers, and
   per-operator pending edit state
-- `bot/formatting.py` - concise Telegram message formatting helpers
+- `bot/formatting.py` - compatibility exports for Telegram message formatting
+- `bot/formatting_common.py` - shared bot formatting helpers
+- `bot/formatting_discovery.py` - discovery, seed, community, account, and access message formatting
+- `bot/formatting_engagement.py` - engagement target, prompt, style, topic, candidate, action, and rollout formatting
 - `bot/main.py` - Telegram bot command and callback handlers for seed-group operations
-- `bot/ui.py` - Telegram keyboard and callback-data helpers for inline operator actions
+- `bot/ui.py` - compatibility exports for Telegram markups and callback constants
+- `bot/ui_common.py` - shared callback constants, fallback Telegram types, and markup helpers
+- `bot/ui_discovery.py` - operator, discovery, seed, community, member, and job markups
+- `bot/ui_engagement.py` - engagement inline markups and callback-data helpers
 - `scripts/make_seed_csv.py` - builds bot-ready seed CSV files from public Telegram usernames or links
 - `scripts/onboard_telegram_account.py` - local Telethon session creation and `telegram_accounts` registration
 - `scripts/vps-deploy.sh` - reset-only staging deploy script for the VPS checkout
