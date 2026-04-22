@@ -17,12 +17,15 @@ Top-level routing contract for clean-sheet query-driven Telegram search. Details
 - `backend/services/search_retrieval.py` - `search.retrieve` state transitions, candidate/community merge rules, evidence persistence, and query-level failure handling.
 - `backend/workers/search_retrieve.py` - `search.retrieve` worker orchestration, search-pool account leasing, account release, and rank enqueue handoff.
 - `backend/workers/telegram_entity_search.py` - Telethon-backed Telegram entity search adapter.
+- `backend/services/search_ranking.py` - replayable `search_rank_v1` scoring, component explanations, prior rejection/spam penalties, and deterministic ordering metadata.
+- `backend/workers/search_rank.py` - `search.rank` worker orchestration and commit/rollback boundary.
 - `backend/queue/client.py` - `search.plan` and `search.rank` enqueue helpers.
 - `tests/test_search_schema.py` - schema contract tests.
 - `tests/test_search_api.py` - API skeleton contract tests.
 - `tests/test_search_planner.py` - deterministic planner and idempotent worker coverage.
 - `tests/test_search_retrieve_worker.py` - fakeable Telegram entity search retrieval, duplicate, inaccessible, non-community, flood wait, and partial-failure coverage.
-- Future `backend/workers/search_*` modules - remaining ranking and expansion job roots.
+- `tests/test_search_ranking.py` - deterministic ranking, score components, penalties, ordering, and worker coverage.
+- Future `backend/workers/search_*` modules - remaining expansion job roots.
 
 ## Shards
 

@@ -78,3 +78,18 @@ Implemented the durable schema foundation for query-driven search:
   foreign keys, PostgreSQL DDL compilation, and create-request validation
 
 Next slice: Slice 2 API Skeleton.
+
+### 2026-04-22 - Slice 5 Candidate Normalization And Ranking
+
+Implemented the first replayable ranking layer for query-driven search:
+
+- added `backend/services/search_ranking.py` with `search_rank_v1` score components, activity hints,
+  prior rejection and spam penalties, and deterministic ranked candidate IDs
+- added `backend/workers/search_rank.py` and wired `search.rank` dispatch to persist scores and
+  complete ranking runs from stored candidates, evidence, and reviews
+- kept candidate listing sorted by stored score plus the documented tie-breakers, including null
+  titles last
+- added focused ranking tests for component explanations, penalties, ordering, and worker commit
+  behavior
+
+Next slice: Slice 6 Bot Search Review Commands.

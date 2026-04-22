@@ -1030,3 +1030,15 @@ while preserving the staged testing contract.
 - added `backend/workers/search_plan.py` for deterministic `search.plan` execution, query persistence, idempotent reuse, and retrieval enqueueing
 - added `search.retrieve` queue payload/helper wiring plus search job dispatch coverage for planner, retrieve, and rank jobs
 - added focused planner tests for simple queries, duplicate terms, empty-query failure handling, locale hints, and same-run idempotency
+
+## [2026-04-22] implementation | Search candidate normalization and ranking slice
+
+- added replayable `search_rank_v1` scoring in `backend/services/search_ranking.py`, including title/username, description, cross-query, cross-adapter, activity, prior rejection, and spam components
+- wired `backend/workers/search_rank.py` into the job dispatcher so `search.rank` persists candidate scores, component explanations, ranking metadata, and completed run state from stored rows only
+- tightened candidate listing tie-breakers for converted status and null-title ordering, and added focused ranking/worker tests
+
+## [2026-04-22] implementation | Engagement operator staged-test controls
+
+- Added target-scoped manual collection API/client controls with approval and detect-permission gates, plus recent collection-run status listing for operator verification.
+- Wired bot commands and target-card next steps for collect-now and collection-run status while preserving join, detect, review, approve, send, and audit controls.
+- Refreshed reply-review copy to say reply opportunity while keeping legacy candidate IDs visible; focused engagement operator, bot API/UI, bot handler, and engagement API tests passed.

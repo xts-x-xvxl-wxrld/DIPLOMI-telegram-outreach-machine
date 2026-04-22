@@ -355,8 +355,10 @@ async def list_search_candidates(
         (SearchCandidate.status == SearchCandidateStatus.CANDIDATE.value, 1),
         (SearchCandidate.status == SearchCandidateStatus.ARCHIVED.value, 2),
         (SearchCandidate.status == SearchCandidateStatus.REJECTED.value, 3),
-        else_=4,
+        (SearchCandidate.status == SearchCandidateStatus.CONVERTED_TO_SEED.value, 4),
+        else_=5,
     )
+    title_null_order = case((func.coalesce(Community.title, SearchCandidate.raw_title).is_(None), 1), else_=0)
     filters = [SearchCandidate.search_run_id == search_run_id]
     if requested_statuses:
         filters.append(SearchCandidate.status.in_(requested_statuses))
@@ -382,6 +384,7 @@ async def list_search_candidates(
                     SearchCandidate.score.desc().nullslast(),
                     status_order.asc(),
                     func.coalesce(evidence_counts.c.evidence_count, 0).desc(),
+                    title_null_order.asc(),
                     title_order.asc(),
                     SearchCandidate.first_seen_at.asc(),
                 )

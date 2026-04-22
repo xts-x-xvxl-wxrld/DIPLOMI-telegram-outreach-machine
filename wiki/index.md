@@ -94,7 +94,7 @@
 - `ops/vps/AGENT_CONTEXT.md` - redacted VPS architecture map for coding agents
 - `.github/workflows/ci.yml` - branch and pull-request validation workflow
 - `.github/workflows/deploy-vps.yml` - staging VPS deployment workflow
-- `backend/api/routes/search.py`, `backend/services/search.py`, `backend/services/search_retrieval.py`, `backend/workers/search_plan.py`, `backend/workers/search_retrieve.py`, `backend/workers/telegram_entity_search.py` - search run API skeleton, list/detail shaping, deterministic query planning, Telegram entity retrieval, candidate/evidence persistence, and run-scoped review persistence
+- `backend/api/routes/search.py`, `backend/services/search.py`, `backend/services/search_retrieval.py`, `backend/services/search_ranking.py`, `backend/workers/search_plan.py`, `backend/workers/search_retrieve.py`, `backend/workers/search_rank.py`, `backend/workers/telegram_entity_search.py` - search run API, list/detail shaping, deterministic planning, entity retrieval, evidence persistence, replayable ranking, and review persistence
 - `backend/api/routes/seeds.py` - manual seed import and seed-group API endpoints
 - `backend/api/routes/engagement*.py` - engagement route facade plus target, settings/topic, prompt/style, candidate/action endpoint shards
 - `backend/api/routes/telegram_entities.py` - direct Telegram handle intake API endpoints
@@ -131,7 +131,7 @@
 - `alembic/versions/20260422_0012_engagement_candidate_timeliness.py` - reply-opportunity freshness, deadline, and operator-notification schema fields
 - `tests/test_search_api.py` - search run API create/list/detail/query/candidate/rerank/review contract tests
 - `tests/test_search_schema.py` - search enum, model default, uniqueness, nullable candidate, foreign key, DDL, and schema validation tests
-- `tests/test_search_planner.py`, `tests/test_search_retrieve_worker.py` - deterministic search planning plus Telegram entity retrieval success, merge, inaccessible, non-community, flood-wait, and partial-failure tests
+- `tests/test_search_planner.py`, `tests/test_search_retrieve_worker.py`, `tests/test_search_ranking.py` - deterministic search planning, Telegram entity retrieval, ranking components, penalties, ordering, and worker tests
 - `tests/test_engagement_embeddings.py` - embedding cache reuse, dimension validation, selector ordering, and cleanup tests
 - `tests/test_engagement_semantic_eval_fixtures.py`, `tests/fixtures/engagement_semantic_eval.jsonl` - sanitized semantic matching evaluation fixture contract tests
 - `tests/test_engagement_schema.py` - engagement schema enum/default/constraint/index tests
@@ -145,6 +145,6 @@
 - `tests/test_bot_api_client.py` - bot HTTP client route and payload contract tests
 - `tests/test_bot_formatting.py` - bot message formatting and privacy regression tests
 - `tests/test_bot_handlers.py` - operator cockpit, discovery cockpit, /start, /help, /accounts, /seeds, and op:/disc: callback routing tests
-- `tests/test_bot_engagement_handlers.py` - engagement cockpit, candidate status, approve-to-send, and send callback bot tests
+- `tests/test_bot_engagement_handlers.py`, `tests/test_engagement_operator_controls.py` - engagement bot workflow plus staged target collection/status tests
 - `tests/test_bot_config_editing.py` - config-edit field registry, typed parser, pending-state, and expiry tests
 - `tests/test_bot_ui.py` - inline callback parser, callback length, and Telegram markup tests
