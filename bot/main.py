@@ -17,3 +17,7 @@ try:
     __all__ = [*_runtime_all, *_discovery_all, *_engagement_all, *_callback_all, *_app_all]
 finally:
     del _runtime_all, _discovery_all, _engagement_all, _callback_all, _app_all
+
+
+if __name__ == "__main__":
+    main()

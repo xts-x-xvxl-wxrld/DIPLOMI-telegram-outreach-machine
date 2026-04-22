@@ -10,7 +10,7 @@ Top-level routing contract for the Telegram operator UI. Command details live in
 
 ## Code Map
 
-- `bot/main.py` - compatibility exports for legacy imports.
+- `bot/main.py` - compatibility exports for legacy imports and `python -m bot.main` service entrypoint.
 - `bot/app.py` - Telegram application wiring and handler registration.
 - `bot/runtime*.py` - shared context, parsing, access, config-edit, markup, and reply helpers.
 - `bot/discovery_handlers.py` - discovery, seed, community, account, and upload handlers.

@@ -6,6 +6,12 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-04-22] fix | Restored bot module entrypoint
+
+Fixed the Docker bot service entrypoint by making `python -m bot.main` call the polling
+entrypoint instead of importing compatibility exports and exiting with code 0. Added a focused
+entrypoint regression test and documented the operational fix in the wiki index and plan.
+
 ## [2026-04-22] docs | Added staged Telegram engagement runbook
 
 - Added an operator-facing runbook for fake-adapter gates, controlled Telegram dry run,

@@ -52,7 +52,7 @@
 - [Engagement Operator Controls](plan/engagement-operator-controls.md) - Telegram bot control surface for settings, topics, joins, detection, reply opportunity sends, and audit views
 - [Engagement Admin Control Plane](plan/engagement-admin-control-plane.md) - manual engagement targets, prompt/profile admin, style rules, and editable reply implementation plan
 - [Bot Engagement Controls](plan/bot-engagement-controls.md) - next bot slices for target admin, prompt/style controls, reply opportunity editing, and advanced settings
-- [Bot Operator Cockpit](plan/bot-operator-cockpit.md) - inline top-level bot cockpit, callback namespace, and reply-keyboard removal rollout
+- [Bot Operator Cockpit](plan/bot-operator-cockpit.md) - inline top-level bot cockpit, callback namespace, and reply-keyboard removal rollout; [Bot Module Entrypoint](plan/bot-module-entrypoint.md) - Docker bot service module guard
 - [Bot Copy Readability Refresh](plan/bot-copy-readability-refresh.md) - clearer bot message hierarchy, emoji anchors, and button-label polish
 - [Telegram Account Pool Separation](plan/telegram-account-pools.md) - schema, account-manager routing, engagement guards, and onboarding plan for dedicated account pools
 - [Context Fragmentation Protocol](plan/context-fragmentation-protocol.md) - agent reading limits, wiki/code size caps, and refactor backlog for smaller context slices
@@ -142,7 +142,7 @@
 - `tests/test_engagement_detect_worker.py`, `tests/test_collection_worker.py` - engagement detection and collection worker tests
 - `tests/test_engagement_send_worker.py` - engagement send worker preflight, rate-limit, idempotency, and Telethon error-mapping tests
 - `tests/test_bot_access.py` - bot operator and engagement-admin allowlist tests
-- `tests/test_bot_api_client.py` - bot HTTP client route and payload contract tests
+- `tests/test_bot_api_client.py`, `tests/test_bot_entrypoint.py` - bot HTTP client route/payload and Docker module entrypoint tests
 - `tests/test_bot_formatting.py` - bot message formatting and privacy regression tests
 - `tests/test_bot_handlers.py` - operator cockpit, discovery cockpit, /start, /help, /accounts, /seeds, and op:/disc: callback routing tests
 - `tests/test_bot_engagement_handlers.py`, `tests/test_engagement_operator_controls.py` - engagement bot workflow plus staged target collection/status tests
