@@ -1071,3 +1071,15 @@ while preserving the staged testing contract.
   login flow local and interactive.
 - Extended `/accounts` and `GET /api/debug/accounts` with account-pool counts and per-account pool
   labels while keeping phone numbers masked.
+
+## [2026-04-23] fix | Add engagement cockpit button emojis
+
+- Preserved emoji labels in engagement home and admin cockpit buttons instead of flattening them through shared button-label overrides.
+- Added bot UI regression assertions for engagement cockpit emoji anchors.
+- Passed `python -m pytest tests/test_bot_ui.py -q` and `python scripts/check_fragmentation.py`.
+
+## [2026-04-23] fix | Publish bot start command
+
+- Published Telegram bot commands on startup with `/start` first so fresh bot conversations expose a Start command entrypoint.
+- Added a startup-command regression test with a fake Telegram bot.
+- Passed `python -m pytest tests/test_bot_startup_commands.py tests/test_bot_handlers.py -q` and `python scripts/check_fragmentation.py`.

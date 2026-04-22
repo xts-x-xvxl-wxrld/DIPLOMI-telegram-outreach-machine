@@ -113,6 +113,9 @@ replies cannot usefully clear a message-level reply keyboard in the same way.
 Commands are the durable API for testing, debugging, and direct links. The cockpit must not remove
 or weaken them.
 
+At startup, the bot should publish its primary command list to Telegram with `/start` first so a new
+or empty bot conversation exposes the cockpit entrypoint through the client command/start surface.
+
 Required command behavior after migration:
 
 - `/start` opens the top-level cockpit.

@@ -247,6 +247,14 @@ ENGAGEMENT_SETTING_PRESETS = {"off", "observe", "suggest", "ready"}
 ENGAGEMENT_ADMIN_ONLY_MESSAGE = (
     "This engagement admin control is limited to admin operators."
 )
+STARTUP_BOT_COMMANDS = (
+    ("start", "Open operator cockpit"),
+    ("help", "Show commands and upload help"),
+    ("seeds", "Review discovery communities"),
+    ("engagement", "Open engagement cockpit"),
+    ("accounts", "Check Telegram account health"),
+    ("whoami", "Show your Telegram operator ID"),
+)
 
 from .runtime import *
 from .account_handlers import *
@@ -264,6 +272,7 @@ async def post_init(application: Any) -> None:
     )
     application.bot_data[CONFIG_EDIT_STORE_KEY] = PendingEditStore()
     application.bot_data[ACCOUNT_CONFIRM_STORE_KEY] = {}
+    await application.bot.set_my_commands(STARTUP_BOT_COMMANDS)
 
 
 async def post_shutdown(application: Any) -> None:
@@ -398,6 +407,7 @@ def main() -> None:
 __all__ = [
     "post_init",
     "post_shutdown",
+    "STARTUP_BOT_COMMANDS",
     "create_application",
     "main",
 ]
