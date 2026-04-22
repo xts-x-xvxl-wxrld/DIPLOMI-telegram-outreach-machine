@@ -3,20 +3,27 @@ from __future__ import annotations
 from typing import Any
 
 from .formatting_common import (
+    _action_block,
+    _bullet,
     _candidate_community,
+    _field,
+    _headline,
     _last_error_line,
+    _section,
     _shorten,
+    _status_icon,
 )
+
 
 def format_operator_cockpit() -> str:
     return "\n".join(
         [
-            "Operator cockpit",
+            _headline("Operator cockpit", icon="🧭"),
             "",
-            "Discovery: import and review communities.",
-            "Engagement: review replies and participation readiness.",
-            "Accounts: check Telegram account health.",
-            "Help: commands and upload format.",
+            _bullet("Discovery: import and review communities.", icon="🔎"),
+            _bullet("Engagement: review replies and participation readiness.", icon="💬"),
+            _bullet("Accounts: check Telegram account health.", icon="📲"),
+            _bullet("Help: commands and upload format.", icon="❓"),
         ]
     )
 
@@ -28,42 +35,48 @@ def format_discovery_cockpit(
     watching_count: int | None = None,
     activity_count: int | None = None,
 ) -> str:
-    lines = ["Discovery", ""]
+    lines = [_headline("Discovery", icon="🔎"), ""]
     if review_count:
-        lines.append(f"Next: Review {review_count} suggested communities.")
+        lines.append(_bullet(f"Review {review_count} suggested communities next.", icon="➡"))
     elif attention_count:
-        lines.append(f"Next: Check {attention_count} searches that need attention.")
+        lines.append(_bullet(f"Check {attention_count} searches that need attention next.", icon="➡"))
     elif activity_count:
-        lines.append(f"Next: Inspect {activity_count} jobs.")
+        lines.append(_bullet(f"Inspect {activity_count} recent jobs next.", icon="➡"))
     else:
-        lines.append("Next: Start a search with example communities.")
-    lines.append("")
-    lines.append(f"Needs attention: {attention_count if attention_count is not None else '—'}")
-    lines.append(f"Review communities: {review_count if review_count is not None else '—'}")
-    if watching_count is not None:
-        lines.append(f"Watching: {watching_count} communities")
-    else:
-        lines.append("Watching: —")
-    if activity_count is not None:
-        lines.append(f"Recent activity: {activity_count} jobs")
-    else:
-        lines.append("Recent activity: —")
+        lines.append(_bullet("Start a search from example communities.", icon="➡"))
+    lines.extend(
+        [
+            "",
+            _section("Queue", icon="📊"),
+            _field("Needs attention", attention_count if attention_count is not None else "--"),
+            _field("Review communities", review_count if review_count is not None else "--"),
+            _field(
+                "Watching",
+                f"{watching_count} communities" if watching_count is not None else "--",
+            ),
+            _field(
+                "Recent activity",
+                f"{activity_count} jobs" if activity_count is not None else "--",
+            ),
+        ]
+    )
     return "\n".join(lines)
 
 
 def format_discovery_help() -> str:
     return "\n".join(
         [
-            "Discovery help",
+            _headline("Discovery help", icon="🧠"),
             "",
-            "CSV upload columns: group_name, channel",
-            "Optional CSV columns: title, notes",
-            "Only public Telegram references are accepted.",
-            "Private invite links are rejected.",
-            "Direct handle intake: send @username or a public t.me link.",
-            "No people search and no person-level scores.",
+            _section("Import rules", icon="📥"),
+            _bullet("CSV upload columns: group_name, channel"),
+            _bullet("Optional CSV columns: title, notes"),
+            _bullet("Only public Telegram references are accepted."),
+            _bullet("Private invite links are rejected.", icon="⛔"),
+            _bullet("Direct handle intake: send @username or a public t.me link."),
+            _bullet("No people search and no person-level scores.", icon="🛡"),
             "",
-            "Commands:",
+            _section("Commands", icon="⌨"),
             "/seeds",
             "/seed <seed_group_id>",
             "/channels <seed_group_id>",
@@ -78,21 +91,22 @@ def format_discovery_help() -> str:
 def format_help() -> str:
     return "\n".join(
         [
-            "Operator help",
+            _headline("Operator help", icon="❓"),
             "",
-            "CSV upload: group_name,channel",
-            "Direct add: send @username or a public t.me link.",
+            _section("Quick start", icon="🚀"),
+            _bullet("CSV upload: group_name,channel"),
+            _bullet("Direct add: send @username or a public t.me link."),
             "",
-            "Commands:",
-            "/seeds — browse searches",
-            "/seed <id> — open a search",
-            "/engagement — engagement cockpit",
-            "/engagement_admin — admin controls",
-            "/accounts — account pool health",
-            "/whoami — show your Telegram ID for allowlist onboarding",
-            "/job <id> — check a background job",
+            _section("Commands", icon="⌨"),
+            "/seeds - browse searches",
+            "/seed <id> - open a search",
+            "/engagement - engagement cockpit",
+            "/engagement_admin - admin controls",
+            "/accounts - account pool health",
+            "/whoami - show your Telegram ID for allowlist onboarding",
+            "/job <id> - check a background job",
             "",
-            "Optional:",
+            _section("Optional", icon="🧪"),
             "/brief <description>",
         ]
     )
@@ -101,18 +115,18 @@ def format_help() -> str:
 def format_start() -> str:
     return "\n".join(
         [
-            "Telegram community discovery control surface is ready.",
+            _headline("Telegram community discovery control surface is ready.", icon="✨"),
             "",
-            "Primary flow:",
+            _section("Primary flow", icon="🧭"),
             "1. Upload a CSV with group_name,channel columns",
             "2. Open seed groups with /seeds",
             "3. Resolve one group",
             "4. Review candidates inline",
             "",
-            "Quick add:",
+            _section("Quick add", icon="➕"),
             "Send @username or a public t.me link to classify and save it.",
             "",
-            "Core commands:",
+            _section("Core commands", icon="⌨"),
             "/seeds",
             "/seed <seed_group_id>",
             "/channels <seed_group_id>",
@@ -143,7 +157,7 @@ def format_start() -> str:
             "/accounts",
             "/whoami",
             "",
-            "Optional/future:",
+            _section("Optional/future", icon="🧪"),
             "/brief <audience description>",
         ]
     )
@@ -164,30 +178,29 @@ def format_created_brief(data: dict[str, Any]) -> str:
     job_type = job.get("type", "brief.process")
     return "\n".join(
         [
-            "Optional brief queued.",
-            f"Brief ID: {brief_id}",
-            f"Processing job: {job_id} ({job_type})",
-            "",
-            f"Check it with /job {job_id}",
+            _headline("Optional brief queued.", icon="📝"),
+            _field("Brief ID", brief_id),
+            _field("Processing job", f"{job_id} ({job_type})"),
+            *_action_block([f"Check it with /job {job_id}"]),
         ]
     )
 
 
 def format_job_status(data: dict[str, Any]) -> str:
     lines = [
-        "Job status",
-        f"ID: {data.get('id', 'unknown')}",
-        f"Type: {data.get('type') or 'unknown'}",
-        f"Status: {data.get('status', 'unknown')}",
+        _headline("Job status", icon="🕒"),
+        _field("ID", data.get("id", "unknown")),
+        _field("Type", data.get("type") or "unknown"),
+        _field("Status", data.get("status", "unknown"), icon=_status_icon(data.get("status"))),
     ]
     if data.get("created_at"):
-        lines.append(f"Created: {data['created_at']}")
+        lines.append(_field("Created", data["created_at"]))
     if data.get("started_at"):
-        lines.append(f"Started: {data['started_at']}")
+        lines.append(_field("Started", data["started_at"]))
     if data.get("ended_at"):
-        lines.append(f"Ended: {data['ended_at']}")
+        lines.append(_field("Ended", data["ended_at"]))
     if data.get("error"):
-        lines.extend(["", f"Error: {_shorten(_last_error_line(str(data['error'])), 600)}"])
+        lines.extend(["", _field("Error", _shorten(_last_error_line(str(data["error"])), 600), icon="⛔")])
     return "\n".join(lines)
 
 
@@ -201,12 +214,12 @@ def format_candidates(
     total = data.get("total", len(items))
     if not items:
         target = f" for {seed_group_name}" if seed_group_name else ""
-        return f"No candidate communities{target} yet."
+        return _headline(f"No candidate communities{target} yet.", icon="📭")
 
     heading = "Candidate communities"
     if seed_group_name:
         heading = f"{heading} | {seed_group_name}"
-    return f"{heading} ({offset + 1}-{offset + len(items)} of {total})"
+    return _headline(f"{heading} ({offset + 1}-{offset + len(items)} of {total})", icon="🧩")
 
 
 def format_candidate_card(item: dict[str, Any], *, index: int | None = None) -> str:
@@ -222,24 +235,26 @@ def format_candidate_card(item: dict[str, Any], *, index: int | None = None) -> 
     evidence_types = item.get("evidence_types") or []
 
     heading = f"{index}. {title}" if index is not None else title
-    lines = [heading, f"Status: {status}"]
+    lines = [
+        _headline(heading, icon="🧩"),
+        _field("Status", status, icon=_status_icon(status)),
+    ]
     if username:
-        lines.append(f"Link: https://t.me/{username}")
+        lines.append(_field("Link", f"https://t.me/{username}", icon="🔗"))
     if member_count is not None:
-        lines.append(f"Members: {member_count}")
+        lines.append(_field("Members", member_count, icon="👥"))
     if source_seed_count is not None or evidence_count is not None:
-        evidence_summary = (
-            f"Evidence: seeds {source_seed_count or 0}, edges {evidence_count or 0}"
-        )
+        evidence_summary = f"Evidence: seeds {source_seed_count or 0}, edges {evidence_count or 0}"
         if evidence_types:
-            evidence_summary = (
-                f"{evidence_summary} | {', '.join(str(value) for value in evidence_types)}"
-            )
-        lines.append(evidence_summary)
+            evidence_summary = f"{evidence_summary} | {', '.join(str(value) for value in evidence_types)}"
+        lines.append(_bullet(evidence_summary, icon="🕸"))
     lines.extend(
         [
-            f"Reason: {_shorten(str(reason), 240)}",
-            f"Community ID: {community_id}",
+            "",
+            _section("Why it matched", icon="📝"),
+            _bullet(_shorten(str(reason), 240)),
+            "",
+            _field("Community ID", community_id, icon="🆔"),
         ]
     )
     return "\n".join(lines)
@@ -250,18 +265,21 @@ def format_review(decision: str, data: dict[str, Any]) -> str:
     job = data.get("job")
     title = community.get("title") or community.get("username") or "Community"
     lines = [
-        f"{title}",
-        f"Decision: {decision}",
-        f"Status: {community.get('status', 'unknown')}",
-        f"Community ID: {community.get('id', 'unknown')}",
+        _headline(title, icon="✅" if decision == "approve" else "📝"),
+        _field("Decision", decision),
+        _field("Status", community.get("status", "unknown"), icon=_status_icon(community.get("status"))),
+        _field("Community ID", community.get("id", "unknown"), icon="🆔"),
     ]
     if isinstance(job, dict):
         lines.extend(
             [
                 "",
-                f"Snapshot job: {job.get('id', 'unknown')} "
-                f"({job.get('type', 'community.snapshot')})",
-                f"Check it with /job {job.get('id', 'unknown')}",
+                _section("Snapshot queued", icon="📸"),
+                _field(
+                    "Snapshot job",
+                    f"{job.get('id', 'unknown')} ({job.get('type', 'community.snapshot')})",
+                ),
+                _bullet(f"Check it with /job {job.get('id', 'unknown')}", icon="➡"),
             ]
         )
     return "\n".join(lines)
@@ -270,25 +288,27 @@ def format_review(decision: str, data: dict[str, Any]) -> str:
 def format_accounts(data: dict[str, Any]) -> str:
     counts = data.get("counts") or {}
     lines = [
-        "Telegram account pool",
-        (
-            "Counts: "
-            f"available={counts.get('available', 0)}, "
-            f"in_use={counts.get('in_use', 0)}, "
-            f"rate_limited={counts.get('rate_limited', 0)}, "
-            f"banned={counts.get('banned', 0)}"
+        _headline("Telegram account pool", icon="📲"),
+        _field(
+            "Counts",
+            (
+                f"available={counts.get('available', 0)}, "
+                f"in_use={counts.get('in_use', 0)}, "
+                f"rate_limited={counts.get('rate_limited', 0)}, "
+                f"banned={counts.get('banned', 0)}"
+            ),
         ),
     ]
     items = data.get("items") or []
     if items:
-        lines.append("")
+        lines.extend(["", _section("Accounts", icon="📋")])
     for account in items[:10]:
         line = f"{account.get('phone', 'masked')} - {account.get('status', 'unknown')}"
         if account.get("flood_wait_until"):
             line = f"{line} until {account['flood_wait_until']}"
-        lines.append(line)
+        lines.append(_bullet(line))
     if len(items) > 10:
-        lines.append(f"...and {len(items) - 10} more")
+        lines.append(_bullet(f"...and {len(items) - 10} more"))
     return "\n".join(lines)
 
 
@@ -299,26 +319,28 @@ def format_seed_import(data: dict[str, Any]) -> str:
     groups = data.get("groups") or []
 
     lines = [
-        "Seed CSV imported.",
-        f"Imported: {imported}",
-        f"Updated: {updated}",
+        _headline("Seed CSV imported.", icon="📥"),
+        _field("Imported", imported),
+        _field("Updated", updated),
     ]
     if groups:
-        lines.extend(["", "Groups:"])
+        lines.extend(["", _section("Groups", icon="🌱")])
         for group in groups[:10]:
             group_id = group.get("id", "unknown")
             lines.append(
-                f"- {group.get('name', 'unknown')} ({group_id}) | "
-                f"+{group.get('imported', 0)}, updated {group.get('updated', 0)}"
+                _bullet(
+                    f"{group.get('name', 'unknown')} ({group_id}) | +{group.get('imported', 0)}, "
+                    f"updated {group.get('updated', 0)}"
+                )
             )
-            lines.append(f"  Open: /seed {group_id}")
+            lines.append(_bullet(f"Open: /seed {group_id}", icon="  ->"))
     if errors:
-        lines.extend(["", f"Skipped rows: {len(errors)}"])
+        lines.extend(["", _field("Skipped rows", len(errors), icon="⚠")])
         for error in errors[:5]:
-            lines.append(f"Row {error.get('row_number', '?')}: {error.get('message', 'invalid')}")
+            lines.append(_bullet(f"Row {error.get('row_number', '?')}: {error.get('message', 'invalid')}"))
         if len(errors) > 5:
-            lines.append(f"...and {len(errors) - 5} more")
-    lines.extend(["", "List all groups with /seeds"])
+            lines.append(_bullet(f"...and {len(errors) - 5} more"))
+    lines.extend(_action_block(["List all groups with /seeds"]))
     return "\n".join(lines)
 
 
@@ -326,25 +348,30 @@ def format_seed_groups(data: dict[str, Any]) -> str:
     items = data.get("items") or []
     total = data.get("total", len(items))
     if not items:
-        return "No seed groups yet. Upload a CSV with group_name,channel columns."
+        return _headline("No seed groups yet. Upload a CSV with group_name,channel columns.", icon="📭")
 
-    lines = [f"Seed groups ({total})", "Open any group card below or use /seed <seed_group_id>."]
-    return "\n".join(lines)
+    return "\n".join(
+        [
+            _headline(f"Seed groups ({total})", icon="🌱"),
+            _bullet("Open any group card below or use /seed <seed_group_id>.", icon="➡"),
+        ]
+    )
 
 
 def format_seed_group_card(group: dict[str, Any]) -> str:
     group_id = group.get("id", "unknown")
     return "\n".join(
         [
-            f"{group.get('name', 'Unnamed group')}",
-            f"ID: {group_id}",
-            (
-                f"Seeds: {group.get('seed_count', 0)} | "
-                f"unresolved {group.get('unresolved_count', 0)}, "
-                f"resolved {group.get('resolved_count', 0)}, "
-                f"failed {group.get('failed_count', 0)}"
+            _headline(group.get("name", "Unnamed group"), icon="🌱"),
+            _field("ID", group_id, icon="🆔"),
+            _field(
+                "Seeds",
+                (
+                    f"{group.get('seed_count', 0)} | unresolved {group.get('unresolved_count', 0)}, "
+                    f"resolved {group.get('resolved_count', 0)}, failed {group.get('failed_count', 0)}"
+                ),
             ),
-            f"Open: /seed {group_id}",
+            _bullet(f"Open: /seed {group_id}", icon="➡"),
         ]
     )
 
@@ -354,17 +381,22 @@ def format_seed_group(data: dict[str, Any]) -> str:
     group_id = group.get("id", "unknown")
     return "\n".join(
         [
-            f"{group.get('name', 'Unnamed group')}",
-            f"ID: {group_id}",
-            (
-                f"Seeds: {group.get('seed_count', 0)} | "
-                f"unresolved {group.get('unresolved_count', 0)}, "
-                f"resolved {group.get('resolved_count', 0)}, "
-                f"failed {group.get('failed_count', 0)}"
+            _headline(group.get("name", "Unnamed group"), icon="🌱"),
+            _field("ID", group_id, icon="🆔"),
+            _field(
+                "Seeds",
+                (
+                    f"{group.get('seed_count', 0)} | unresolved {group.get('unresolved_count', 0)}, "
+                    f"resolved {group.get('resolved_count', 0)}, failed {group.get('failed_count', 0)}"
+                ),
             ),
-            f"Channels: /channels {group_id}",
-            f"Candidates: /candidates {group_id}",
-            f"Resolve: /resolveseeds {group_id}",
+            *_action_block(
+                [
+                    f"Channels: /channels {group_id}",
+                    f"Candidates: /candidates {group_id}",
+                    f"Resolve: /resolveseeds {group_id}",
+                ]
+            ),
         ]
     )
 
@@ -380,26 +412,26 @@ def format_seed_channels(
     total = data.get("total", len(items))
     if not items:
         target = f" for {group_name}" if group_name else ""
-        return f"No imported seed channels{target}."
+        return _headline(f"No imported seed channels{target}.", icon="📭")
 
     page = items[offset : offset + page_size]
     heading = "Seed channels"
     if group_name:
         heading = f"{heading} | {group_name}"
-    lines = [f"{heading} ({offset + 1}-{offset + len(page)} of {total})"]
+    lines = [_headline(f"{heading} ({offset + 1}-{offset + len(page)} of {total})", icon="📡")]
     for item in page:
         label = item.get("title") or item.get("username") or item.get("raw_value", "seed")
         lines.extend(
             [
                 "",
-                f"{label}",
-                f"Status: {item.get('status', 'unknown')}",
+                _headline(str(label), icon="•"),
+                _field("Status", item.get("status", "unknown"), icon=_status_icon(item.get("status"))),
             ]
         )
         if item.get("telegram_url"):
-            lines.append(f"Link: {item['telegram_url']}")
+            lines.append(_field("Link", item["telegram_url"], icon="🔗"))
         if item.get("community_id"):
-            lines.append(f"Community: /community {item['community_id']}")
+            lines.append(_field("Community", f"/community {item['community_id']}", icon="🏘"))
     return "\n".join(lines)
 
 
@@ -408,10 +440,13 @@ def format_seed_group_resolution(data: dict[str, Any]) -> str:
     job_id = job.get("id", "unknown")
     return "\n".join(
         [
-            "Seed group resolution queued. Resolved communities will queue initial snapshots.",
-            f"Job: {job_id} ({job.get('type', 'seed.resolve')})",
-            f"Status: {job.get('status', 'queued')}",
-            f"Check it with /job {job_id}",
+            _headline(
+                "Seed group resolution queued. Resolved communities will queue initial snapshots.",
+                icon="⏳",
+            ),
+            _field("Job", f"{job_id} ({job.get('type', 'seed.resolve')})"),
+            _field("Status", job.get("status", "queued"), icon=_status_icon(job.get("status"))),
+            *_action_block([f"Check it with /job {job_id}"]),
         ]
     )
 
@@ -421,32 +456,32 @@ def format_telegram_entity_submission(data: dict[str, Any]) -> str:
     job = data.get("job") or {}
     job_id = job.get("id", "unknown")
     intake_id = intake.get("id", "unknown")
-    lines = [
-        "Telegram entity classification queued.",
-        f"Submitted: {intake.get('telegram_url') or intake.get('raw_value', 'unknown')}",
-        f"Intake ID: {intake_id}",
-        f"Job: {job_id} ({job.get('type', 'telegram_entity.resolve')})",
-        f"Check it with /job {job_id}",
-        f"Result: /entity {intake_id}",
-    ]
-    return "\n".join(lines)
+    return "\n".join(
+        [
+            _headline("Telegram entity classification queued.", icon="📨"),
+            _field("Submitted", intake.get("telegram_url") or intake.get("raw_value", "unknown")),
+            _field("Intake ID", intake_id, icon="🆔"),
+            _field("Job", f"{job_id} ({job.get('type', 'telegram_entity.resolve')})"),
+            *_action_block([f"Check it with /job {job_id}", f"Result: /entity {intake_id}"]),
+        ]
+    )
 
 
 def format_telegram_entity_intake(data: dict[str, Any]) -> str:
     entity_type = data.get("entity_type") or "pending"
     lines = [
-        "Telegram entity intake",
-        f"ID: {data.get('id', 'unknown')}",
-        f"Submitted: {data.get('telegram_url') or data.get('raw_value', 'unknown')}",
-        f"Status: {data.get('status', 'unknown')}",
-        f"Type: {entity_type}",
+        _headline("Telegram entity intake", icon="🔎"),
+        _field("ID", data.get("id", "unknown"), icon="🆔"),
+        _field("Submitted", data.get("telegram_url") or data.get("raw_value", "unknown")),
+        _field("Status", data.get("status", "unknown"), icon=_status_icon(data.get("status"))),
+        _field("Type", entity_type),
     ]
     if data.get("community_id"):
-        lines.append(f"Community: /community {data['community_id']}")
+        lines.append(_field("Community", f"/community {data['community_id']}", icon="🏘"))
     if data.get("user_id"):
-        lines.append(f"User row ID: {data['user_id']}")
+        lines.append(_field("User row ID", data["user_id"], icon="🆔"))
     if data.get("error_message"):
-        lines.append(f"Error: {_shorten(str(data['error_message']), 240)}")
+        lines.append(_field("Error", _shorten(str(data["error_message"]), 240), icon="⛔"))
     return "\n".join(lines)
 
 
@@ -456,10 +491,10 @@ def format_snapshot_job(data: dict[str, Any], *, community_title: str | None = N
     job_id = job.get("id", "unknown")
     return "\n".join(
         [
-            f"{label}",
-            f"Snapshot job: {job_id} ({job.get('type', 'community.snapshot')})",
-            f"Status: {job.get('status', 'queued')}",
-            f"Check it with /job {job_id}",
+            _headline(label, icon="📸"),
+            _field("Snapshot job", f"{job_id} ({job.get('type', 'community.snapshot')})"),
+            _field("Status", job.get("status", "queued"), icon=_status_icon(job.get("status"))),
+            *_action_block([f"Check it with /job {job_id}"]),
         ]
     )
 
@@ -474,33 +509,33 @@ def format_members(
     total = data.get("total", len(items))
     label = community_title or "Community"
     if not items:
-        return f"No snapshotted visible members for {label} yet."
+        return _headline(f"No snapshotted visible members for {label} yet.", icon="📭")
 
-    lines = [f"Visible members | {label} ({offset + 1}-{offset + len(items)} of {total})"]
+    lines = [_headline(f"Visible members | {label} ({offset + 1}-{offset + len(items)} of {total})", icon="👥")]
     for index, member in enumerate(items, start=offset + 1):
         name = member.get("username") or member.get("first_name") or str(member.get("tg_user_id", "unknown"))
         lines.extend(
             [
                 "",
-                f"{index}. {name}",
-                f"Telegram user ID: {member.get('tg_user_id', 'unknown')}",
-                f"Membership: {member.get('membership_status', 'member')}",
-                f"Activity: {member.get('activity_status', 'unknown')}",
+                _headline(f"{index}. {name}", icon="•"),
+                _field("Telegram user ID", member.get("tg_user_id", "unknown")),
+                _field("Membership", member.get("membership_status", "member")),
+                _field("Activity", member.get("activity_status", "unknown")),
             ]
         )
         if member.get("username"):
-            lines.append(f"Public username: @{member['username']}")
+            lines.append(_field("Public username", f"@{member['username']}"))
         if member.get("first_seen_at"):
-            lines.append(f"First seen: {member['first_seen_at']}")
+            lines.append(_field("First seen", member["first_seen_at"]))
         if member.get("last_active_at"):
-            lines.append(f"Last active: {member['last_active_at']}")
+            lines.append(_field("Last active", member["last_active_at"]))
     return "\n".join(lines)
 
 
 def format_member_export(data: dict[str, Any], *, community_title: str | None = None) -> str:
     label = community_title or "community"
     total = data.get("total", len(data.get("items") or []))
-    return f"Exported {total} visible members for {label}."
+    return _headline(f"Exported {total} visible members for {label}.", icon="📤")
 
 
 def format_community_detail(
@@ -513,27 +548,27 @@ def format_community_detail(
     latest_run = ((snapshot_runs or {}).get("items") or [None])[0] or {}
     title = community.get("title") or community.get("username") or "Community"
     lines = [
-        f"{title}",
-        f"Community ID: {community.get('id', 'unknown')}",
-        f"Status: {community.get('status', 'unknown')}",
+        _headline(title, icon="🏘"),
+        _field("Community ID", community.get("id", "unknown"), icon="🆔"),
+        _field("Status", community.get("status", "unknown"), icon=_status_icon(community.get("status"))),
     ]
     if community.get("username"):
-        lines.append(f"Link: https://t.me/{community['username']}")
+        lines.append(_field("Link", f"https://t.me/{community['username']}", icon="🔗"))
     if community.get("source"):
-        lines.append(f"Source: {community['source']}")
+        lines.append(_field("Source", community["source"]))
     if community.get("member_count") is not None:
-        lines.append(f"Members: {community['member_count']}")
+        lines.append(_field("Members", community["member_count"], icon="👥"))
     if community.get("match_reason"):
-        lines.append(f"Reason: {_shorten(str(community['match_reason']), 240)}")
+        lines.append(_field("Reason", _shorten(str(community["match_reason"]), 240), icon="📝"))
 
     if latest_snapshot:
         lines.extend(
             [
                 "",
-                "Latest snapshot",
-                f"Snapshotted: {latest_snapshot.get('collected_at', 'unknown')}",
-                f"Member count: {latest_snapshot.get('member_count', 'unknown')}",
-                f"Messages 7d: {latest_snapshot.get('message_count_7d', 'unknown')}",
+                _section("Latest snapshot", icon="📸"),
+                _field("Snapshotted", latest_snapshot.get("collected_at", "unknown")),
+                _field("Member count", latest_snapshot.get("member_count", "unknown")),
+                _field("Messages 7d", latest_snapshot.get("message_count_7d", "unknown")),
             ]
         )
 
@@ -541,12 +576,12 @@ def format_community_detail(
         lines.extend(
             [
                 "",
-                "Latest snapshot run",
-                f"Status: {latest_run.get('status', 'unknown')}",
-                f"Analysis: {latest_run.get('analysis_status', 'unknown')}",
-                f"Window: {latest_run.get('window_days', 'unknown')} days",
-                f"Members seen: {latest_run.get('members_seen', 'unknown')}",
-                f"Messages seen: {latest_run.get('messages_seen', 'unknown')}",
+                _section("Latest snapshot run", icon="🕒"),
+                _field("Status", latest_run.get("status", "unknown"), icon=_status_icon(latest_run.get("status"))),
+                _field("Analysis", latest_run.get("analysis_status", "unknown")),
+                _field("Window", f"{latest_run.get('window_days', 'unknown')} days"),
+                _field("Members seen", latest_run.get("members_seen", "unknown")),
+                _field("Messages seen", latest_run.get("messages_seen", "unknown")),
             ]
         )
 
@@ -554,53 +589,54 @@ def format_community_detail(
         lines.extend(
             [
                 "",
-                "Latest analysis",
-                f"Analyzed: {latest_analysis.get('analyzed_at', 'unknown')}",
+                _section("Latest analysis", icon="🧠"),
+                _field("Analyzed", latest_analysis.get("analyzed_at", "unknown")),
             ]
         )
         if latest_analysis.get("summary"):
-            lines.append(f"Summary: {_shorten(str(latest_analysis['summary']), 240)}")
+            lines.append(_field("Summary", _shorten(str(latest_analysis["summary"]), 240)))
         themes = latest_analysis.get("dominant_themes") or []
         if themes:
-            lines.append(f"Themes: {', '.join(str(theme) for theme in themes[:5])}")
+            lines.append(_field("Themes", ", ".join(str(theme) for theme in themes[:5])))
         if latest_analysis.get("activity_level"):
-            lines.append(f"Activity: {latest_analysis['activity_level']}")
+            lines.append(_field("Activity", latest_analysis["activity_level"]))
         if latest_analysis.get("centrality"):
-            lines.append(f"Centrality: {latest_analysis['centrality']}")
+            lines.append(_field("Centrality", latest_analysis["centrality"]))
         if latest_analysis.get("relevance_notes"):
-            lines.append(
-                f"Relevance: {_shorten(str(latest_analysis['relevance_notes']), 180)}"
-            )
+            lines.append(_field("Relevance", _shorten(str(latest_analysis["relevance_notes"]), 180)))
 
     return "\n".join(lines)
 
 
 def format_api_error(message: str) -> str:
-    return f"API error: {message}"
+    return _field("API error", message, icon="⛔")
 
 
 def format_whoami(user_id: int, username: str | None = None) -> str:
     lines = [
-        "Telegram identity",
-        f"User ID: {user_id}",
+        _headline("Telegram identity", icon="🪪"),
+        _field("User ID", user_id),
     ]
     if username:
-        lines.append(f"Username: @{username}")
+        lines.append(_field("Username", f"@{username}"))
     lines.extend(
         [
             "",
-            "Give this User ID to the operator so it can be added to TELEGRAM_ALLOWED_USER_IDS.",
+            _bullet(
+                "Give this User ID to the operator so it can be added to TELEGRAM_ALLOWED_USER_IDS.",
+                icon="➡",
+            ),
         ]
     )
     return "\n".join(lines)
 
 
 def format_access_denied(user_id: int | None, username: str | None = None) -> str:
-    lines = ["This bot is restricted."]
+    lines = [_headline("This bot is restricted.", icon="⛔")]
     if user_id is not None:
-        lines.append(f"Your Telegram user ID: {user_id}")
+        lines.append(_field("Your Telegram user ID", user_id))
     if username:
-        lines.append(f"Username: @{username}")
+        lines.append(_field("Username", f"@{username}"))
     if user_id is not None:
-        lines.append("Ask the operator to add this ID to TELEGRAM_ALLOWED_USER_IDS.")
+        lines.append(_bullet("Ask the operator to add this ID to TELEGRAM_ALLOWED_USER_IDS.", icon="➡"))
     return "\n".join(lines)

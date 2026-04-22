@@ -39,22 +39,22 @@ from .ui_common import (
 def operator_cockpit_markup():
     return _inline_markup(
         [
-            [_button("Discovery", ACTION_OP_DISCOVERY)],
-            [_button("Engagement", ACTION_ENGAGEMENT_HOME)],
-            [_button("Accounts", ACTION_OP_ACCOUNTS)],
-            [_button("Help", ACTION_OP_HELP)],
+            [_button("🔎 Discovery", ACTION_OP_DISCOVERY)],
+            [_button("💬 Engagement", ACTION_ENGAGEMENT_HOME)],
+            [_button("📲 Accounts", ACTION_OP_ACCOUNTS)],
+            [_button("❓ Help", ACTION_OP_HELP)],
         ]
     )
 
 
 def discovery_cockpit_markup():
     rows = [
-        [_button("Start search", ACTION_DISC_START)],
-        [_button("Needs attention", ACTION_DISC_ATTENTION)],
-        [_button("Review communities", ACTION_DISC_REVIEW)],
-        [_button("Watching", ACTION_DISC_WATCHING)],
-        [_button("Recent activity", ACTION_DISC_ACTIVITY)],
-        [_button("Help", ACTION_DISC_HELP)],
+        [_button("➕ Start search", ACTION_DISC_START)],
+        [_button("⚠ Needs attention", ACTION_DISC_ATTENTION)],
+        [_button("🧩 Review communities", ACTION_DISC_REVIEW)],
+        [_button("👀 Watching", ACTION_DISC_WATCHING)],
+        [_button("🕒 Recent activity", ACTION_DISC_ACTIVITY)],
+        [_button("❓ Help", ACTION_DISC_HELP)],
     ]
     return _inline_markup(_with_navigation(rows))
 
@@ -88,12 +88,12 @@ def main_menu_markup():
 
 def seed_group_actions_markup(seed_group_id: str):
     rows = [
-        [_button("Open", ACTION_OPEN_SEED_GROUP, seed_group_id)],
+        [_button("👀 Open", ACTION_OPEN_SEED_GROUP, seed_group_id)],
         [
-            _button("Resolve", ACTION_RESOLVE_SEED_GROUP, seed_group_id),
-            _button("Channels", ACTION_SEED_CHANNELS, seed_group_id, "0"),
+            _button("🪄 Resolve", ACTION_RESOLVE_SEED_GROUP, seed_group_id),
+            _button("📡 Channels", ACTION_SEED_CHANNELS, seed_group_id, "0"),
         ],
-        [_button("Candidates", ACTION_SEED_CANDIDATES, seed_group_id, "0")],
+        [_button("🧩 Candidates", ACTION_SEED_CANDIDATES, seed_group_id, "0")],
     ]
     return _inline_markup(_with_navigation(rows, back_action=ACTION_DISC_ALL))
 
@@ -106,7 +106,7 @@ def seed_group_pager_markup(
     page_size: int,
     action: str,
 ):
-    rows = [[_button("Seed Group", ACTION_OPEN_SEED_GROUP, seed_group_id)]]
+    rows = [[_button("🌱 Seed Group", ACTION_OPEN_SEED_GROUP, seed_group_id)]]
     pager_row = _pager_row(
         action=action,
         item_id=seed_group_id,
@@ -124,18 +124,18 @@ def seed_group_pager_markup(
 def candidate_actions_markup(community_id: str):
     rows = [
         [
-            _button("Approve", ACTION_APPROVE_COMMUNITY, community_id),
-            _button("Reject", ACTION_REJECT_COMMUNITY, community_id),
+            _button("✅ Approve", ACTION_APPROVE_COMMUNITY, community_id),
+            _button("✖ Reject", ACTION_REJECT_COMMUNITY, community_id),
         ],
-        [_button("Community", ACTION_OPEN_COMMUNITY, community_id)],
+        [_button("🏘 Community", ACTION_OPEN_COMMUNITY, community_id)],
     ]
     return _inline_markup(_with_navigation(rows, back_action=ACTION_DISC_REVIEW))
 
 
 def review_result_markup(community_id: str, job_id: str | None = None):
-    rows = [[_button("Community", ACTION_OPEN_COMMUNITY, community_id)]]
+    rows = [[_button("🏘 Community", ACTION_OPEN_COMMUNITY, community_id)]]
     if job_id:
-        rows.append([_button("Snapshot Job", ACTION_JOB_STATUS, job_id)])
+        rows.append([_button("📸 Snapshot job", ACTION_JOB_STATUS, job_id)])
     return _inline_markup(
         _with_navigation(rows, back_action=ACTION_OPEN_COMMUNITY, back_parts=[community_id])
     )
@@ -143,12 +143,12 @@ def review_result_markup(community_id: str, job_id: str | None = None):
 
 def community_actions_markup(community_id: str):
     rows = [
-        [_button("Snapshot", ACTION_SNAPSHOT_COMMUNITY, community_id)],
+        [_button("📸 Snapshot", ACTION_SNAPSHOT_COMMUNITY, community_id)],
         [
-            _button("Members", ACTION_COMMUNITY_MEMBERS, community_id, "0"),
-            _button("Engagement", ACTION_ENGAGEMENT_SETTINGS_OPEN, community_id),
+            _button("👥 Members", ACTION_COMMUNITY_MEMBERS, community_id, "0"),
+            _button("💬 Engagement", ACTION_ENGAGEMENT_SETTINGS_OPEN, community_id),
         ],
-        [_button("Refresh", ACTION_OPEN_COMMUNITY, community_id)],
+        [_button("🔄 Refresh", ACTION_OPEN_COMMUNITY, community_id)],
     ]
     return _inline_markup(_with_navigation(rows, back_action=ACTION_DISC_HOME))
 
@@ -176,5 +176,5 @@ def member_pager_markup(
 
 
 def job_actions_markup(job_id: str):
-    rows = [[_button("Refresh Job", ACTION_JOB_STATUS, job_id)]]
+    rows = [[_button("🔄 Refresh job", ACTION_JOB_STATUS, job_id)]]
     return _inline_markup(_with_navigation(rows, back_action=ACTION_DISC_ACTIVITY))

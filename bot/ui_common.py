@@ -5,10 +5,10 @@ from typing import Sequence
 
 
 
-SEEDS_MENU_LABEL = "Seed Groups"
-ENGAGEMENT_MENU_LABEL = "Engagement"
-ACCOUNTS_MENU_LABEL = "Accounts"
-HELP_MENU_LABEL = "Help"
+SEEDS_MENU_LABEL = "🔎 Discovery"
+ENGAGEMENT_MENU_LABEL = "💬 Engagement"
+ACCOUNTS_MENU_LABEL = "📲 Accounts"
+HELP_MENU_LABEL = "❓ Help"
 
 # Operator cockpit callbacks
 ACTION_OP_HOME = "op:home"
@@ -174,9 +174,9 @@ def _with_navigation(
     output = [list(row) for row in rows]
     nav_row = []
     if back_action is not None:
-        nav_row.append(_button("Back", back_action, *back_parts))
+        nav_row.append(_button("← Back", back_action, *back_parts))
     if include_home:
-        nav_row.append(_button("Home", ACTION_OP_HOME))
+        nav_row.append(_button("⌂ Home", ACTION_OP_HOME))
     if nav_row:
         output.append(nav_row)
     return output
@@ -194,9 +194,9 @@ def _pager_row(
     previous_offset = max(offset - page_size, 0)
     next_offset = offset + page_size
     if offset > 0:
-        buttons.append(_button("Prev", action, item_id, str(previous_offset)))
+        buttons.append(_button("← Prev", action, item_id, str(previous_offset)))
     if next_offset < total:
-        buttons.append(_button("Next", action, item_id, str(next_offset)))
+        buttons.append(_button("Next →", action, item_id, str(next_offset)))
     return buttons
 
 
@@ -212,9 +212,9 @@ def _offset_pager_row(
     previous_offset = max(offset - page_size, 0)
     next_offset = offset + page_size
     if offset > 0:
-        buttons.append(_button("Prev", action, *prefix_parts, str(previous_offset)))
+        buttons.append(_button("← Prev", action, *prefix_parts, str(previous_offset)))
     if next_offset < total:
-        buttons.append(_button("Next", action, *prefix_parts, str(next_offset)))
+        buttons.append(_button("Next →", action, *prefix_parts, str(next_offset)))
     return buttons
 
 
@@ -238,7 +238,7 @@ def _target_status_filter_rows(status: str | None):
     row = []
     selected = status or "all"
     for value, label in labels:
-        display_label = f"* {label}" if value == selected else label
+        display_label = f"• {label}" if value == selected else label
         row.append(_button(display_label, ACTION_ENGAGEMENT_TARGETS, value, "0"))
         if len(row) == 4:
             rows.append(row)

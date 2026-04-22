@@ -66,6 +66,14 @@ The current MVP bot uses approve-as-monitoring to keep the first workflow short.
 ## UX Rules
 
 - Messages should be concise and operational.
+- Plain-text cards should still feel structured: use short headings, section breaks, and action
+  blocks so operators can scan them without parse-mode formatting.
+- Emojis and glyphs may be used sparingly as visual anchors for status, sections, and high-value
+  actions, but they must not replace the underlying text label.
+- Default cards should put readiness, summary context, and next safe actions before raw IDs and
+  backend-facing detail.
+- Button labels should use clear verbs (`Open`, `Approve`, `Queue send`, `Detect now`) and may add a
+  leading icon when it improves recognition without making the button wrap awkwardly.
 - The top-level bot entry should expose an inline operator cockpit for the main actions.
 - Candidate cards must not expose raw message history.
 - Candidate cards should explain graph evidence, such as linked discussion, forwarded source,

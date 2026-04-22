@@ -96,7 +96,7 @@ def test_format_candidates_outputs_header_for_seed_group_page() -> None:
         offset=5,
     )
 
-    assert "Candidate communities | SaaS Hungary (6-6 of 7)" == message
+    assert message.endswith("Candidate communities | SaaS Hungary (6-6 of 7)")
 
 
 def test_format_candidate_card_outputs_evidence_summary() -> None:
@@ -317,13 +317,13 @@ def test_format_members_outputs_safe_member_fields() -> None:
 def test_format_member_export_reports_count() -> None:
     message = format_member_export({"items": [{}, {}], "total": 2}, community_title="Founder Circle")
 
-    assert "Exported 2 visible members for Founder Circle." == message
+    assert message.endswith("Exported 2 visible members for Founder Circle.")
 
 
 def test_format_engagement_candidates_reports_pending_page() -> None:
     message = format_engagement_candidates({"items": [{"id": "candidate-1"}], "total": 3}, offset=0)
 
-    assert message == "Engagement replies | needs_review (1-1 of 3)"
+    assert message.endswith("Engagement replies | needs_review (1-1 of 3)")
 
 
 def test_format_engagement_home_reports_operational_counts() -> None:
@@ -509,7 +509,7 @@ def test_format_engagement_topics_and_card_truncate_guidance() -> None:
         index=1,
     )
 
-    assert message == "Engagement topics (1-2 of 2) | active 1"
+    assert message.endswith("Engagement topics (1-2 of 2) | active 1")
     assert "1. Open CRM" in card
     assert "Notice: crm, sales pipeline" in card
     assert "Guidance: " in card
@@ -557,7 +557,7 @@ def test_format_engagement_style_rules_and_card_include_scope_priority_and_comma
         }
     )
 
-    assert message == "Engagement style rules (1-1 of 1) | community community-1"
+    assert message.endswith("Engagement style rules (1-1 of 1) | community community-1")
     assert "Scope: community community-1" in card
     assert "priority 50" in card
     assert "/engagement_style_rule rule-1" in card
@@ -651,7 +651,7 @@ def test_format_engagement_actions_and_card_keep_audit_safe() -> None:
         index=1,
     )
 
-    assert message == "Engagement audit (3-3 of 4)"
+    assert message.endswith("Engagement audit (3-3 of 4)")
     assert "1. reply | failed" in card
     assert "Candidate ID: candidate-1" in card
     assert "Reply to message: 123" in card
@@ -667,6 +667,11 @@ def test_format_engagement_candidate_card_keeps_review_context() -> None:
             "community_title": "Founder Circle",
             "topic_name": "Open-source CRM",
             "status": "needs_review",
+            "moment_strength": "good",
+            "timeliness": "fresh",
+            "reply_value": "practical_tip",
+            "review_deadline_at": "2026-04-19T13:00:00+00:00",
+            "reply_deadline_at": "2026-04-19T13:30:00+00:00",
             "source_excerpt": "The group is comparing CRM tools.",
             "detected_reason": "The group is discussing alternatives.",
             "suggested_reply": "Compare ownership, integrations, and exit paths first.",
@@ -678,6 +683,8 @@ def test_format_engagement_candidate_card_keeps_review_context() -> None:
     assert "1. Founder Circle" in message
     assert "Readiness: Needs review" in message
     assert "Topic: Open-source CRM" in message
+    assert "Freshness: fresh | moment good | value practical_tip" in message
+    assert "Deadlines: review 2026-04-19T13:00:00+00:00 | reply 2026-04-19T13:30:00+00:00" in message
     assert "Source: The group is comparing CRM tools." in message
     assert "Suggested reply: Compare ownership" in message
     assert "/approve_reply candidate-1" in message

@@ -53,11 +53,10 @@
 - [Engagement Admin Control Plane](plan/engagement-admin-control-plane.md) - manual engagement targets, prompt/profile admin, style rules, and editable reply implementation plan
 - [Bot Engagement Controls](plan/bot-engagement-controls.md) - next bot slices for target admin, prompt/style controls, reply opportunity editing, and advanced settings
 - [Bot Operator Cockpit](plan/bot-operator-cockpit.md) - inline top-level bot cockpit, callback namespace, and reply-keyboard removal rollout
+- [Bot Copy Readability Refresh](plan/bot-copy-readability-refresh.md) - clearer bot message hierarchy, emoji anchors, and button-label polish
 - [Telegram Account Pool Separation](plan/telegram-account-pools.md) - schema, account-manager routing, engagement guards, and onboarding plan for dedicated account pools
 - [Context Fragmentation Protocol](plan/context-fragmentation-protocol.md) - agent reading limits, wiki/code size caps, and refactor backlog for smaller context slices
-
 ## Shard directories
-
 - `wiki/spec/api/` - foundation, search, discovery, communities/snapshots, engagement, and jobs/debug API shards
 - `wiki/spec/database/` - foundation, search/collection, engagement, indexes, and pipeline schema shards
 - `wiki/spec/engagement/` - engagement lifecycle, settings, topics, opportunities, jobs, API/bot, observability, and tests
@@ -75,7 +74,7 @@
 - `bot/formatting.py` - compatibility exports for Telegram message formatting
 - `bot/formatting_common.py` - shared bot formatting helpers
 - `bot/formatting_discovery.py` - discovery, seed, community, account, and access message formatting
-- `bot/formatting_engagement.py` - engagement target, prompt, style, topic, candidate, action, and rollout formatting
+- `bot/formatting_engagement.py`, `bot/formatting_engagement_review.py` - engagement target/admin plus candidate, action, and rollout formatting
 - `bot/main.py` - compatibility exports for the Telegram bot entrypoints
 - `bot/app.py` - Telegram application wiring and handler registration
 - `bot/runtime*.py` - shared bot context, parsing, access, config-edit, markup, and reply helpers
@@ -130,6 +129,7 @@
 - `alembic/versions/20260420_0009_telegram_account_pools.py` - Telegram account pool separation migration
 - `alembic/versions/20260421_0010_engagement_embeddings.py` - topic/message embedding cache migration for semantic engagement matching
 - `alembic/versions/20260421_0011_search_schema.py` - query-driven search runs, queries, candidates, evidence, and review schema
+- `alembic/versions/20260422_0012_engagement_candidate_timeliness.py` - reply-opportunity freshness, deadline, and operator-notification schema fields
 - `tests/test_search_api.py` - search run API create/list/detail/query/candidate/rerank/review contract tests
 - `tests/test_search_schema.py` - search enum, model default, uniqueness, nullable candidate, foreign key, DDL, and schema validation tests
 - `tests/test_engagement_embeddings.py` - embedding cache reuse, dimension validation, selector ordering, and cleanup tests

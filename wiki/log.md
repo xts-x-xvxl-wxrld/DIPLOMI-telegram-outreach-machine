@@ -998,3 +998,18 @@ while preserving the staged testing contract.
 - Added `backend/api/routes/search.py` and `backend/services/search.py` to create search runs, list run/query/candidate state, enqueue `search.plan` and `search.rank`, and record run-scoped candidate reviews without calling Telethon or OpenAI in the API layer.
 - Extended `backend/queue/client.py` and `backend/queue/payloads.py` with `search.plan` and `search.rank` queue helpers for the Slice 2 API boundary.
 - Added `tests/test_search_api.py`; `python -m pytest -q tests/test_search_schema.py tests/test_search_api.py` and `python scripts/check_fragmentation.py ...` passed.
+## [2026-04-22] code | Complete engagement reply-opportunity timeliness slice
+
+- Added `engagement_candidates` freshness/deadline fields plus Alembic migration `20260422_0012`.
+- Detection now computes reply-opportunity timeliness from source-message timestamps and skips stale automatic opportunities.
+- Approval/send freshness checks now use `reply_deadline_at`, and operator cards expose freshness plus review/reply deadlines.
+## [2026-04-22] implementation | Refresh bot copy readability and button labels
+
+- Added shared plain-text formatting helpers for headings, labeled fields, action blocks, and
+  status markers so discovery and engagement cards read like operator-friendly summaries instead of
+  raw field dumps.
+- Refreshed high-traffic bot messages and inline buttons across discovery, engagement, review, and
+  admin surfaces with concise emoji anchors, clearer verbs, and more scannable section ordering.
+- Added `wiki/plan/bot-copy-readability-refresh.md`, updated the bot UX/formatting specs, and
+  passed `python -m pytest -q tests/test_bot_formatting.py tests/test_bot_ui.py` plus
+  `python scripts/check_fragmentation.py`.

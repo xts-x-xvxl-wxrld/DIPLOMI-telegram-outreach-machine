@@ -86,6 +86,10 @@ Formatting rules:
 
 - Put the operator-facing summary and next safe action above raw IDs and backend fields.
 - Prefer compact cards over long lists.
+- Use plain-text visual hierarchy first: short emoji/glyph markers, labeled fields, and section
+  headers must remain readable even when Telegram parse modes are disabled.
+- Emoji usage should be additive, not decorative overload: keep the icon count low and preserve a
+  clear text label for every action and status.
 - Show only state-relevant actions on default cards; move diagnostic and advanced actions into detail
   views.
 - Truncate source excerpts before final reply text.

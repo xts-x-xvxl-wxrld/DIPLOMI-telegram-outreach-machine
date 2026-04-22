@@ -234,8 +234,8 @@ def test_candidate_actions_markup_exposes_inline_review_controls() -> None:
     rows = markup.inline_keyboard
 
     assert rows[0][0].callback_data == f"{ACTION_APPROVE_COMMUNITY}:community-1"
-    assert rows[0][1].text == "Reject"
-    assert rows[1][0].text == "Community"
+    assert rows[0][1].text.endswith("Reject")
+    assert rows[1][0].text.endswith("Community")
 
 
 def test_seed_group_pager_markup_includes_next_button_when_more_pages_exist() -> None:
@@ -248,7 +248,7 @@ def test_seed_group_pager_markup_includes_next_button_when_more_pages_exist() ->
     )
     rows = markup.inline_keyboard
 
-    assert rows[0][0].text == "Seed Group"
+    assert rows[0][0].text.endswith("Seed Group")
     assert rows[1][0].callback_data == f"{ACTION_SEED_CANDIDATES}:group-1:5"
 
 
@@ -265,7 +265,7 @@ def test_member_pager_markup_pages_members() -> None:
     callbacks = _callbacks(markup)
 
     assert f"{ACTION_COMMUNITY_MEMBERS}:community-1:10" in callbacks
-    assert "Back" in _labels(markup)
+    assert any(label.endswith("Back") for label in _labels(markup))
     assert ACTION_OP_HOME in callbacks
 
 
@@ -276,7 +276,7 @@ def test_engagement_candidate_actions_markup_exposes_review_controls() -> None:
     assert rows[0][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATE_OPEN}:candidate-1"
     assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATE_EDIT}:candidate-1"
     assert rows[1][1].callback_data == f"{ACTION_ENGAGEMENT_APPROVE}:candidate-1"
-    assert rows[1][2].text == "Reject"
+    assert rows[1][2].text.endswith("Reject")
     assert rows[2][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:needs_review:0"
 
 
@@ -311,19 +311,19 @@ def test_engagement_home_markup_links_core_surfaces() -> None:
     markup = engagement_home_markup()
     rows = markup.inline_keyboard
 
-    assert rows[0][0].text == "Today"
+    assert rows[0][0].text.endswith("Today")
     assert rows[0][0].callback_data == ACTION_ENGAGEMENT_HOME
-    assert rows[1][0].text == "Review replies"
+    assert rows[1][0].text.endswith("Review replies")
     assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:needs_review:0"
-    assert rows[1][1].text == "Approved to send"
+    assert rows[1][1].text.endswith("Approved")
     assert rows[1][1].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:approved:0"
-    assert rows[2][0].text == "Communities"
+    assert rows[2][0].text.endswith("Communities")
     assert rows[2][0].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:0"
-    assert rows[2][1].text == "Topics"
+    assert rows[2][1].text.endswith("Topics")
     assert rows[2][1].callback_data == f"{ACTION_ENGAGEMENT_TOPIC_LIST}:0"
-    assert rows[3][0].text == "Settings lookup"
+    assert rows[3][0].text.endswith("Settings")
     assert rows[3][0].callback_data == f"{ACTION_ENGAGEMENT_SETTINGS_LOOKUP}:0"
-    assert rows[3][1].text == "Recent actions"
+    assert rows[3][1].text.endswith("Actions")
     assert rows[3][1].callback_data == f"{ACTION_ENGAGEMENT_ACTIONS}:0"
     assert rows[4][0].callback_data == ACTION_ENGAGEMENT_ADMIN
 
@@ -338,15 +338,15 @@ def test_engagement_admin_home_markup_links_setup_and_advanced_surfaces() -> Non
     markup = engagement_admin_home_markup()
     rows = markup.inline_keyboard
 
-    assert rows[0][0].text == "Communities"
+    assert rows[0][0].text.endswith("Communities")
     assert rows[0][0].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:0"
-    assert rows[0][1].text == "Topics"
+    assert rows[0][1].text.endswith("Topics")
     assert rows[0][1].callback_data == f"{ACTION_ENGAGEMENT_TOPIC_LIST}:0"
-    assert rows[1][0].text == "Voice rules"
+    assert rows[1][0].text.endswith("Voice rules")
     assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_STYLE}:0"
-    assert rows[1][1].text == "Limits/accounts"
+    assert rows[1][1].text.endswith("Limits/accounts")
     assert rows[1][1].callback_data == ACTION_ENGAGEMENT_ADMIN_LIMITS
-    assert rows[2][0].text == "Advanced"
+    assert rows[2][0].text.endswith("Advanced")
     assert rows[2][0].callback_data == ACTION_ENGAGEMENT_ADMIN_ADVANCED
 
 
@@ -385,7 +385,7 @@ def test_engagement_settings_lookup_markup_lists_approved_communities() -> None:
     labels = _labels(markup)
 
     assert f"{ACTION_ENGAGEMENT_SETTINGS_OPEN}:{community_id}" in callbacks
-    assert any(label.startswith("Settings: Founder Circle") for label in labels)
+    assert any(label.startswith("⚙ ") and "Founder Circle" in label for label in labels)
     assert ACTION_ENGAGEMENT_HOME in callbacks
     assert ACTION_OP_HOME in callbacks
 
@@ -395,7 +395,7 @@ def test_engagement_target_list_markup_filters_and_pages() -> None:
     rows = markup.inline_keyboard
     callbacks = _callbacks(markup)
 
-    assert rows[0][0].text == "Add target"
+    assert rows[0][0].text.endswith("Add target")
     assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:all:0"
     assert rows[1][3].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:approved:0"
     assert rows[2][2].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:archived:0"
@@ -620,10 +620,10 @@ def test_operator_cockpit_markup_button_labels() -> None:
     markup = operator_cockpit_markup()
     labels = [button.text for row in markup.inline_keyboard for button in row]
 
-    assert "Discovery" in labels
-    assert "Engagement" in labels
-    assert "Accounts" in labels
-    assert "Help" in labels
+    assert any(label.endswith("Discovery") for label in labels)
+    assert any(label.endswith("Engagement") for label in labels)
+    assert any(label.endswith("Accounts") for label in labels)
+    assert any(label.endswith("Help") for label in labels)
 
 
 def test_operator_cockpit_callback_data_stays_under_telegram_limit() -> None:
@@ -648,13 +648,13 @@ def test_discovery_cockpit_markup_button_labels() -> None:
     markup = discovery_cockpit_markup()
     labels = _labels(markup)
 
-    assert "Start search" in labels
-    assert "Needs attention" in labels
-    assert "Review communities" in labels
-    assert "Watching" in labels
-    assert "Recent activity" in labels
-    assert "Help" in labels
-    assert "Home" in labels
+    assert any(label.endswith("Start search") for label in labels)
+    assert any(label.endswith("Needs attention") for label in labels)
+    assert any(label.endswith("Review communities") for label in labels)
+    assert any(label.endswith("Watching") for label in labels)
+    assert any(label.endswith("Recent activity") for label in labels)
+    assert any(label.endswith("Help") for label in labels)
+    assert any(label.endswith("Home") for label in labels)
 
 
 def test_navigation_footer_adds_back_and_home_buttons_to_child_pages() -> None:
@@ -662,8 +662,8 @@ def test_navigation_footer_adds_back_and_home_buttons_to_child_pages() -> None:
     callbacks = _callbacks(markup)
     labels = _labels(markup)
 
-    assert "Back" in labels
-    assert "Home" in labels
+    assert any(label.endswith("Back") for label in labels)
+    assert any(label.endswith("Home") for label in labels)
     assert ACTION_DISC_HOME in callbacks
     assert ACTION_OP_HOME in callbacks
 

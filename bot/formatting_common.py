@@ -2,6 +2,46 @@ from __future__ import annotations
 
 from typing import Any
 
+
+def _headline(title: str, *, icon: str | None = None) -> str:
+    if not icon:
+        return title
+    return f"{icon} {title}"
+
+
+def _field(label: str, value: Any, *, icon: str = "-") -> str:
+    return f"{icon} {label}: {value}"
+
+
+def _bullet(text: str, *, icon: str = "-") -> str:
+    return f"{icon} {text}"
+
+
+def _section(title: str, *, icon: str | None = None) -> str:
+    if icon:
+        return f"{icon} {title}"
+    return title
+
+
+def _action_block(actions: list[str], *, title: str = "Next steps") -> list[str]:
+    if not actions:
+        return []
+    return ["", _section(title, icon="->"), *[_bullet(action) for action in actions]]
+
+
+def _status_icon(value: Any) -> str:
+    text = str(value or "").strip().casefold()
+    if not text:
+        return "•"
+    if any(token in text for token in ("blocked", "failed", "rejected", "error", "denied", "expired")):
+        return "⛔"
+    if any(token in text for token in ("approved", "ready", "sent", "active", "watching", "monitoring")):
+        return "✅"
+    if any(token in text for token in ("review", "pending", "queued", "draft", "observe", "waiting")):
+        return "⚠"
+    return "•"
+
+
 def _engagement_candidate_readiness(item: dict[str, Any]) -> str:
     readiness = _backend_readiness_text(item, "readiness", "send_readiness", "readiness_summary")
     if readiness:
