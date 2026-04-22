@@ -10,8 +10,10 @@ Top-level routing contract for manual engagement target, prompt, topic, style, a
 
 ## Code Map
 
-- `backend/api/routes/engagement.py` - admin API resources.
-- `backend/services/community_engagement.py` - admin persistence and validation.
+- `backend/api/routes/engagement.py` - admin API compatibility router.
+- `backend/api/routes/engagement_*.py` - admin target, topic, prompt, style, candidate, and action resources.
+- `backend/services/community_engagement.py` - compatibility exports for admin services.
+- `backend/services/community_engagement_*.py` - admin persistence and validation by engagement subdomain.
 - `bot/config_editing.py` - edit registry.
 - `bot/formatting_engagement.py` and `bot/ui_engagement.py` - admin bot surfaces.
 

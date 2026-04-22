@@ -960,3 +960,10 @@ prompts, style rules, candidates, actions, and shared view types. Split the rema
 backend production files: engagement API routes, SQLAlchemy models, and the engagement detection
 worker. After the split, no `/backend` or `/bot` production file exceeds the 800-line soft cap.
 Ruff passed for `backend` and `bot`; the full test suite passed with 423 tests.
+
+## [2026-04-22] docs | Aligned wiki pointers after module split
+
+Updated top-level bot, cockpit, engagement, admin control-plane, API, and database spec code maps to
+point at the compatibility facades and shard modules created by the backend/bot fragmentation
+refactor. Clarified the remaining engagement questions around oversized tests and facade import
+compatibility.

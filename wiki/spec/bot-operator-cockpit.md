@@ -10,7 +10,9 @@ Top-level routing contract for the inline operator cockpit. Details live in `wik
 
 ## Code Map
 
-- `bot/main.py` - cockpit commands and callback dispatch.
+- `bot/main.py` - compatibility exports for legacy imports.
+- `bot/app.py` - handler registration for cockpit commands and callbacks.
+- `bot/callback_handlers.py` - callback dispatch for discovery and engagement cockpit actions.
 - `bot/ui_discovery.py` and `bot/ui_engagement.py` - markup builders.
 - `bot/formatting_discovery.py` and `bot/formatting_engagement.py` - cockpit cards.
 

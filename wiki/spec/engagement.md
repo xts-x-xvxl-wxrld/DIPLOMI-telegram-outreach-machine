@@ -31,16 +31,19 @@ action audit row.
 - `engagement.detect` samples recent approved-target activity, matches topics, drafts candidates,
 and notifies operators.
 - `engagement.send` revalidates approval, rate limits, and membership state before replying.
-- API routes under `backend/api/routes/engagement.py` expose settings, topics, targets, prompts,
+- API routes under `backend/api/routes/engagement*.py` expose settings, topics, targets, prompts,
 style rules, candidates, actions, and rollout summaries.
 - Bot handlers expose daily review and admin control surfaces through the `eng:` callback namespace.
 
 ## Code Map
 
-- `backend/api/routes/engagement.py` - engagement REST resource surface.
-- `backend/services/community_engagement.py` - engagement domain persistence and validation.
+- `backend/api/routes/engagement.py` - compatibility router for engagement route shards.
+- `backend/api/routes/engagement_*.py` - target, settings/topic, prompt/style, and candidate/action routes.
+- `backend/services/community_engagement.py` - compatibility exports for engagement services.
+- `backend/services/community_engagement_*.py` - engagement settings, targets, topics, prompts, style rules, candidates, actions, and shared views.
 - `backend/workers/community_join.py` - approved target join orchestration.
-- `backend/workers/engagement_detect.py` - topic matching, prompt calls, and candidate creation.
+- `backend/workers/engagement_detect.py` - compatibility exports for engagement detection worker shards.
+- `backend/workers/engagement_detect_*.py` - detection process, samples, selection, prompts, OpenAI, and shared types.
 - `backend/workers/engagement_send.py` - reply send preflight, idempotency, and audit writes.
 - `backend/workers/engagement_scheduler.py` - low-frequency detection target selection.
 - `backend/workers/telegram_engagement.py` - Telethon adapter for joins and replies.
@@ -59,5 +62,5 @@ style rules, candidates, actions, and rollout summaries.
 
 ## Open Questions
 
-- Which engagement settings should move from the monolithic service into subdomain services first?
-- Should operator rollout summaries become a separate API resource before the next bot slice?
+- Which oversized engagement test surfaces should be split first now that route and service shards are stable?
+- Should route/service facades keep monkeypatch compatibility long-term or should tests move directly to shard imports?

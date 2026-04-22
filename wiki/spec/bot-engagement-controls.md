@@ -14,7 +14,7 @@ reply is sent.
 
 - Keep daily engagement review fast and low-noise.
 - Keep admin controls explicit, permission-gated, and reversible.
-- Preserve callback namespaces that route cleanly through `bot/main.py`.
+- Preserve callback namespaces that route cleanly through `bot/callback_handlers.py`.
 - Keep message formatting concise enough for Telegram while exposing readiness blockers.
 
 ## Non-Goals
@@ -35,7 +35,11 @@ callbacks.
 
 ## Code Map
 
-- `bot/main.py` - command handlers, callback router, and conversation-state dispatch.
+- `bot/main.py` - compatibility exports for legacy imports.
+- `bot/callback_handlers.py` - inline callback router.
+- `bot/engagement_commands_*.py` - engagement daily, admin, and config command handlers.
+- `bot/engagement_*_flow.py` - engagement target, prompt/style, topic, and candidate workflow helpers.
+- `bot/runtime*.py` - shared conversation-state, access, parsing, and reply helpers.
 - `bot/config_editing.py` - editable field registry, typed parsers, and pending edit state.
 - `bot/formatting_engagement.py` - engagement message formatting.
 - `bot/ui_engagement.py` - engagement inline markups and callback data builders.
@@ -53,5 +57,5 @@ callbacks.
 
 ## Open Questions
 
-- Which callback group should be extracted from `bot/main.py` before adding more engagement flows?
-- Should admin prompt/style flows receive a separate bot handler module before the next feature slice?
+- Which oversized engagement test surfaces should be split now that production handler entrypoints are stable?
+- Should admin prompt/style tests track the new command and flow modules directly or keep importing through `bot.main`?

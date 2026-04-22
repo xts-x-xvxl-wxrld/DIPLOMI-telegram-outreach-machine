@@ -10,7 +10,8 @@ Top-level routing contract for Postgres schema design. Table details live in `wi
 
 ## Code Map
 
-- `backend/db/models.py` - SQLAlchemy model definitions.
+- `backend/db/models.py` - compatibility exports for SQLAlchemy models.
+- `backend/db/models_*.py` - foundation, discovery/search, and engagement model definitions.
 - `alembic/versions/` - schema migrations.
 - `tests/test_*_schema.py` - schema regression tests.
 
