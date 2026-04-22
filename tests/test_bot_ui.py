@@ -31,6 +31,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_JOIN,
+    ACTION_ENGAGEMENT_SETTINGS_EDIT,
     ACTION_ENGAGEMENT_SETTINGS_OPEN,
     ACTION_ENGAGEMENT_STYLE,
     ACTION_ENGAGEMENT_STYLE_CREATE,
@@ -40,6 +41,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TARGET_APPROVE,
     ACTION_ENGAGEMENT_TARGET_APPROVE_CONFIRM,
     ACTION_ENGAGEMENT_TARGET_DETECT,
+    ACTION_ENGAGEMENT_TARGET_EDIT,
     ACTION_ENGAGEMENT_TARGET_JOIN,
     ACTION_ENGAGEMENT_TARGET_OPEN,
     ACTION_ENGAGEMENT_TARGET_PERMISSION,
@@ -127,12 +129,17 @@ def test_parse_all_engagement_callback_namespaces() -> None:
         "eng:topic:toggle:topic-1:0": ("eng:topic:toggle", ["topic-1", "0"]),
         "eng:set:open:community-1": (ACTION_ENGAGEMENT_SETTINGS_OPEN, ["community-1"]),
         "eng:set:preset:community-1:ready": ("eng:set:preset", ["community-1", "ready"]),
+        "eng:set:e:community-1:mp": (
+            ACTION_ENGAGEMENT_SETTINGS_EDIT,
+            ["community-1", "mp"],
+        ),
         "eng:set:acctc": (ACTION_ENGAGEMENT_ACCOUNT_CONFIRM, []),
         "eng:set:acctx": (ACTION_ENGAGEMENT_ACCOUNT_CANCEL, []),
         "eng:join:community-1": (ACTION_ENGAGEMENT_JOIN, ["community-1"]),
         "eng:detect:community-1:60": (ACTION_ENGAGEMENT_DETECT, ["community-1", "60"]),
         "eng:admin:to:target-1": (ACTION_ENGAGEMENT_TARGET_OPEN, ["target-1"]),
         "eng:admin:tac:target-1": (ACTION_ENGAGEMENT_TARGET_APPROVE_CONFIRM, ["target-1"]),
+        "eng:admin:te:target-1:notes": (ACTION_ENGAGEMENT_TARGET_EDIT, ["target-1", "notes"]),
         "eng:admin:src": (ACTION_ENGAGEMENT_STYLE_CREATE, []),
         "eng:admin:sro:rule-1": (ACTION_ENGAGEMENT_STYLE_OPEN, ["rule-1"]),
         "eng:admin:sre:rule-1": (ACTION_ENGAGEMENT_STYLE_EDIT, ["rule-1"]),
@@ -163,8 +170,10 @@ def test_engagement_uuid_callback_data_stays_under_telegram_limit() -> None:
     community_id = "12345678-1234-1234-1234-123456789abc"
 
     data = encode_callback_data("eng:set:preset", community_id, "ready")
+    edit_data = encode_callback_data(ACTION_ENGAGEMENT_SETTINGS_EDIT, community_id, "mp")
 
     assert len(data) <= 64
+    assert len(edit_data) <= 64
 
 
 def test_config_edit_callback_data_stays_under_telegram_limit() -> None:
@@ -336,8 +345,13 @@ def test_engagement_settings_markup_exposes_presets_and_jobs() -> None:
     assert rows[1][1].callback_data == "eng:set:preset:community-1:ready"
     assert rows[2][0].callback_data == "eng:set:join:community-1:1"
     assert rows[2][1].callback_data == "eng:set:post:community-1:0"
-    assert rows[3][0].callback_data == f"{ACTION_ENGAGEMENT_JOIN}:community-1"
-    assert rows[3][1].callback_data == f"{ACTION_ENGAGEMENT_DETECT}:community-1:60"
+    callbacks = _callbacks(markup)
+    assert f"{ACTION_ENGAGEMENT_SETTINGS_EDIT}:community-1:mp" in callbacks
+    assert f"{ACTION_ENGAGEMENT_SETTINGS_EDIT}:community-1:gap" in callbacks
+    assert f"{ACTION_ENGAGEMENT_SETTINGS_EDIT}:community-1:qs" in callbacks
+    assert f"{ACTION_ENGAGEMENT_SETTINGS_EDIT}:community-1:acct" in callbacks
+    assert f"{ACTION_ENGAGEMENT_JOIN}:community-1" in callbacks
+    assert f"{ACTION_ENGAGEMENT_DETECT}:community-1:60" in callbacks
 
 
 def test_engagement_target_list_markup_filters_and_pages() -> None:
@@ -374,6 +388,7 @@ def test_engagement_target_actions_markup_exposes_safe_target_controls() -> None
     assert f"{ACTION_ENGAGEMENT_TARGET_APPROVE}:target-1" not in pending_callbacks
     assert f"{ACTION_ENGAGEMENT_TARGET_OPEN}:target-1" in pending_callbacks
     assert "eng:admin:tr:target-1" in pending_callbacks
+    assert f"{ACTION_ENGAGEMENT_TARGET_EDIT}:target-2:notes" in approved_callbacks
     assert f"{ACTION_ENGAGEMENT_TARGET_PERMISSION}:target-2:p:1" in approved_callbacks
     assert f"{ACTION_ENGAGEMENT_TARGET_JOIN}:target-2" in approved_callbacks
     assert f"{ACTION_ENGAGEMENT_TARGET_DETECT}:target-2:60" in approved_callbacks
@@ -414,6 +429,7 @@ def test_engagement_target_actions_markup_hides_admin_mutations_for_non_admins()
     assert f"{ACTION_ENGAGEMENT_TARGET_JOIN}:target-2" in callbacks
     assert f"{ACTION_ENGAGEMENT_TARGET_DETECT}:target-2:60" in callbacks
     assert ACTION_ENGAGEMENT_TARGET_APPROVE not in callbacks
+    assert f"{ACTION_ENGAGEMENT_TARGET_EDIT}:target-2:notes" not in callbacks
     assert f"{ACTION_ENGAGEMENT_TARGET_PERMISSION}:target-2:p:1" not in callbacks
 
 
@@ -509,6 +525,7 @@ def test_engagement_settings_markup_hides_mutations_for_non_admins() -> None:
     assert "eng:set:preset:community-1:off" not in callbacks
     assert "eng:set:join:community-1:1" not in callbacks
     assert "eng:set:post:community-1:0" not in callbacks
+    assert f"{ACTION_ENGAGEMENT_SETTINGS_EDIT}:community-1:mp" not in callbacks
     assert f"{ACTION_ENGAGEMENT_JOIN}:community-1" in callbacks
     assert f"{ACTION_ENGAGEMENT_DETECT}:community-1:60" in callbacks
 

@@ -384,6 +384,36 @@ async def test_engagement_target_methods_use_target_routes() -> None:
 
 
 @pytest.mark.asyncio
+async def test_engagement_target_note_update_uses_target_patch_route() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "PATCH"
+        assert request.url.path == "/api/engagement/targets/target-1"
+        assert json.loads(request.content) == {
+            "notes": "Warm founder community",
+            "updated_by": "telegram:123",
+        }
+        return httpx.Response(
+            200,
+            json={"id": "target-1", "status": "approved", "notes": "Warm founder community"},
+        )
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    response = await client.update_engagement_target(
+        "target-1",
+        notes="Warm founder community",
+        updated_by="telegram:123",
+    )
+    await client.aclose()
+
+    assert response["notes"] == "Warm founder community"
+
+
+@pytest.mark.asyncio
 async def test_approve_engagement_candidate_posts_reviewer() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"

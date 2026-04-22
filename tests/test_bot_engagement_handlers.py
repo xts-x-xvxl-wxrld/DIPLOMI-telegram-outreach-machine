@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from bot.config_editing import PendingEditStore
 from bot.config import BotSettings
 from bot.main import (
     API_CLIENT_KEY,
@@ -1428,11 +1429,73 @@ async def test_target_callbacks_open_toggle_and_queue_jobs() -> None:
 
 
 @pytest.mark.asyncio
+async def test_target_notes_button_guided_edit_previews_then_saves() -> None:
+    client = _FakeApiClient()
+    context = _context(client)
+    start_update = _callback_update("eng:admin:te:target-approved:notes")
+
+    await callback_query(start_update, context)
+
+    assert "Editing Target notes" in start_update.callback_query.message.replies[0]["text"]
+    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
+    assert pending is not None
+    assert pending.entity == "target"
+    assert pending.object_id == "target-approved"
+    assert pending.field == "notes"
+
+    text_update = _message_update("Warm founder community; keep replies concise.")
+    await telegram_entity_text(text_update, context)
+
+    assert "Review Target notes" in text_update.message.replies[0]["text"]
+    assert client.update_target_calls == []
+
+    save_update = _callback_update("eng:edit:save")
+    await callback_query(save_update, context)
+
+    assert client.update_target_calls == [
+        {
+            "target_id": "target-approved",
+            "updates": {
+                "notes": "Warm founder community; keep replies concise.",
+                "updated_by": "telegram:123:@operator",
+            },
+        }
+    ]
+    assert "Saved Target notes." in save_update.callback_query.edits[0]["text"]
+    assert "Notes: Warm founder community" in save_update.callback_query.edits[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_target_notes_guided_edit_cancel_and_expiry_do_not_save() -> None:
+    client = _FakeApiClient()
+    cancel_context = _context(client)
+
+    await callback_query(_callback_update("eng:admin:te:target-approved:notes"), cancel_context)
+    await telegram_entity_text(_message_update("Draft note to discard."), cancel_context)
+    cancel_update = _callback_update("eng:edit:cancel")
+    await callback_query(cancel_update, cancel_context)
+
+    assert "Cancelled edit for Target notes." in cancel_update.callback_query.edits[0]["text"]
+
+    expired_context = _context(client)
+    expired_context.application.bot_data[CONFIG_EDIT_STORE_KEY] = PendingEditStore(
+        timeout_seconds=-1
+    )
+    await callback_query(_callback_update("eng:admin:te:target-approved:notes"), expired_context)
+    save_update = _callback_update("eng:edit:save")
+    await callback_query(save_update, expired_context)
+
+    assert "No pending edit to save." in save_update.callback_query.message.replies[0]["text"]
+    assert client.update_target_calls == []
+
+
+@pytest.mark.asyncio
 async def test_non_admin_cannot_approve_target_or_toggle_target_permissions() -> None:
     client = _FakeApiClient()
     settings = _settings(admin_user_ids=(999,))
     approve_update = _message_update()
     toggle_update = _callback_update("eng:admin:tp:target-approved:p:1")
+    edit_update = _callback_update("eng:admin:te:target-approved:notes")
     approve_confirm_update = _callback_update("eng:admin:tac:target-approved")
     post_confirm_update = _callback_update("eng:admin:tpc:target-approved:p:1")
 
@@ -1441,6 +1504,7 @@ async def test_non_admin_cannot_approve_target_or_toggle_target_permissions() ->
         _context(client, "target-approved", settings=settings),
     )
     await callback_query(toggle_update, _context(client, settings=settings))
+    await callback_query(edit_update, _context(client, settings=settings))
     await callback_query(approve_confirm_update, _context(client, settings=settings))
     await callback_query(post_confirm_update, _context(client, settings=settings))
 
@@ -1449,6 +1513,9 @@ async def test_non_admin_cannot_approve_target_or_toggle_target_permissions() ->
         "This engagement admin control is limited to admin operators."
     )
     assert toggle_update.callback_query.message.replies[0]["text"] == (
+        "This engagement admin control is limited to admin operators."
+    )
+    assert edit_update.callback_query.message.replies[0]["text"] == (
         "This engagement admin control is limited to admin operators."
     )
     assert approve_confirm_update.callback_query.message.replies[0]["text"] == (
@@ -1525,6 +1592,72 @@ async def test_settings_join_toggle_callback_reads_then_patches_setting() -> Non
     assert client.update_settings_calls[0]["updates"]["allow_join"] is True
     assert client.update_settings_calls[0]["updates"]["reply_only"] is True
     assert "Join allowed: yes" in update.callback_query.edits[0]["text"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("callback_data", "new_value", "expected_field", "expected_value", "preview_label"),
+    [
+        (
+            "eng:set:e:community-1:mp",
+            "3",
+            "max_posts_per_day",
+            3,
+            "Max posts per day",
+        ),
+        (
+            "eng:set:e:community-1:qs",
+            "22:30",
+            "quiet_hours_start",
+            "22:30",
+            "Quiet hours start",
+        ),
+        (
+            "eng:set:e:community-1:acct",
+            "12345678-1234-1234-1234-123456789abc",
+            "assigned_account_id",
+            "12345678-1234-1234-1234-123456789abc",
+            "Assigned engagement account",
+        ),
+    ],
+)
+async def test_settings_guided_edit_buttons_preserve_safe_fields(
+    callback_data: str,
+    new_value: str,
+    expected_field: str,
+    expected_value: object,
+    preview_label: str,
+) -> None:
+    client = _FakeApiClient()
+    client.settings = {
+        **client.settings,
+        "mode": "suggest",
+        "allow_join": True,
+        "allow_post": True,
+        "quiet_hours_start": "20:00",
+        "quiet_hours_end": "07:00",
+    }
+    context = _context(client)
+    start_update = _callback_update(callback_data)
+
+    await callback_query(start_update, context)
+
+    assert f"Editing {preview_label}" in start_update.callback_query.message.replies[0]["text"]
+
+    await telegram_entity_text(_message_update(new_value), context)
+    assert client.update_settings_calls == []
+
+    save_update = _callback_update("eng:edit:save")
+    await callback_query(save_update, context)
+
+    updates = client.update_settings_calls[0]["updates"]
+    assert updates[expected_field] == expected_value
+    assert updates["reply_only"] is True
+    assert updates["require_approval"] is True
+    assert updates["mode"] == "suggest"
+    assert updates["allow_join"] is True
+    assert updates["allow_post"] is True
+    assert "Saved" in save_update.callback_query.edits[0]["text"]
 
 
 @pytest.mark.asyncio
@@ -1695,6 +1828,7 @@ async def test_non_admin_cannot_change_engagement_limits_or_posting_callbacks() 
     settings = _settings(admin_user_ids=(999,))
     command_update = _message_update()
     callback_update = _callback_update("eng:set:post:community-1:1")
+    edit_update = _callback_update("eng:set:e:community-1:mp")
     account_confirm_update = _callback_update("eng:set:acctc")
 
     await set_engagement_limits_command(
@@ -1702,6 +1836,7 @@ async def test_non_admin_cannot_change_engagement_limits_or_posting_callbacks() 
         _context(client, "community-1", "2", "180", settings=settings),
     )
     await callback_query(callback_update, _context(client, settings=settings))
+    await callback_query(edit_update, _context(client, settings=settings))
     await callback_query(account_confirm_update, _context(client, settings=settings))
 
     assert client.get_settings_calls == []
@@ -1710,6 +1845,9 @@ async def test_non_admin_cannot_change_engagement_limits_or_posting_callbacks() 
         "This engagement admin control is limited to admin operators."
     )
     assert callback_update.callback_query.message.replies[0]["text"] == (
+        "This engagement admin control is limited to admin operators."
+    )
+    assert edit_update.callback_query.message.replies[0]["text"] == (
         "This engagement admin control is limited to admin operators."
     )
     assert account_confirm_update.callback_query.message.replies[0]["text"] == (

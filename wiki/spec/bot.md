@@ -476,7 +476,8 @@ detect controls.
 ### `/engagement_target <target_id>`
 
 Shows one engagement target card with submitted reference, resolved community, status, permissions,
-notes or last error when present, and the next safe target actions.
+notes or last error when present, and the next safe target actions. Admins can start a guided
+button-led target-note edit from this card; saving notes uses the engagement target API only.
 
 ### `/add_engagement_target <telegram_link_or_username_or_community_id>`
 
@@ -633,6 +634,9 @@ Calls `GET /api/communities/{community_id}/engagement-settings`.
 
 The bot should show mode, join/post flags, reply-only and approval requirements, rate limits, quiet
 hours when configured, and the assigned engagement account as an ID or masked non-secret label.
+Admins can start guided button-led edits for posting limits, quiet-hour start/end, and assigned
+account from the settings card. These guided saves preserve `reply_only=true` and
+`require_approval=true` and rely on the API for bounds and engagement-account pool validation.
 
 ### `/set_engagement <community_id> <off|observe|suggest|ready>`
 

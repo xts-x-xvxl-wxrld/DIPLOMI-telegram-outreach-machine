@@ -894,3 +894,13 @@ and community engagement account assignment/clearing now render confirmation car
 mutations until the admin confirms. Confirmation cards show before/after permission or masked
 account state, and non-admin confirm callbacks are rejected before protected API calls. Focused bot
 UI, formatting, handler, and access coverage passed with 153 tests.
+
+## [2026-04-22] code | Added guided engagement edit entrypoints
+
+Completed Bot Engagement Controls Slice 12. Target detail cards now expose admin-only guided target
+note editing backed by `PATCH /api/engagement/targets/{target_id}`, and community settings cards
+now expose guided edit buttons for posting limits, quiet-hour start/end, and assigned engagement
+account. Settings saves reuse the current-settings merge path so `reply_only=true` and
+`require_approval=true` stay enforced, with backend validation still owning bounds and account-pool
+checks. Focused bot UI, config-editing, API-client, handler, and access coverage passed with 152
+tests.

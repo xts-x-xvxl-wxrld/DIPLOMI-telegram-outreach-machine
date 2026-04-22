@@ -117,6 +117,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_REJECT,
     ACTION_ENGAGEMENT_SEND,
     ACTION_ENGAGEMENT_SETTINGS_JOIN,
+    ACTION_ENGAGEMENT_SETTINGS_EDIT,
     ACTION_ENGAGEMENT_SETTINGS_OPEN,
     ACTION_ENGAGEMENT_SETTINGS_POST,
     ACTION_ENGAGEMENT_SETTINGS_PRESET,
@@ -130,6 +131,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TARGET_APPROVE_CONFIRM,
     ACTION_ENGAGEMENT_TARGET_ARCHIVE,
     ACTION_ENGAGEMENT_TARGET_DETECT,
+    ACTION_ENGAGEMENT_TARGET_EDIT,
     ACTION_ENGAGEMENT_TARGET_JOIN,
     ACTION_ENGAGEMENT_TARGET_OPEN,
     ACTION_ENGAGEMENT_TARGET_PERMISSION,
@@ -225,6 +227,13 @@ PROMPT_PROFILE_EDIT_FIELD_CODES = {
     "u": "user_prompt_template",
 }
 PROMPT_PROFILE_EDIT_FIELDS = set(PROMPT_PROFILE_EDIT_FIELD_CODES.values())
+SETTINGS_EDIT_FIELD_CODES = {
+    "mp": "max_posts_per_day",
+    "gap": "min_minutes_between_posts",
+    "qs": "quiet_hours_start",
+    "qe": "quiet_hours_end",
+    "acct": "assigned_account_id",
+}
 ENGAGEMENT_TARGET_PERMISSIONS = {"join": "allow_join", "detect": "allow_detect", "post": "allow_post"}
 ENGAGEMENT_TARGET_PERMISSION_ALIASES = {"j": "join", "d": "detect", "p": "post"}
 ENGAGEMENT_SETTING_PRESETS = {"off", "observe", "suggest", "ready"}
@@ -1545,6 +1554,18 @@ async def callback_query(update: Any, context: Any) -> None:
                 window_minutes=_parse_positive_int(parts[1], default=60),
             )
             return
+        if action == ACTION_ENGAGEMENT_TARGET_EDIT and len(parts) == 2:
+            if parts[1] != "notes":
+                await _callback_reply(update, "That target field is not editable from this button.")
+                return
+            await _start_config_edit(
+                update,
+                context,
+                entity="target",
+                object_id=parts[0],
+                field="notes",
+            )
+            return
         if action == ACTION_ENGAGEMENT_PROMPTS and parts:
             await _send_engagement_prompts(update, context, offset=_parse_offset(parts[0]))
             return
@@ -1685,6 +1706,19 @@ async def callback_query(update: Any, context: Any) -> None:
                 field="allow_post",
                 value=parts[1] == "1",
                 edit_callback=True,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_SETTINGS_EDIT and len(parts) == 2:
+            field = _normalize_settings_edit_field(parts[1])
+            if field is None:
+                await _callback_reply(update, "That settings field is not editable from this button.")
+                return
+            await _start_config_edit(
+                update,
+                context,
+                entity="settings",
+                object_id=parts[0],
+                field=field,
             )
             return
         if action == ACTION_ENGAGEMENT_JOIN and len(parts) == 1:
@@ -3551,6 +3585,14 @@ def _normalize_prompt_profile_edit_field(value: str) -> str | None:
     return None
 
 
+def _normalize_settings_edit_field(value: str) -> str | None:
+    normalized = value.strip().casefold()
+    field = SETTINGS_EDIT_FIELD_CODES.get(normalized, normalized)
+    if editable_field("settings", field) is None:
+        return None
+    return field
+
+
 def _second_arg_as_offset(context: Any) -> int:
     if len(context.args) < 2:
         return 0
@@ -3906,6 +3948,7 @@ def _callback_action_requires_engagement_admin(action: str, parts: list[str]) ->
         ACTION_ENGAGEMENT_TARGET_RESOLVE,
         ACTION_ENGAGEMENT_TARGET_REJECT,
         ACTION_ENGAGEMENT_TARGET_ARCHIVE,
+        ACTION_ENGAGEMENT_TARGET_EDIT,
         ACTION_ENGAGEMENT_PROMPTS,
         ACTION_ENGAGEMENT_PROMPT_OPEN,
         ACTION_ENGAGEMENT_PROMPT_PREVIEW,
@@ -3924,6 +3967,7 @@ def _callback_action_requires_engagement_admin(action: str, parts: list[str]) ->
         ACTION_ENGAGEMENT_SETTINGS_PRESET,
         ACTION_ENGAGEMENT_SETTINGS_JOIN,
         ACTION_ENGAGEMENT_SETTINGS_POST,
+        ACTION_ENGAGEMENT_SETTINGS_EDIT,
         ACTION_ENGAGEMENT_TOPIC_EDIT,
         ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
         ACTION_ENGAGEMENT_TOPIC_TOGGLE,

@@ -7,12 +7,16 @@ from bot.config_editing import PendingEditStore, editable_field, parse_edit_valu
 
 def test_editable_field_registry_exposes_slice_four_fields() -> None:
     candidate_field = editable_field("candidate", "final_reply")
+    target_field = editable_field("target", "notes")
     prompt_field = editable_field("prompt_profile", "system_prompt")
     settings_field = editable_field("settings", "assigned_account_id")
 
     assert candidate_field is not None
     assert candidate_field.api_method == "edit_engagement_candidate"
     assert candidate_field.requires_confirmation is True
+    assert target_field is not None
+    assert target_field.api_method == "update_engagement_target"
+    assert target_field.admin_only is True
     assert prompt_field is not None
     assert prompt_field.admin_only is True
     assert settings_field is not None

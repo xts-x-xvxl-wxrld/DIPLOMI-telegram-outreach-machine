@@ -419,7 +419,12 @@ The current main engagement menu exposes:
 - Style-rule lists now expose scope filters plus inline create-help, open, edit, and toggle
   controls.
 - Button-led edit entrypoints now start the shared guided edit flow for candidate final replies,
-  prompt profile fields, topic guidance, and style-rule text where those cards expose edit buttons.
+  target notes, prompt profile fields, topic guidance, style-rule text, and community setting
+  fields where those cards expose edit buttons.
+- Target cards expose admin-only `Edit notes` controls backed by the engagement target API.
+- Community settings cards expose admin-only guided edit controls for posting limits, quiet-hour
+  start/end, and assigned engagement account. These saves preserve `reply_only=true` and
+  `require_approval=true`.
 - Admin-only command, callback, and guided-edit save paths now reject locally identified non-admins
   before protected API mutations are called. Daily review, target detail, topic detail, style list,
   settings detail, and audit views remain readable where the backend permits them.
@@ -427,10 +432,6 @@ The current main engagement menu exposes:
 ### Missing From Daily Engagement
 
 - `Settings lookup` menu item.
-
-### Missing From Engagement Targets
-
-- Conversation-state target note editing.
 
 ### Missing From Prompt Profiles
 
@@ -444,10 +445,6 @@ The current main engagement menu exposes:
 ### Missing From Style Rules
 
 - Inline style-rule creation form beyond the current command-led create entrypoint.
-
-### Missing From Community Controls
-
-- Inline community controls for rate limits, quiet hours, and account assignment.
 
 ### Missing Cross-Cutting UX
 

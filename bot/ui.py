@@ -60,6 +60,7 @@ ACTION_ENGAGEMENT_SETTINGS_OPEN = "eng:set:open"
 ACTION_ENGAGEMENT_SETTINGS_PRESET = "eng:set:preset"
 ACTION_ENGAGEMENT_SETTINGS_JOIN = "eng:set:join"
 ACTION_ENGAGEMENT_SETTINGS_POST = "eng:set:post"
+ACTION_ENGAGEMENT_SETTINGS_EDIT = "eng:set:e"
 ACTION_ENGAGEMENT_ACCOUNT_CONFIRM = "eng:set:acctc"
 ACTION_ENGAGEMENT_ACCOUNT_CANCEL = "eng:set:acctx"
 ACTION_ENGAGEMENT_JOIN = "eng:join"
@@ -76,6 +77,7 @@ ACTION_ENGAGEMENT_TARGET_REJECT = "eng:admin:tx"
 ACTION_ENGAGEMENT_TARGET_ARCHIVE = "eng:admin:tz"
 ACTION_ENGAGEMENT_TARGET_PERMISSION = "eng:admin:tp"
 ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM = "eng:admin:tpc"
+ACTION_ENGAGEMENT_TARGET_EDIT = "eng:admin:te"
 ACTION_ENGAGEMENT_TARGET_JOIN = "eng:admin:tj"
 ACTION_ENGAGEMENT_TARGET_DETECT = "eng:admin:td"
 ACTION_ENGAGEMENT_PROMPTS = "eng:admin:pr"
@@ -414,6 +416,7 @@ def engagement_target_actions_markup(
     if can_manage and status == "resolved":
         rows.append([_button("Approve", ACTION_ENGAGEMENT_TARGET_APPROVE, target_id)])
     if can_manage and status not in {"rejected", "archived"}:
+        rows.append([_button("Edit notes", ACTION_ENGAGEMENT_TARGET_EDIT, target_id, "notes")])
         rows.append(
             [
                 _button("Reject", ACTION_ENGAGEMENT_TARGET_REJECT, target_id),
@@ -704,6 +707,42 @@ def engagement_settings_markup(
                         community_id,
                         "1" if not allow_post else "0",
                     ),
+                ],
+                [
+                    _button(
+                        "Edit max/day",
+                        ACTION_ENGAGEMENT_SETTINGS_EDIT,
+                        community_id,
+                        "mp",
+                    ),
+                    _button(
+                        "Edit gap",
+                        ACTION_ENGAGEMENT_SETTINGS_EDIT,
+                        community_id,
+                        "gap",
+                    ),
+                ],
+                [
+                    _button(
+                        "Quiet start",
+                        ACTION_ENGAGEMENT_SETTINGS_EDIT,
+                        community_id,
+                        "qs",
+                    ),
+                    _button(
+                        "Quiet end",
+                        ACTION_ENGAGEMENT_SETTINGS_EDIT,
+                        community_id,
+                        "qe",
+                    ),
+                ],
+                [
+                    _button(
+                        "Assign account",
+                        ACTION_ENGAGEMENT_SETTINGS_EDIT,
+                        community_id,
+                        "acct",
+                    )
                 ],
             ]
         )

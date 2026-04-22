@@ -514,7 +514,7 @@ Completed:
 
 ## Follow-Up Slice 12: Guided Edit Entrypoints
 
-Status: planned.
+Status: completed on 2026-04-22.
 
 Purpose:
 
@@ -541,6 +541,21 @@ Tests:
 - Guided target-note edit tests cover start, preview, save, cancel, expiry, and admin-only gating.
 - Settings guided edit tests cover rate-limit, quiet-hour, and account-assignment entrypoints.
 - API-client route tests prove target note saves use `PATCH /api/engagement/targets/{target_id}`.
+
+Completed:
+
+- Target cards now expose an admin-only `Edit notes` button that starts the shared guided
+  config-edit flow for `target.notes`.
+- Guided target-note saves call `PATCH /api/engagement/targets/{target_id}` through the existing
+  engagement target API-client method with `updated_by` metadata.
+- Community settings cards now expose admin-only guided edit buttons for max posts per day,
+  minimum minutes between posts, quiet-hour start/end, and assigned engagement account.
+- Settings guided edit callbacks use compact field codes so UUID-heavy callback data stays under
+  Telegram's 64-byte limit.
+- Guided settings saves reuse the existing current-settings merge path and preserve
+  `reply_only=true` and `require_approval=true`.
+- Added focused UI, API-client, config-editing, handler, admin-boundary, cancel, and expiry tests
+  for the new guided edit entrypoints.
 
 ## Follow-Up Slice 13: Creation Flows
 
