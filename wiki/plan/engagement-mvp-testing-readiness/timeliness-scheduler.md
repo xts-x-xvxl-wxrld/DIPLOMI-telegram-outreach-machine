@@ -39,7 +39,7 @@ Acceptance:
 
 ## Slice 4: Active Engagement Collection Scheduler
 
-Status: planned.
+Status: completed.
 
 Tasks:
 
@@ -62,3 +62,17 @@ Acceptance:
   settings, missing target permission, and enqueue failure.
 - Docker Compose starts the needed scheduler process or documents why one process owns both loops.
 - Duplicate RQ jobs are treated as safe duplicates, not hard failures.
+
+Delivered:
+
+- Added `ENGAGEMENT_ACTIVE_COLLECTION_INTERVAL_SECONDS` with a default 600-second active collection
+  cadence.
+- Extended `backend.workers.engagement_scheduler` so the existing Docker Compose scheduler process
+  owns both active engagement collection ticks and low-frequency fallback detection ticks.
+- Added collection target selection for enabled engagement settings, approved `allow_detect`
+  targets, recent collection skips, active collection skips, quiet-hour skips, and duplicate-job
+  handling.
+- Added minute-bucketed engagement collection job IDs shaped as
+  `collection:engagement:{community_id}:{yyyyMMddHHmm}`.
+- Added scheduler and queue contract tests for collection enqueueing, duplicate handling, enqueue
+  failures, and skip reasons.

@@ -20,7 +20,7 @@ and analysis.
 |---------|-------|------|
 | `api` | FastAPI | REST API: receives bot commands, enqueues jobs, serves results |
 | `worker` | Python + RQ | Job runner: seed resolution, expansion, community snapshots, engagement collection, analysis |
-| `scheduler` | Python | Lightweight recurring scheduler for optional engagement detection ticks |
+| `scheduler` | Python | Lightweight recurring scheduler for engagement collection and fallback detection ticks |
 | `bot` | Python + python-telegram-bot | Operator UI: seed import, candidate review, debug logs |
 | `redis` | redis:alpine | Job queue + RQ result backend |
 | `postgres` | postgres:16 | Primary datastore |
@@ -72,7 +72,8 @@ Use these environment variable names:
 | `SESSIONS_DIR` | worker | Mounted Telethon session directory |
 | `COMMUNITY_SNAPSHOT_INTERVAL_MINUTES` | worker | Scheduler interval for discovery community snapshots; default 60 |
 | `ENGAGEMENT_DETECTION_WINDOW_MINUTES` | scheduler | Recent collection window required before detection; default 60 |
-| `ENGAGEMENT_SCHEDULER_INTERVAL_SECONDS` | scheduler | Engagement scheduler sleep interval; default 3600 |
+| `ENGAGEMENT_ACTIVE_COLLECTION_INTERVAL_SECONDS` | scheduler | Active engagement collection cadence; default 600 |
+| `ENGAGEMENT_SCHEDULER_INTERVAL_SECONDS` | scheduler | Fallback engagement detection cadence; default 3600 |
 
 Secrets must not be committed. `.env.example` may list variable names with empty values.
 

@@ -94,7 +94,7 @@
 - `ops/vps/AGENT_CONTEXT.md` - redacted VPS architecture map for coding agents
 - `.github/workflows/ci.yml` - branch and pull-request validation workflow
 - `.github/workflows/deploy-vps.yml` - staging VPS deployment workflow
-- `backend/api/routes/search.py`, `backend/services/search.py`, `backend/workers/search_plan.py` - search run API skeleton, list/detail shaping, deterministic query planning, retrieval enqueueing, and run-scoped review persistence
+- `backend/api/routes/search.py`, `backend/services/search.py`, `backend/services/search_retrieval.py`, `backend/workers/search_plan.py`, `backend/workers/search_retrieve.py`, `backend/workers/telegram_entity_search.py` - search run API skeleton, list/detail shaping, deterministic query planning, Telegram entity retrieval, candidate/evidence persistence, and run-scoped review persistence
 - `backend/api/routes/seeds.py` - manual seed import and seed-group API endpoints
 - `backend/api/routes/engagement*.py` - engagement route facade plus target, settings/topic, prompt/style, candidate/action endpoint shards
 - `backend/api/routes/telegram_entities.py` - direct Telegram handle intake API endpoints
@@ -107,7 +107,7 @@
 - `backend/workers/telegram_snapshot.py` - Telethon adapter for discovery community snapshots
 - `backend/workers/engagement_detect*.py` - engagement detection facade plus types, OpenAI, process, sample, selection, and prompt shards
 - `backend/workers/engagement_target_resolve.py` - engagement-specific Telegram target resolution for approved outbound surfaces
-- `backend/workers/engagement_scheduler.py` - low-frequency engagement detection scheduler target selection and enqueueing
+- `backend/workers/engagement_scheduler.py` - active engagement collection cadence plus low-frequency fallback detection scheduler target selection and enqueueing
 - `backend/workers/engagement_send.py` - `engagement.send` orchestration, idempotent action audit, rate-limit checks, and public reply sends
 - `backend/workers/telegram_engagement.py` - fakeable Telethon adapter for engagement joins and sends
 - `backend/services/seed_import.py` - CSV parsing and seed-group upsert logic
@@ -131,12 +131,12 @@
 - `alembic/versions/20260422_0012_engagement_candidate_timeliness.py` - reply-opportunity freshness, deadline, and operator-notification schema fields
 - `tests/test_search_api.py` - search run API create/list/detail/query/candidate/rerank/review contract tests
 - `tests/test_search_schema.py` - search enum, model default, uniqueness, nullable candidate, foreign key, DDL, and schema validation tests
-- `tests/test_search_planner.py` - deterministic query planning, idempotent `search.plan`, locale hints, and validation-failure tests
+- `tests/test_search_planner.py`, `tests/test_search_retrieve_worker.py` - deterministic search planning plus Telegram entity retrieval success, merge, inaccessible, non-community, flood-wait, and partial-failure tests
 - `tests/test_engagement_embeddings.py` - embedding cache reuse, dimension validation, selector ordering, and cleanup tests
-- `tests/test_engagement_semantic_eval_fixtures.py` - sanitized semantic matching evaluation fixture contract tests
-- `tests/fixtures/engagement_semantic_eval.jsonl` - synthetic sanitized semantic matching threshold evaluation examples
+- `tests/test_engagement_semantic_eval_fixtures.py`, `tests/fixtures/engagement_semantic_eval.jsonl` - sanitized semantic matching evaluation fixture contract tests
 - `tests/test_engagement_schema.py` - engagement schema enum/default/constraint/index tests
 - `tests/test_engagement_targets.py` - engagement target resolution and permission gate tests
+- `tests/test_collection_queue_payloads.py` - engagement collection queue job-id contract tests
 - `tests/test_engagement_api.py` - engagement API route tests for targets, settings, topics, style rules, prompts, candidates, actions, and rollout summaries
 - `tests/test_engagement_prompt_controls.py` - prompt template variable privacy tests
 - `tests/test_engagement_detect_worker.py`, `tests/test_collection_worker.py` - engagement detection and collection worker tests

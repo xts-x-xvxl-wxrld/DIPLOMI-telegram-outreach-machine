@@ -6,6 +6,18 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-04-22] implementation | Telegram entity search adapter slice
+
+- Added `search.retrieve` worker orchestration with search-pool account leasing, account release, query-level adapter failure handling, and ranking enqueue handoff when retrieval reaches terminal query states.
+- Added Telegram entity retrieval persistence for resolved public communities, run-scoped candidate merging, compact evidence rows, per-query/per-run caps, and preservation of existing community operator decisions.
+- Added a Telethon-backed `telegram_entity_search` adapter plus fakeable tests for successful hits, duplicate hits, inaccessible/non-community hits, flood waits, and partial failure.
+
+## [2026-04-22] code | Added active engagement collection scheduler
+
+- Extended the existing scheduler worker to run active engagement collection ticks alongside the fallback detection sweep.
+- Added default `ENGAGEMENT_ACTIVE_COLLECTION_INTERVAL_SECONDS=600` and minute-bucketed `collection:engagement:{community_id}:{yyyyMMddHHmm}` job IDs.
+- Covered due, recent, active, quiet-hour, disabled, missing-permission, duplicate, enqueue-failure, and queue contract paths in tests.
+
 ## [2026-04-21] plan | Added search rebuild implementation plan
 
 Added `wiki/plan/search-rebuild-implementation.md` to turn the open contract gaps in the search

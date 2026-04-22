@@ -89,6 +89,10 @@ Default cadence:
 | `max_posts_per_day` | 1 | maximum sent replies per community and account in a rolling 24-hour window |
 | `min_minutes_between_posts` | 240 | minimum spacing between sent replies for both community and account |
 
+The Docker Compose `scheduler` service runs one `backend.workers.engagement_scheduler` process that
+owns both loops: the active collection tick uses `ENGAGEMENT_ACTIVE_COLLECTION_INTERVAL_SECONDS`,
+and the fallback detection tick uses `ENGAGEMENT_SCHEDULER_INTERVAL_SECONDS`.
+
 Manual detection can be operator-triggered for an approved target and may use a custom
 `window_minutes`, but it still uses the same target permission, topic, prompt, privacy, and
 reply opportunity creation rules.
@@ -130,7 +134,10 @@ Scheduler contract:
 
 - Job ID for detection: `engagement.detect:{community_id}:{yyyyMMddHH}`.
 - Collection-triggered job ID for detection: `engagement.detect:{community_id}:{collection_run_id}`.
+- Job ID for active engagement collection: `collection:engagement:{community_id}:{yyyyMMddHHmm}`.
 - Scheduler reads only settings where `mode IN ('observe', 'suggest', 'require_approval')`.
+- The collection scheduler skips communities without approved `allow_detect`, with recent successful
+  engagement collection, with active collection work, or inside configured quiet hours.
 - Scheduler skips communities without a completed collection run in the last configured window.
 - Scheduler does not create direct send jobs.
 - Manual detection uses a distinct job ID prefix so the operator can force a run.

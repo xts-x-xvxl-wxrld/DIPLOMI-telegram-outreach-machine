@@ -205,6 +205,7 @@ def enqueue_collection(
     reason: str,
     requested_by: str | None = None,
     window_days: int = 90,
+    now: datetime | None = None,
 ) -> QueuedJob:
     payload = CollectionPayload(
         community_id=community_id,
@@ -213,7 +214,7 @@ def enqueue_collection(
         window_days=window_days,
     )
     queue_name = "high" if reason == "manual" else "scheduled"
-    job_id = f"collection:{community_id}:{datetime.utcnow():%Y%m%d%H}"
+    job_id = _collection_job_id(community_id, reason=reason, now=now)
     return enqueue_job(
         "collection.run",
         payload.model_dump(mode="json"),
@@ -416,6 +417,15 @@ def _hourly_job_id(prefix: str, community_id: UUID, *, now: datetime | None = No
     if current_time.tzinfo is not None:
         current_time = current_time.astimezone(timezone.utc)
     return f"{prefix}:{community_id}:{current_time:%Y%m%d%H}"
+
+
+def _collection_job_id(community_id: UUID, *, reason: str, now: datetime | None = None) -> str:
+    current_time = now or datetime.now(timezone.utc)
+    if current_time.tzinfo is not None:
+        current_time = current_time.astimezone(timezone.utc)
+    if reason == "engagement":
+        return f"collection:engagement:{community_id}:{current_time:%Y%m%d%H%M}"
+    return f"collection:{community_id}:{current_time:%Y%m%d%H}"
 
 
 def _is_duplicate_job_error(exc: Exception) -> bool:
