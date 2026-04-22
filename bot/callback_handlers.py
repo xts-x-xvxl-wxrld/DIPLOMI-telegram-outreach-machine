@@ -20,6 +20,7 @@ from bot.config_editing import (
 )
 from bot.formatting import (
     format_access_denied,
+    format_account_onboarding_usage,
     format_accounts,
     format_api_error,
     format_briefs_unavailable,
@@ -153,6 +154,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TOPIC_TOGGLE,
     ACTION_JOB_STATUS,
     ACTION_OP_ACCOUNTS,
+    ACTION_OP_ADD_ACCOUNT,
     ACTION_OP_DISCOVERY,
     ACTION_OP_HELP,
     ACTION_OP_HOME,
@@ -170,6 +172,7 @@ from bot.ui import (
     community_actions_markup,
     config_edit_confirmation_markup,
     discovery_cockpit_markup,
+    accounts_cockpit_markup,
     engagement_account_confirm_markup,
     discovery_seeds_markup,
     engagement_action_pager_markup,
@@ -736,6 +739,13 @@ async def callback_query(update: Any, context: Any) -> None:
             return
         if action == ACTION_OP_ACCOUNTS:
             await _send_accounts(update, context)
+            return
+        if action == ACTION_OP_ADD_ACCOUNT and len(parts) == 1:
+            await _callback_reply(
+                update,
+                format_account_onboarding_usage(account_pool=parts[0]),
+                reply_markup=accounts_cockpit_markup(),
+            )
             return
         if action == ACTION_OP_HELP:
             await _send_help(update)

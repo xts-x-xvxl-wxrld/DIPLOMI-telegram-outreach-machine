@@ -168,6 +168,7 @@ from bot.ui import (
     community_actions_markup,
     config_edit_confirmation_markup,
     discovery_cockpit_markup,
+    accounts_cockpit_markup,
     engagement_account_confirm_markup,
     discovery_seeds_markup,
     engagement_action_pager_markup,
@@ -647,7 +648,7 @@ async def _send_discovery_cockpit(update: Any) -> None:
 async def _send_accounts(update: Any, context: Any) -> None:
     client = _api_client(context)
     data = await client.get_accounts()
-    await _callback_reply(update, format_accounts(data), reply_markup=operator_cockpit_markup())
+    await _callback_reply(update, format_accounts(data), reply_markup=accounts_cockpit_markup())
 
 
 async def _send_seed_groups(update: Any, context: Any) -> None:

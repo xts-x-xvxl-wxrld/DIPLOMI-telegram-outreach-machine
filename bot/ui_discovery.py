@@ -7,6 +7,7 @@ from .ui_common import (
     HELP_MENU_LABEL,
     ACTION_OP_DISCOVERY,
     ACTION_OP_ACCOUNTS,
+    ACTION_OP_ADD_ACCOUNT,
     ACTION_OP_HELP,
     ACTION_DISC_HOME,
     ACTION_DISC_START,
@@ -61,6 +62,17 @@ def discovery_cockpit_markup():
 
 def discovery_seeds_markup():
     return _inline_markup(_with_navigation([], back_action=ACTION_DISC_HOME))
+
+
+def accounts_cockpit_markup():
+    rows = [
+        [
+            _button("Add search", ACTION_OP_ADD_ACCOUNT, "search"),
+            _button("Add engagement", ACTION_OP_ADD_ACCOUNT, "engagement"),
+        ],
+        [_button("Refresh", ACTION_OP_ACCOUNTS)],
+    ]
+    return _inline_markup(_with_navigation(rows))
 
 
 def reply_keyboard_remove():

@@ -26,10 +26,15 @@ def format_account_onboarding_command(
     )
 
 
-def format_account_onboarding_usage(error: str | None = None) -> str:
+def format_account_onboarding_usage(
+    error: str | None = None,
+    *,
+    account_pool: str | None = None,
+) -> str:
+    usage_pool = account_pool if account_pool in {"search", "engagement"} else "<search|engagement>"
     lines = [
         _headline("Add a Telegram account", icon="[account]"),
-        _field("Usage", "/add_account <search|engagement> <phone> [session_name] [notes...]"),
+        _field("Usage", f"/add_account {usage_pool} <phone> [session_name] [notes...]"),
         "",
         _section("Examples", icon="[shell]"),
         "/add_account search +10000000000 research-1 warm spare",

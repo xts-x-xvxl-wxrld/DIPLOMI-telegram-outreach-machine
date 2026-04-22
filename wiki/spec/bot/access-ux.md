@@ -82,6 +82,8 @@ The current MVP bot uses approve-as-monitoring to keep the first workflow short.
 - Account phone numbers must be masked by the API before reaching the bot.
 - `/add_account` may prepare a local onboarding command for `search` or `engagement` accounts, but
   the bot must not collect Telegram login codes, 2FA passwords, or session files.
+- The accounts cockpit should expose add-account buttons for the `search` and `engagement` pools
+  and route them to pool-specific `/add_account ...` usage instructions.
 - Bot copy should describe communities, not outreach targets.
 - Engagement controls must not combine approval and sending unless a later spec explicitly enables
   that workflow.

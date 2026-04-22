@@ -25,6 +25,7 @@ from bot.ui import (
     ACTION_DISC_WATCHING,
     ACTION_ENGAGEMENT_HOME,
     ACTION_OP_ACCOUNTS,
+    ACTION_OP_ADD_ACCOUNT,
     ACTION_OP_DISCOVERY,
     ACTION_OP_HELP,
     ACTION_OP_HOME,
@@ -231,6 +232,13 @@ async def test_accounts_command_renders_masked_account_health() -> None:
     assert "account" in text.lower()
     # Phone numbers are masked by the API — no raw digits in the pool section
     assert "+***1234" in text or "masked" in text or "available" in text
+    callbacks = [
+        button.callback_data
+        for row in replies[0]["reply_markup"].inline_keyboard
+        for button in row
+    ]
+    assert f"{ACTION_OP_ADD_ACCOUNT}:search" in callbacks
+    assert f"{ACTION_OP_ADD_ACCOUNT}:engagement" in callbacks
 
 
 @pytest.mark.asyncio
@@ -464,16 +472,37 @@ async def test_op_accounts_callback_renders_account_health_with_masking() -> Non
     assert client.accounts_calls == 1
     all_text = " ".join(r["text"] for r in update.callback_query.message.replies)
     assert "account" in all_text.lower()
-    # Markup should contain cockpit back navigation
+    # Markup should contain account-specific add actions and cockpit navigation
     markups = [r["reply_markup"] for r in update.callback_query.message.replies if r["reply_markup"]]
     assert markups
-    back_callbacks = [
+    callbacks = [
         button.callback_data
         for markup in markups
         for row in markup.inline_keyboard
         for button in row
     ]
-    assert ACTION_OP_DISCOVERY in back_callbacks or ACTION_OP_HOME in back_callbacks or ACTION_ENGAGEMENT_HOME in back_callbacks
+    assert f"{ACTION_OP_ADD_ACCOUNT}:search" in callbacks
+    assert f"{ACTION_OP_ADD_ACCOUNT}:engagement" in callbacks
+    assert ACTION_OP_HOME in callbacks
+
+
+@pytest.mark.asyncio
+async def test_add_account_callback_renders_pool_specific_usage() -> None:
+    update = _make_callback_update(f"{ACTION_OP_ADD_ACCOUNT}:engagement")
+    context = _make_context(_FakeApiClient())
+
+    await callback_query(update, context)
+
+    replies = update.callback_query.message.replies
+    assert replies
+    text = replies[0]["text"]
+    assert "Usage: /add_account engagement <phone>" in text
+    callbacks = [
+        button.callback_data
+        for row in replies[0]["reply_markup"].inline_keyboard
+        for button in row
+    ]
+    assert ACTION_OP_ACCOUNTS in callbacks
 
 
 # ---------------------------------------------------------------------------

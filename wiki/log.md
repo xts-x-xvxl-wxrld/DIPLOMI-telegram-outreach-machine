@@ -1096,3 +1096,10 @@ while preserving the staged testing contract.
 - Added bot-first search commands, candidate cards, callback paging, run-scoped promote/reject/archive actions, and promoted-candidate seed conversion controls.
 - Added `POST /api/search-candidates/{candidate_id}/convert-to-seed` with duplicate seed-channel reuse, `manual_seed` evidence, `convert_to_seed` review metadata, and converted candidate status.
 - Added focused bot/API/service/UI regression tests for Slice 6 and Slice 7.
+## [2026-04-23] fix | Move account onboarding into accounts cockpit
+
+- Added accounts-cockpit inline buttons for adding `search` and `engagement` Telegram accounts.
+- Routed those buttons to pool-specific `/add_account ...` usage instructions while keeping login
+  codes, 2FA, and session files out of bot chat.
+- Changed `/accounts` and `op:accounts` to use the accounts cockpit markup instead of the generic
+  operator cockpit.

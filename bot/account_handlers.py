@@ -12,7 +12,7 @@ from bot.formatting import (
     format_account_onboarding_usage,
 )
 from bot.runtime import _reply
-from bot.ui import operator_cockpit_markup
+from bot.ui import accounts_cockpit_markup
 
 
 async def add_account_command(update: Any, context: Any) -> None:
@@ -21,7 +21,7 @@ async def add_account_command(update: Any, context: Any) -> None:
         await _reply(
             update,
             format_account_onboarding_usage(),
-            reply_markup=operator_cockpit_markup(),
+            reply_markup=accounts_cockpit_markup(),
         )
         return
 
@@ -42,7 +42,7 @@ async def add_account_command(update: Any, context: Any) -> None:
         await _reply(
             update,
             format_account_onboarding_usage(str(exc)),
-            reply_markup=operator_cockpit_markup(),
+            reply_markup=accounts_cockpit_markup(),
         )
         return
 
@@ -53,7 +53,7 @@ async def add_account_command(update: Any, context: Any) -> None:
             command=command,
             session_file_name=session_file_name,
         ),
-        reply_markup=operator_cockpit_markup(),
+        reply_markup=accounts_cockpit_markup(),
     )
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from bot.formatting import (
     format_account_onboarding_command,
+    format_account_onboarding_usage,
     format_access_denied,
     format_accounts,
     format_candidate_card,
@@ -180,6 +181,12 @@ def test_format_account_onboarding_command_keeps_login_local() -> None:
     assert "Pool: engagement" in message
     assert "Session file: engagement-1.session" in message
     assert "Enter Telegram login codes and 2FA only in the local shell." in message
+
+
+def test_format_account_onboarding_usage_can_be_pool_specific() -> None:
+    message = format_account_onboarding_usage(account_pool="search")
+
+    assert "Usage: /add_account search <phone> [session_name] [notes...]" in message
 
 
 def test_format_seed_import_summarizes_groups_and_errors() -> None:

@@ -56,12 +56,14 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TOPIC_LIST,
     ACTION_ENGAGEMENT_TOPIC_OPEN,
     ACTION_OP_ACCOUNTS,
+    ACTION_OP_ADD_ACCOUNT,
     ACTION_OP_DISCOVERY,
     ACTION_OP_HELP,
     ACTION_OP_HOME,
     ACTION_SEED_CANDIDATES,
     ENGAGEMENT_MENU_LABEL,
     candidate_actions_markup,
+    accounts_cockpit_markup,
     community_actions_markup,
     config_edit_confirmation_markup,
     discovery_cockpit_markup,
@@ -641,8 +643,27 @@ def test_operator_cockpit_markup_button_labels() -> None:
 
 
 def test_operator_cockpit_callback_data_stays_under_telegram_limit() -> None:
-    for action in (ACTION_OP_HOME, ACTION_OP_DISCOVERY, ACTION_OP_ACCOUNTS, ACTION_OP_HELP):
+    for action in (
+        ACTION_OP_HOME,
+        ACTION_OP_DISCOVERY,
+        ACTION_OP_ACCOUNTS,
+        ACTION_OP_ADD_ACCOUNT,
+        ACTION_OP_HELP,
+    ):
         assert len(action) <= 64
+
+
+def test_accounts_cockpit_markup_exposes_add_account_buttons() -> None:
+    markup = accounts_cockpit_markup()
+    callbacks = _callbacks(markup)
+    labels = _labels(markup)
+
+    assert f"{ACTION_OP_ADD_ACCOUNT}:search" in callbacks
+    assert f"{ACTION_OP_ADD_ACCOUNT}:engagement" in callbacks
+    assert ACTION_OP_ACCOUNTS in callbacks
+    assert ACTION_OP_HOME in callbacks
+    assert any(label.endswith("Add search") for label in labels)
+    assert any(label.endswith("Add engagement") for label in labels)
 
 
 def test_discovery_cockpit_markup_exposes_six_navigation_entries_and_back() -> None:
@@ -706,6 +727,7 @@ def test_parse_op_callbacks() -> None:
         "op:home": (ACTION_OP_HOME, []),
         "op:discovery": (ACTION_OP_DISCOVERY, []),
         "op:accounts": (ACTION_OP_ACCOUNTS, []),
+        "op:addacct:search": (ACTION_OP_ADD_ACCOUNT, ["search"]),
         "op:help": (ACTION_OP_HELP, []),
     }
     for raw_data, expected in cases.items():
