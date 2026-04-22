@@ -53,7 +53,7 @@
 - [Engagement Admin Control Plane](plan/engagement-admin-control-plane.md) - manual engagement targets, prompt/profile admin, style rules, and editable reply implementation plan
 - [Bot Engagement Controls](plan/bot-engagement-controls.md) - next bot slices for target admin, prompt/style controls, reply opportunity editing, and advanced settings
 - [Bot Operator Cockpit](plan/bot-operator-cockpit.md) - inline top-level bot cockpit, callback namespace, and reply-keyboard removal rollout; [Bot Module Entrypoint](plan/bot-module-entrypoint.md) - Docker bot service module guard
-- [Bot Copy Readability Refresh](plan/bot-copy-readability-refresh.md) - clearer bot message hierarchy, emoji anchors, and button-label polish
+- [Bot Copy Readability Refresh](plan/bot-copy-readability-refresh.md) - clearer bot message hierarchy, emoji anchors, and button-label polish; [Bot Account Onboarding](plan/bot-account-onboarding.md) - bot command preparation for search and engagement account onboarding
 - [Telegram Account Pool Separation](plan/telegram-account-pools.md) - schema, account-manager routing, engagement guards, and onboarding plan for dedicated account pools
 - [Context Fragmentation Protocol](plan/context-fragmentation-protocol.md) - agent reading limits, wiki/code size caps, and refactor backlog for smaller context slices
 ## Shard directories
@@ -77,7 +77,7 @@
 - `bot/main.py` - compatibility exports for the Telegram bot entrypoints
 - `bot/app.py` - Telegram application wiring and handler registration
 - `bot/runtime*.py` - shared bot context, parsing, access, config-edit, markup, and reply helpers
-- `bot/*_handlers.py`, `bot/engagement_commands_*.py`, `bot/engagement_*_flow.py` - split bot command, callback, and engagement workflow handlers
+- `bot/*_handlers.py`, `bot/account_onboarding.py`, `bot/formatting_accounts.py`, `bot/engagement_commands_*.py`, `bot/engagement_*_flow.py` - split bot command, account onboarding, callback, and engagement workflow handlers
 - `bot/ui.py` - compatibility exports for Telegram markups and callback constants
 - `bot/ui_common.py` - shared callback constants, fallback Telegram types, and markup helpers
 - `bot/ui_discovery.py` - operator, discovery, seed, community, member, and job markups

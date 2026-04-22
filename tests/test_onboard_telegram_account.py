@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from backend.db.enums import AccountPool, AccountStatus
+from backend.services.account_onboarding import build_onboarding_command
 from scripts.onboard_telegram_account import (
     account_values,
     resolve_session_path,
@@ -22,10 +23,11 @@ def test_safe_session_file_name_rejects_path_traversal(raw_value: str) -> None:
         safe_session_file_name(raw_value)
 
 
-def test_resolve_session_path_stays_inside_sessions_dir(tmp_path: Path) -> None:
-    path = resolve_session_path(str(tmp_path), "account.session")
+def test_resolve_session_path_stays_inside_sessions_dir() -> None:
+    sessions_dir = "sessions"
+    path = resolve_session_path(sessions_dir, "account.session")
 
-    assert path == (tmp_path / "account.session").resolve()
+    assert path == (Path.cwd() / sessions_dir / "account.session").resolve()
 
 
 def test_account_values_registers_available_account_without_leases() -> None:
@@ -56,3 +58,17 @@ def test_account_values_rejects_disabled_pool_for_onboarding() -> None:
             account_pool=AccountPool.DISABLED.value,
             notes=None,
         )
+
+
+def test_build_onboarding_command_includes_pool_phone_and_safe_session_name() -> None:
+    command = build_onboarding_command(
+        account_pool=AccountPool.ENGAGEMENT.value,
+        phone="+36 20 123 4567",
+        session_name="engagement account",
+        notes="public replies",
+    )
+
+    assert "--account-pool engagement" in command
+    assert "--phone '+36 20 123 4567'" in command
+    assert "--session-name engagement_account.session" in command
+    assert "--notes 'public replies'" in command

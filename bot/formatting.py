@@ -29,6 +29,10 @@ from .formatting_discovery import (
     format_whoami,
     format_access_denied,
 )
+from .formatting_accounts import (
+    format_account_onboarding_command,
+    format_account_onboarding_usage,
+)
 from .formatting_engagement import (
     format_engagement_home,
     format_engagement_admin_home,
@@ -91,6 +95,8 @@ __all__ = [
     "format_api_error",
     "format_whoami",
     "format_access_denied",
+    "format_account_onboarding_command",
+    "format_account_onboarding_usage",
     "format_engagement_home",
     "format_engagement_admin_home",
     "format_engagement_admin_limits_home",

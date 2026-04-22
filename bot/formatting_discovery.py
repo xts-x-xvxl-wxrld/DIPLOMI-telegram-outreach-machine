@@ -103,6 +103,7 @@ def format_help() -> str:
             "/engagement - engagement cockpit",
             "/engagement_admin - admin controls",
             "/accounts - account pool health",
+            "/add_account <search|engagement> <phone> [session_name] [notes...]",
             "/whoami - show your Telegram ID for allowlist onboarding",
             "/job <id> - check a background job",
             "",
@@ -155,6 +156,7 @@ def format_start() -> str:
             "/entity <intake_id>",
             "/job <job_id>",
             "/accounts",
+            "/add_account <search|engagement> <phone> [session_name] [notes...]",
             "/whoami",
             "",
             _section("Optional/future", icon="🧪"),
@@ -287,6 +289,7 @@ def format_review(decision: str, data: dict[str, Any]) -> str:
 
 def format_accounts(data: dict[str, Any]) -> str:
     counts = data.get("counts") or {}
+    pool_counts = data.get("counts_by_pool") or {}
     lines = [
         _headline("Telegram account pool", icon="📲"),
         _field(
@@ -298,12 +301,22 @@ def format_accounts(data: dict[str, Any]) -> str:
                 f"banned={counts.get('banned', 0)}"
             ),
         ),
+        _field(
+            "Pools",
+            (
+                f"search={pool_counts.get('search', 0)}, "
+                f"engagement={pool_counts.get('engagement', 0)}, "
+                f"disabled={pool_counts.get('disabled', 0)}"
+            ),
+        ),
     ]
     items = data.get("items") or []
     if items:
         lines.extend(["", _section("Accounts", icon="📋")])
     for account in items[:10]:
         line = f"{account.get('phone', 'masked')} - {account.get('status', 'unknown')}"
+        if account.get("account_pool"):
+            line = f"{line} - {account['account_pool']}"
         if account.get("flood_wait_until"):
             line = f"{line} until {account['flood_wait_until']}"
         lines.append(_bullet(line))

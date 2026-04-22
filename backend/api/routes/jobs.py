@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from backend.api.deps import DbSession, SettingsDep, require_bot_token
 from backend.api.schemas import AccountDebugItem, AccountDebugResponse, JobStatusResponse
-from backend.db.enums import AccountStatus
+from backend.db.enums import AccountPool, AccountStatus
 from backend.db.models import TelegramAccount
 from backend.queue.client import QueueUnavailable, fetch_job_status
 from backend.workers.account_manager import mask_phone
@@ -28,15 +28,19 @@ async def get_job(job_id: str, settings: SettingsDep) -> JobStatusResponse:
 async def debug_accounts(db: DbSession) -> AccountDebugResponse:
     accounts = list((await db.scalars(select(TelegramAccount).order_by(TelegramAccount.added_at))).all())
     counts = {status.value: 0 for status in AccountStatus}
+    counts_by_pool = {pool.value: 0 for pool in AccountPool}
     for account in accounts:
         counts[account.status] = counts.get(account.status, 0) + 1
+        counts_by_pool[account.account_pool] = counts_by_pool.get(account.account_pool, 0) + 1
 
     return AccountDebugResponse(
         counts=counts,
+        counts_by_pool=counts_by_pool,
         items=[
             AccountDebugItem(
                 id=account.id,
                 phone=mask_phone(account.phone),
+                account_pool=account.account_pool,
                 status=account.status,
                 flood_wait_until=account.flood_wait_until,
                 last_used_at=account.last_used_at,

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import re
 import sys
 import uuid
 from pathlib import Path
@@ -17,6 +16,10 @@ from backend.core.settings import get_settings  # noqa: E402
 from backend.db.enums import AccountPool, AccountStatus  # noqa: E402
 from backend.db.models import TelegramAccount  # noqa: E402
 from backend.db.session import AsyncSessionLocal  # noqa: E402
+from backend.services.account_onboarding import (  # noqa: E402
+    safe_session_file_name,
+    validate_onboarding_account_pool,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -122,8 +125,7 @@ def account_values(
     account_pool: str = AccountPool.SEARCH.value,
     notes: str | None = None,
 ) -> dict[str, object]:
-    if account_pool not in {AccountPool.SEARCH.value, AccountPool.ENGAGEMENT.value}:
-        raise ValueError("account_pool must be search or engagement")
+    account_pool = validate_onboarding_account_pool(account_pool)
     return {
         "session_file_path": session_file_path,
         "account_pool": account_pool,
@@ -134,19 +136,6 @@ def account_values(
         "last_error": None,
         "notes": notes,
     }
-
-
-def safe_session_file_name(raw_value: str) -> str:
-    raw_name = raw_value.strip()
-    if "/" in raw_name or "\\" in raw_name or ".." in Path(raw_name).parts:
-        raise ValueError("Session name must not contain path separators")
-
-    stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", raw_name).strip("._-")
-    if not stem:
-        raise ValueError("Session name must contain at least one safe character")
-    if not stem.endswith(".session"):
-        stem = f"{stem}.session"
-    return stem
 
 
 def resolve_session_path(sessions_dir: str, session_file_path: str) -> Path:

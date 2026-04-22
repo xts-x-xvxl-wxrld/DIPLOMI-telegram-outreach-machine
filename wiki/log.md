@@ -1062,9 +1062,12 @@ while preserving the staged testing contract.
 - Added target-scoped manual collection API/client controls with approval and detect-permission gates, plus recent collection-run status listing for operator verification.
 - Wired bot commands and target-card next steps for collect-now and collection-run status while preserving join, detect, review, approve, send, and audit controls.
 - Refreshed reply-review copy to say reply opportunity while keeping legacy candidate IDs visible; focused engagement operator, bot API/UI, bot handler, and engagement API tests passed.
+## [2026-04-22] implementation | Bot account onboarding helper
 
-## [2026-04-23] fix | Restore engagement cockpit emoji
-
-- Preserved the top-level Engagement inline button's speech-bubble emoji instead of rewriting it to a plain label.
-- Added a bot UI regression assertion and passed `python -m pytest tests/test_bot_ui.py -q`.
-- `python scripts/check_fragmentation.py` was run; it is currently blocked by unrelated `backend/api/schemas.py` size drift.
+- Added `/add_account <search|engagement> <phone> [session_name] [notes...]` as a bot-only command
+  preparation helper that returns the local Docker onboarding command without collecting Telegram
+  login codes, 2FA passwords, or session files.
+- Added bot/backend onboarding command helpers and kept the existing `scripts/onboard_telegram_account.py`
+  login flow local and interactive.
+- Extended `/accounts` and `GET /api/debug/accounts` with account-pool counts and per-account pool
+  labels while keeping phone numbers masked.

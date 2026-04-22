@@ -37,10 +37,16 @@ Response:
     "rate_limited": 2,
     "banned": 0
   },
+  "counts_by_pool": {
+    "search": 5,
+    "engagement": 2,
+    "disabled": 0
+  },
   "items": [
     {
       "id": "uuid",
       "phone": "+123*****89",
+      "account_pool": "search",
       "status": "available",
       "flood_wait_until": null,
       "last_used_at": "iso_datetime",
@@ -51,3 +57,4 @@ Response:
 ```
 
 Phone numbers must be masked in API responses unless an explicit admin-only endpoint is added later.
+`account_pool` is safe to expose because it is operational routing metadata, not a credential.

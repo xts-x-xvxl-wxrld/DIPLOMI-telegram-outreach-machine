@@ -249,6 +249,7 @@ ENGAGEMENT_ADMIN_ONLY_MESSAGE = (
 )
 
 from .runtime import *
+from .account_handlers import *
 from .discovery_handlers import *
 from .engagement_handlers import *
 from .callback_handlers import *
@@ -308,6 +309,7 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("reject", reject_command))
     application.add_handler(CommandHandler("job", job_command))
     application.add_handler(CommandHandler("accounts", accounts_command))
+    application.add_handler(CommandHandler("add_account", add_account_command))
     application.add_handler(CommandHandler("seeds", seeds_command))
     application.add_handler(CommandHandler("seed", seed_command))
     application.add_handler(CommandHandler("channels", channels_command))

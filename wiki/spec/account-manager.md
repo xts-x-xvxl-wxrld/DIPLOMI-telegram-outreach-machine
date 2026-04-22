@@ -200,6 +200,10 @@ Telegram user accounts are onboarded manually by the operator. The MVP provides
 The script stores only the operational account phone and session path in `telegram_accounts`.
 It must not collect Telegram community member phone numbers.
 
+The bot may expose `/add_account <search|engagement> <phone> [session_name] [notes...]` as a
+command-preparation helper. It must only return the local Docker/script command to run and must not
+collect Telegram login codes, 2FA passwords, or session files in chat.
+
 Session file rules:
 
 - Store relative session file names in `telegram_accounts.session_file_path`.

@@ -7,6 +7,7 @@ import pytest
 
 from bot.main import (
     API_CLIENT_KEY,
+    add_account_command,
     callback_query,
     help_command,
     seeds_command,
@@ -63,9 +64,10 @@ class _FakeApiClient:
 
         self.accounts_data = {
             "counts": {"available": 2, "in_use": 0, "rate_limited": 0, "banned": 0},
+            "counts_by_pool": {"search": 1, "engagement": 1, "disabled": 0},
             "items": [
-                {"phone": "+***1234", "status": "available"},
-                {"phone": "+***5678", "status": "available"},
+                {"phone": "+***1234", "account_pool": "search", "status": "available"},
+                {"phone": "+***5678", "account_pool": "engagement", "status": "available"},
             ],
         }
         self.seed_groups_data = {
@@ -229,6 +231,37 @@ async def test_accounts_command_renders_masked_account_health() -> None:
     assert "account" in text.lower()
     # Phone numbers are masked by the API — no raw digits in the pool section
     assert "+***1234" in text or "masked" in text or "available" in text
+
+
+@pytest.mark.asyncio
+async def test_add_account_command_prepares_search_onboarding_command() -> None:
+    update = _make_update("/add_account")
+    context = _make_context()
+    context.args = ["search", "+10000000000", "research-1", "warm", "spare"]
+
+    await add_account_command(update, context)
+
+    replies = update.message.replies
+    assert len(replies) == 1
+    text = replies[0]["text"]
+    assert "Telegram account onboarding prepared" in text
+    assert "--account-pool search" in text
+    assert "--phone +10000000000" in text
+    assert "--session-name research-1.session" in text
+    assert "--notes 'warm spare'" in text
+
+
+@pytest.mark.asyncio
+async def test_add_account_command_rejects_invalid_pool() -> None:
+    update = _make_update("/add_account")
+    context = _make_context()
+    context.args = ["disabled", "+10000000000"]
+
+    await add_account_command(update, context)
+
+    text = update.message.replies[0]["text"]
+    assert "Usage: /add_account" in text
+    assert "account_pool must be search or engagement" in text
 
 
 # ---------------------------------------------------------------------------

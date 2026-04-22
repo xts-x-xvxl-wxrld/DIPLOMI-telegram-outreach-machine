@@ -13,6 +13,8 @@ Top-level routing contract for the Telegram operator UI. Command details live in
 - `bot/main.py` - compatibility exports for legacy imports and `python -m bot.main` service entrypoint.
 - `bot/app.py` - Telegram application wiring and handler registration.
 - `bot/runtime*.py` - shared context, parsing, access, config-edit, markup, and reply helpers.
+- `bot/account_handlers.py`, `bot/account_onboarding.py`, `bot/formatting_accounts.py` - bot-only
+  Telegram account onboarding command preparation and safety copy.
 - `bot/discovery_handlers.py` - discovery, seed, community, account, and upload handlers.
 - `bot/callback_handlers.py` - inline callback router.
 - `bot/engagement_commands_*.py` - engagement daily, admin, and config command handlers.

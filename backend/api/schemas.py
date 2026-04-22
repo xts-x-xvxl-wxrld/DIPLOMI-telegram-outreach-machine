@@ -324,16 +324,16 @@ class JobStatusResponse(BaseModel):
 class AccountDebugItem(BaseModel):
     id: UUID
     phone: str
+    account_pool: str
     status: str
     flood_wait_until: datetime | None = None
     last_used_at: datetime | None = None
     last_error: str | None = None
 
-
 class AccountDebugResponse(BaseModel):
     counts: dict[str, int]
+    counts_by_pool: dict[str, int] = Field(default_factory=dict)
     items: list[AccountDebugItem]
-
 
 class OperatorCapabilitiesOut(BaseModel):
     operator_user_id: int | None = None

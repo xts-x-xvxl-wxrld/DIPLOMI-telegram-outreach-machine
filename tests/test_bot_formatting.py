@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from bot.formatting import (
+    format_account_onboarding_command,
     format_access_denied,
     format_accounts,
     format_candidate_card,
@@ -160,11 +161,25 @@ def test_format_accounts_uses_masked_phone_from_api() -> None:
     message = format_accounts(
         {
             "counts": {"available": 1, "in_use": 0, "rate_limited": 0, "banned": 0},
-            "items": [{"phone": "+123*****89", "status": "available"}],
+            "counts_by_pool": {"search": 1, "engagement": 0, "disabled": 0},
+            "items": [{"phone": "+123*****89", "account_pool": "search", "status": "available"}],
         }
     )
 
     assert "+123*****89 - available" in message
+    assert "Pools: search=1, engagement=0, disabled=0" in message
+
+
+def test_format_account_onboarding_command_keeps_login_local() -> None:
+    message = format_account_onboarding_command(
+        account_pool="engagement",
+        command="docker compose run --rm worker python scripts/onboard_telegram_account.py",
+        session_file_name="engagement-1.session",
+    )
+
+    assert "Pool: engagement" in message
+    assert "Session file: engagement-1.session" in message
+    assert "Enter Telegram login codes and 2FA only in the local shell." in message
 
 
 def test_format_seed_import_summarizes_groups_and_errors() -> None:
