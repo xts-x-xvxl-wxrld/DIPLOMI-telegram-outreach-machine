@@ -311,20 +311,28 @@ def test_engagement_home_markup_links_core_surfaces() -> None:
     markup = engagement_home_markup()
     rows = markup.inline_keyboard
 
+    assert rows[0][0].text.startswith("💬 ")
     assert rows[0][0].text.endswith("Today")
     assert rows[0][0].callback_data == ACTION_ENGAGEMENT_HOME
+    assert rows[1][0].text.startswith("⚠ ")
     assert rows[1][0].text.endswith("Review replies")
     assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:needs_review:0"
+    assert rows[1][1].text.startswith("✅ ")
     assert rows[1][1].text.endswith("Approved")
     assert rows[1][1].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:approved:0"
+    assert rows[2][0].text.startswith("🏘 ")
     assert rows[2][0].text.endswith("Communities")
     assert rows[2][0].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:0"
+    assert rows[2][1].text.startswith("🧩 ")
     assert rows[2][1].text.endswith("Topics")
     assert rows[2][1].callback_data == f"{ACTION_ENGAGEMENT_TOPIC_LIST}:0"
+    assert rows[3][0].text.startswith("⚙ ")
     assert rows[3][0].text.endswith("Settings")
     assert rows[3][0].callback_data == f"{ACTION_ENGAGEMENT_SETTINGS_LOOKUP}:0"
+    assert rows[3][1].text.startswith("📜 ")
     assert rows[3][1].text.endswith("Actions")
     assert rows[3][1].callback_data == f"{ACTION_ENGAGEMENT_ACTIONS}:0"
+    assert rows[4][0].text.startswith("🛠 ")
     assert rows[4][0].callback_data == ACTION_ENGAGEMENT_ADMIN
 
 
@@ -338,14 +346,19 @@ def test_engagement_admin_home_markup_links_setup_and_advanced_surfaces() -> Non
     markup = engagement_admin_home_markup()
     rows = markup.inline_keyboard
 
+    assert rows[0][0].text.startswith("🏘 ")
     assert rows[0][0].text.endswith("Communities")
     assert rows[0][0].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:0"
+    assert rows[0][1].text.startswith("🧩 ")
     assert rows[0][1].text.endswith("Topics")
     assert rows[0][1].callback_data == f"{ACTION_ENGAGEMENT_TOPIC_LIST}:0"
+    assert rows[1][0].text.startswith("🗣 ")
     assert rows[1][0].text.endswith("Voice rules")
     assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_STYLE}:0"
+    assert rows[1][1].text.startswith("⚙ ")
     assert rows[1][1].text.endswith("Limits/accounts")
     assert rows[1][1].callback_data == ACTION_ENGAGEMENT_ADMIN_LIMITS
+    assert rows[2][0].text.startswith("🧪 ")
     assert rows[2][0].text.endswith("Advanced")
     assert rows[2][0].callback_data == ACTION_ENGAGEMENT_ADMIN_ADVANCED
 

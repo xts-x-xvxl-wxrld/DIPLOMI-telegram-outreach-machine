@@ -167,28 +167,30 @@ def _button_label(label: str, action: str, parts: Sequence[str]) -> str:
     if label.endswith("Home"):
         return "Home"
     if label.endswith("Today"):
-        return "Today"
+        return label
+    if label.endswith("Engagement"):
+        return label
     key = (action, tuple(parts))
     overrides = {
-        (ACTION_ENGAGEMENT_CANDIDATES, ("needs_review", "0")): "Review replies",
+        (ACTION_ENGAGEMENT_CANDIDATES, ("needs_review", "0")): "⚠ Review replies",
         (ACTION_ENGAGEMENT_CANDIDATES, ("approved", "0")): _ButtonLabel(
-            "Approved to send",
+            "✅ Approved to send",
             endswith_alias="Approved",
         ),
-        (ACTION_ENGAGEMENT_TARGETS, ("0",)): "Communities",
-        (ACTION_ENGAGEMENT_TOPIC_LIST, ("0",)): "Topics",
+        (ACTION_ENGAGEMENT_TARGETS, ("0",)): "🏘 Communities",
+        (ACTION_ENGAGEMENT_TOPIC_LIST, ("0",)): "🧩 Topics",
         (ACTION_ENGAGEMENT_SETTINGS_LOOKUP, ("0",)): _ButtonLabel(
-            "Settings lookup",
+            "⚙ Settings lookup",
             endswith_alias="Settings",
         ),
         (ACTION_ENGAGEMENT_ACTIONS, ("0",)): _ButtonLabel(
-            "Recent actions",
+            "📜 Recent actions",
             endswith_alias="Actions",
         ),
-        (ACTION_ENGAGEMENT_ADMIN, ()): "Admin",
-        (ACTION_ENGAGEMENT_STYLE, ("0",)): "Voice rules",
-        (ACTION_ENGAGEMENT_ADMIN_LIMITS, ()): "Limits/accounts",
-        (ACTION_ENGAGEMENT_ADMIN_ADVANCED, ()): "Advanced",
+        (ACTION_ENGAGEMENT_ADMIN, ()): "🛠 Admin",
+        (ACTION_ENGAGEMENT_STYLE, ("0",)): "🗣 Voice rules",
+        (ACTION_ENGAGEMENT_ADMIN_LIMITS, ()): "⚙ Limits/accounts",
+        (ACTION_ENGAGEMENT_ADMIN_ADVANCED, ()): "🧪 Advanced",
     }
     return overrides.get(key, label)
 
