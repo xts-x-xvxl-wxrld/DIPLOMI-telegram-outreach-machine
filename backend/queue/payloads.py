@@ -38,6 +38,16 @@ class TelegramEntityResolvePayload(BaseModel):
     requested_by: str
 
 
+class SearchPlanPayload(BaseModel):
+    search_run_id: UUID
+    requested_by: str | None = None
+
+
+class SearchRankPayload(BaseModel):
+    search_run_id: UUID
+    requested_by: str | None = None
+
+
 class ExpansionPayload(BaseModel):
     brief_id: UUID | None = None
     community_ids: list[UUID]

@@ -10,6 +10,7 @@ Top-level routing contract for the FastAPI surface. Endpoint details live in `wi
 
 ## Code Map
 
+- `backend/api/routes/search.py` - search run create/list/detail, query/candidate listing, rerank job, and review routes.
 - `backend/api/routes/seeds.py` - seed, community, snapshot, and debug routes.
 - `backend/api/routes/engagement.py` - engagement compatibility router.
 - `backend/api/routes/engagement_*.py` - engagement target, settings/topic, prompt/style, and candidate/action resources.

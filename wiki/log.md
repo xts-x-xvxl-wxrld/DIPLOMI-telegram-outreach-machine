@@ -993,3 +993,8 @@ while preserving the staged testing contract.
 - Implemented `collection.run` orchestration with account lease cleanup, fakeable Telethon message collection, exact `analysis_input.engagement_messages` batches, checkpoints, optional raw-message storage, and visible-user activity updates.
 - Extended `engagement.detect` payloads with optional `collection_run_id` and deterministic exact-batch job IDs, with detection preferring exact collection batches and skipping mismatched run/community pairs.
 - Added collection, queue payload, and detection sample tests; full suite passed with 433 tests and fragmentation guard passed.
+## [2026-04-22] implementation | Search API skeleton slice
+
+- Added `backend/api/routes/search.py` and `backend/services/search.py` to create search runs, list run/query/candidate state, enqueue `search.plan` and `search.rank`, and record run-scoped candidate reviews without calling Telethon or OpenAI in the API layer.
+- Extended `backend/queue/client.py` and `backend/queue/payloads.py` with `search.plan` and `search.rank` queue helpers for the Slice 2 API boundary.
+- Added `tests/test_search_api.py`; `python -m pytest -q tests/test_search_schema.py tests/test_search_api.py` and `python scripts/check_fragmentation.py ...` passed.

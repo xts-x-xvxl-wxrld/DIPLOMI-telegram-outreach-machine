@@ -1,6 +1,5 @@
 # Wiki Index
 ## Spec files
-
 - [Architecture](spec/architecture.md) - Docker Compose layout, seed-first data flow, job types, key design rules
 - [Database](spec/database.md) - schema routing contract with discovery/search/engagement shards
 - [Audience Brief](spec/audience-brief.md) - optional/future keyword extraction and search context
@@ -66,8 +65,7 @@
 - `wiki/spec/bot-engagement-controls/` - engagement cockpit navigation, config editing, slice contracts, controls, formatting, and tests
 - `wiki/spec/queue/` - queue job type and operations shards
 - `wiki/plan/engagement-mvp-testing-readiness/` - engagement MVP readiness slices
-- `wiki/plan/bot-engagement-controls/`, `wiki/plan/community-engagement/`,
-  `wiki/plan/engagement-operator-controls/`, `wiki/plan/search-rebuild-implementation/` - split plan shards
+- `wiki/plan/bot-engagement-controls/`, `wiki/plan/community-engagement/`, `wiki/plan/engagement-operator-controls/`, `wiki/plan/search-rebuild-implementation/` - split plan shards
 
 ## Implementation roots
 
@@ -98,6 +96,7 @@
 - `ops/vps/AGENT_CONTEXT.md` - redacted VPS architecture map for coding agents
 - `.github/workflows/ci.yml` - branch and pull-request validation workflow
 - `.github/workflows/deploy-vps.yml` - staging VPS deployment workflow
+- `backend/api/routes/search.py`, `backend/services/search.py` - search run API skeleton, list/detail shaping, rerank enqueueing, and run-scoped review persistence
 - `backend/api/routes/seeds.py` - manual seed import and seed-group API endpoints
 - `backend/api/routes/engagement*.py` - engagement route facade plus target, settings/topic, prompt/style, candidate/action endpoint shards
 - `backend/api/routes/telegram_entities.py` - direct Telegram handle intake API endpoints
@@ -131,6 +130,7 @@
 - `alembic/versions/20260420_0009_telegram_account_pools.py` - Telegram account pool separation migration
 - `alembic/versions/20260421_0010_engagement_embeddings.py` - topic/message embedding cache migration for semantic engagement matching
 - `alembic/versions/20260421_0011_search_schema.py` - query-driven search runs, queries, candidates, evidence, and review schema
+- `tests/test_search_api.py` - search run API create/list/detail/query/candidate/rerank/review contract tests
 - `tests/test_search_schema.py` - search enum, model default, uniqueness, nullable candidate, foreign key, DDL, and schema validation tests
 - `tests/test_engagement_embeddings.py` - embedding cache reuse, dimension validation, selector ordering, and cleanup tests
 - `tests/test_engagement_semantic_eval_fixtures.py` - sanitized semantic matching evaluation fixture contract tests
