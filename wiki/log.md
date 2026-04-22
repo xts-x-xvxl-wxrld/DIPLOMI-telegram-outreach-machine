@@ -950,3 +950,13 @@ directories. Split bot message formatting and inline UI helpers into common, dis
 engagement modules while preserving `bot.formatting` and `bot.ui` compatibility exports. Updated
 `wiki/index.md` and `wiki/plan/context-fragmentation-protocol.md` with the new shard and module
 entrypoints.
+
+## [2026-04-22] refactor | Split oversized backend and bot modules
+
+Split `bot/main.py` into app, runtime, discovery handler, callback handler, engagement command, and
+engagement workflow modules while preserving `bot.main` compatibility exports. Split
+`backend/services/community_engagement.py` into domain modules for settings, targets, topics,
+prompts, style rules, candidates, actions, and shared view types. Split the remaining oversized
+backend production files: engagement API routes, SQLAlchemy models, and the engagement detection
+worker. After the split, no `/backend` or `/bot` production file exceeds the 800-line soft cap.
+Ruff passed for `backend` and `bot`; the full test suite passed with 423 tests.

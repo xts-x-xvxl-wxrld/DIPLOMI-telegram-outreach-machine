@@ -104,13 +104,16 @@ Completed in the 2026-04-22 fragmentation refactor:
   controls, and search rebuild implementation.
 - Split `bot/formatting.py` and `bot/ui.py` by discovery vs. engagement surfaces while preserving
   compatibility exports.
+- Split `bot/main.py` into app, runtime, discovery handler, callback handler, engagement command,
+  and engagement workflow modules while preserving `bot.main` compatibility exports.
+- Split `backend/services/community_engagement.py` into settings, targets, topics, prompts, style
+  rules, candidates, actions, and shared view modules.
+- Split remaining oversized backend production files: engagement API routes, SQLAlchemy models, and
+  engagement detection worker orchestration.
 
 Remaining backlog:
 
-5. Split `bot/main.py` by bot command group and callback namespace.
-6. Split `backend/services/community_engagement.py` by engagement target, topic, prompt/style,
-   candidate/action, and rollout summary concerns.
-7. Split oversized tests after the production modules have stable entrypoints.
+5. Split oversized tests after the production modules have stable entrypoints.
 
 ## Acceptance Criteria
 

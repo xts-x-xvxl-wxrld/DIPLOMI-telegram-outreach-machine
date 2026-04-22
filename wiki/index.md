@@ -78,7 +78,10 @@
 - `bot/formatting_common.py` - shared bot formatting helpers
 - `bot/formatting_discovery.py` - discovery, seed, community, account, and access message formatting
 - `bot/formatting_engagement.py` - engagement target, prompt, style, topic, candidate, action, and rollout formatting
-- `bot/main.py` - Telegram bot command and callback handlers for seed-group operations
+- `bot/main.py` - compatibility exports for the Telegram bot entrypoints
+- `bot/app.py` - Telegram application wiring and handler registration
+- `bot/runtime*.py` - shared bot context, parsing, access, config-edit, markup, and reply helpers
+- `bot/*_handlers.py`, `bot/engagement_commands_*.py`, `bot/engagement_*_flow.py` - split bot command, callback, and engagement workflow handlers
 - `bot/ui.py` - compatibility exports for Telegram markups and callback constants
 - `bot/ui_common.py` - shared callback constants, fallback Telegram types, and markup helpers
 - `bot/ui_discovery.py` - operator, discovery, seed, community, member, and job markups
@@ -95,14 +98,15 @@
 - `.github/workflows/ci.yml` - branch and pull-request validation workflow
 - `.github/workflows/deploy-vps.yml` - staging VPS deployment workflow
 - `backend/api/routes/seeds.py` - manual seed import and seed-group API endpoints
-- `backend/api/routes/engagement.py` - engagement settings, topics, candidate review, and job enqueue API endpoints
+- `backend/api/routes/engagement*.py` - engagement route facade plus target, settings/topic, prompt/style, candidate/action endpoint shards
 - `backend/api/routes/telegram_entities.py` - direct Telegram handle intake API endpoints
-- `backend/services/community_engagement.py` - engagement settings and topic validation/state service
+- `backend/db/models*.py` - SQLAlchemy model facade plus core, search, and engagement model shards
+- `backend/services/community_engagement*.py` - engagement service facade plus settings, targets, topics, prompts, style, candidates, actions, and view shards
 - `backend/services/engagement_embeddings.py` - embedding text normalization, cache lookup/create, cosine scoring, and semantic trigger selection
 - `backend/workers/community_join.py` - `community.join` orchestration with membership and audit updates
 - `backend/workers/community_snapshot.py` - `community.snapshot` orchestration for discovery metadata/member snapshots
 - `backend/workers/telegram_snapshot.py` - Telethon adapter for discovery community snapshots
-- `backend/workers/engagement_detect.py` - `engagement.detect` orchestration, sample prefiltering, model calls, and candidate creation
+- `backend/workers/engagement_detect*.py` - engagement detection facade plus types, OpenAI, process, sample, selection, and prompt shards
 - `backend/workers/engagement_target_resolve.py` - engagement-specific Telegram target resolution for approved outbound surfaces
 - `backend/workers/engagement_scheduler.py` - low-frequency engagement detection scheduler target selection and enqueueing
 - `backend/workers/engagement_send.py` - `engagement.send` orchestration, idempotent action audit, rate-limit checks, and public reply sends

@@ -1,0 +1,238 @@
+# ruff: noqa: F401,F403,F405,E402
+from __future__ import annotations
+
+from .runtime_base import *
+
+from .runtime_context import *
+from .runtime_io import *
+
+
+async def access_gate(update: Any, context: Any) -> None:
+    settings: BotSettings = context.application.bot_data["settings"]
+    if _is_identity_command(update) or _is_authorized_update(update, settings):
+        _clear_pending_edit_if_command(update, context)
+        return
+
+    await _deny_access(update)
+    from telegram.ext import ApplicationHandlerStop
+
+    raise ApplicationHandlerStop
+
+
+def _is_authorized_update(update: Any, settings: BotSettings) -> bool:
+    if not settings.allowed_user_ids:
+        return True
+    user_id = _telegram_user_id(update)
+    return user_id in settings.allowed_user_ids if user_id is not None else False
+
+
+def _is_engagement_admin(update: Any, context: Any) -> bool:
+    cached = _cached_backend_engagement_admin(update, context)
+    if cached is not None:
+        return cached
+    settings = _bot_settings(context)
+    if settings is None or not settings.admin_user_ids:
+        return True
+    user_id = _telegram_user_id(update)
+    return user_id in settings.admin_user_ids if user_id is not None else False
+
+
+async def _require_engagement_admin(update: Any, context: Any) -> bool:
+    if await _is_engagement_admin_async(update, context):
+        return True
+    await _callback_reply(update, ENGAGEMENT_ADMIN_ONLY_MESSAGE)
+    return False
+
+
+async def _is_engagement_admin_async(update: Any, context: Any) -> bool:
+    backend_capability = await _backend_engagement_admin_capability(update, context)
+    if backend_capability is not None:
+        return backend_capability
+    return _is_engagement_admin(update, context)
+
+
+async def _backend_engagement_admin_capability(update: Any, context: Any) -> bool | None:
+    user_id = _telegram_user_id(update)
+    cached = _cached_backend_engagement_admin(update, context)
+    if cached is not None:
+        return cached
+
+    try:
+        data = await _api_client(context).get_operator_capabilities(user_id)
+    except (AttributeError, BotApiError):
+        return None
+
+    if not data.get("backend_capabilities_available"):
+        return None
+
+    engagement_admin = data.get("engagement_admin")
+    if not isinstance(engagement_admin, bool):
+        return None
+
+    if user_id is not None:
+        _capability_cache(context)[user_id] = engagement_admin
+    return engagement_admin
+
+
+def _cached_backend_engagement_admin(update: Any, context: Any) -> bool | None:
+    user_id = _telegram_user_id(update)
+    if user_id is None:
+        return None
+    cached = _capability_cache(context).get(user_id)
+    return cached if isinstance(cached, bool) else None
+
+
+def _capability_cache(context: Any) -> dict[int, bool]:
+    application = getattr(context, "application", None)
+    bot_data = getattr(application, "bot_data", None)
+    if not isinstance(bot_data, dict):
+        return {}
+    cache = bot_data.get(OPERATOR_CAPABILITY_CACHE_KEY)
+    if not isinstance(cache, dict):
+        cache = {}
+        bot_data[OPERATOR_CAPABILITY_CACHE_KEY] = cache
+    return cache
+
+
+def _callback_action_requires_engagement_admin(action: str, parts: list[str]) -> bool:
+    if action in {
+        ACTION_ENGAGEMENT_ADMIN,
+        ACTION_ENGAGEMENT_ADMIN_LIMITS,
+        ACTION_ENGAGEMENT_ADMIN_ADVANCED,
+        ACTION_ENGAGEMENT_ACCOUNT_CONFIRM,
+        ACTION_ENGAGEMENT_ACCOUNT_CANCEL,
+        ACTION_ENGAGEMENT_TARGET_ADD,
+        ACTION_ENGAGEMENT_TARGET_APPROVE,
+        ACTION_ENGAGEMENT_TARGET_APPROVE_CONFIRM,
+        ACTION_ENGAGEMENT_TARGET_RESOLVE,
+        ACTION_ENGAGEMENT_TARGET_REJECT,
+        ACTION_ENGAGEMENT_TARGET_ARCHIVE,
+        ACTION_ENGAGEMENT_TARGET_EDIT,
+        ACTION_ENGAGEMENT_PROMPTS,
+        ACTION_ENGAGEMENT_PROMPT_OPEN,
+        ACTION_ENGAGEMENT_PROMPT_PREVIEW,
+        ACTION_ENGAGEMENT_PROMPT_VERSIONS,
+        ACTION_ENGAGEMENT_PROMPT_EDIT,
+        ACTION_ENGAGEMENT_PROMPT_CREATE,
+        ACTION_ENGAGEMENT_PROMPT_DUPLICATE,
+        ACTION_ENGAGEMENT_PROMPT_ACTIVATE,
+        ACTION_ENGAGEMENT_PROMPT_ACTIVATE_CONFIRM,
+        ACTION_ENGAGEMENT_PROMPT_ROLLBACK,
+        ACTION_ENGAGEMENT_PROMPT_ROLLBACK_CONFIRM,
+        ACTION_ENGAGEMENT_STYLE,
+        ACTION_ENGAGEMENT_STYLE_CREATE,
+        ACTION_ENGAGEMENT_STYLE_OPEN,
+        ACTION_ENGAGEMENT_STYLE_EDIT,
+        ACTION_ENGAGEMENT_STYLE_TOGGLE,
+        ACTION_ENGAGEMENT_SETTINGS_PRESET,
+        ACTION_ENGAGEMENT_SETTINGS_JOIN,
+        ACTION_ENGAGEMENT_SETTINGS_POST,
+        ACTION_ENGAGEMENT_SETTINGS_EDIT,
+        ACTION_ENGAGEMENT_TOPIC_EDIT,
+        ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD,
+        ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
+        ACTION_ENGAGEMENT_TOPIC_TOGGLE,
+    }:
+        return True
+    if action in {ACTION_ENGAGEMENT_TARGET_PERMISSION, ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM}:
+        return True
+    if action == ACTION_CONFIG_EDIT_SAVE:
+        return bool(parts)
+    return False
+
+
+def _is_identity_command(update: Any) -> bool:
+    return _message_command_name(update) == "whoami"
+
+
+def _message_command_name(update: Any) -> str | None:
+    message = getattr(update, "message", None)
+    text = getattr(message, "text", None)
+    if not isinstance(text, str) or not text.startswith("/"):
+        return None
+    first_token = text.split(maxsplit=1)[0].lstrip("/")
+    command = first_token.split("@", maxsplit=1)[0].lower()
+    return command or None
+
+
+def _telegram_user(update: Any) -> Any | None:
+    effective_user = getattr(update, "effective_user", None)
+    if effective_user is not None:
+        return effective_user
+
+    message = getattr(update, "message", None)
+    message_user = getattr(message, "from_user", None)
+    if message_user is not None:
+        return message_user
+
+    query = getattr(update, "callback_query", None)
+    return getattr(query, "from_user", None)
+
+
+def _telegram_user_id(update: Any) -> int | None:
+    user = _telegram_user(update)
+    raw_user_id = getattr(user, "id", None)
+    if raw_user_id is None:
+        return None
+    try:
+        return int(raw_user_id)
+    except (TypeError, ValueError):
+        return None
+
+
+def _telegram_username(user: Any | None) -> str | None:
+    username = getattr(user, "username", None)
+    return username if isinstance(username, str) and username else None
+
+
+def _reviewer_label(update: Any) -> str:
+    user = _telegram_user(update)
+    user_id = _telegram_user_id(update)
+    if user_id is None:
+        return "telegram_bot"
+    username = _telegram_username(user)
+    if username:
+        return f"telegram:{user_id}:@{username}"
+    return f"telegram:{user_id}"
+
+
+async def _deny_access(update: Any) -> None:
+    user = _telegram_user(update)
+    user_id = _telegram_user_id(update)
+    message = format_access_denied(user_id, username=_telegram_username(user))
+
+    query = getattr(update, "callback_query", None)
+    if query is not None:
+        await query.answer(message, show_alert=True)
+        return
+
+    await _reply(update, message)
+
+
+def _looks_like_telegram_reference(raw_value: str) -> bool:
+    value = raw_value.strip()
+    if not value or any(character.isspace() for character in value):
+        return False
+    lowered = value.lower()
+    return value.startswith("@") or lowered.startswith(("https://t.me/", "http://t.me/", "t.me/", "telegram.me/"))
+
+
+__all__ = [
+    "access_gate",
+    "_is_authorized_update",
+    "_is_engagement_admin",
+    "_require_engagement_admin",
+    "_is_engagement_admin_async",
+    "_backend_engagement_admin_capability",
+    "_cached_backend_engagement_admin",
+    "_capability_cache",
+    "_callback_action_requires_engagement_admin",
+    "_is_identity_command",
+    "_message_command_name",
+    "_telegram_user",
+    "_telegram_user_id",
+    "_telegram_username",
+    "_reviewer_label",
+    "_deny_access",
+    "_looks_like_telegram_reference",
+]
