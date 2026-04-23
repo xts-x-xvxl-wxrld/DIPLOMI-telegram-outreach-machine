@@ -44,6 +44,8 @@ class TelegramEntityType(StrEnum):
 
 class SearchAdapter(StrEnum):
     TELEGRAM_ENTITY_SEARCH = "telegram_entity_search"
+    TELEGRAM_POST_SEARCH = "telegram_post_search"
+    WEB_SEARCH_TME = "web_search_tme"
 
 
 class SearchRunStatus(StrEnum):

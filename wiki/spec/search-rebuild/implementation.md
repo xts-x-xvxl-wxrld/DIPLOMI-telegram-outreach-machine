@@ -79,9 +79,11 @@ The first planner is `deterministic_v1`:
 - emit the full normalized term query plus contiguous 2-term or 3-term windows, capped at 5 total queries
 - preserve API-supplied `language_hints` and `locale_hints`
 - create one or more `search_queries` with `adapter = 'telegram_entity_search'`
+- create `skipped` `search_queries` with deferred metadata for requested dormant adapters
+  `telegram_post_search` and `web_search_tme`
 - store `include_terms`, `exclusion_terms`, and `planner_metadata`
 
-OpenAI-assisted expansion and audience-brief reuse are deferred.
+OpenAI-assisted query expansion and audience-brief reuse are deferred.
 
 ### Retrieval Adapter Contract
 
@@ -116,10 +118,12 @@ First active adapter:
 
 Deferred adapters:
 
-- `telegram_post_search` - blocked until Telegram capability, source post identifiers, snippet
-  limits, sender privacy, and retention are specified.
-- `web_search_tme` - blocked until provider, query caps, result cache policy, and URL normalization
-  are specified.
+- `telegram_post_search` - dormant contract exists. It defines `search_posts`, caps snippets at
+  240 characters, stores matched terms plus source post ID/URL in evidence metadata, filters sender
+  identity, and retains only candidate evidence by default.
+- `web_search_tme` - dormant contract exists. It defines provider/per-query caps, result-cache
+  policy, public Telegram URL normalization, and requires Telegram resolution before a web hit can
+  become a durable community.
 - `seed_graph_expand` - blocked until the graph expansion gate slice.
 
 ### Evidence Contract

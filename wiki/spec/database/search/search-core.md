@@ -32,7 +32,9 @@ updated_at            timestamptz NOT NULL DEFAULT now()
 Rules:
 - `raw_query` preserves the operator input.
 - `normalized_title` is a short display title derived from the query.
-- `enabled_adapters` initially supports `telegram_entity_search` only.
+- `enabled_adapters` defaults to active `telegram_entity_search`; deferred values
+  `telegram_post_search` and `web_search_tme` are recognized but planned as skipped until their
+  retrieval adapters are implemented.
 - `per_adapter_caps` may override defaults such as `{"telegram_entity_search": {"per_query": 25}}`.
 - `last_error` is populated when status becomes `failed`.
 ### `search_queries`
@@ -62,7 +64,8 @@ UNIQUE (search_run_id, adapter, normalized_query_key)
 ```
 
 `normalized_query_key` is the case-folded, whitespace-normalized query text used for idempotent
-planner writes.
+planner writes. Deferred adapter plans use `status = 'skipped'`, carry a defer reason in
+`planner_metadata`, and are not enqueued for retrieval.
 ### `search_candidates`
 
 Run-scoped candidate communities discovered by search.

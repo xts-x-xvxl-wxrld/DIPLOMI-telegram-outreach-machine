@@ -109,6 +109,9 @@ Exit criteria:
 - Expansion remains read-only discovery and does not join or post.
 ## Slice 10: Deferred Search Surfaces
 
+Status: implemented as dormant contracts in `backend/services/search_deferred_surfaces.py`,
+planner skip metadata, and focused privacy/normalization tests.
+
 Purpose: add recall boosters only after the core workflow is stable.
 
 Deferred adapters:
@@ -119,15 +122,18 @@ Deferred adapters:
 
 Before `telegram_post_search`:
 
-- Define Telegram capability and adapter method.
-- Define snippet length, match-term storage, source post ID/URL handling, and retention.
-- Confirm no full raw message-history storage by default.
-- Add tests that snippets are capped and sender identity is not exposed.
+- Telegram capability and adapter method are defined but not wired to retrieval.
+- Post snippets are capped at 240 characters; matched terms and source post ID/URL live in
+  evidence metadata.
+- Retention is `candidate_evidence_only`; no full raw message-history storage by default.
+- Tests cover capped snippets and sender identity filtering.
 
 Before `web_search_tme`:
 
-- Define provider, query caps, result cache policy, and URL normalization.
-- Require all web hits to resolve through Telegram before becoming durable communities.
+- Provider, per-query caps, result cache policy, and URL normalization are defined in the dormant
+  capability.
+- Web hits normalize public `t.me`/`telegram.me` URLs and are marked as requiring Telegram
+  resolution before they can become durable communities.
 ## Slice 11: Frontend Later
 
 Purpose: keep the first search rollout bot-first while reserving a richer review surface.

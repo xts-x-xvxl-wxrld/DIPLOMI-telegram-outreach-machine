@@ -6,6 +6,15 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-04-23] code | Search deferred surface contracts
+
+- Added dormant contracts for `telegram_post_search` and `web_search_tme`, including post snippet
+  caps, sender-identity filtering, source post metadata, web provider/cache policy, and public
+  Telegram URL normalization.
+- Planner now recognizes deferred search adapters and writes skipped query metadata instead of
+  enqueueing unsupported retrieval work.
+- Added focused tests for deferred surface privacy/normalization and planner skip behavior.
+
 ## [2026-04-22] fix | Restored bot module entrypoint
 
 Fixed the Docker bot service entrypoint by making `python -m bot.main` call the polling

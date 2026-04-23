@@ -15,6 +15,7 @@ Top-level routing contract for clean-sheet query-driven Telegram search. Details
 - `backend/services/search.py` - search run persistence, list/detail views, candidate list shaping, and review audit helpers.
 - `backend/workers/search_plan.py` - deterministic `search.plan` worker that normalizes operator queries, writes `search_queries`, and enqueues retrieval.
 - `backend/services/search_retrieval.py` - `search.retrieve` state transitions, candidate/community merge rules, evidence persistence, and query-level failure handling.
+- `backend/services/search_deferred_surfaces.py` - dormant post-search and web-search surface contracts, snippet/privacy guards, and `t.me` URL normalization.
 - `backend/workers/search_retrieve.py` - `search.retrieve` worker orchestration, search-pool account leasing, account release, and rank enqueue handoff.
 - `backend/workers/telegram_entity_search.py` - Telethon-backed Telegram entity search adapter.
 - `backend/services/search_ranking.py` - replayable `search_rank_v1` scoring, component explanations, prior rejection/spam penalties, and deterministic ordering metadata.
@@ -26,6 +27,7 @@ Top-level routing contract for clean-sheet query-driven Telegram search. Details
 - `tests/test_search_schema.py` - schema contract tests.
 - `tests/test_search_api.py` - API skeleton contract tests.
 - `tests/test_search_planner.py` - deterministic planner and idempotent worker coverage.
+- `tests/test_search_deferred_surfaces.py` - deferred post-search and web-search privacy, snippet, retention, and URL-normalization contract tests.
 - `tests/test_search_retrieve_worker.py` - fakeable Telegram entity search retrieval, duplicate, inaccessible, non-community, flood wait, and partial-failure coverage.
 - `tests/test_search_ranking.py` - deterministic ranking, score components, penalties, ordering, and worker coverage.
 - `tests/test_search_seed_conversion.py`, `tests/test_bot_search_handlers.py`, `tests/test_bot_search_api_client.py`, `tests/test_bot_search_ui.py` - seed conversion and bot search surface coverage.

@@ -94,7 +94,7 @@
 - `ops/vps/AGENT_CONTEXT.md` - redacted VPS architecture map for coding agents
 - `.github/workflows/ci.yml` - branch and pull-request validation workflow
 - `.github/workflows/deploy-vps.yml` - staging VPS deployment workflow
-- `backend/api/routes/search.py`, `backend/services/search.py`, `backend/services/search_retrieval.py`, `backend/services/search_ranking.py`, `backend/services/search_seed_conversion.py`, `backend/services/search_expansion.py`, `backend/workers/search_plan.py`, `backend/workers/search_retrieve.py`, `backend/workers/search_rank.py`, `backend/workers/search_expand.py`, `backend/workers/telegram_entity_search.py` - search run API, list/detail shaping, deterministic planning, entity retrieval, evidence persistence, replayable ranking, review persistence, seed conversion, and gated graph expansion
+- `backend/api/routes/search.py`, `backend/services/search.py`, `backend/services/search_retrieval.py`, `backend/services/search_ranking.py`, `backend/services/search_seed_conversion.py`, `backend/services/search_expansion.py`, `backend/services/search_deferred_surfaces.py`, `backend/workers/search_plan.py`, `backend/workers/search_retrieve.py`, `backend/workers/search_rank.py`, `backend/workers/search_expand.py`, `backend/workers/telegram_entity_search.py` - search run API, list/detail shaping, deterministic planning, entity retrieval, deferred surface contracts, evidence persistence, replayable ranking, review persistence, seed conversion, and gated graph expansion
 - `backend/api/routes/seeds.py` - manual seed import and seed-group API endpoints
 - `backend/api/routes/engagement*.py` - engagement route facade plus target, settings/topic, prompt/style, candidate/action endpoint shards
 - `backend/api/routes/telegram_entities.py` - direct Telegram handle intake API endpoints
@@ -131,7 +131,7 @@
 - `alembic/versions/20260422_0012_engagement_candidate_timeliness.py` - reply-opportunity freshness, deadline, and operator-notification schema fields
 - `tests/test_search_api.py`, `tests/test_search_seed_conversion.py`, `tests/test_search_expansion.py`, `tests/test_search_expand_queue.py`, `tests/test_search_expand_worker.py` - search run API create/list/detail/query/candidate/rerank/review plus seed conversion and graph expansion contract tests
 - `tests/test_search_schema.py` - search enum, model default, uniqueness, nullable candidate, foreign key, DDL, and schema validation tests
-- `tests/test_search_planner.py`, `tests/test_search_retrieve_worker.py`, `tests/test_search_ranking.py` - deterministic search planning, Telegram entity retrieval, ranking components, penalties, ordering, and worker tests
+- `tests/test_search_planner.py`, `tests/test_search_retrieve_worker.py`, `tests/test_search_ranking.py`, `tests/test_search_deferred_surfaces.py` - deterministic search planning, deferred search surface contracts, Telegram entity retrieval, ranking components, penalties, ordering, and worker tests
 - `tests/test_engagement_embeddings.py` - embedding cache reuse, dimension validation, selector ordering, and cleanup tests
 - `tests/test_engagement_semantic_eval_fixtures.py`, `tests/fixtures/engagement_semantic_eval.jsonl` - sanitized semantic matching evaluation fixture contract tests
 - `tests/test_engagement_schema.py` - engagement schema enum/default/constraint/index tests

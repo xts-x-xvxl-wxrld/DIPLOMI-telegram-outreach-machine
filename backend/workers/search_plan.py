@@ -11,12 +11,13 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.db.enums import SearchAdapter, SearchRunStatus
+from backend.db.enums import SearchAdapter, SearchQueryStatus, SearchRunStatus
 from backend.db.models import SearchQuery, SearchRun
 from backend.db.session import AsyncSessionLocal
 from backend.queue.client import QueuedJob, enqueue_search_retrieve
 from backend.queue.payloads import SearchPlanPayload
 from backend.services.search import normalize_search_query_text
+from backend.services.search_deferred_surfaces import DEFERRED_SEARCH_ADAPTERS
 
 
 PLANNER_SOURCE = "deterministic_v1"
@@ -55,6 +56,8 @@ class PlannedSearchQuery:
     language_hint: str | None
     locale_hint: str | None
     planner_metadata: dict[str, Any]
+    status: str = "pending"
+    error_message: str | None = None
 
 
 @dataclass(frozen=True)
@@ -137,8 +140,17 @@ def build_deterministic_query_plans(
     if not include_terms:
         raise SearchPlanValidationError("Search query must include at least one search term")
 
-    adapters = [adapter for adapter in (enabled_adapters or []) if adapter in SUPPORTED_PLANNER_ADAPTERS]
-    if not adapters:
+    requested_adapters = enabled_adapters or []
+    adapters = [adapter for adapter in requested_adapters if adapter in SUPPORTED_PLANNER_ADAPTERS]
+    deferred_adapters = [adapter for adapter in requested_adapters if adapter in DEFERRED_SEARCH_ADAPTERS]
+    unknown_adapters = [
+        adapter
+        for adapter in requested_adapters
+        if adapter not in SUPPORTED_PLANNER_ADAPTERS and adapter not in DEFERRED_SEARCH_ADAPTERS
+    ]
+    if unknown_adapters:
+        raise SearchPlanValidationError(f"Unsupported search adapter: {unknown_adapters[0]}")
+    if not adapters and not deferred_adapters:
         adapters = [SearchAdapter.TELEGRAM_ENTITY_SEARCH.value]
 
     normalized_language_hints = _normalize_hint_list(language_hints or [], lowercase=True)
@@ -167,6 +179,31 @@ def build_deterministic_query_plans(
                         "language_hints": list(normalized_language_hints),
                         "locale_hints": list(normalized_locale_hints),
                     },
+                )
+            )
+    for adapter in deferred_adapters:
+        for index, query_terms in enumerate(generated_queries):
+            query_text = " ".join(query_terms)
+            plans.append(
+                PlannedSearchQuery(
+                    adapter=adapter,
+                    query_text=query_text,
+                    normalized_query_key=query_text,
+                    include_terms=list(query_terms),
+                    exclusion_terms=list(exclusion_terms),
+                    language_hint=primary_language_hint,
+                    locale_hint=primary_locale_hint,
+                    planner_metadata={
+                        "planner_source": PLANNER_SOURCE,
+                        "variant_index": index,
+                        "window_size": len(query_terms),
+                        "language_hints": list(normalized_language_hints),
+                        "locale_hints": list(normalized_locale_hints),
+                        "deferred": True,
+                        "deferred_reason": f"{adapter} adapter contract exists but retrieval is not enabled",
+                    },
+                    status="skipped",
+                    error_message=f"{adapter} is deferred until its retrieval adapter is implemented",
                 )
             )
     return plans
@@ -276,6 +313,8 @@ async def _plan_search_run(
                 exclusion_terms=list(planned_query.exclusion_terms),
                 planner_source=PLANNER_SOURCE,
                 planner_metadata=dict(planned_query.planner_metadata),
+                status=planned_query.status,
+                error_message=planned_query.error_message,
                 created_at=now,
             )
             session.add(query_model)
@@ -291,6 +330,17 @@ async def _plan_search_run(
         )
         search_run.planner_metadata = planner_metadata
         search_run.updated_at = now
+        active_query_models = [
+            query
+            for query in planned_query_models
+            if query.status != SearchQueryStatus.SKIPPED.value
+        ]
+        deferred_only_error = None
+        if planned_query_models and not active_query_models:
+            deferred_only_error = "All requested search adapters are deferred"
+            search_run.status = SearchRunStatus.FAILED.value
+            search_run.last_error = deferred_only_error
+            search_run.completed_at = now
 
         try:
             await session.flush()
@@ -302,13 +352,13 @@ async def _plan_search_run(
         return SearchPlanningState(
             search_run_id=search_run.id,
             search_run_status=search_run.status,
-            query_ids=[query.id for query in planned_query_models],
+            query_ids=[query.id for query in active_query_models],
             query_count=len(planned_query_models),
             queries_created=queries_created,
             queries_reused=queries_reused,
             planner_metadata=planner_metadata,
-            ready_for_retrieval=bool(planned_query_models),
-            last_error=None,
+            ready_for_retrieval=bool(active_query_models),
+            last_error=deferred_only_error,
         )
 
 
@@ -376,6 +426,13 @@ def _build_run_planner_metadata(
         "queries_created": queries_created,
         "queries_reused": queries_reused,
         "adapters": sorted({query.adapter for query in planned_queries}),
+        "deferred_adapters": sorted(
+            {
+                query.adapter
+                for query in planned_queries
+                if query.status == "skipped" and query.adapter in DEFERRED_SEARCH_ADAPTERS
+            }
+        ),
     }
 
 

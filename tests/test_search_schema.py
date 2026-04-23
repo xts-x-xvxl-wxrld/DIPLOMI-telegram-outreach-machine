@@ -25,7 +25,11 @@ from backend.db.models import (
 
 
 def test_search_enums_match_contract() -> None:
-    assert [item.value for item in SearchAdapter] == ["telegram_entity_search"]
+    assert [item.value for item in SearchAdapter] == [
+        "telegram_entity_search",
+        "telegram_post_search",
+        "web_search_tme",
+    ]
     assert [item.value for item in SearchRunStatus] == [
         "draft",
         "planning",
