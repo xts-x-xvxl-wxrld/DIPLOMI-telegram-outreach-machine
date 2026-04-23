@@ -1141,3 +1141,11 @@ while preserving the staged testing contract.
 - Mounted the shared Telegram sessions volume into the API service so bot-started sessions are available to workers.
 - Updated account/API specs, plan, index, and focused onboarding tests.
 - Verified with fragmentation, Ruff, pytest, and `docker build .` after starting Docker Desktop.
+
+## [2026-04-23] implementation | Guided account cockpit onboarding
+
+- Changed the accounts cockpit `Add search` and `Add engagement` buttons to start a guided phone,
+  session-name, and notes flow before requesting the Telegram login code.
+- Kept the direct `/add_account <pool> <phone> [session_name] [notes...]` command path for fast
+  operator entry.
+- Updated account onboarding plan/spec notes and focused bot handler coverage.

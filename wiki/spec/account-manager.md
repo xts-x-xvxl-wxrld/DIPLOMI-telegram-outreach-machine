@@ -192,15 +192,17 @@ is the primary operator path; `scripts/onboard_telegram_account.py` remains a sa
 
 Bot workflow:
 
-1. `/add_account <search|engagement> <phone> [session_name] [notes...]` validates the pool and safe
-   session name.
-2. The backend sends the Telegram login code through Telethon and creates the session under
+1. The accounts cockpit `Add search` and `Add engagement` buttons start a guided flow that prompts
+   for phone number, session name, and notes. `/add_account <search|engagement> <phone>
+   [session_name] [notes...]` remains available for fast operator entry.
+2. The bot validates the pool and safe session name.
+3. The backend sends the Telegram login code through Telethon and creates the session under
    `SESSIONS_DIR`.
-3. The bot consumes the next operator text message as the login code. If Telegram requires 2FA, it
+4. The bot consumes the next operator text message as the login code. If Telegram requires 2FA, it
    consumes the next text message as the 2FA password.
-4. The bot attempts to delete the command, login-code, and password messages immediately after
-   reading them.
-5. The backend validates authorization and upserts the `telegram_accounts` row with
+5. The bot attempts to delete setup, login-code, and password messages immediately after reading
+   them.
+6. The backend validates authorization and upserts the `telegram_accounts` row with
    `status = 'available'`.
 
 Sensitive-message deletion is best-effort. Operators must still use dedicated Telegram accounts and

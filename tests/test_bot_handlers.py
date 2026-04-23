@@ -559,7 +559,7 @@ async def test_op_accounts_callback_renders_account_health_with_masking() -> Non
 
 
 @pytest.mark.asyncio
-async def test_add_account_callback_renders_pool_specific_usage() -> None:
+async def test_add_account_callback_starts_guided_phone_prompt() -> None:
     update = _make_callback_update(f"{ACTION_OP_ADD_ACCOUNT}:engagement")
     context = _make_context(_FakeApiClient())
 
@@ -568,13 +568,50 @@ async def test_add_account_callback_renders_pool_specific_usage() -> None:
     replies = update.callback_query.message.replies
     assert replies
     text = replies[0]["text"]
-    assert "Usage: /add_account engagement <phone>" in text
+    assert "Add engagement Telegram account" in text
+    assert "Send the phone number" in text
+    assert context.application.bot_data[ACCOUNT_ONBOARDING_STORE_KEY][123] == {
+        "step": "phone",
+        "account_pool": "engagement",
+    }
     callbacks = [
         button.callback_data
         for row in replies[0]["reply_markup"].inline_keyboard
         for button in row
     ]
     assert ACTION_OP_ACCOUNTS in callbacks
+
+
+@pytest.mark.asyncio
+async def test_guided_add_account_collects_details_before_login_code() -> None:
+    client = _FakeApiClient()
+    context = _make_context(client)
+    callback_update = _make_callback_update(f"{ACTION_OP_ADD_ACCOUNT}:search")
+
+    await callback_query(callback_update, context)
+    phone_update = _make_update("+10000000000")
+    await telegram_entity_text(phone_update, context)
+    session_update = _make_update("research-1")
+    await telegram_entity_text(session_update, context)
+    notes_update = _make_update("warm spare")
+    await telegram_entity_text(notes_update, context)
+
+    assert phone_update.message.deleted is True
+    assert session_update.message.deleted is True
+    assert notes_update.message.deleted is True
+    assert client.started_onboarding == [
+        {
+            "account_pool": "search",
+            "phone": "+10000000000",
+            "session_name": "research-1.session",
+            "notes": "warm spare",
+            "requested_by": "telegram:123:@operator",
+        }
+    ]
+    pending = context.application.bot_data[ACCOUNT_ONBOARDING_STORE_KEY][123]
+    assert pending["step"] == "code"
+    assert pending["phone_code_hash"] == "hash-1"
+    assert "Telegram login code sent" in notes_update.message.replies[0]["text"]
 
 
 # ---------------------------------------------------------------------------

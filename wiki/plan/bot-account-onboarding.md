@@ -8,8 +8,8 @@ as the workflow consumes them.
 
 ## Scope
 
-- Add a bot command that accepts an account pool, phone number, optional session name, and optional
-  notes, then asks Telegram for a login code through the backend.
+- Add a guided bot flow that collects account pool, phone number, optional session name, and
+  optional notes, then asks Telegram for a login code through the backend.
 - Validate that only `search` and `engagement` can be introduced from the bot.
 - Collect the login code and, when Telegram requires it, the account 2FA password through the bot.
 - Delete the command, code, and password messages after reading them.
@@ -22,11 +22,14 @@ as the workflow consumes them.
 
 ## Design
 
-`/add_account <search|engagement> <phone> [session_name] [notes...]` starts an in-bot login
-workflow. The API sends the Telegram login code using Telethon, returns a short-lived
-`phone_code_hash` to the bot, and the bot stores only the transient onboarding state in memory.
-The next text message from that operator is treated as the login code. If Telegram reports that 2FA
-is required, the bot asks for the 2FA password and treats the next text message as that password.
+The accounts cockpit buttons start an in-bot guided setup: choose `search` or `engagement`, enter
+the phone number, enter a session name or `skip`, and enter notes or `skip`. The direct command
+`/add_account <search|engagement> <phone> [session_name] [notes...]` remains supported for fast
+operator entry. After setup, the API sends the Telegram login code using Telethon, returns a
+short-lived `phone_code_hash` to the bot, and the bot stores only the transient onboarding state in
+memory. The next text message from that operator is treated as the login code. If Telegram reports
+that 2FA is required, the bot asks for the 2FA password and treats the next text message as that
+password.
 
 The bot attempts to delete all operator messages containing the phone number, login code, or 2FA
 password. Deletion is best-effort because Telegram may deny deletion for older messages or chat
@@ -37,8 +40,8 @@ The backend debug accounts response includes `account_pool` per item and aggrega
 numbers remain masked before they reach the bot.
 
 The accounts cockpit rendered by `/accounts` and `op:accounts` includes buttons for adding a search
-account and an engagement account. Those buttons render pool-specific `/add_account ...` usage
-instructions.
+account and an engagement account. Those buttons start the guided setup flow instead of only
+rendering slash-command usage.
 
 ## Acceptance
 
@@ -50,5 +53,6 @@ instructions.
 - A password-required account asks once for the 2FA password and registers after successful sign-in.
 - Invalid pools are rejected before formatting a command.
 - `/accounts` renders status counts and pool counts with masked phone numbers.
-- `/accounts` exposes `Add search` and `Add engagement` buttons that route to pool-specific usage.
+- `/accounts` exposes `Add search` and `Add engagement` buttons that prompt for phone, session
+  name, and notes before requesting the login code.
 - Fragmentation guardrail and focused bot/onboarding tests pass.

@@ -6,6 +6,7 @@ import io
 import re
 from typing import Any
 
+from bot.account_handlers import begin_account_onboarding_flow
 from bot.api_client import BotApiClient, BotApiError
 from bot.config import BotSettings, load_settings, validate_runtime_settings
 from bot.config_editing import (
@@ -20,7 +21,6 @@ from bot.config_editing import (
 )
 from bot.formatting import (
     format_access_denied,
-    format_account_onboarding_usage,
     format_accounts,
     format_api_error,
     format_briefs_unavailable,
@@ -741,11 +741,7 @@ async def callback_query(update: Any, context: Any) -> None:
             await _send_accounts(update, context)
             return
         if action == ACTION_OP_ADD_ACCOUNT and len(parts) == 1:
-            await _callback_reply(
-                update,
-                format_account_onboarding_usage(account_pool=parts[0]),
-                reply_markup=accounts_cockpit_markup(),
-            )
+            await begin_account_onboarding_flow(update, context, parts[0])
             return
         if action == ACTION_OP_HELP:
             await _send_help(update)
