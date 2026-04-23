@@ -358,15 +358,19 @@ def test_engagement_admin_home_markup_links_setup_and_advanced_surfaces() -> Non
     assert rows[0][1].text.startswith("🧩 ")
     assert rows[0][1].text.endswith("Topics")
     assert rows[0][1].callback_data == f"{ACTION_ENGAGEMENT_TOPIC_LIST}:0"
-    assert rows[1][0].text.startswith("🗣 ")
-    assert rows[1][0].text.endswith("Voice rules")
-    assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_STYLE}:0"
-    assert rows[1][1].text.startswith("⚙ ")
-    assert rows[1][1].text.endswith("Limits/accounts")
-    assert rows[1][1].callback_data == ACTION_ENGAGEMENT_ADMIN_LIMITS
-    assert rows[2][0].text.startswith("🧪 ")
-    assert rows[2][0].text.endswith("Advanced")
-    assert rows[2][0].callback_data == ACTION_ENGAGEMENT_ADMIN_ADVANCED
+    assert rows[1][0].text == "➕ Add community"
+    assert rows[1][0].callback_data == ACTION_ENGAGEMENT_TARGET_ADD
+    assert rows[1][1].text == "➕ Create topic"
+    assert rows[1][1].callback_data == ACTION_ENGAGEMENT_TOPIC_CREATE
+    assert rows[2][0].text.startswith("🗣 ")
+    assert rows[2][0].text.endswith("Voice rules")
+    assert rows[2][0].callback_data == f"{ACTION_ENGAGEMENT_STYLE}:0"
+    assert rows[2][1].text.startswith("⚙ ")
+    assert rows[2][1].text.endswith("Limits/accounts")
+    assert rows[2][1].callback_data == ACTION_ENGAGEMENT_ADMIN_LIMITS
+    assert rows[3][0].text.startswith("🧪 ")
+    assert rows[3][0].text.endswith("Advanced")
+    assert rows[3][0].callback_data == ACTION_ENGAGEMENT_ADMIN_ADVANCED
 
 
 def test_engagement_settings_markup_exposes_presets_and_jobs() -> None:

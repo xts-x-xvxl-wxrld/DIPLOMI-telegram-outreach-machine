@@ -200,12 +200,12 @@ def engagement_home_markup(*, show_admin: bool = True):
 def engagement_admin_home_markup():
     rows = [
         [
-            _button("➕ Add community", ACTION_ENGAGEMENT_TARGET_ADD),
-            _button("➕ Create topic", ACTION_ENGAGEMENT_TOPIC_CREATE),
-        ],
-        [
             _button("🏘 Communities", ACTION_ENGAGEMENT_TARGETS, "0"),
             _button("🧩 Topics", ACTION_ENGAGEMENT_TOPIC_LIST, "0"),
+        ],
+        [
+            _button("➕ Add community", ACTION_ENGAGEMENT_TARGET_ADD),
+            _button("➕ Create topic", ACTION_ENGAGEMENT_TOPIC_CREATE),
         ],
         [
             _button("🗣 Voice rules", ACTION_ENGAGEMENT_STYLE, "0"),

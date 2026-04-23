@@ -796,24 +796,20 @@ class _FakeApiClient:
         name: str,
         stance_guidance: str,
         trigger_keywords: list[str],
+        description: str | None = None,
+        negative_keywords: list[str] | None = None,
         active: bool = True,
         operator_user_id: int | None = None,
         **_: Any,
     ) -> dict[str, Any]:
-        self.create_topic_calls.append(
-            {
-                "name": name,
-                "stance_guidance": stance_guidance,
-                "trigger_keywords": trigger_keywords,
-                "active": active,
-            }
-        )
+        self.create_topic_calls.append({"name": name, "description": description, "stance_guidance": stance_guidance, "trigger_keywords": trigger_keywords, "negative_keywords": negative_keywords or [], "active": active})
         return {
             "id": "topic-created",
             "name": name,
+            "description": description,
             "stance_guidance": stance_guidance,
             "trigger_keywords": trigger_keywords,
-            "negative_keywords": [],
+            "negative_keywords": negative_keywords or [],
             "example_good_replies": [],
             "example_bad_replies": [],
             "active": active,
@@ -2213,8 +2209,10 @@ async def test_create_engagement_topic_command_parses_pipe_syntax() -> None:
     assert client.create_topic_calls == [
         {
             "name": "Open CRM",
+            "description": None,
             "stance_guidance": "Be factual and brief.",
             "trigger_keywords": ["crm", "open source"],
+            "negative_keywords": [],
             "active": True,
         }
     ]
