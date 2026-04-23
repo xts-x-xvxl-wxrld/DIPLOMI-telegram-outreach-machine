@@ -62,7 +62,8 @@ sudo -u deploy /srv/tg-outreach/bin/tg-outreach-diagnostics staging 300
 
 Diagnostics bundles are saved under `/srv/tg-outreach/diagnostics` with status output, container
 state, and bounded logs for API, worker, scheduler, bot, Postgres, and Redis. They must not include
-env files, Telegram session files, database dumps, or token-bearing config.
+env files, Telegram session files, database dumps, or token-bearing config. If an agent cannot read
+Docker directly, the diagnostics helper reuses the existing sudo-gated status and log helpers.
 
 If sudoers has been explicitly installed for deploy wrappers:
 

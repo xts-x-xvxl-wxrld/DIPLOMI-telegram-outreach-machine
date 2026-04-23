@@ -35,11 +35,48 @@ mkdir -p "$diag_root"
 work_dir="$(mktemp -d "$diag_root/${env_name}-diagnostics-${stamp}.XXXXXX")"
 archive="$work_dir.tar.gz"
 
-run_status() {
-  if [ -x "$script_dir/tg-outreach-status" ]; then
-    "$script_dir/tg-outreach-status" "$env_name"
+command_path() {
+  local installed_name="$1"
+  local repo_name="$2"
+
+  if [ -x "$script_dir/$installed_name" ]; then
+    echo "$script_dir/$installed_name"
   else
-    "$script_dir/vps-status.sh" "$env_name"
+    echo "$script_dir/$repo_name"
+  fi
+}
+
+can_read_docker() {
+  docker ps >/dev/null 2>&1
+}
+
+run_status() {
+  local status_helper
+  status_helper="$(command_path tg-outreach-status vps-status.sh)"
+
+  if can_read_docker; then
+    "$status_helper" "$env_name"
+  else
+    sudo -n -u deploy "$status_helper" "$env_name"
+  fi
+}
+
+write_service_log() {
+  local service_name="$1"
+  local container="${project_prefix}-${service_name}-1"
+  local log_helper
+  log_helper="$(command_path tg-outreach-logs vps-logs.sh)"
+
+  if can_read_docker; then
+    docker inspect \
+      --format '{{.Name}} {{.State.Status}} started={{.State.StartedAt}} finished={{.State.FinishedAt}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' \
+      "$container" > "$work_dir/${service_name}-inspect.txt" 2>&1 || true
+    docker logs --timestamps --tail "$lines" "$container" > "$work_dir/${service_name}.log" 2>&1 || true
+  else
+    echo "Docker inspect not captured; current user cannot read Docker directly." \
+      > "$work_dir/${service_name}-inspect.txt"
+    sudo -n -u deploy "$log_helper" "$env_name" "$service_name" "$lines" \
+      > "$work_dir/${service_name}.log" 2>&1 || true
   fi
 }
 
@@ -55,11 +92,7 @@ run_status > "$work_dir/status.txt" 2>&1 || true
 docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' > "$work_dir/docker-ps.txt" 2>&1 || true
 
 for service_name in "${services[@]}"; do
-  container="${project_prefix}-${service_name}-1"
-  docker inspect \
-    --format '{{.Name}} {{.State.Status}} started={{.State.StartedAt}} finished={{.State.FinishedAt}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' \
-    "$container" > "$work_dir/${service_name}-inspect.txt" 2>&1 || true
-  docker logs --timestamps --tail "$lines" "$container" > "$work_dir/${service_name}.log" 2>&1 || true
+  write_service_log "$service_name"
 done
 
 tar -C "$diag_root" -czf "$archive" "$(basename "$work_dir")"

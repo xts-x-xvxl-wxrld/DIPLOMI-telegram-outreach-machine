@@ -1114,3 +1114,5 @@ while preserving the staged testing contract.
   under `/srv/tg-outreach/diagnostics`.
 - Grandfathered the existing oversized `tests/test_queue_payloads.py` fragmentation debt so the
   guardrail can keep enforcing no-growth behavior.
+- Made the diagnostics helper usable by non-Docker agent users through the already sudo-gated
+  status/log helpers.
