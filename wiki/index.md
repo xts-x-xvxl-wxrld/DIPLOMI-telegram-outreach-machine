@@ -88,7 +88,7 @@
 - `scripts/vps-deploy.sh` - reset-only staging deploy script for the VPS checkout
 - `scripts/vps-deploy-env.sh` - validated environment wrapper around the deploy checkout script
 - `scripts/vps-install-agent-ops.sh` - installs the redacted VPS context and helper commands under `/srv/tg-outreach`
-- `scripts/vps-logs.sh` - bounded Docker log helper for staging/production services
+- `scripts/vps-logs.sh`, `scripts/vps-diagnostics.sh` - bounded service logs and non-secret VPS diagnostics bundles
 - `scripts/vps-status.sh` - non-secret VPS status helper for Git, containers, health, and ports
 - `scripts/vps-agent-worktree.sh` - helper for branch-scoped VPS coding-agent worktrees
 - `ops/vps/AGENT_CONTEXT.md` - redacted VPS architecture map for coding agents

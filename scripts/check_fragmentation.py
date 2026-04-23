@@ -28,6 +28,7 @@ GRANDFATHERED_LIMITS = {
     "bot/ui_engagement.py": 819,
     "tests/test_bot_engagement_handlers.py": 2_720,
     "tests/test_engagement_api.py": 1_414,
+    "tests/test_queue_payloads.py": 1_073,
     "wiki/plan/bot-engagement-controls/slices-6-10.md": 209,
     "wiki/plan/engagement-admin-control-plane.md": 202,
     "wiki/plan/engagement-operator-controls/slices.md": 228,

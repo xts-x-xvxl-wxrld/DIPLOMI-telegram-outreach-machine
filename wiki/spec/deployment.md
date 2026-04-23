@@ -94,10 +94,13 @@ Manual deploys use the same script through the environment wrapper:
 ```
 
 Agents may inspect status and logs through `/srv/tg-outreach/bin/tg-outreach-status` and
-`/srv/tg-outreach/bin/tg-outreach-logs`. If agent users are not in the Docker group, these helpers
-should be exposed through narrow sudoers rules that run them as `deploy`. Direct deploy wrapper
-access is also controlled by sudoers: ordinary agent users may be granted staging deploy permission.
-Production deploy access should remain uninstalled until production is an active target.
+`/srv/tg-outreach/bin/tg-outreach-logs`. The log helper supports bounded reads for API, worker,
+scheduler, bot, Postgres, Redis, or all services. Agents may save a non-secret failure bundle with
+`/srv/tg-outreach/bin/tg-outreach-diagnostics`; bundles contain status, container state, and bounded
+service logs only. If agent users are not in the Docker group, these helpers should be exposed
+through narrow sudoers rules that run them as `deploy`. Direct deploy wrapper access is also
+controlled by sudoers: ordinary agent users may be granted staging deploy permission. Production
+deploy access should remain uninstalled until production is an active target.
 
 ## Secrets
 

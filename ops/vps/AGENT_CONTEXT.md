@@ -45,7 +45,10 @@ volumes. Postgres should bind to localhost only.
 ```bash
 /srv/tg-outreach/bin/tg-outreach-status staging
 /srv/tg-outreach/bin/tg-outreach-logs staging api
+/srv/tg-outreach/bin/tg-outreach-logs staging scheduler 200
+/srv/tg-outreach/bin/tg-outreach-logs staging all 200
 /srv/tg-outreach/bin/tg-outreach-logs staging worker 200
+/srv/tg-outreach/bin/tg-outreach-diagnostics staging 300
 ```
 
 If the current user cannot access Docker directly, use the sudoers-gated form after the operator has
@@ -54,7 +57,12 @@ installed the narrow rules:
 ```bash
 sudo -u deploy /srv/tg-outreach/bin/tg-outreach-status staging
 sudo -u deploy /srv/tg-outreach/bin/tg-outreach-logs staging api
+sudo -u deploy /srv/tg-outreach/bin/tg-outreach-diagnostics staging 300
 ```
+
+Diagnostics bundles are saved under `/srv/tg-outreach/diagnostics` with status output, container
+state, and bounded logs for API, worker, scheduler, bot, Postgres, and Redis. They must not include
+env files, Telegram session files, database dumps, or token-bearing config.
 
 If sudoers has been explicitly installed for deploy wrappers:
 

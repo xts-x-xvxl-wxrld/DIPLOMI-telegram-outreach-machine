@@ -1103,3 +1103,14 @@ while preserving the staged testing contract.
   codes, 2FA, and session files out of bot chat.
 - Changed `/accounts` and `op:accounts` to use the accounts cockpit markup instead of the generic
   operator cockpit.
+
+## [2026-04-23] implementation | Add VPS diagnostics bundle helper
+
+- Verified staging log access on the VPS: `codex-ravil` and `claude-ravil` can use the sudo-gated
+  status/log helpers as `deploy`; `codex-pink` is in `tg-outreach-dev` but this SSH key was not
+  accepted for that account.
+- Added scheduler and all-service support to the bounded VPS log helper.
+- Added a non-secret diagnostics helper that saves status, container state, and bounded service logs
+  under `/srv/tg-outreach/diagnostics`.
+- Grandfathered the existing oversized `tests/test_queue_payloads.py` fragmentation debt so the
+  guardrail can keep enforcing no-growth behavior.
