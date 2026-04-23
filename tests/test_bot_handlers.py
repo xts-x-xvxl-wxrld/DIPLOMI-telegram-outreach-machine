@@ -28,6 +28,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_HOME,
     ACTION_OP_ACCOUNTS,
     ACTION_OP_ADD_ACCOUNT,
+    ACTION_OP_ACCOUNT_SKIP,
     ACTION_OP_DISCOVERY,
     ACTION_OP_HELP,
     ACTION_OP_HOME,
@@ -277,7 +278,7 @@ async def test_add_account_command_starts_search_onboarding_and_deletes_command(
 
     await add_account_command(update, context)
 
-    assert update.message.deleted is True
+    assert update.message.deleted is False
     assert client.started_onboarding == [
         {
             "account_pool": "search",
@@ -290,9 +291,9 @@ async def test_add_account_command_starts_search_onboarding_and_deletes_command(
     replies = update.message.replies
     assert len(replies) == 1
     text = replies[0]["text"]
-    assert "Telegram login code sent" in text
+    assert "Enter the Telegram login code" in text
     assert "+10000000000" not in text
-    assert "research-1.session" in text
+    assert "research-1.session" not in text
     assert context.application.bot_data[ACCOUNT_ONBOARDING_STORE_KEY][123]["step"] == "code"
 
 
@@ -568,18 +569,12 @@ async def test_add_account_callback_starts_guided_phone_prompt() -> None:
     replies = update.callback_query.message.replies
     assert replies
     text = replies[0]["text"]
-    assert "Add engagement Telegram account" in text
-    assert "Send the phone number" in text
-    assert context.application.bot_data[ACCOUNT_ONBOARDING_STORE_KEY][123] == {
-        "step": "phone",
-        "account_pool": "engagement",
-    }
-    callbacks = [
-        button.callback_data
-        for row in replies[0]["reply_markup"].inline_keyboard
-        for button in row
-    ]
-    assert ACTION_OP_ACCOUNTS in callbacks
+    assert "Enter the phone number" in text
+    pending = context.application.bot_data[ACCOUNT_ONBOARDING_STORE_KEY][123]
+    assert pending["step"] == "phone"
+    assert pending["account_pool"] == "engagement"
+    assert pending["messages_to_delete"] == []
+    assert replies[0]["reply_markup"] is None
 
 
 @pytest.mark.asyncio
@@ -596,9 +591,9 @@ async def test_guided_add_account_collects_details_before_login_code() -> None:
     notes_update = _make_update("warm spare")
     await telegram_entity_text(notes_update, context)
 
-    assert phone_update.message.deleted is True
-    assert session_update.message.deleted is True
-    assert notes_update.message.deleted is True
+    assert phone_update.message.deleted is False
+    assert session_update.message.deleted is False
+    assert notes_update.message.deleted is False
     assert client.started_onboarding == [
         {
             "account_pool": "search",
@@ -611,7 +606,32 @@ async def test_guided_add_account_collects_details_before_login_code() -> None:
     pending = context.application.bot_data[ACCOUNT_ONBOARDING_STORE_KEY][123]
     assert pending["step"] == "code"
     assert pending["phone_code_hash"] == "hash-1"
-    assert "Telegram login code sent" in notes_update.message.replies[0]["text"]
+    assert "Enter the Telegram login code" in notes_update.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_guided_add_account_skip_buttons_use_defaults() -> None:
+    client = _FakeApiClient()
+    context = _make_context(client)
+    callback_update = _make_callback_update(f"{ACTION_OP_ADD_ACCOUNT}:search")
+
+    await callback_query(callback_update, context)
+    phone_update = _make_update("+10000000000")
+    await telegram_entity_text(phone_update, context)
+    await callback_query(_make_callback_update(ACTION_OP_ACCOUNT_SKIP), context)
+    await callback_query(_make_callback_update(ACTION_OP_ACCOUNT_SKIP), context)
+
+    assert client.started_onboarding == [
+        {
+            "account_pool": "search",
+            "phone": "+10000000000",
+            "session_name": "10000000000.session",
+            "notes": None,
+            "requested_by": "telegram:123:@operator",
+        }
+    ]
+    pending = context.application.bot_data[ACCOUNT_ONBOARDING_STORE_KEY][123]
+    assert pending["step"] == "code"
 
 
 # ---------------------------------------------------------------------------

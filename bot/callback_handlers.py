@@ -6,7 +6,7 @@ import io
 import re
 from typing import Any
 
-from bot.account_handlers import begin_account_onboarding_flow
+from bot.account_handlers import begin_account_onboarding_flow, handle_account_onboarding_skip
 from bot.api_client import BotApiClient, BotApiError
 from bot.config import BotSettings, load_settings, validate_runtime_settings
 from bot.config_editing import (
@@ -155,6 +155,7 @@ from bot.ui import (
     ACTION_JOB_STATUS,
     ACTION_OP_ACCOUNTS,
     ACTION_OP_ADD_ACCOUNT,
+    ACTION_OP_ACCOUNT_SKIP,
     ACTION_OP_DISCOVERY,
     ACTION_OP_HELP,
     ACTION_OP_HOME,
@@ -742,6 +743,9 @@ async def callback_query(update: Any, context: Any) -> None:
             return
         if action == ACTION_OP_ADD_ACCOUNT and len(parts) == 1:
             await begin_account_onboarding_flow(update, context, parts[0])
+            return
+        if action == ACTION_OP_ACCOUNT_SKIP:
+            await handle_account_onboarding_skip(update, context)
             return
         if action == ACTION_OP_HELP:
             await _send_help(update)

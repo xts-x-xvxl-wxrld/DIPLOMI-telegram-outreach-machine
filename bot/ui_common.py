@@ -15,6 +15,7 @@ ACTION_OP_HOME = "op:home"
 ACTION_OP_DISCOVERY = "op:discovery"
 ACTION_OP_ACCOUNTS = "op:accounts"
 ACTION_OP_ADD_ACCOUNT = "op:addacct"
+ACTION_OP_ACCOUNT_SKIP = "op:acctskip"
 ACTION_OP_HELP = "op:help"
 
 # Discovery cockpit callbacks

@@ -1149,3 +1149,9 @@ while preserving the staged testing contract.
 - Kept the direct `/add_account <pool> <phone> [session_name] [notes...]` command path for fast
   operator entry.
 - Updated account onboarding plan/spec notes and focused bot handler coverage.
+
+## [2026-04-23] fix | Simplify account onboarding prompts
+
+- Reworked guided account onboarding prompts to show only the current requested value and a short example.
+- Added skip buttons for optional account name and notes, with session filenames still normalized behind the scenes.
+- Delayed cleanup of onboarding messages until successful flow completion, then deletes them after a short pause.

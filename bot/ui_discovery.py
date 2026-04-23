@@ -8,6 +8,7 @@ from .ui_common import (
     ACTION_OP_DISCOVERY,
     ACTION_OP_ACCOUNTS,
     ACTION_OP_ADD_ACCOUNT,
+    ACTION_OP_ACCOUNT_SKIP,
     ACTION_OP_HELP,
     ACTION_DISC_HOME,
     ACTION_DISC_START,
@@ -73,6 +74,11 @@ def accounts_cockpit_markup():
         [_button("Refresh", ACTION_OP_ACCOUNTS)],
     ]
     return _inline_markup(_with_navigation(rows))
+
+
+def account_onboarding_prompt_markup(*, allow_skip: bool = False):
+    rows = [[_button("Skip", ACTION_OP_ACCOUNT_SKIP)]] if allow_skip else []
+    return _inline_markup(rows) if rows else None
 
 
 def reply_keyboard_remove():

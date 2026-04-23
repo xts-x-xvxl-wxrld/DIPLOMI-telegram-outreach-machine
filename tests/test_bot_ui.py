@@ -57,11 +57,13 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TOPIC_OPEN,
     ACTION_OP_ACCOUNTS,
     ACTION_OP_ADD_ACCOUNT,
+    ACTION_OP_ACCOUNT_SKIP,
     ACTION_OP_DISCOVERY,
     ACTION_OP_HELP,
     ACTION_OP_HOME,
     ACTION_SEED_CANDIDATES,
     ENGAGEMENT_MENU_LABEL,
+    account_onboarding_prompt_markup,
     candidate_actions_markup,
     accounts_cockpit_markup,
     community_actions_markup,
@@ -666,6 +668,15 @@ def test_accounts_cockpit_markup_exposes_add_account_buttons() -> None:
     assert any(label.endswith("Add engagement") for label in labels)
 
 
+def test_account_onboarding_prompt_markup_exposes_skip_when_allowed() -> None:
+    assert account_onboarding_prompt_markup(allow_skip=False) is None
+
+    markup = account_onboarding_prompt_markup(allow_skip=True)
+
+    assert markup is not None
+    assert ACTION_OP_ACCOUNT_SKIP in _callbacks(markup)
+
+
 def test_discovery_cockpit_markup_exposes_six_navigation_entries_and_back() -> None:
     markup = discovery_cockpit_markup()
     all_callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
@@ -728,6 +739,7 @@ def test_parse_op_callbacks() -> None:
         "op:discovery": (ACTION_OP_DISCOVERY, []),
         "op:accounts": (ACTION_OP_ACCOUNTS, []),
         "op:addacct:search": (ACTION_OP_ADD_ACCOUNT, ["search"]),
+        "op:acctskip": (ACTION_OP_ACCOUNT_SKIP, []),
         "op:help": (ACTION_OP_HELP, []),
     }
     for raw_data, expected in cases.items():

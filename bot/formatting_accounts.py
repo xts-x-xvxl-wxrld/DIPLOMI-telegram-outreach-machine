@@ -32,31 +32,13 @@ def format_account_onboarding_code_sent(
     phone: str,
     session_file_name: str,
 ) -> str:
-    return "\n".join(
-        [
-            _headline("Telegram login code sent.", icon="[account]"),
-            _field("Pool", account_pool),
-            _field("Phone", _mask_phone(phone)),
-            _field("Session file", session_file_name),
-            "",
-            _section("Next", icon="->"),
-            _bullet("Send the Telegram login code in this chat."),
-            _bullet("I will delete the code message after reading it."),
-        ]
-    )
+    del account_pool, phone, session_file_name
+    return "Enter the Telegram login code.\n\nExample: 12345"
 
 
 def format_account_onboarding_password_required(*, phone: str) -> str:
-    return "\n".join(
-        [
-            _headline("2FA password required.", icon="[safe]"),
-            _field("Phone", _mask_phone(phone)),
-            "",
-            _section("Next", icon="->"),
-            _bullet("Send the Telegram 2FA password in this chat."),
-            _bullet("I will delete the password message after reading it."),
-        ]
-    )
+    del phone
+    return "Enter the Telegram 2FA password."
 
 
 def format_account_onboarding_registered(
@@ -65,15 +47,8 @@ def format_account_onboarding_registered(
     phone: str,
     session_file_name: str,
 ) -> str:
-    return "\n".join(
-        [
-            _headline("Telegram account added.", icon="[account]"),
-            _field("Pool", account_pool),
-            _field("Phone", _mask_phone(phone)),
-            _field("Session file", session_file_name),
-            *_action_block(["Check pool capacity with /accounts"]),
-        ]
-    )
+    del account_pool, phone, session_file_name
+    return "Telegram account added."
 
 
 def format_account_onboarding_usage(
