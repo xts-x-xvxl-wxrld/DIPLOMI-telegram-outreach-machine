@@ -14,6 +14,7 @@ Top-level routing contract for the FastAPI surface. Endpoint details live in `wi
 - `backend/api/routes/seeds.py` - seed, community, snapshot, and debug routes.
 - `backend/api/routes/engagement.py` - engagement compatibility router.
 - `backend/api/routes/engagement_*.py` - engagement target, settings/topic, prompt/style, and candidate/action resources.
+- `backend/api/routes/accounts.py` - bot-driven Telegram account onboarding start/complete routes.
 - `backend/api/routes/telegram_entities.py` - direct handle intake routes.
 - `backend/api/schemas.py` - shared response schemas.
 
@@ -24,4 +25,5 @@ Top-level routing contract for the FastAPI surface. Endpoint details live in `wi
 - [Discovery](api/discovery.md)
 - [Communities, Snapshots, Analysis](api/communities-snapshots.md)
 - [Engagement](api/engagement.md)
+- [Accounts](api/accounts.md)
 - [Jobs and Debug](api/jobs-debug.md)

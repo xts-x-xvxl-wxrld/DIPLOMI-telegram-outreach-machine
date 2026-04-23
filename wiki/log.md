@@ -1133,3 +1133,11 @@ while preserving the staged testing contract.
 - Implemented Slice 8 rerank observability by recording last rerank job metadata on search runs and preserving ranking component shape with replayable `search.rank` output.
 - Implemented Slice 9 `search.expand` queue/API/worker plumbing with expansion-account leasing, promoted/resolved search-candidate roots, resolved manual seed roots, global rejection guards, compact graph evidence, and rank handoff.
 - Added focused tests for search expansion service gates, queue payload/dispatch contracts, worker account release, API expansion job metadata, and ranking component metadata.
+
+## [2026-04-23] implementation | Bot-driven Telegram account onboarding
+
+- Added bearer-auth account onboarding API routes for Telethon login-code start and complete steps.
+- Changed `/add_account` to start bot-based onboarding, consume/delete code and 2FA messages, and register the account after authorization.
+- Mounted the shared Telegram sessions volume into the API service so bot-started sessions are available to workers.
+- Updated account/API specs, plan, index, and focused onboarding tests.
+- Verified with fragmentation, Ruff, pytest, and `docker build .` after starting Docker Desktop.

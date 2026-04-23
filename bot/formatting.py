@@ -31,6 +31,9 @@ from .formatting_discovery import (
 )
 from .formatting_accounts import (
     format_account_onboarding_command,
+    format_account_onboarding_code_sent,
+    format_account_onboarding_password_required,
+    format_account_onboarding_registered,
     format_account_onboarding_usage,
 )
 from .formatting_search import (
@@ -106,6 +109,9 @@ __all__ = [
     "format_whoami",
     "format_access_denied",
     "format_account_onboarding_command",
+    "format_account_onboarding_code_sent",
+    "format_account_onboarding_password_required",
+    "format_account_onboarding_registered",
     "format_account_onboarding_usage",
     "format_created_search_run",
     "format_search_candidate_card",

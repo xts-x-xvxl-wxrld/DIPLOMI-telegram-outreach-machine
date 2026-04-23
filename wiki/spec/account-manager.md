@@ -187,8 +187,26 @@ The bot may expose these alerts through API debug/status endpoints.
 
 ## Local Account Onboarding
 
-Telegram user accounts are onboarded manually by the operator. The MVP provides
-`scripts/onboard_telegram_account.py` as a safe local workflow:
+Telegram user accounts can be onboarded from the bot or manually by the operator. The bot workflow
+is the primary operator path; `scripts/onboard_telegram_account.py` remains a safe local fallback.
+
+Bot workflow:
+
+1. `/add_account <search|engagement> <phone> [session_name] [notes...]` validates the pool and safe
+   session name.
+2. The backend sends the Telegram login code through Telethon and creates the session under
+   `SESSIONS_DIR`.
+3. The bot consumes the next operator text message as the login code. If Telegram requires 2FA, it
+   consumes the next text message as the 2FA password.
+4. The bot attempts to delete the command, login-code, and password messages immediately after
+   reading them.
+5. The backend validates authorization and upserts the `telegram_accounts` row with
+   `status = 'available'`.
+
+Sensitive-message deletion is best-effort. Operators must still use dedicated Telegram accounts and
+only run onboarding in allowlisted operator chats.
+
+The local workflow:
 
 1. Read `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `SESSIONS_DIR`, and `DATABASE_URL`.
 2. Prompt for or accept a phone number.
@@ -199,10 +217,6 @@ Telegram user accounts are onboarded manually by the operator. The MVP provides
 
 The script stores only the operational account phone and session path in `telegram_accounts`.
 It must not collect Telegram community member phone numbers.
-
-The bot may expose `/add_account <search|engagement> <phone> [session_name] [notes...]` as a
-command-preparation helper. It must only return the local Docker/script command to run and must not
-collect Telegram login codes, 2FA passwords, or session files in chat.
 
 Session file rules:
 

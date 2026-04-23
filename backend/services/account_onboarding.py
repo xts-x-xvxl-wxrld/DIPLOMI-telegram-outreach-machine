@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import re
+import uuid
 from pathlib import Path
 
+from sqlalchemy import select
+
 from backend.db.enums import AccountPool
+from backend.db.enums import AccountStatus
+from backend.db.models import TelegramAccount
 
 ONBOARDABLE_ACCOUNT_POOLS = {AccountPool.SEARCH.value, AccountPool.ENGAGEMENT.value}
 
@@ -56,6 +61,57 @@ def build_onboarding_command(
     if notes:
         parts.extend(["--notes", notes.strip()])
     return " ".join(_powershell_quote(part) for part in parts)
+
+
+async def upsert_telegram_account(
+    session,
+    *,
+    phone: str,
+    session_file_path: str,
+    account_pool: str = AccountPool.SEARCH.value,
+    notes: str | None = None,
+) -> TelegramAccount:
+    account = await session.scalar(select(TelegramAccount).where(TelegramAccount.phone == phone))
+    values = account_values(
+        session_file_path=session_file_path,
+        account_pool=account_pool,
+        notes=notes,
+    )
+    if account is None:
+        account = TelegramAccount(id=uuid.uuid4(), phone=phone, **values)
+        session.add(account)
+    else:
+        for key, value in values.items():
+            setattr(account, key, value)
+    await session.flush()
+    return account
+
+
+def account_values(
+    *,
+    session_file_path: str,
+    account_pool: str = AccountPool.SEARCH.value,
+    notes: str | None = None,
+) -> dict[str, object]:
+    account_pool = validate_onboarding_account_pool(account_pool)
+    return {
+        "session_file_path": session_file_path,
+        "account_pool": account_pool,
+        "status": AccountStatus.AVAILABLE.value,
+        "flood_wait_until": None,
+        "lease_owner": None,
+        "lease_expires_at": None,
+        "last_error": None,
+        "notes": notes,
+    }
+
+
+def resolve_session_path(sessions_dir: str, session_file_path: str) -> Path:
+    base = Path(sessions_dir).resolve()
+    target = (base / session_file_path).resolve()
+    if base != target and base not in target.parents:
+        raise ValueError("Session path must stay inside SESSIONS_DIR")
+    return target
 
 
 def _powershell_quote(value: str) -> str:

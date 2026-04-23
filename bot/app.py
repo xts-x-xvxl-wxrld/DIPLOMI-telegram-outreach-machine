@@ -275,6 +275,7 @@ async def post_init(application: Any) -> None:
     )
     application.bot_data[CONFIG_EDIT_STORE_KEY] = PendingEditStore()
     application.bot_data[ACCOUNT_CONFIRM_STORE_KEY] = {}
+    application.bot_data[ACCOUNT_ONBOARDING_STORE_KEY] = {}
     await application.bot.set_my_commands(STARTUP_BOT_COMMANDS)
 
 

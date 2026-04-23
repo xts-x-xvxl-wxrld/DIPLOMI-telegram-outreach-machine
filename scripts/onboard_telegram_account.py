@@ -3,22 +3,20 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-import uuid
 from pathlib import Path
-
-from sqlalchemy import select
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from backend.core.settings import get_settings  # noqa: E402
-from backend.db.enums import AccountPool, AccountStatus  # noqa: E402
-from backend.db.models import TelegramAccount  # noqa: E402
+from backend.db.enums import AccountPool  # noqa: E402
 from backend.db.session import AsyncSessionLocal  # noqa: E402
 from backend.services.account_onboarding import (  # noqa: E402
+    account_values,  # noqa: F401 - re-exported for tests and local compatibility
+    resolve_session_path,
     safe_session_file_name,
-    validate_onboarding_account_pool,
+    upsert_telegram_account,
 )
 
 
@@ -97,53 +95,6 @@ async def create_or_validate_session(
             raise SystemExit("Telegram login did not authorize the session.")
     finally:
         await client.disconnect()
-
-
-async def upsert_telegram_account(
-    session,
-    *,
-    phone: str,
-    session_file_path: str,
-    account_pool: str = AccountPool.SEARCH.value,
-    notes: str | None = None,
-) -> TelegramAccount:
-    account = await session.scalar(select(TelegramAccount).where(TelegramAccount.phone == phone))
-    values = account_values(session_file_path=session_file_path, account_pool=account_pool, notes=notes)
-    if account is None:
-        account = TelegramAccount(id=uuid.uuid4(), phone=phone, **values)
-        session.add(account)
-    else:
-        for key, value in values.items():
-            setattr(account, key, value)
-    await session.flush()
-    return account
-
-
-def account_values(
-    *,
-    session_file_path: str,
-    account_pool: str = AccountPool.SEARCH.value,
-    notes: str | None = None,
-) -> dict[str, object]:
-    account_pool = validate_onboarding_account_pool(account_pool)
-    return {
-        "session_file_path": session_file_path,
-        "account_pool": account_pool,
-        "status": AccountStatus.AVAILABLE.value,
-        "flood_wait_until": None,
-        "lease_owner": None,
-        "lease_expires_at": None,
-        "last_error": None,
-        "notes": notes,
-    }
-
-
-def resolve_session_path(sessions_dir: str, session_file_path: str) -> Path:
-    base = Path(sessions_dir).resolve()
-    target = (base / session_file_path).resolve()
-    if base != target and base not in target.parents:
-        raise ValueError("Session path must stay inside SESSIONS_DIR")
-    return target
 
 
 if __name__ == "__main__":

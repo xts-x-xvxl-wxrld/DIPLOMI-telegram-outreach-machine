@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 from bot.api_client import BotApiClient, BotApiError
+from bot.account_handlers import handle_account_onboarding_text
 from bot.config import BotSettings, load_settings, validate_runtime_settings
 from bot.config_editing import (
     PendingEdit,
@@ -466,6 +467,8 @@ async def telegram_entity_text(update: Any, context: Any) -> None:
         return
 
     raw_text = update.message.text.strip()
+    if await handle_account_onboarding_text(update, context):
+        return
     if await _handle_config_edit_text(update, context, raw_text):
         return
 

@@ -57,7 +57,7 @@
 - [Telegram Account Pool Separation](plan/telegram-account-pools.md) - schema, account-manager routing, engagement guards, and onboarding plan for dedicated account pools
 - [Context Fragmentation Protocol](plan/context-fragmentation-protocol.md) - agent reading limits, wiki/code size caps, and refactor backlog; [Agent Guidance CI](plan/agent-guidance-ci.md) - local CI parity and generated-file hygiene
 ## Shard directories
-- `wiki/spec/api/` - foundation, search, discovery, communities/snapshots, engagement, and jobs/debug API shards
+- `wiki/spec/api/` - foundation, search, discovery, communities/snapshots, engagement, accounts, and jobs/debug API shards
 - `wiki/spec/database/` - foundation, search/collection, engagement, indexes, and pipeline schema shards
 - `wiki/spec/engagement/` - engagement lifecycle, settings, topics, opportunities, jobs, API/bot, observability, and tests
 - `wiki/spec/bot/` - discovery command, engagement command, and bot access/UX shards
@@ -67,7 +67,7 @@
 - `wiki/plan/bot-engagement-controls/`, `wiki/plan/community-engagement/`, `wiki/plan/engagement-operator-controls/`, `wiki/plan/search-rebuild-implementation/` - split plan shards
 ## Implementation roots
 
-- `bot/api_client.py`, `bot/api_client_search.py` - bot HTTP client for backend API endpoints and search endpoint mixin
+- `bot/api_client.py`, `bot/api_client_search.py`, `bot/api_client_accounts.py` - bot HTTP client for backend API endpoints plus search/account endpoint mixins
 - `bot/config.py` - bot environment parsing for API token, operator allowlist, and engagement admin allowlist
 - `bot/config_editing.py` - shared Telegram bot config-edit metadata, parsers, and pending edit state
 - `bot/formatting.py` - compatibility exports for Telegram message formatting
@@ -84,7 +84,7 @@
 - `bot/ui_engagement.py` - engagement inline markups and callback-data helpers
 - `scripts/make_seed_csv.py` - builds bot-ready seed CSV files from public Telegram usernames or links
 - `scripts/check_fragmentation.py` - CI guardrail for wiki, production, and test file size caps
-- `scripts/onboard_telegram_account.py` - local Telethon session creation and `telegram_accounts` registration
+- `scripts/onboard_telegram_account.py`, `backend/api/routes/accounts.py`, `backend/services/telegram_account_onboarding.py` - local and bot-driven Telethon session creation plus `telegram_accounts` registration
 - `scripts/vps-deploy.sh` - reset-only staging deploy script for the VPS checkout
 - `scripts/vps-deploy-env.sh` - validated environment wrapper around the deploy checkout script
 - `scripts/vps-install-agent-ops.sh` - installs the redacted VPS context and helper commands under `/srv/tg-outreach`
@@ -142,7 +142,7 @@
 - `tests/test_engagement_detect_worker.py`, `tests/test_collection_worker.py` - engagement detection and collection worker tests
 - `tests/test_engagement_send_worker.py` - engagement send worker preflight, rate-limit, idempotency, and Telethon error-mapping tests
 - `tests/test_bot_access.py` - bot operator and engagement-admin allowlist tests
-- `tests/test_bot_api_client.py`, `tests/test_bot_entrypoint.py` - bot HTTP client route/payload and Docker module entrypoint tests
+- `tests/test_bot_account_api_client.py`, `tests/test_bot_api_client.py`, `tests/test_telegram_account_onboarding_service.py`, `tests/test_bot_entrypoint.py` - bot HTTP client route/payload, account onboarding service, and Docker module entrypoint tests
 - `tests/test_bot_formatting.py` - bot message formatting and privacy regression tests
 - `tests/test_bot_handlers.py` - operator cockpit, discovery cockpit, /start, /help, /accounts, /seeds, and op:/disc: callback routing tests
 - `tests/test_bot_engagement_handlers.py`, `tests/test_engagement_operator_controls.py` - engagement bot workflow plus staged target collection/status tests

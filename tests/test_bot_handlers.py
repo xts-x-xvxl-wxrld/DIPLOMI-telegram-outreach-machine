@@ -7,12 +7,14 @@ import pytest
 
 from bot.main import (
     API_CLIENT_KEY,
+    ACCOUNT_ONBOARDING_STORE_KEY,
     add_account_command,
     callback_query,
     help_command,
     seeds_command,
     accounts_command,
     start_command,
+    telegram_entity_text,
 )
 from bot.ui import (
     ACTION_DISC_ACTIVITY,
@@ -36,9 +38,13 @@ class _FakeMessage:
     def __init__(self, text: str | None = None) -> None:
         self.text = text
         self.replies: list[dict[str, Any]] = []
+        self.deleted = False
 
     async def reply_text(self, text: str, reply_markup: Any | None = None) -> None:
         self.replies.append({"text": text, "reply_markup": reply_markup})
+
+    async def delete(self) -> None:
+        self.deleted = True
 
 
 class _FakeCallbackQuery:
@@ -62,6 +68,8 @@ class _FakeApiClient:
         self.seed_group_calls = 0
         self.candidate_list_calls: list[dict[str, Any]] = []
         self.topic_calls = 0
+        self.started_onboarding: list[dict[str, Any]] = []
+        self.completed_onboarding: list[dict[str, Any]] = []
 
         self.accounts_data = {
             "counts": {"available": 2, "in_use": 0, "rate_limited": 0, "banned": 0},
@@ -94,6 +102,25 @@ class _FakeApiClient:
     async def get_accounts(self) -> dict[str, Any]:
         self.accounts_calls += 1
         return self.accounts_data
+
+    async def start_account_onboarding(self, **payload: Any) -> dict[str, Any]:
+        self.started_onboarding.append(payload)
+        return {
+            "status": "code_sent",
+            "account_pool": payload["account_pool"],
+            "phone": payload["phone"],
+            "session_file_name": payload["session_name"] or "account.session",
+            "phone_code_hash": "hash-1",
+        }
+
+    async def complete_account_onboarding(self, **payload: Any) -> dict[str, Any]:
+        self.completed_onboarding.append(payload)
+        return {
+            "status": "registered",
+            "account_pool": payload["account_pool"],
+            "phone": payload["phone"],
+            "session_file_name": payload["session_name"],
+        }
 
     async def list_seed_groups(self) -> dict[str, Any]:
         self.seed_group_calls += 1
@@ -242,21 +269,66 @@ async def test_accounts_command_renders_masked_account_health() -> None:
 
 
 @pytest.mark.asyncio
-async def test_add_account_command_prepares_search_onboarding_command() -> None:
+async def test_add_account_command_starts_search_onboarding_and_deletes_command() -> None:
+    client = _FakeApiClient()
     update = _make_update("/add_account")
-    context = _make_context()
+    context = _make_context(client)
     context.args = ["search", "+10000000000", "research-1", "warm", "spare"]
 
     await add_account_command(update, context)
 
+    assert update.message.deleted is True
+    assert client.started_onboarding == [
+        {
+            "account_pool": "search",
+            "phone": "+10000000000",
+            "session_name": "research-1.session",
+            "notes": "warm spare",
+            "requested_by": "telegram:123:@operator",
+        }
+    ]
     replies = update.message.replies
     assert len(replies) == 1
     text = replies[0]["text"]
-    assert "Telegram account onboarding prepared" in text
-    assert "--account-pool search" in text
-    assert "--phone +10000000000" in text
-    assert "--session-name research-1.session" in text
-    assert "--notes 'warm spare'" in text
+    assert "Telegram login code sent" in text
+    assert "+10000000000" not in text
+    assert "research-1.session" in text
+    assert context.application.bot_data[ACCOUNT_ONBOARDING_STORE_KEY][123]["step"] == "code"
+
+
+@pytest.mark.asyncio
+async def test_account_onboarding_text_completes_login_and_deletes_code() -> None:
+    client = _FakeApiClient()
+    context = _make_context(client)
+    context.application.bot_data[ACCOUNT_ONBOARDING_STORE_KEY] = {
+        123: {
+            "step": "code",
+            "account_pool": "engagement",
+            "phone": "+10000000001",
+            "session_file_name": "engagement-1.session",
+            "phone_code_hash": "hash-1",
+            "notes": "public replies",
+        }
+    }
+    update = _make_update("12345")
+
+    await telegram_entity_text(update, context)
+
+    assert update.message.deleted is True
+    assert client.completed_onboarding == [
+        {
+            "account_pool": "engagement",
+            "phone": "+10000000001",
+            "session_name": "engagement-1.session",
+            "phone_code_hash": "hash-1",
+            "code": "12345",
+            "password": None,
+            "notes": "public replies",
+            "requested_by": "telegram:123:@operator",
+        }
+    ]
+    assert context.application.bot_data[ACCOUNT_ONBOARDING_STORE_KEY] == {}
+    assert "Telegram account added" in update.message.replies[0]["text"]
 
 
 @pytest.mark.asyncio

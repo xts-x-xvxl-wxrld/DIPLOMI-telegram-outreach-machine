@@ -26,6 +26,56 @@ def format_account_onboarding_command(
     )
 
 
+def format_account_onboarding_code_sent(
+    *,
+    account_pool: str,
+    phone: str,
+    session_file_name: str,
+) -> str:
+    return "\n".join(
+        [
+            _headline("Telegram login code sent.", icon="[account]"),
+            _field("Pool", account_pool),
+            _field("Phone", _mask_phone(phone)),
+            _field("Session file", session_file_name),
+            "",
+            _section("Next", icon="->"),
+            _bullet("Send the Telegram login code in this chat."),
+            _bullet("I will delete the code message after reading it."),
+        ]
+    )
+
+
+def format_account_onboarding_password_required(*, phone: str) -> str:
+    return "\n".join(
+        [
+            _headline("2FA password required.", icon="[safe]"),
+            _field("Phone", _mask_phone(phone)),
+            "",
+            _section("Next", icon="->"),
+            _bullet("Send the Telegram 2FA password in this chat."),
+            _bullet("I will delete the password message after reading it."),
+        ]
+    )
+
+
+def format_account_onboarding_registered(
+    *,
+    account_pool: str,
+    phone: str,
+    session_file_name: str,
+) -> str:
+    return "\n".join(
+        [
+            _headline("Telegram account added.", icon="[account]"),
+            _field("Pool", account_pool),
+            _field("Phone", _mask_phone(phone)),
+            _field("Session file", session_file_name),
+            *_action_block(["Check pool capacity with /accounts"]),
+        ]
+    )
+
+
 def format_account_onboarding_usage(
     error: str | None = None,
     *,
@@ -43,3 +93,10 @@ def format_account_onboarding_usage(
     if error:
         lines.extend(["", _field("Error", error, icon="[!]")])
     return "\n".join(lines)
+
+
+def _mask_phone(phone: str) -> str:
+    digits = [character for character in phone if character.isdigit()]
+    if len(digits) <= 4:
+        return "***"
+    return f"+***{''.join(digits[-4:])}"
