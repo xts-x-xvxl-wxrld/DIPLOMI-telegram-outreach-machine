@@ -43,6 +43,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_STYLE_TOGGLE,
     ACTION_ENGAGEMENT_TARGET_APPROVE,
     ACTION_ENGAGEMENT_TARGET_APPROVE_CONFIRM,
+    ACTION_ENGAGEMENT_TARGET_ADD,
     ACTION_ENGAGEMENT_TARGET_DETECT,
     ACTION_ENGAGEMENT_TARGET_EDIT,
     ACTION_ENGAGEMENT_TARGET_JOIN,
@@ -50,6 +51,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TARGET_PERMISSION,
     ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM,
     ACTION_ENGAGEMENT_TARGETS,
+    ACTION_ENGAGEMENT_TOPIC_CREATE,
     ACTION_ENGAGEMENT_TOPIC_EDIT,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
@@ -491,6 +493,7 @@ def test_engagement_topic_markup_pages_and_toggles() -> None:
     actions = engagement_topic_actions_markup("topic-1", active=True, good_count=1, bad_count=1)
 
     assert ACTION_ENGAGEMENT_HOME in _callbacks(pager)
+    assert ACTION_ENGAGEMENT_TOPIC_CREATE in _callbacks(pager)
     assert "eng:topic:list:5" in _callbacks(pager)
     assert f"{ACTION_ENGAGEMENT_TOPIC_OPEN}:topic-1" in _callbacks(actions)
     assert f"{ACTION_ENGAGEMENT_TOPIC_EDIT}:topic-1:stance_guidance" in _callbacks(actions)
@@ -510,6 +513,7 @@ def test_engagement_topic_markup_hides_mutations_for_non_admins() -> None:
         bad_count=1,
         can_manage=False,
     )
+    pager = engagement_topic_pager_markup(offset=0, total=12, page_size=5, can_manage=False)
 
     callbacks = _callbacks(actions)
 
@@ -517,6 +521,16 @@ def test_engagement_topic_markup_hides_mutations_for_non_admins() -> None:
     assert f"{ACTION_ENGAGEMENT_TOPIC_EDIT}:topic-1:stance_guidance" not in callbacks
     assert f"{ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD}:topic-1:g" not in callbacks
     assert f"{ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE}:topic-1:g:0" not in callbacks
+    assert ACTION_ENGAGEMENT_TOPIC_CREATE not in _callbacks(pager)
+
+
+def test_engagement_admin_home_markup_exposes_setup_shortcuts() -> None:
+    markup = engagement_admin_home_markup()
+
+    callbacks = _callbacks(markup)
+
+    assert ACTION_ENGAGEMENT_TARGET_ADD in callbacks
+    assert ACTION_ENGAGEMENT_TOPIC_CREATE in callbacks
 
 
 def test_engagement_prompt_list_markup_has_create_entrypoint_and_paging() -> None:

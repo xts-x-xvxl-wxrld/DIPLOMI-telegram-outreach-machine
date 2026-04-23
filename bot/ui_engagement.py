@@ -16,6 +16,7 @@ from .ui_common import (
     ACTION_ENGAGEMENT_CANDIDATE_EXPIRE,
     ACTION_ENGAGEMENT_CANDIDATE_RETRY,
     ACTION_ENGAGEMENT_TOPIC_LIST,
+    ACTION_ENGAGEMENT_TOPIC_CREATE,
     ACTION_ENGAGEMENT_TOPIC_OPEN,
     ACTION_ENGAGEMENT_TOPIC_TOGGLE,
     ACTION_ENGAGEMENT_TOPIC_EDIT,
@@ -203,6 +204,10 @@ def engagement_home_markup(*, show_admin: bool = True):
 
 def engagement_admin_home_markup():
     rows = [
+        [
+            _button("➕ Add community", ACTION_ENGAGEMENT_TARGET_ADD),
+            _button("➕ Create topic", ACTION_ENGAGEMENT_TOPIC_CREATE),
+        ],
         [
             _button("🏘 Communities", ACTION_ENGAGEMENT_TARGETS, "0"),
             _button("🧩 Topics", ACTION_ENGAGEMENT_TOPIC_LIST, "0"),
@@ -682,8 +687,11 @@ def engagement_topic_pager_markup(
     offset: int,
     total: int,
     page_size: int,
+    can_manage: bool = True,
 ):
     rows = []
+    if can_manage:
+        rows.append([_button("➕ Create topic", ACTION_ENGAGEMENT_TOPIC_CREATE)])
     pager_row = _offset_pager_row(
         action=ACTION_ENGAGEMENT_TOPIC_LIST,
         offset=offset,

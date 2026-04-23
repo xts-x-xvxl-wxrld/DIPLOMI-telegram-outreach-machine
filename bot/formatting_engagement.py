@@ -639,7 +639,15 @@ def format_engagement_topics(data: dict[str, Any], *, offset: int = 0) -> str:
     items = data.get("items") or []
     total = data.get("total", len(items))
     if not items:
-        return _headline("No engagement topics configured yet.", icon="📭")
+        return "\n".join(
+            [
+                _headline("No engagement topics configured yet.", icon="📭"),
+                _bullet(
+                    "Create one from the button below or with /create_engagement_topic <name> | <guidance> | <comma_keywords>",
+                    icon="➡",
+                ),
+            ]
+        )
     active_count = sum(1 for item in items if item.get("active"))
     return _headline(
         f"Engagement topics ({offset + 1}-{offset + len(items)} of {total}) | active {active_count}",

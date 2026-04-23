@@ -181,15 +181,58 @@ def _parse_positive_int(raw_value: str, *, default: int) -> int:
 
 def _parse_create_engagement_topic_args(context: Any) -> tuple[str, str, list[str]] | None:
     raw_value = " ".join(str(arg) for arg in context.args).strip()
-    parts = [part.strip() for part in raw_value.split("|")]
-    if len(parts) != 3:
+    parsed = _parse_create_engagement_topic_text(raw_value)
+    if parsed is None:
+        return None
+    return (
+        str(parsed["name"]),
+        str(parsed["stance_guidance"]),
+        list(parsed["trigger_keywords"]),
+    )
+
+
+def _parse_create_engagement_topic_text(raw_value: str) -> dict[str, Any] | None:
+    parts = [part.strip() for part in raw_value.split("|", maxsplit=4)]
+    if len(parts) < 3 or len(parts) > 5:
         return None
 
-    name, guidance, raw_keywords = parts
+    name, guidance, raw_keywords, *optional_parts = parts
     keywords = [keyword.strip() for keyword in raw_keywords.split(",") if keyword.strip()]
     if not name or not guidance or not keywords:
         return None
-    return name, guidance, keywords
+
+    description = None
+    negative_keywords: list[str] = []
+    if optional_parts:
+        raw_description = optional_parts[0]
+        if raw_description and raw_description != "-":
+            description = raw_description
+    if len(optional_parts) > 1:
+        negative_keywords = [
+            keyword.strip() for keyword in optional_parts[1].split(",") if keyword.strip()
+        ]
+
+    return {
+        "name": name,
+        "description": description,
+        "stance_guidance": guidance,
+        "trigger_keywords": keywords,
+        "negative_keywords": negative_keywords,
+        "active": True,
+    }
+
+
+def _parse_create_engagement_target_text(raw_value: str) -> dict[str, Any] | None:
+    parts = [part.strip() for part in raw_value.split("|", maxsplit=1)]
+    if not parts:
+        return None
+    target_ref = parts[0]
+    if not target_ref:
+        return None
+    notes = None
+    if len(parts) > 1 and parts[1] and parts[1] != "-":
+        notes = parts[1]
+    return {"target_ref": target_ref, "notes": notes}
 
 
 def _parse_create_engagement_prompt_args(context: Any) -> dict[str, Any] | None:
@@ -346,9 +389,19 @@ def _parse_edit_reply_args(context: Any) -> tuple[str, str] | None:
 def _create_engagement_topic_usage() -> str:
     return "\n".join(
         [
-            "Usage: /create_engagement_topic <name> | <guidance> | <comma_keywords>",
+            "Usage: /create_engagement_topic <name> | <guidance> | <comma_keywords> [| <description_or_dash> | <negative_keywords>]",
             "Include at least one trigger keyword.",
             "Example: /create_engagement_topic Open CRM | Be factual and brief. | crm, open source",
+        ]
+    )
+
+
+def _create_engagement_target_usage(*, command_name: str | None = "add_engagement_target") -> str:
+    prefix = f"Usage: /{command_name} " if command_name else "Send: "
+    return "\n".join(
+        [
+            prefix + "<telegram_link_or_username_or_community_id> [| <notes_or_dash>]",
+            "Examples: @opencrm | Priority account pool, or https://t.me/opencrm",
         ]
     )
 
@@ -443,6 +496,8 @@ __all__ = [
     "_optional_window_minutes",
     "_parse_positive_int",
     "_parse_create_engagement_topic_args",
+    "_parse_create_engagement_topic_text",
+    "_parse_create_engagement_target_text",
     "_parse_create_engagement_prompt_args",
     "_parse_create_engagement_prompt_text",
     "_create_engagement_prompt_error",
@@ -452,6 +507,7 @@ __all__ = [
     "_parse_topic_example_args",
     "_parse_edit_reply_args",
     "_create_engagement_topic_usage",
+    "_create_engagement_target_usage",
     "_create_engagement_prompt_usage",
     "_create_style_rule_usage",
     "_parse_on_off",

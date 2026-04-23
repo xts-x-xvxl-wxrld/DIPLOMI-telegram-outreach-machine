@@ -59,6 +59,26 @@ async def _start_style_rule_create(update: Any, context: Any) -> None:
     )
 
 
+async def _start_topic_create(update: Any, context: Any) -> None:
+    await _start_config_edit(
+        update,
+        context,
+        entity="topic_create",
+        object_id="new",
+        field="payload",
+    )
+
+
+async def _start_target_create(update: Any, context: Any) -> None:
+    await _start_config_edit(
+        update,
+        context,
+        entity="target_create",
+        object_id="new",
+        field="payload",
+    )
+
+
 async def _handle_config_edit_text(update: Any, context: Any, raw_text: str) -> bool:
     operator_id = _telegram_user_id(update)
     if operator_id is None:
@@ -93,6 +113,18 @@ async def _handle_config_edit_text(update: Any, context: Any, raw_text: str) -> 
             "priority": parsed[3],
             "rule_text": parsed[4],
         }
+    elif pending.entity == "topic_create":
+        parsed = _parse_create_engagement_topic_text(raw_text)
+        if parsed is None:
+            await _reply(update, _create_engagement_topic_usage())
+            return True
+        ok, parsed_or_error = True, parsed
+    elif pending.entity == "target_create":
+        parsed = _parse_create_engagement_target_text(raw_text)
+        if parsed is None:
+            await _reply(update, _create_engagement_target_usage(command_name=None))
+            return True
+        ok, parsed_or_error = True, parsed
     else:
         ok, parsed_or_error = parse_edit_value(pending, raw_text)
     if not ok:
@@ -177,11 +209,28 @@ async def _save_config_edit(update: Any, context: Any, pending: PendingEdit) -> 
             operator_user_id=operator_user_id,
         )
 
+    if pending.entity == "target_create":
+        if not isinstance(value, dict):
+            raise BotApiError("Target creation details are incomplete.")
+        return await client.create_engagement_target(
+            **value,
+            added_by=reviewer,
+            operator_user_id=operator_user_id,
+        )
+
     if pending.entity == "topic":
         return await client.update_engagement_topic(
             pending.object_id,
             **{pending.field: value},
             operator_user_id=operator_user_id,
+        )
+
+    if pending.entity == "topic_create":
+        if not isinstance(value, dict):
+            raise BotApiError("Topic creation details are incomplete.")
+        return await client.create_engagement_topic(
+            operator_user_id=operator_user_id,
+            **value,
         )
 
     if pending.entity == "topic_example":
@@ -243,11 +292,28 @@ def _saved_config_edit_response(pending: PendingEdit, data: dict[str, Any]) -> t
             "Prompt profile created.\n\n" + format_engagement_prompt_profile_card(data, detail=True),
             engagement_prompt_actions_markup(profile_id, active=bool(data.get("active"))),
         )
+    if pending.entity == "target_create":
+        target_id = str(data.get("id", "unknown"))
+        return (
+            "Engagement target added.\n\n" + format_engagement_target_card(data, detail=True),
+            _engagement_target_markup(target_id, data),
+        )
     if pending.entity == "topic":
         return (
             prefix + "\n\n" + format_engagement_topic_card(data, detail=True),
             engagement_topic_actions_markup(
                 pending.object_id,
+                active=bool(data.get("active")),
+                good_count=len(data.get("example_good_replies") or []),
+                bad_count=len(data.get("example_bad_replies") or []),
+            ),
+        )
+    if pending.entity == "topic_create":
+        topic_id = str(data.get("id", "unknown"))
+        return (
+            "Engagement topic created.\n\n" + format_engagement_topic_card(data, detail=True),
+            engagement_topic_actions_markup(
+                topic_id,
                 active=bool(data.get("active")),
                 good_count=len(data.get("example_good_replies") or []),
                 bad_count=len(data.get("example_bad_replies") or []),
@@ -293,6 +359,8 @@ __all__ = [
     "_start_config_edit",
     "_start_prompt_profile_create",
     "_start_style_rule_create",
+    "_start_topic_create",
+    "_start_target_create",
     "_handle_config_edit_text",
     "_save_config_edit_callback",
     "_cancel_config_edit_callback",

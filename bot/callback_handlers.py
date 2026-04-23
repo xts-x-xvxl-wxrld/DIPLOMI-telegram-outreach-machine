@@ -146,6 +146,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TARGET_REJECT,
     ACTION_ENGAGEMENT_TARGET_RESOLVE,
     ACTION_ENGAGEMENT_TARGETS,
+    ACTION_ENGAGEMENT_TOPIC_CREATE,
     ACTION_ENGAGEMENT_TOPIC_EDIT,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
@@ -350,10 +351,7 @@ async def callback_query(update: Any, context: Any) -> None:
             await _send_engagement_targets(update, context, status=status, offset=offset)
             return
         if action == ACTION_ENGAGEMENT_TARGET_ADD:
-            await _callback_reply(
-                update,
-                "Add an engagement community with:\n/add_engagement_target <telegram_link_or_username_or_community_id>",
-            )
+            await _start_target_create(update, context)
             return
         if action == ACTION_ENGAGEMENT_TARGET_OPEN and len(parts) == 1:
             await _send_engagement_target(update, context, parts[0])
@@ -626,6 +624,9 @@ async def callback_query(update: Any, context: Any) -> None:
             return
         if action == ACTION_ENGAGEMENT_TOPIC_LIST and parts:
             await _send_engagement_topics(update, context, offset=_parse_offset(parts[0]))
+            return
+        if action == ACTION_ENGAGEMENT_TOPIC_CREATE:
+            await _start_topic_create(update, context)
             return
         if action == ACTION_ENGAGEMENT_TOPIC_OPEN and len(parts) == 1:
             await _send_engagement_topic(update, context, parts[0])
