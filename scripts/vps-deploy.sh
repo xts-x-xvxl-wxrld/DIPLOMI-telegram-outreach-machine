@@ -16,6 +16,20 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
+origin_url="$(git remote get-url origin)"
+case "$origin_url" in
+  git@github.com:*)
+    https_origin="https://github.com/${origin_url#git@github.com:}"
+    git remote set-url origin "$https_origin"
+    echo "Normalized origin remote to HTTPS: $https_origin"
+    ;;
+  ssh://git@github.com/*)
+    https_origin="https://github.com/${origin_url#ssh://git@github.com/}"
+    git remote set-url origin "$https_origin"
+    echo "Normalized origin remote to HTTPS: $https_origin"
+    ;;
+esac
+
 git fetch --prune origin
 git reset --hard "$deploy_ref"
 git clean -ffdx \
