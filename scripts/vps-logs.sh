@@ -36,7 +36,7 @@ print_logs() {
   local service_name="$1"
   local container="${env_name}-tg-outreach-${service_name}-1"
 
-  docker logs --timestamps --tail "$lines" "$container"
+  docker logs --timestamps --tail "$lines" "$container" 2>&1
 }
 
 case "$service" in

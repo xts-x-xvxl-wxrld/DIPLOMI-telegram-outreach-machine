@@ -1116,3 +1116,11 @@ while preserving the staged testing contract.
   guardrail can keep enforcing no-growth behavior.
 - Made the diagnostics helper usable by non-Docker agent users through the already sudo-gated
   status/log helpers.
+- Folded Docker log stdout/stderr together so piped all-service output keeps service sections
+  readable.
+
+## [2026-04-23] implementation | Search rerank replay metadata and graph expansion gate
+
+- Implemented Slice 8 rerank observability by recording last rerank job metadata on search runs and preserving ranking component shape with replayable `search.rank` output.
+- Implemented Slice 9 `search.expand` queue/API/worker plumbing with expansion-account leasing, promoted/resolved search-candidate roots, resolved manual seed roots, global rejection guards, compact graph evidence, and rank handoff.
+- Added focused tests for search expansion service gates, queue payload/dispatch contracts, worker account release, API expansion job metadata, and ranking component metadata.
