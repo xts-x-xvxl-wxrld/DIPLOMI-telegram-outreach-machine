@@ -161,13 +161,12 @@ from .ui_engagement import (
     engagement_style_rule_actions_markup,
     engagement_settings_markup,
     engagement_account_confirm_markup,
-    engagement_topic_pager_markup,
-    engagement_topic_actions_markup,
     engagement_candidate_filter_markup,
     engagement_action_pager_markup,
     engagement_job_markup,
     config_edit_confirmation_markup,
 )
+from .ui_engagement_topics import engagement_topic_actions_markup, engagement_topic_pager_markup
 
 __all__ = [
     "SEEDS_MENU_LABEL",
