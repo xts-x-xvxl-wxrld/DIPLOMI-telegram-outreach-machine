@@ -68,6 +68,15 @@ async def test_rank_search_candidates_persists_scores_and_explanations() -> None
         "spam_penalty": 0,
     }
     assert search_run.ranking_metadata["component_weights"]["spam_penalty"] == -30
+    assert search_run.ranking_metadata["component_shape"] == [
+        "title_username_match",
+        "description_match",
+        "cross_query_confirmation",
+        "cross_adapter_confirmation",
+        "activity_hint",
+        "prior_run_rejection_penalty",
+        "spam_penalty",
+    ]
     assert repository.flushes == 1
 
 

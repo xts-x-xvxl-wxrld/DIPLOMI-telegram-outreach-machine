@@ -61,6 +61,9 @@ Exit criteria:
 - Seed resolution and candidate review continue to work through existing seed endpoints.
 ## Slice 8: Rerank and Replay
 
+Status: implemented through replayable `search.rank`, rerank job metadata on
+`search_runs.ranking_metadata.last_rerank_job`, and component-shape metadata.
+
 Purpose: support ranking changes without hitting Telegram again.
 
 Behavior:
@@ -75,6 +78,9 @@ Exit criteria:
 - Reranking a completed run is idempotent.
 - Ranking-version changes can be tested against fixed evidence fixtures.
 ## Slice 9: Graph Expansion Gate
+
+Status: implemented through gated `search.expand` queue/API/worker plumbing,
+`backend/services/search_expansion.py`, and tests for promoted/manual roots.
 
 Purpose: add controlled second-wave discovery after first search is usable.
 

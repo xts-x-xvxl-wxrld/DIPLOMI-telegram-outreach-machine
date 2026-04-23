@@ -21,6 +21,7 @@ Top-level routing contract for clean-sheet query-driven Telegram search. Details
 - `backend/workers/search_rank.py` - `search.rank` worker orchestration and commit/rollback boundary.
 - `backend/queue/client.py` - `search.plan` and `search.rank` enqueue helpers.
 - `backend/services/search_seed_conversion.py` - search-candidate to seed-group conversion, duplicate seed reuse, manual-seed evidence, and conversion review audit.
+- `backend/services/search_expansion.py`, `backend/workers/search_expand.py` - gated second-wave graph expansion from promoted search candidates or resolved manual seeds, with source evidence provenance and ranking handoff.
 - `bot/api_client_search.py`, `bot/search_handlers.py`, `bot/formatting_search.py`, `bot/ui_search.py` - Telegram bot search client methods, commands, candidate cards, review controls, paging, and seed conversion action.
 - `tests/test_search_schema.py` - schema contract tests.
 - `tests/test_search_api.py` - API skeleton contract tests.
@@ -28,6 +29,7 @@ Top-level routing contract for clean-sheet query-driven Telegram search. Details
 - `tests/test_search_retrieve_worker.py` - fakeable Telegram entity search retrieval, duplicate, inaccessible, non-community, flood wait, and partial-failure coverage.
 - `tests/test_search_ranking.py` - deterministic ranking, score components, penalties, ordering, and worker coverage.
 - `tests/test_search_seed_conversion.py`, `tests/test_bot_search_handlers.py`, `tests/test_bot_search_api_client.py`, `tests/test_bot_search_ui.py` - seed conversion and bot search surface coverage.
+- `tests/test_search_expansion.py`, `tests/test_search_expand_queue.py`, `tests/test_search_expand_worker.py` - search graph expansion gate, queue payload, dispatch, account-release, and evidence provenance coverage.
 - Future `backend/workers/search_*` modules - remaining expansion job roots.
 
 ## Shards

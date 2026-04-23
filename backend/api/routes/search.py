@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -25,7 +26,7 @@ from backend.api.schemas import (
     SearchRunListResponse,
     SearchRunOut,
 )
-from backend.queue.client import QueueUnavailable, enqueue_search_plan, enqueue_search_rank
+from backend.queue.client import QueueUnavailable, enqueue_search_expand, enqueue_search_plan, enqueue_search_rank
 from backend.services.search import (
     SearchNotFound,
     SearchServiceError,
@@ -46,6 +47,16 @@ router = APIRouter(dependencies=[Depends(require_bot_token)])
 class SearchSeedConversionRequest(BaseModel):
     seed_group_name: str | None = Field(default=None, min_length=1, max_length=200)
     requested_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class SearchExpansionJobRequest(BaseModel):
+    root_search_candidate_ids: list[UUID] = Field(default_factory=list)
+    seed_group_ids: list[UUID] = Field(default_factory=list)
+    depth: int = Field(default=1, ge=1, le=3)
+    requested_by: str | None = Field(default=None, min_length=1, max_length=200)
+    max_roots: int = Field(default=5, ge=1, le=25)
+    max_neighbors_per_root: int = Field(default=50, ge=1, le=500)
+    max_candidates_per_adapter: int = Field(default=50, ge=1, le=200)
 
 
 class SearchSeedGroupOut(BaseModel):
@@ -258,10 +269,65 @@ async def post_search_rerank_job(
             search_run.id,
             requested_by=search_run.requested_by,
         )
+        queued_at = datetime.now(timezone.utc)
+        search_run.ranking_metadata = {
+            **dict(search_run.ranking_metadata or {}),
+            "last_rerank_job": {
+                "job_id": job.id,
+                "status": job.status,
+                "queued_at": queued_at.isoformat(),
+                "requested_by": search_run.requested_by,
+                "ranking_version_before": search_run.ranking_version,
+            },
+        }
+        search_run.updated_at = queued_at
     except SearchServiceError as exc:
         raise _http_error(exc) from exc
     except QueueUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    await db.commit()
+    return JobResponse(job=job)
+
+
+@router.post("/search-runs/{search_run_id}/expansion-jobs", response_model=JobResponse, status_code=202)
+async def post_search_expansion_job(
+    search_run_id: UUID,
+    payload: SearchExpansionJobRequest,
+    db: DbSession,
+) -> JobResponse:
+    try:
+        search_run = await get_search_run(db, search_run_id=search_run_id)
+        requested_by = payload.requested_by or search_run.requested_by
+        job = enqueue_search_expand(
+            search_run.id,
+            root_search_candidate_ids=payload.root_search_candidate_ids,
+            seed_group_ids=payload.seed_group_ids,
+            depth=payload.depth,
+            requested_by=requested_by,
+            max_roots=payload.max_roots,
+            max_neighbors_per_root=payload.max_neighbors_per_root,
+            max_candidates_per_adapter=payload.max_candidates_per_adapter,
+        )
+        queued_at = datetime.now(timezone.utc)
+        search_run.ranking_metadata = {
+            **dict(search_run.ranking_metadata or {}),
+            "last_expand_job": {
+                "job_id": job.id,
+                "status": job.status,
+                "queued_at": queued_at.isoformat(),
+                "requested_by": requested_by,
+                "root_search_candidate_ids": [
+                    str(candidate_id) for candidate_id in payload.root_search_candidate_ids
+                ],
+                "seed_group_ids": [str(seed_group_id) for seed_group_id in payload.seed_group_ids],
+            },
+        }
+        search_run.updated_at = queued_at
+    except SearchServiceError as exc:
+        raise _http_error(exc) from exc
+    except QueueUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    await db.commit()
     return JobResponse(job=job)
 
 
@@ -337,8 +403,10 @@ __all__ = [
     "get_search_run_queries",
     "get_search_run_candidates",
     "post_search_rerank_job",
+    "post_search_expansion_job",
     "post_search_candidate_review",
     "post_search_candidate_convert_to_seed",
+    "SearchExpansionJobRequest",
     "SearchSeedConversionRequest",
     "SearchSeedConversionResponse",
 ]

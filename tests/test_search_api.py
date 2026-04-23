@@ -18,8 +18,10 @@ from backend.api.routes.search import (
     get_search_runs,
     post_search_candidate_convert_to_seed,
     post_search_candidate_review,
+    post_search_expansion_job,
     post_search_rerank_job,
     post_search_run,
+    SearchExpansionJobRequest,
     SearchSeedConversionRequest,
 )
 from backend.api.schemas import SearchCandidateReviewRequest, SearchRunCreateRequest
@@ -334,6 +336,60 @@ async def test_post_search_rerank_job_enqueues_search_rank(monkeypatch) -> None:
 
     assert response.job.id == "search-rank-job"
     assert captured == {"search_run_id": run_id, "requested_by": "telegram:123"}
+    assert db.commits == 1
+    assert db.search_run.ranking_metadata["last_rerank_job"]["job_id"] == "search-rank-job"
+
+
+@pytest.mark.asyncio
+async def test_post_search_expansion_job_enqueues_search_expand(monkeypatch) -> None:
+    run_id = uuid4()
+    root_candidate_id = uuid4()
+    seed_group_id = uuid4()
+    db = FakeDb(
+        search_run=SearchRun(
+            id=run_id,
+            raw_query="Hungarian SaaS founders",
+            normalized_title="Hungarian SaaS founders",
+            requested_by="telegram:123",
+            status=SearchRunStatus.COMPLETED.value,
+            enabled_adapters=["telegram_entity_search"],
+            language_hints=[],
+            locale_hints=[],
+            per_run_candidate_cap=100,
+            per_adapter_caps={},
+            planner_metadata={},
+            ranking_metadata={},
+            created_at=datetime(2026, 4, 22, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 4, 22, tzinfo=timezone.utc),
+        )
+    )
+    captured: dict[str, object] = {}
+
+    def fake_enqueue(search_run_id: object, **kwargs: object) -> QueuedJob:
+        captured.update({"search_run_id": search_run_id, **kwargs})
+        return QueuedJob(id="search-expand-job", type="search.expand")
+
+    monkeypatch.setattr("backend.api.routes.search.enqueue_search_expand", fake_enqueue)
+
+    response = await post_search_expansion_job(
+        run_id,
+        SearchExpansionJobRequest(
+            root_search_candidate_ids=[root_candidate_id],
+            seed_group_ids=[seed_group_id],
+            requested_by="telegram:456",
+            max_roots=3,
+        ),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.job.id == "search-expand-job"
+    assert captured["search_run_id"] == run_id
+    assert captured["root_search_candidate_ids"] == [root_candidate_id]
+    assert captured["seed_group_ids"] == [seed_group_id]
+    assert captured["requested_by"] == "telegram:456"
+    assert captured["max_roots"] == 3
+    assert db.commits == 1
+    assert db.search_run.ranking_metadata["last_expand_job"]["job_id"] == "search-expand-job"
 
 
 @pytest.mark.asyncio

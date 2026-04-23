@@ -17,9 +17,10 @@ from backend.queue.payloads import (
     EngagementSendPayload,
     EngagementTargetResolvePayload,
     ExpansionPayload,
+    SearchExpandPayload,
     SearchPlanPayload,
-    SearchRetrievePayload,
     SearchRankPayload,
+    SearchRetrievePayload,
     SeedExpandPayload,
     SeedResolvePayload,
     TelegramEntityResolvePayload,
@@ -155,6 +156,34 @@ def enqueue_search_rank(
         payload.model_dump(mode="json"),
         queue_name="default",
         job_id=f"search.rank:{search_run_id}",
+    )
+
+
+def enqueue_search_expand(
+    search_run_id: UUID,
+    *,
+    root_search_candidate_ids: list[UUID] | None = None,
+    seed_group_ids: list[UUID] | None = None,
+    depth: int = 1,
+    requested_by: str | None = None,
+    max_roots: int = 5,
+    max_neighbors_per_root: int = 50,
+    max_candidates_per_adapter: int = 50,
+) -> QueuedJob:
+    payload = SearchExpandPayload(
+        search_run_id=search_run_id,
+        root_search_candidate_ids=root_search_candidate_ids or [],
+        seed_group_ids=seed_group_ids or [],
+        depth=depth,
+        requested_by=requested_by,
+        max_roots=max_roots,
+        max_neighbors_per_root=max_neighbors_per_root,
+        max_candidates_per_adapter=max_candidates_per_adapter,
+    )
+    return enqueue_job(
+        "search.expand",
+        payload.model_dump(mode="json"),
+        queue_name="default",
     )
 
 
@@ -393,7 +422,7 @@ def _retry_for(job_type: str, Retry):
         return Retry(max=3, interval=[60, 300, 900])
     if job_type in {"seed.resolve", "seed.expand", "telegram_entity.resolve"}:
         return Retry(max=3, interval=[300, 900, 3600])
-    if job_type in {"search.plan", "search.rank"}:
+    if job_type in {"search.plan", "search.rank", "search.expand"}:
         return Retry(max=2, interval=[60, 300])
     if job_type == "expansion.run":
         return Retry(max=3, interval=[300, 900, 3600])

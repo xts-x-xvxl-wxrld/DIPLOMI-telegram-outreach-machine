@@ -242,6 +242,13 @@ Second-wave expansion may start only from:
 It must not start from arbitrary high-scoring candidates, unresolved raw hits, archived candidates,
 run-scoped rejected candidates, or globally rejected communities.
 
+`search.expand` is the query-driven expansion job. It leases an expansion account, inspects only
+eligible roots through the graph adapter, writes expanded results back into the same
+`search_candidates` and `search_candidate_evidence` tables with `adapter = 'seed_graph_expand'`,
+and enqueues `search.rank` after persistence. Search-candidate roots are linked through
+`evidence_metadata.source_search_candidate_id`; manual seed roots use the durable
+`source_seed_group_id` and `source_seed_channel_id` evidence columns.
+
 ### First Operator Surface
 
 The first implementation is Telegram-bot-first:

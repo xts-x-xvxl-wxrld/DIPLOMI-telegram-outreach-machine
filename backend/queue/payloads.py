@@ -54,6 +54,17 @@ class SearchRankPayload(BaseModel):
     requested_by: str | None = None
 
 
+class SearchExpandPayload(BaseModel):
+    search_run_id: UUID
+    root_search_candidate_ids: list[UUID] = Field(default_factory=list)
+    seed_group_ids: list[UUID] = Field(default_factory=list)
+    depth: int = Field(default=1, ge=1)
+    requested_by: str | None = None
+    max_roots: int = Field(default=5, ge=1, le=25)
+    max_neighbors_per_root: int = Field(default=50, ge=1, le=500)
+    max_candidates_per_adapter: int = Field(default=50, ge=1, le=200)
+
+
 class ExpansionPayload(BaseModel):
     brief_id: UUID | None = None
     community_ids: list[UUID]

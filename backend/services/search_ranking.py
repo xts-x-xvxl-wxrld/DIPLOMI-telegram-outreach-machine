@@ -225,6 +225,7 @@ async def rank_search_candidates(
         "requested_by": requested_by or search_run.requested_by,
         "candidate_count": len(candidates),
         "component_weights": _serialized_weights(),
+        "component_shape": list(COMPONENT_WEIGHTS),
         "ranked_candidate_ids": [str(candidate.id) for candidate in ranked_candidates],
     }
     search_run.completed_at = ranked_at

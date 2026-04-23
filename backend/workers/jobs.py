@@ -10,6 +10,7 @@ from backend.workers.community_snapshot import run_community_snapshot_job
 from backend.workers.engagement_detect import run_engagement_detect_job
 from backend.workers.engagement_send import run_engagement_send_job
 from backend.workers.engagement_target_resolve import run_engagement_target_resolve_job
+from backend.workers.search_expand import run_search_expand_job
 from backend.workers.search_plan import run_search_plan_job
 from backend.workers.search_rank import run_search_rank_job
 from backend.workers.search_retrieve import run_search_retrieve_job
@@ -29,6 +30,7 @@ def dispatch_job(job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         "search.plan": run_search_plan,
         "search.retrieve": run_search_retrieve,
         "search.rank": run_search_rank,
+        "search.expand": run_search_expand,
         "expansion.run": run_expansion,
         "community.snapshot": run_community_snapshot,
         "collection.run": run_collection,
@@ -76,6 +78,10 @@ def run_search_retrieve(payload: dict[str, Any]) -> dict[str, Any]:
 
 def run_search_rank(payload: dict[str, Any]) -> dict[str, Any]:
     return run_search_rank_job(payload)
+
+
+def run_search_expand(payload: dict[str, Any]) -> dict[str, Any]:
+    return run_search_expand_job(payload)
 
 
 def run_expansion(payload: dict[str, Any]) -> dict[str, Any]:
