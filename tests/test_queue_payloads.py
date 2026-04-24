@@ -966,8 +966,9 @@ def test_jobs_module_import_does_not_eagerly_import_worker_modules(monkeypatch) 
     import importlib
     import sys
 
+    jobs_module = sys.modules["backend.workers.jobs"]
+
     for module_name in (
-        "backend.workers.jobs",
         "backend.workers.brief_process",
         "backend.workers.collection",
         "backend.workers.community_join",
@@ -985,9 +986,9 @@ def test_jobs_module_import_does_not_eagerly_import_worker_modules(monkeypatch) 
     ):
         monkeypatch.delitem(sys.modules, module_name, raising=False)
 
-    jobs = importlib.import_module("backend.workers.jobs")
+    importlib.reload(jobs_module)
 
-    assert jobs.__name__ == "backend.workers.jobs"
+    assert jobs_module.__name__ == "backend.workers.jobs"
     assert "backend.workers.engagement_target_resolve" not in sys.modules
     assert "backend.workers.collection" not in sys.modules
 
