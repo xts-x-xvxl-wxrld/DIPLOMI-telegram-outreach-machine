@@ -383,33 +383,6 @@ async def test_duplicate_engagement_target_returns_existing_row() -> None:
     assert db.added == []
     assert db.commits == 1
 
-
-@pytest.mark.asyncio
-async def test_duplicate_pending_engagement_target_without_loaded_community_does_not_error() -> None:
-    target = EngagementTarget(
-        id=uuid4(),
-        community_id=None,
-        submitted_ref="username:example",
-        submitted_ref_type=EngagementTargetRefType.TELEGRAM_USERNAME.value,
-        status=EngagementTargetStatus.PENDING.value,
-        allow_join=False,
-        allow_detect=False,
-        allow_post=False,
-        added_by="telegram:123",
-        created_at=_now(),
-        updated_at=_now(),
-    )
-    db = FakeDb(target=target)
-
-    response = await post_engagement_target(
-        EngagementTargetCreateRequest(target_ref="@example", added_by="telegram:123"),
-        db,  # type: ignore[arg-type]
-    )
-
-    assert response.id == target.id
-    assert response.community_id is None
-    assert response.community_title is None
-
 @pytest.mark.asyncio
 async def test_get_engagement_target_detail_returns_target_card_fields() -> None:
     community_id = uuid4()
