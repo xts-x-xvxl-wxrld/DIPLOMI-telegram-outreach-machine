@@ -115,7 +115,7 @@ Existing topic commands remain valid:
 
 ```text
 /engagement_topics
-/create_engagement_topic <name> | <guidance> | <comma_keywords>
+/create_engagement_topic
 /toggle_engagement_topic <topic_id> <on|off>
 /topic_good_reply <topic_id> | <example>
 /topic_bad_reply <topic_id> | <example>
@@ -131,6 +131,11 @@ Expanded topic commands:
 ```
 
 Rules:
+
+- `/create_engagement_topic` should default to a guided multi-step flow instead of requiring the
+  operator to send the whole topic payload in one message.
+- The bot may continue accepting the legacy pipe payload when the command is called with inline
+  arguments so existing habits do not break immediately.
 
 - Topic controls should be labeled as "what to notice" and "what to say about it" before showing raw
   keyword arrays.

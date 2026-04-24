@@ -108,6 +108,32 @@ def test_pending_edit_store_scopes_edits_by_operator() -> None:
     assert store.get(123) == first
 
 
+def test_pending_edit_store_preserves_flow_state_updates() -> None:
+    store = PendingEditStore()
+    field = editable_field("topic_create", "payload")
+    assert field is not None
+
+    started = store.start(
+        operator_id=123,
+        field=field,
+        object_id="new",
+        flow_step="name",
+        flow_state={},
+    )
+    updated = store.set_value(
+        123,
+        raw_value="Founder outreach",
+        parsed_value=None,
+        flow_step="stance_guidance",
+        flow_state={"name": "Founder outreach"},
+    )
+
+    assert started.flow_step == "name"
+    assert updated is not None
+    assert updated.flow_step == "stance_guidance"
+    assert updated.flow_state == {"name": "Founder outreach"}
+
+
 def test_pending_edit_store_expires_stale_edits() -> None:
     now = datetime(2026, 4, 20, 12, 0, tzinfo=UTC)
     store = PendingEditStore(timeout_seconds=60)

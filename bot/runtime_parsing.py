@@ -389,7 +389,9 @@ def _parse_edit_reply_args(context: Any) -> tuple[str, str] | None:
 def _create_engagement_topic_usage() -> str:
     return "\n".join(
         [
-            "Usage: /create_engagement_topic <name> | <guidance> | <comma_keywords> [| <description_or_dash> | <negative_keywords>]",
+            "Usage: /create_engagement_topic",
+            "Send the command with no arguments to start the guided flow.",
+            "Legacy inline format: /create_engagement_topic <name> | <guidance> | <comma_keywords> [| <description_or_dash> | <negative_keywords>]",
             "Include at least one trigger keyword.",
             "Example: /create_engagement_topic Open CRM | Be factual and brief. | crm, open source",
         ]

@@ -47,6 +47,8 @@ class PendingEdit:
     raw_value: str | None = None
     parsed_value: Any | None = None
     enum_values: tuple[str, ...] = ()
+    flow_step: str | None = None
+    flow_state: dict[str, Any] | None = None
 
 
 class PendingEditStore:
@@ -60,6 +62,8 @@ class PendingEditStore:
         operator_id: int,
         field: EditableField,
         object_id: str,
+        flow_step: str | None = None,
+        flow_state: dict[str, Any] | None = None,
         now: datetime | None = None,
     ) -> PendingEdit:
         pending = PendingEdit(
@@ -74,6 +78,8 @@ class PendingEditStore:
             admin_only=field.admin_only,
             enum_values=field.enum_values,
             started_at=now or datetime.now(UTC),
+            flow_step=flow_step,
+            flow_state=dict(flow_state or {}),
         )
         self._edits[operator_id] = pending
         return pending
@@ -93,12 +99,20 @@ class PendingEditStore:
         *,
         raw_value: str,
         parsed_value: Any,
+        flow_step: str | None = None,
+        flow_state: dict[str, Any] | None = None,
         now: datetime | None = None,
     ) -> PendingEdit | None:
         pending = self.get(operator_id, now=now)
         if pending is None:
             return None
-        updated = replace(pending, raw_value=raw_value, parsed_value=parsed_value)
+        updated = replace(
+            pending,
+            raw_value=raw_value,
+            parsed_value=parsed_value,
+            flow_step=flow_step if flow_step is not None else pending.flow_step,
+            flow_state=dict(flow_state) if flow_state is not None else pending.flow_state,
+        )
         self._edits[operator_id] = updated
         return updated
 
@@ -438,6 +452,8 @@ def parse_edit_value(field: EditableField | PendingEdit, raw_value: str) -> tupl
 
 
 def render_edit_request(pending: PendingEdit) -> str:
+    if pending.entity == "topic_create":
+        return _render_topic_create_request(pending)
     return "\n".join(
         [
             f"Editing {pending.label}",
@@ -450,6 +466,8 @@ def render_edit_request(pending: PendingEdit) -> str:
 
 
 def render_edit_preview(pending: PendingEdit) -> str:
+    if pending.entity == "topic_create" and isinstance(pending.parsed_value, dict):
+        return _render_topic_create_preview(pending)
     value = pending.raw_value or ""
     lines = [
         f"Review {pending.label}",
@@ -494,3 +512,107 @@ def _shorten(value: str, limit: int) -> str:
     if len(value) <= limit:
         return value
     return value[: limit - 3].rstrip() + "..."
+
+
+_TOPIC_CREATE_STEP_DETAILS: dict[str, tuple[str, str, str | None, bool]] = {
+    "name": (
+        "Step 1 of 5: Topic name",
+        "Send the topic name as your next message.",
+        "Founder outreach",
+        False,
+    ),
+    "stance_guidance": (
+        "Step 2 of 5: Reply guidance",
+        "How should replies sound for this topic?",
+        "Be concise and practical.",
+        False,
+    ),
+    "trigger_keywords": (
+        "Step 3 of 5: Trigger keywords",
+        "Send comma-separated keywords that should trigger this topic.",
+        "founder, b2b saas",
+        False,
+    ),
+    "description": (
+        "Step 4 of 5: Topic description",
+        "Send a short description for operators.",
+        "Startup operators asking about outbound outreach",
+        True,
+    ),
+    "negative_keywords": (
+        "Step 5 of 5: Negative keywords",
+        "Send comma-separated keywords to avoid matching.",
+        "jobs, recruiting",
+        True,
+    ),
+}
+
+
+def _render_topic_create_request(pending: PendingEdit) -> str:
+    step = pending.flow_step or "name"
+    title, prompt, example, optional = _TOPIC_CREATE_STEP_DETAILS.get(
+        step,
+        _TOPIC_CREATE_STEP_DETAILS["name"],
+    )
+    lines = [
+        "Creating engagement topic",
+        f"Topic Create ID: {pending.object_id}",
+        "",
+        title,
+        prompt,
+    ]
+    if example:
+        lines.append(f"Example: {example}")
+    if optional:
+        lines.append("Reply with - to skip this field.")
+    summary_lines = _topic_create_summary_lines(pending.flow_state or {}, include_optional=False)
+    if summary_lines:
+        lines.extend(["", "Current values:", *summary_lines])
+    lines.extend(["", "Use /cancel_edit to discard this draft."])
+    return "\n".join(lines)
+
+
+def _render_topic_create_preview(pending: PendingEdit) -> str:
+    payload = pending.parsed_value if isinstance(pending.parsed_value, dict) else {}
+    lines = [
+        "Review Topic creation details",
+        f"Topic Create ID: {pending.object_id}",
+        "Confirmation required before saving.",
+        "",
+        *_topic_create_summary_lines(payload, include_optional=True),
+    ]
+    return "\n".join(lines)
+
+
+def _topic_create_summary_lines(
+    payload: dict[str, Any],
+    *,
+    include_optional: bool,
+) -> list[str]:
+    lines: list[str] = []
+    name = str(payload.get("name") or "").strip()
+    guidance = str(payload.get("stance_guidance") or "").strip()
+    trigger_keywords = payload.get("trigger_keywords") or []
+    description = payload.get("description")
+    negative_keywords = payload.get("negative_keywords") or []
+
+    if name:
+        lines.append(f"Name: {_shorten(name, 240)}")
+    if guidance:
+        lines.append(f"Guidance: {_shorten(guidance, 240)}")
+    if trigger_keywords:
+        lines.append("Triggers: " + ", ".join(str(keyword) for keyword in trigger_keywords))
+    if include_optional:
+        lines.append(
+            "Description: "
+            + (_shorten(str(description), 240) if isinstance(description, str) and description else "-")
+        )
+        lines.append(
+            "Avoid: "
+            + (
+                ", ".join(str(keyword) for keyword in negative_keywords)
+                if negative_keywords
+                else "-"
+            )
+        )
+    return lines

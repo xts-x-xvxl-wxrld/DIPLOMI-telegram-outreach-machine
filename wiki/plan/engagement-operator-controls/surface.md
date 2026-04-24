@@ -68,12 +68,12 @@ Core engagement commands:
 Topic editing command syntax for the first bot slice:
 
 ```text
-/create_engagement_topic <name> | <guidance> | <comma_keywords>
+/create_engagement_topic
 /toggle_engagement_topic <topic_id> <on|off>
 ```
 
-The pipe syntax is intentionally plain. Rich multi-field topic editing can wait for a web frontend
-or a later conversation-state bot flow.
+The bot now prefers a conversation-state flow for topic creation. Legacy pipe syntax may still be
+accepted when operators supply inline arguments directly.
 ## Target Inline Controls
 
 Engagement home:

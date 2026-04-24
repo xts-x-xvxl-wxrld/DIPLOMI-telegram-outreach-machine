@@ -9,6 +9,14 @@ from .runtime_io import *
 from .runtime_access import *
 from .runtime_parsing import *
 
+_TOPIC_CREATE_STEP_ORDER = (
+    "name",
+    "stance_guidance",
+    "trigger_keywords",
+    "description",
+    "negative_keywords",
+)
+
 
 async def _start_config_edit(
     update: Any,
@@ -60,13 +68,37 @@ async def _start_style_rule_create(update: Any, context: Any) -> None:
 
 
 async def _start_topic_create(update: Any, context: Any) -> None:
-    await _start_config_edit(
-        update,
-        context,
-        entity="topic_create",
+    await _start_topic_create_with_reply(update, context, reply_func=_callback_reply)
+
+
+async def _start_topic_create_message(update: Any, context: Any) -> None:
+    await _start_topic_create_with_reply(update, context, reply_func=_reply)
+
+
+async def _start_topic_create_with_reply(
+    update: Any,
+    context: Any,
+    *,
+    reply_func: Any,
+) -> None:
+    operator_id = _telegram_user_id(update)
+    if operator_id is None:
+        await reply_func(update, "Telegram did not include a user ID on this update.")
+        return
+    editable = editable_field("topic_create", "payload")
+    if editable is None:
+        await reply_func(update, "Topic creation is not available from the bot right now.")
+        return
+    if editable.admin_only and not await _require_engagement_admin(update, context):
+        return
+    pending = _config_edit_store(context).start(
+        operator_id=operator_id,
+        field=editable,
         object_id="new",
-        field="payload",
+        flow_step=_TOPIC_CREATE_STEP_ORDER[0],
+        flow_state={},
     )
+    await reply_func(update, render_edit_request(pending))
 
 
 async def _start_target_create(update: Any, context: Any) -> None:
@@ -114,11 +146,7 @@ async def _handle_config_edit_text(update: Any, context: Any, raw_text: str) -> 
             "rule_text": parsed[4],
         }
     elif pending.entity == "topic_create":
-        parsed = _parse_create_engagement_topic_text(raw_text)
-        if parsed is None:
-            await _reply(update, _create_engagement_topic_usage())
-            return True
-        ok, parsed_or_error = True, parsed
+        return await _handle_topic_create_text(update, context, pending, raw_text)
     elif pending.entity == "target_create":
         parsed = _parse_create_engagement_target_text(raw_text)
         if parsed is None:
@@ -155,6 +183,11 @@ async def _save_config_edit_callback(update: Any, context: Any) -> None:
     if pending.admin_only and not await _is_engagement_admin_async(update, context):
         await _callback_reply(update, ENGAGEMENT_ADMIN_ONLY_MESSAGE)
         return
+    if pending.entity == "topic_create" and (
+        pending.flow_step != "confirm" or not isinstance(pending.parsed_value, dict)
+    ):
+        await _callback_reply(update, "Finish the remaining topic questions before saving.")
+        return
     if pending.raw_value is None:
         await _callback_reply(update, "Send the replacement value before saving.")
         return
@@ -162,6 +195,149 @@ async def _save_config_edit_callback(update: Any, context: Any) -> None:
     store.cancel(operator_id)
     message, markup = _saved_config_edit_response(pending, data)
     await _edit_callback_message(update, message, reply_markup=markup)
+
+
+async def _handle_topic_create_text(
+    update: Any,
+    context: Any,
+    pending: PendingEdit,
+    raw_text: str,
+) -> bool:
+    operator_id = _telegram_user_id(update)
+    if operator_id is None:
+        return False
+
+    step = pending.flow_step or _TOPIC_CREATE_STEP_ORDER[0]
+    state = dict(pending.flow_state or {})
+    text = raw_text.strip()
+
+    if step == "name":
+        if not text:
+            await _reply(update, "Topic name cannot be blank.\n\n" + render_edit_request(pending))
+            return True
+        state["name"] = text
+        return await _advance_topic_create_step(
+            update,
+            context,
+            operator_id=operator_id,
+            pending=pending,
+            raw_value=raw_text,
+            next_step="stance_guidance",
+            flow_state=state,
+        )
+
+    if step == "stance_guidance":
+        if not text:
+            await _reply(update, "Reply guidance cannot be blank.\n\n" + render_edit_request(pending))
+            return True
+        state["stance_guidance"] = text
+        return await _advance_topic_create_step(
+            update,
+            context,
+            operator_id=operator_id,
+            pending=pending,
+            raw_value=raw_text,
+            next_step="trigger_keywords",
+            flow_state=state,
+        )
+
+    if step == "trigger_keywords":
+        keywords = [part.strip() for part in text.split(",") if part.strip()]
+        if not keywords:
+            await _reply(
+                update,
+                "Include at least one trigger keyword.\n\n" + render_edit_request(pending),
+            )
+            return True
+        state["trigger_keywords"] = keywords
+        return await _advance_topic_create_step(
+            update,
+            context,
+            operator_id=operator_id,
+            pending=pending,
+            raw_value=raw_text,
+            next_step="description",
+            flow_state=state,
+        )
+
+    if step == "description":
+        state["description"] = None if text == "-" else text
+        return await _advance_topic_create_step(
+            update,
+            context,
+            operator_id=operator_id,
+            pending=pending,
+            raw_value=raw_text,
+            next_step="negative_keywords",
+            flow_state=state,
+        )
+
+    if step == "negative_keywords":
+        if text == "-":
+            state["negative_keywords"] = []
+        else:
+            negative_keywords = [part.strip() for part in text.split(",") if part.strip()]
+            if not negative_keywords:
+                await _reply(
+                    update,
+                    "Send comma-separated negative keywords or - to skip.\n\n"
+                    + render_edit_request(pending),
+                )
+                return True
+            state["negative_keywords"] = negative_keywords
+
+        payload = {
+            "name": str(state.get("name") or ""),
+            "description": state.get("description"),
+            "stance_guidance": str(state.get("stance_guidance") or ""),
+            "trigger_keywords": list(state.get("trigger_keywords") or []),
+            "negative_keywords": list(state.get("negative_keywords") or []),
+            "active": True,
+        }
+        updated = _config_edit_store(context).set_value(
+            operator_id,
+            raw_value=raw_text,
+            parsed_value=payload,
+            flow_step="confirm",
+            flow_state=state,
+        )
+        if updated is None:
+            await _reply(update, "That edit expired. Start again when you are ready.")
+            return True
+        await _reply(
+            update,
+            render_edit_preview(updated),
+            reply_markup=config_edit_confirmation_markup(),
+        )
+        return True
+
+    await _reply(update, "That topic draft is out of sync. Start again when you are ready.")
+    _config_edit_store(context).cancel(operator_id)
+    return True
+
+
+async def _advance_topic_create_step(
+    update: Any,
+    context: Any,
+    *,
+    operator_id: int,
+    pending: PendingEdit,
+    raw_value: str,
+    next_step: str,
+    flow_state: dict[str, Any],
+) -> bool:
+    updated = _config_edit_store(context).set_value(
+        operator_id,
+        raw_value=raw_value,
+        parsed_value=None,
+        flow_step=next_step,
+        flow_state=flow_state,
+    )
+    if updated is None:
+        await _reply(update, "That edit expired. Start again when you are ready.")
+        return True
+    await _reply(update, render_edit_request(updated))
+    return True
 
 
 async def _cancel_config_edit_callback(update: Any, context: Any) -> None:
@@ -360,6 +536,7 @@ __all__ = [
     "_start_prompt_profile_create",
     "_start_style_rule_create",
     "_start_topic_create",
+    "_start_topic_create_message",
     "_start_target_create",
     "_handle_config_edit_text",
     "_save_config_edit_callback",

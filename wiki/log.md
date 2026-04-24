@@ -1172,3 +1172,12 @@ while preserving the staged testing contract.
 - Reworked guided account onboarding prompts to show only the current requested value and a short example.
 - Added skip buttons for optional account name and notes, with session filenames still normalized behind the scenes.
 - Delayed cleanup of onboarding messages until successful flow completion, then deletes them after a short pause.
+
+## [2026-04-24] implementation | Add step-by-step topic creation flow
+
+- Replaced the guided topic create payload prompt with a five-step question flow covering topic
+  name, guidance, trigger keywords, optional description, and optional negative keywords.
+- Kept the existing confirmation/save step and /cancel_edit behavior, while storing wizard step
+  state in the shared pending edit store.
+- Left legacy inline /create_engagement_topic ... | ... | ... parsing available for direct command
+  users, and updated the bot spec/plan shards to describe the new default flow.

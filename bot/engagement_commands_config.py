@@ -18,6 +18,7 @@ from bot.config_editing import (
     render_edit_request,
     render_edit_saved,
 )
+from bot.runtime_config_edit import _start_topic_create_message
 from bot.formatting import (
     format_access_denied,
     format_accounts,
@@ -732,15 +733,16 @@ async def engagement_topic_command(update: Any, context: Any) -> None:
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
 
-
 async def create_engagement_topic_command(update: Any, context: Any) -> None:
     if not await _require_engagement_admin(update, context):
+        return
+    if not context.args:
+        await _start_topic_create_message(update, context)
         return
     parsed = _parse_create_engagement_topic_args(context)
     if parsed is None:
         await _reply(update, _create_engagement_topic_usage())
         return
-
     name, guidance, keywords = parsed
     client = _api_client(context)
     try:
@@ -754,14 +756,12 @@ async def create_engagement_topic_command(update: Any, context: Any) -> None:
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
         return
-
     topic_id = str(data.get("id", "unknown"))
     await _reply(
         update,
         "Engagement topic created.\n\n" + format_engagement_topic_card(data, detail=True),
         reply_markup=engagement_topic_actions_markup(topic_id, active=bool(data.get("active"))),
     )
-
 
 async def toggle_engagement_topic_command(update: Any, context: Any) -> None:
     if not await _require_engagement_admin(update, context):

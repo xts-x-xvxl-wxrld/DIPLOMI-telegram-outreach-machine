@@ -53,7 +53,7 @@
 - [Engagement Admin Control Plane](plan/engagement-admin-control-plane.md) - manual engagement targets, prompt/profile admin, style rules, and editable reply implementation plan
 - [Bot Engagement Controls](plan/bot-engagement-controls.md) - next bot slices for target admin, prompt/style controls, reply opportunity editing, and advanced settings
 - [Bot Operator Cockpit](plan/bot-operator-cockpit.md) - inline top-level bot cockpit, callback namespace, and reply-keyboard removal rollout; [Bot Module Entrypoint](plan/bot-module-entrypoint.md) - Docker bot service module guard
-- [Bot Copy Readability Refresh](plan/bot-copy-readability-refresh.md) - clearer bot message hierarchy, emoji anchors, and button-label polish; [Bot Account Onboarding](plan/bot-account-onboarding.md) - bot command preparation for search and engagement account onboarding
+- [Bot Copy Readability Refresh](plan/bot-copy-readability-refresh.md) - clearer bot message hierarchy, emoji anchors, and button-label polish; [Bot Account Onboarding](plan/bot-account-onboarding.md) - bot command preparation for search and engagement account onboarding; [Topic Create Question Flow](plan/topic-create-question-flow.md) - replace topic-create payload entry with a one-question-at-a-time bot wizard
 - [Telegram Account Pool Separation](plan/telegram-account-pools.md) - schema, account-manager routing, engagement guards, and onboarding plan for dedicated account pools
 - [Context Fragmentation Protocol](plan/context-fragmentation-protocol.md) - agent reading limits, wiki/code size caps, and refactor backlog; [Agent Guidance CI](plan/agent-guidance-ci.md) - local CI parity and generated-file hygiene
 ## Shard directories

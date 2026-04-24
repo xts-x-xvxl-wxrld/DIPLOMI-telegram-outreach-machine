@@ -19,10 +19,12 @@ async def test_topic_create_callback_starts_guided_create() -> None:
 
     await callback_query(update, context)
 
-    assert "Editing Topic creation details" in update.callback_query.message.replies[0]["text"]
+    assert "Creating engagement topic" in update.callback_query.message.replies[0]["text"]
+    assert "Step 1 of 5: Topic name" in update.callback_query.message.replies[0]["text"]
     pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
     assert pending is not None
     assert pending.entity == "topic_create"
+    assert pending.flow_step == "name"
 
 
 @pytest.mark.asyncio
@@ -30,16 +32,26 @@ async def test_topic_inline_create_flow_previews_then_saves() -> None:
     client = _FakeApiClient()
     context = _context(client)
     start_update = _callback_update("eng:topic:create")
-    text_update = _message_update(
-        "Founder outreach | Be concise and practical. | founder, b2b saas | Startup operators | jobs, recruiting"
-    )
+    name_update = _message_update("Founder outreach")
+    guidance_update = _message_update("Be concise and practical.")
+    triggers_update = _message_update("founder, b2b saas")
+    description_update = _message_update("Startup operators")
+    negative_update = _message_update("jobs, recruiting")
     save_update = _callback_update("eng:edit:save")
 
     await callback_query(start_update, context)
-    await telegram_entity_text(text_update, context)
+    await telegram_entity_text(name_update, context)
+    await telegram_entity_text(guidance_update, context)
+    await telegram_entity_text(triggers_update, context)
+    await telegram_entity_text(description_update, context)
+    await telegram_entity_text(negative_update, context)
     await callback_query(save_update, context)
 
-    assert "Review Topic creation details" in text_update.message.replies[0]["text"]
+    assert "Step 2 of 5: Reply guidance" in name_update.message.replies[0]["text"]
+    assert "Step 3 of 5: Trigger keywords" in guidance_update.message.replies[0]["text"]
+    assert "Step 4 of 5: Topic description" in triggers_update.message.replies[0]["text"]
+    assert "Step 5 of 5: Negative keywords" in description_update.message.replies[0]["text"]
+    assert "Review Topic creation details" in negative_update.message.replies[0]["text"]
     assert client.create_topic_calls[-1] == {
         "name": "Founder outreach",
         "description": "Startup operators",
@@ -50,6 +62,24 @@ async def test_topic_inline_create_flow_previews_then_saves() -> None:
     }
     assert "Engagement topic created." in save_update.callback_query.edits[0]["text"]
     assert "Avoid: jobs, recruiting" in save_update.callback_query.edits[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_topic_inline_create_flow_allows_skipping_optional_fields() -> None:
+    client = _FakeApiClient()
+    context = _context(client)
+
+    await callback_query(_callback_update("eng:topic:create"), context)
+    await telegram_entity_text(_message_update("Founder outreach"), context)
+    await telegram_entity_text(_message_update("Be concise and practical."), context)
+    await telegram_entity_text(_message_update("founder, b2b saas"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    final_update = _message_update("-")
+
+    await telegram_entity_text(final_update, context)
+
+    assert "Description: -" in final_update.message.replies[0]["text"]
+    assert "Avoid: -" in final_update.message.replies[0]["text"]
 
 
 @pytest.mark.asyncio

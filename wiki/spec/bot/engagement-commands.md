@@ -171,12 +171,16 @@ Calls `GET /api/engagement/topics/{topic_id}` and shows one topic detail card wi
 trigger and negative keywords, labeled good examples, labeled bad examples that are marked as
 avoid-copy guidance, and inline edit/remove controls.
 
-### `/create_engagement_topic <name> | <guidance> | <comma_keywords>`
+### `/create_engagement_topic [legacy_inline_payload]`
 
 Creates a topic through `POST /api/engagement/topics`.
 
-The first bot implementation uses pipe-separated command text instead of a multi-step form.
-Validation remains owned by the API and engagement service.
+Calling `/create_engagement_topic` with no arguments starts a guided one-question-at-a-time bot
+flow that collects topic name, reply guidance, trigger keywords, optional description, and optional
+negative keywords before showing a confirmation step.
+
+For backward compatibility, the bot may still accept the legacy pipe-delimited inline payload when
+arguments are supplied directly. Validation remains owned by the API and engagement service.
 
 ### `/toggle_engagement_topic <topic_id> <on|off>`
 
