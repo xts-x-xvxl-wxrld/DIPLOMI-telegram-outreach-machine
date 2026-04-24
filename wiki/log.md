@@ -6,6 +6,16 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-04-24] fix | Normalize queue outages on engagement target resolve
+
+- Wrapped Redis/RQ enqueue failures in `backend/queue/client.py` so `engagement_target.resolve`
+  and other queue-backed actions raise `QueueUnavailable` instead of bubbling raw infrastructure
+  exceptions as HTTP 500s.
+- Added queue regression coverage for Redis-style enqueue failures while preserving duplicate job-id
+  handling.
+- This turns the bot-side `Resolve` failure from a misleading internal server error into a handled
+  queue-backend outage signal that the API routes can return as 503.
+
 ## [2026-04-23] code | Search deferred surface contracts
 
 - Added dormant contracts for `telegram_post_search` and `web_search_tme`, including post snippet

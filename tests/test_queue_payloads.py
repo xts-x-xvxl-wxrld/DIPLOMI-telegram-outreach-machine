@@ -3,8 +3,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
+import pytest
+
 from backend.queue.client import (
     QueuedJob,
+    QueueUnavailable,
     enqueue_brief_process,
     enqueue_community_join,
     enqueue_community_snapshot,
@@ -797,6 +800,35 @@ def test_enqueue_job_returns_duplicate_status_for_existing_job_id(monkeypatch) -
         type="engagement.detect",
         status="duplicate",
     )
+
+
+def test_enqueue_job_raises_queue_unavailable_for_redis_errors(monkeypatch) -> None:
+    class FakeRedisConnectionError(RuntimeError):
+        __module__ = "redis.exceptions"
+
+    class FakeRetry:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+    class FakeQueue:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def enqueue(self, *args: object, **kwargs: object) -> object:
+            raise FakeRedisConnectionError("Error 111 connecting to redis")
+
+    monkeypatch.setattr(
+        "backend.queue.client._queue_dependencies",
+        lambda: (FakeQueue, FakeRetry, object()),
+    )
+
+    with pytest.raises(QueueUnavailable, match="Queue backend unavailable"):
+        enqueue_job(
+            "engagement_target.resolve",
+            {"target_id": str(uuid4()), "requested_by": "operator"},
+            queue_name="engagement",
+            job_id=f"engagement_target.resolve:{uuid4()}",
+        )
 
 
 def test_enqueue_engagement_send_uses_engagement_queue(monkeypatch) -> None:
