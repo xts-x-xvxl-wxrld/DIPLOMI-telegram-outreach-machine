@@ -796,7 +796,7 @@ def test_enqueue_job_returns_duplicate_status_for_existing_job_id(monkeypatch) -
     )
 
     assert job == QueuedJob(
-        id="engagement.detect:community:2026041913",
+        id="engagement_detect_community_2026041913",
         type="engagement.detect",
         status="duplicate",
     )
@@ -836,6 +836,7 @@ def test_enqueue_job_raises_queue_unavailable_for_connection_errors(monkeypatch)
     assert logged[0][0] == "Failed to enqueue job"
     assert logged[0][1]["job_type"] == "engagement_target.resolve"
     assert logged[0][1]["queue_name"] == "engagement"
+    assert str(logged[0][1]["job_id"]).startswith("engagement_target_resolve_")
 
 
 def test_enqueue_engagement_send_uses_engagement_queue(monkeypatch) -> None:

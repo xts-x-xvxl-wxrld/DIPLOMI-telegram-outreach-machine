@@ -8,6 +8,7 @@ from backend.workers.engagement_detect_selection import *
 from backend.workers.engagement_detect_prompt import *
 from backend.workers.engagement_detect_openai import *
 from backend.db.enums import EngagementTimeliness
+from backend.queue.client import _normalize_job_id
 from backend.services.community_engagement_candidates import (
     infer_candidate_timeliness,
     normalize_moment_strength,
@@ -502,7 +503,8 @@ def _skipped(reason: str, community_id: object) -> dict[str, object]:
 
 def _is_manual_detect_request(payload: EngagementDetectPayload) -> bool:
     job_id = _current_job_id()
-    if job_id is not None and job_id.startswith("engagement.detect.manual:"):
+    manual_prefix = _normalize_job_id("engagement.detect.manual:")
+    if job_id is not None and manual_prefix is not None and job_id.startswith(manual_prefix):
         return True
     return payload.collection_run_id is None and payload.requested_by is not None
 

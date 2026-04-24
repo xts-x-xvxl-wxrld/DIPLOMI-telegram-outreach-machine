@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -29,6 +30,7 @@ from backend.queue.payloads import (
 
 WORKER_DISPATCH = "backend.workers.jobs.dispatch_job"
 LOGGER = logging.getLogger(__name__)
+_INVALID_JOB_ID_CHARS = re.compile(r"[^A-Za-z0-9_-]+")
 
 
 class QueueUnavailable(RuntimeError):
@@ -354,24 +356,25 @@ def enqueue_job(
     job_id: str | None = None,
 ) -> QueuedJob:
     Queue, Retry, redis_conn = _queue_dependencies()
+    normalized_job_id = _normalize_job_id(job_id)
     try:
         queue = Queue(queue_name, connection=redis_conn)
         job = queue.enqueue(
             WORKER_DISPATCH,
             job_type,
             payload,
-            job_id=job_id,
+            job_id=normalized_job_id,
             retry=_retry_for(job_type, Retry),
             result_ttl=86400,
             failure_ttl=604800,
             meta={"job_type": job_type, "status_message": "queued", **payload},
         )
     except Exception as exc:
-        if job_id is not None and _is_duplicate_job_error(exc):
-            return QueuedJob(id=job_id, type=job_type, status="duplicate")
+        if normalized_job_id is not None and _is_duplicate_job_error(exc):
+            return QueuedJob(id=normalized_job_id, type=job_type, status="duplicate")
         LOGGER.exception(
             "Failed to enqueue job",
-            extra={"job_type": job_type, "queue_name": queue_name, "job_id": job_id},
+            extra={"job_type": job_type, "queue_name": queue_name, "job_id": normalized_job_id},
         )
         raise QueueUnavailable("Queue backend unavailable") from exc
     return QueuedJob(id=job.id, type=job_type, status="queued")
@@ -471,3 +474,10 @@ def _is_duplicate_job_error(exc: Exception) -> bool:
         return True
     message = str(exc).casefold()
     return "job" in message and "already exist" in message
+
+
+def _normalize_job_id(job_id: str | None) -> str | None:
+    if job_id is None:
+        return None
+    normalized = _INVALID_JOB_ID_CHARS.sub("_", job_id).strip("_")
+    return normalized or None
