@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -27,6 +28,7 @@ from backend.queue.payloads import (
 )
 
 WORKER_DISPATCH = "backend.workers.jobs.dispatch_job"
+LOGGER = logging.getLogger(__name__)
 
 
 class QueueUnavailable(RuntimeError):
@@ -367,6 +369,10 @@ def enqueue_job(
     except Exception as exc:
         if job_id is not None and _is_duplicate_job_error(exc):
             return QueuedJob(id=job_id, type=job_type, status="duplicate")
+        LOGGER.exception(
+            "Failed to enqueue job",
+            extra={"job_type": job_type, "queue_name": queue_name, "job_id": job_id},
+        )
         raise QueueUnavailable("Queue backend unavailable") from exc
     return QueuedJob(id=job.id, type=job_type, status="queued")
 

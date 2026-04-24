@@ -3,21 +3,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from backend.workers.brief_process import run_brief_process_job
-from backend.workers.collection import run_collection_job
-from backend.workers.community_join import run_community_join_job
-from backend.workers.community_snapshot import run_community_snapshot_job
-from backend.workers.engagement_detect import run_engagement_detect_job
-from backend.workers.engagement_send import run_engagement_send_job
-from backend.workers.engagement_target_resolve import run_engagement_target_resolve_job
-from backend.workers.search_expand import run_search_expand_job
-from backend.workers.search_plan import run_search_plan_job
-from backend.workers.search_rank import run_search_rank_job
-from backend.workers.search_retrieve import run_search_retrieve_job
-from backend.workers.seed_expand import run_seed_expand_job
-from backend.workers.seed_resolve import run_seed_resolve_job
-from backend.workers.telegram_entity_resolve import run_telegram_entity_resolve_job
-
 
 def dispatch_job(job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
     set_job_status(job_type, "started")
@@ -49,6 +34,8 @@ def dispatch_job(job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_brief_process(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.workers.brief_process import run_brief_process_job
+
     return run_brief_process_job(payload)
 
 
@@ -57,30 +44,44 @@ def run_discovery(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_seed_resolve(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.workers.seed_resolve import run_seed_resolve_job
+
     return run_seed_resolve_job(payload)
 
 
 def run_seed_expand(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.workers.seed_expand import run_seed_expand_job
+
     return run_seed_expand_job(payload)
 
 
 def run_telegram_entity_resolve(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.workers.telegram_entity_resolve import run_telegram_entity_resolve_job
+
     return run_telegram_entity_resolve_job(payload)
 
 
 def run_search_plan(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.workers.search_plan import run_search_plan_job
+
     return run_search_plan_job(payload)
 
 
 def run_search_retrieve(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.workers.search_retrieve import run_search_retrieve_job
+
     return run_search_retrieve_job(payload)
 
 
 def run_search_rank(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.workers.search_rank import run_search_rank_job
+
     return run_search_rank_job(payload)
 
 
 def run_search_expand(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.workers.search_expand import run_search_expand_job
+
     return run_search_expand_job(payload)
 
 
@@ -89,10 +90,14 @@ def run_expansion(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_community_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.workers.community_snapshot import run_community_snapshot_job
+
     return run_community_snapshot_job(payload)
 
 
 def run_collection(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.workers.collection import run_collection_job
+
     return run_collection_job(payload)
 
 
@@ -101,18 +106,26 @@ def run_analysis(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_community_join(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.workers.community_join import run_community_join_job
+
     return run_community_join_job(payload)
 
 
 def run_engagement_target_resolve(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.workers.engagement_target_resolve import run_engagement_target_resolve_job
+
     return run_engagement_target_resolve_job(payload)
 
 
 def run_engagement_detect(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.workers.engagement_detect import run_engagement_detect_job
+
     return run_engagement_detect_job(payload)
 
 
 def run_engagement_send(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.workers.engagement_send import run_engagement_send_job
+
     return run_engagement_send_job(payload)
 
 

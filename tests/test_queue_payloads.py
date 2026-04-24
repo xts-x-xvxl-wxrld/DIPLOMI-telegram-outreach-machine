@@ -814,9 +814,15 @@ def test_enqueue_job_raises_queue_unavailable_for_connection_errors(monkeypatch)
         def enqueue(self, *args: object, **kwargs: object) -> object:
             raise ConnectionRefusedError("Error 111 connecting to redis")
 
+    logged: list[tuple[str, object]] = []
+
     monkeypatch.setattr(
         "backend.queue.client._queue_dependencies",
         lambda: (FakeQueue, FakeRetry, object()),
+    )
+    monkeypatch.setattr(
+        "backend.queue.client.LOGGER.exception",
+        lambda message, *, extra: logged.append((message, extra)),
     )
 
     with pytest.raises(QueueUnavailable, match="Queue backend unavailable"):
@@ -826,6 +832,10 @@ def test_enqueue_job_raises_queue_unavailable_for_connection_errors(monkeypatch)
             queue_name="engagement",
             job_id=f"engagement_target.resolve:{uuid4()}",
         )
+    assert len(logged) == 1
+    assert logged[0][0] == "Failed to enqueue job"
+    assert logged[0][1]["job_type"] == "engagement_target.resolve"
+    assert logged[0][1]["queue_name"] == "engagement"
 
 
 def test_enqueue_engagement_send_uses_engagement_queue(monkeypatch) -> None:
@@ -950,6 +960,36 @@ def test_dispatch_recognizes_engagement_job_types(monkeypatch) -> None:
         "job_type": "engagement.send",
         "payload": {"candidate_id": candidate_id, "approved_by": "op"},
     }
+
+
+def test_jobs_module_import_does_not_eagerly_import_worker_modules(monkeypatch) -> None:
+    import importlib
+    import sys
+
+    for module_name in (
+        "backend.workers.jobs",
+        "backend.workers.brief_process",
+        "backend.workers.collection",
+        "backend.workers.community_join",
+        "backend.workers.community_snapshot",
+        "backend.workers.engagement_detect",
+        "backend.workers.engagement_send",
+        "backend.workers.engagement_target_resolve",
+        "backend.workers.search_expand",
+        "backend.workers.search_plan",
+        "backend.workers.search_rank",
+        "backend.workers.search_retrieve",
+        "backend.workers.seed_expand",
+        "backend.workers.seed_resolve",
+        "backend.workers.telegram_entity_resolve",
+    ):
+        monkeypatch.delitem(sys.modules, module_name, raising=False)
+
+    jobs = importlib.import_module("backend.workers.jobs")
+
+    assert jobs.__name__ == "backend.workers.jobs"
+    assert "backend.workers.engagement_target_resolve" not in sys.modules
+    assert "backend.workers.collection" not in sys.modules
 
 
 def test_dispatch_recognizes_search_job_types(monkeypatch) -> None:
