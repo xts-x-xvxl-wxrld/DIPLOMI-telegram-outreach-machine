@@ -6,6 +6,13 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-04-24] fix | Catch socket-level queue enqueue failures
+
+- Broadened queue error normalization so non-duplicate enqueue failures such as connection-refused
+  errors also surface as `QueueUnavailable` instead of bubbling as API 500s.
+- Updated queue regression coverage to exercise a built-in connection error, matching the live
+  target-resolve failure mode more closely.
+
 ## [2026-04-24] fix | Normalize queue outages on engagement target resolve
 
 - Wrapped Redis/RQ enqueue failures in `backend/queue/client.py` so `engagement_target.resolve`

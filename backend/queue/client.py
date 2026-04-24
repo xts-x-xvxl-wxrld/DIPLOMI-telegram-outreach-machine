@@ -367,9 +367,7 @@ def enqueue_job(
     except Exception as exc:
         if job_id is not None and _is_duplicate_job_error(exc):
             return QueuedJob(id=job_id, type=job_type, status="duplicate")
-        if _is_queue_runtime_error(exc):
-            raise QueueUnavailable("Queue backend unavailable") from exc
-        raise
+        raise QueueUnavailable("Queue backend unavailable") from exc
     return QueuedJob(id=job.id, type=job_type, status="queued")
 
 
@@ -406,9 +404,7 @@ def ping_redis(redis_url: str | None = None) -> None:
     try:
         Redis.from_url(redis_url or get_settings().redis_url).ping()
     except Exception as exc:
-        if _is_queue_runtime_error(exc):
-            raise QueueUnavailable("Queue backend unavailable") from exc
-        raise
+        raise QueueUnavailable("Queue backend unavailable") from exc
 
 
 def _queue_dependencies(redis_url: str | None = None):
@@ -469,8 +465,3 @@ def _is_duplicate_job_error(exc: Exception) -> bool:
         return True
     message = str(exc).casefold()
     return "job" in message and "already exist" in message
-
-
-def _is_queue_runtime_error(exc: Exception) -> bool:
-    module_name = exc.__class__.__module__
-    return module_name.startswith("redis") or module_name.startswith("rq")

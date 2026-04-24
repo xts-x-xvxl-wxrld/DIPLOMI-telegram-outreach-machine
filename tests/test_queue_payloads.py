@@ -802,10 +802,7 @@ def test_enqueue_job_returns_duplicate_status_for_existing_job_id(monkeypatch) -
     )
 
 
-def test_enqueue_job_raises_queue_unavailable_for_redis_errors(monkeypatch) -> None:
-    class FakeRedisConnectionError(RuntimeError):
-        __module__ = "redis.exceptions"
-
+def test_enqueue_job_raises_queue_unavailable_for_connection_errors(monkeypatch) -> None:
     class FakeRetry:
         def __init__(self, *args: object, **kwargs: object) -> None:
             pass
@@ -815,7 +812,7 @@ def test_enqueue_job_raises_queue_unavailable_for_redis_errors(monkeypatch) -> N
             pass
 
         def enqueue(self, *args: object, **kwargs: object) -> object:
-            raise FakeRedisConnectionError("Error 111 connecting to redis")
+            raise ConnectionRefusedError("Error 111 connecting to redis")
 
     monkeypatch.setattr(
         "backend.queue.client._queue_dependencies",
