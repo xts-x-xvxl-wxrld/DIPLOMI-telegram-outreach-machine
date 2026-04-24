@@ -386,7 +386,7 @@ def _required_text(value: str | None, *, field: str) -> str:
 
 
 def _target_view(target: EngagementTarget) -> EngagementTargetView:
-    community = target.community
+    community = target.__dict__.get("community")
     community_title = None
     if community is not None:
         community_title = community.title or community.username

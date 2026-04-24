@@ -194,5 +194,9 @@ def member_pager_markup(
 
 
 def job_actions_markup(job_id: str):
-    rows = [[_button("🔄 Refresh job", ACTION_JOB_STATUS, job_id)]]
+    rows = []
+    try:
+        rows.append([_button("🔄 Refresh job", ACTION_JOB_STATUS, job_id)])
+    except ValueError:
+        rows = []
     return _inline_markup(_with_navigation(rows, back_action=ACTION_DISC_ACTIVITY))

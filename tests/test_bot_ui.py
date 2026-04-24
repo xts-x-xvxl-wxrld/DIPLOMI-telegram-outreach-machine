@@ -63,6 +63,8 @@ from bot.ui import (
     ACTION_OP_DISCOVERY,
     ACTION_OP_HELP,
     ACTION_OP_HOME,
+    ACTION_JOB_STATUS,
+    ACTION_OPEN_COMMUNITY,
     ACTION_SEED_CANDIDATES,
     ENGAGEMENT_MENU_LABEL,
     account_onboarding_prompt_markup,
@@ -81,6 +83,7 @@ from bot.ui import (
     engagement_candidate_send_markup,
     engagement_admin_home_markup,
     engagement_home_markup,
+    engagement_job_markup,
     engagement_prompt_list_markup,
     engagement_settings_markup,
     engagement_settings_lookup_markup,
@@ -93,6 +96,7 @@ from bot.ui import (
     engagement_topic_actions_markup,
     engagement_topic_pager_markup,
     encode_callback_data,
+    job_actions_markup,
     main_menu_markup,
     member_pager_markup,
     operator_cockpit_markup,
@@ -221,6 +225,28 @@ def test_engagement_target_permission_callback_data_stays_under_telegram_limit()
     assert len(data) <= 64
     assert len(confirm_data) <= 64
     assert len(approve_data) <= 64
+
+
+def test_job_actions_markup_omits_refresh_button_when_job_id_is_too_long() -> None:
+    markup = job_actions_markup("engagement_target_resolve_12345678-1234-1234-1234-123456789abc")
+
+    callbacks = _callbacks(markup)
+
+    assert ACTION_JOB_STATUS not in callbacks
+    assert ACTION_DISC_ACTIVITY in callbacks
+
+
+def test_engagement_job_markup_omits_refresh_button_when_job_id_is_too_long() -> None:
+    markup = engagement_job_markup(
+        "engagement_target_resolve_12345678-1234-1234-1234-123456789abc",
+        community_id="community-1",
+    )
+
+    callbacks = _callbacks(markup)
+
+    assert ACTION_JOB_STATUS not in callbacks
+    assert f"{ACTION_ENGAGEMENT_ACTIONS}:0" in callbacks
+    assert f"{ACTION_OPEN_COMMUNITY}:community-1" in callbacks
 
 
 def test_engagement_account_confirmation_callback_data_stays_under_telegram_limit() -> None:

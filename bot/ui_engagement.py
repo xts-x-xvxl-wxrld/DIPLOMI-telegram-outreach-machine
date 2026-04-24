@@ -720,7 +720,11 @@ def engagement_job_markup(
     community_id: str | None = None,
     candidate_id: str | None = None,
 ):
-    rows = [[_button("Refresh Job", ACTION_JOB_STATUS, job_id)]]
+    rows = []
+    try:
+        rows.append([_button("Refresh Job", ACTION_JOB_STATUS, job_id)])
+    except ValueError:
+        rows = []
     if community_id:
         rows.append([_button("Community", ACTION_OPEN_COMMUNITY, community_id)])
     if candidate_id:
