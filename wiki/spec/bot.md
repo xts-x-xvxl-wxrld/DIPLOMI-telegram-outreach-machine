@@ -28,4 +28,5 @@ Top-level routing contract for the Telegram operator UI. Command details live in
 
 - [Discovery Commands](bot/discovery-commands.md)
 - [Engagement Commands](bot/engagement-commands.md)
+- [Engagement Add Wizard](bot/engagement-add-wizard.md)
 - [Access and UX](bot/access-ux.md)

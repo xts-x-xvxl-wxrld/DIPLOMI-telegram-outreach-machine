@@ -15,11 +15,14 @@ expose what remains after collapse.
 
 ## Derived (no longer operator-facing)
 
-- `engagement_targets.allow_join`, `allow_detect`, `allow_post` — derived from the wizard's Level
-  choice and the join state. Mapping:
-  - Watching → `allow_detect=true`, `allow_join` follows current join state, `allow_post=false`.
-  - Suggesting → same as Watching plus reply queueing applied in the worker.
-  - Sending → `allow_detect=true`, `allow_post=true`, `allow_join=true`.
+- `engagement_targets.allow_join` — always `true` once Step 3 succeeds. The account's chat
+  membership is the real join state; this flag is redundant. Drop the per-Level mapping and stop
+  toggling it from the wizard.
+- `engagement_targets.allow_detect`, `allow_post` — derived from the wizard's Level choice.
+  Mapping:
+  - Watching → `allow_detect=true`, `allow_post=false`.
+  - Suggesting → `allow_detect=true`, `allow_post=false` (reply queueing applied in the worker).
+  - Sending → `allow_detect=true`, `allow_post=true`.
 - `engagement_targets.status` — operator never sees the six-state machine. The wizard transitions
   it implicitly: `RESOLVED` after Step 1, `APPROVED` after Step 5. Other states remain valid for
   backend workflow but are not presented in the wizard.

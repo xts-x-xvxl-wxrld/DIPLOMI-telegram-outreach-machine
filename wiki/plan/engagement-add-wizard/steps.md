@@ -39,9 +39,9 @@ internal effect, the success gate, skip and auto-pick rules, and failure modes.
 
 - Prompt: "Which account should engage from?"
 - Pick-or-create:
-  - Existing accounts in the ENGAGEMENT pool → list.
-  - "Add new account" → either resolve the open question on inline account creation, or hard-block
-    with a hint to use the accounts cockpit.
+  - Existing accounts in the ENGAGEMENT pool → list, with "Add new account" as the last option.
+  - "Add new account" → run phone-verification as a sub-flow inside the wizard. On success, the
+    new account joins the ENGAGEMENT pool and is preselected when control returns to Step 3.
 - Internal effect:
   1. Set `assigned_account_id` on `community_engagement_settings`.
   2. Trigger `community.join` for the community using that account.
@@ -50,11 +50,13 @@ internal effect, the success gate, skip and auto-pick rules, and failure modes.
 - Skip rules:
   - Exactly one ENGAGEMENT-pool account exists → auto-pick, still trigger join.
   - Account has already joined this community → skip the join step and advance.
+  - Engagement pool empty → skip the picker and go straight to the inline account-create sub-flow.
 - Failure modes:
-  - Account banned, restricted, or unable to join → offer another account or exit with reason.
+  - Account banned, restricted, or unable to join → offer another account or run the inline
+    account-create sub-flow.
   - FloodWait on join → show retry-after timing and let the operator retry without restarting the
     wizard.
-  - Engagement pool empty → block with a clear message pointing to the accounts cockpit.
+  - Account-create sub-flow aborts → return to the picker with no account assigned, allow retry.
 
 ## Step 4: Level
 
@@ -77,25 +79,30 @@ internal effect, the success gate, skip and auto-pick rules, and failure modes.
 
 - Prompt: a summary card showing community, attached topics, assigned account, and chosen Level.
   One primary button labeled "Start engagement."
-- Internal effect:
-  1. Flip the engagement target's `status` to `APPROVED`.
-  2. Enqueue the first `engagement.detect` job for this community.
-  3. Redirect the operator to the cockpit view for this community.
-- Success gate: target at `APPROVED`, detect job accepted by the queue.
+- Internal effect (atomic — all-or-nothing):
+  1. Enqueue the first `engagement.detect` job for this community.
+  2. Only on enqueue acceptance, flip the engagement target's `status` to `APPROVED`.
+  3. Show "Started ✓ — first results will appear in the cockpit shortly."
+  4. Redirect the operator to the cockpit view for this community.
+- Success gate: detect job accepted by the queue AND target at `APPROVED`.
 - Failure modes:
-  - Detect enqueue fails (queue down) → keep the target at `APPROVED`, render a retry button on
-    the cockpit, and surface the failure with the queue error reason.
+  - Detect enqueue fails (queue down) → leave the target at its pre-launch status, stay in the
+    wizard with a "Retry" button and the queue error reason. Operator never lands in a half-broken
+    cockpit.
 
 ## Resume Behavior
 
 - Wizard entry reads current state of the target row, settings row, account membership rows, and
   topic-community relations for this community.
-- The first incomplete step is determined as:
+- If the target is already at `APPROVED`, the wizard exits and opens the cockpit for that
+  community. A community paused via cockpit settings (mode=DISABLED) stays in cockpit world; the
+  wizard does not reopen for it.
+- Otherwise, the first incomplete step is determined as:
   1. No target row → Step 1.
   2. Target exists but no attached active topic → Step 2.
   3. No assigned account or no joined membership for that account → Step 3.
-  4. Settings mode is `DISABLED` or unset → Step 4.
-  5. Target not at `APPROVED` → Step 5.
+  4. Settings mode unset → Step 4.
+  5. All of the above satisfied → Step 5.
 - Each step is idempotent. Re-running it must not duplicate rows, re-trigger destructive
   operations, or restart already-completed join progress.
 

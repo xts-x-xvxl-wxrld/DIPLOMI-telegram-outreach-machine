@@ -77,15 +77,15 @@ notes for collapsing them in code, are in `wiki/plan/engagement-add-wizard/colla
 - `backend/services/community_engagement_settings.py:288-329` for the MVP-locked flags currently
   enforced server-side.
 
-## Open Questions
+## Resolved Decisions
 
-- Should Step 3 allow inline account creation, which pulls phone-verification UX into the wizard,
-  or should the wizard hard-block until the operator adds an engagement-pool account through the
-  existing accounts cockpit?
-- Should re-entering the wizard for a community already at `APPROVED` jump straight to that
-  community's cockpit, or offer "edit setup" as a guided recovery path?
-- Should Launch surface the first detection result inline before exiting, or hand off to the
-  cockpit immediately and rely on the cockpit's status view?
+- Step 3 supports inline account creation. Phone-verification UX runs as a sub-flow inside the
+  wizard, mirroring how Step 2 embeds topic create. Bouncing the operator to the accounts cockpit
+  breaks setup momentum.
+- Re-entering the wizard for a community already at `APPROVED` jumps straight to that community's
+  cockpit. Per-field edits live in cockpit settings; the wizard's job ends at first launch.
+- Launch hands off to the cockpit immediately with a "Started ✓" confirmation. The wizard does
+  not wait on the first detect job; the cockpit is the live status surface.
 
 ## Validation
 
