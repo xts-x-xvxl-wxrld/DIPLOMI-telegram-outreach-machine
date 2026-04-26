@@ -6,6 +6,31 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-04-26] code | Engagement add wizard (5-step guided community setup)
+
+Implemented the guided engagement add wizard per `wiki/spec/bot/engagement-add-wizard.md` and
+`wiki/plan/engagement-add-wizard/`.
+
+New files:
+- `bot/engagement_wizard_flow.py` — wizard state machine, step routing, resume logic, launch
+- `bot/engagement_commands_wizard.py` — `/add_engagement_target` command wiring
+- `bot/formatting_engagement_wizard.py` — wizard step and summary card formatters
+- `tests/test_bot_engagement_wizard.py` — 20 bot-conversation tests covering all 5 steps
+
+Key changes:
+- `ACTION_ENGAGEMENT_TARGET_ADD` callback now starts the wizard instead of legacy target create
+- `ACTION_ENGAGEMENT_WIZARD = "eng:wz"` callback namespace with admin gate
+- Wizard state stored in `PendingEditStore` using `entity="wizard"` and a `WIZARD_RETURN_STORE_KEY`
+  in bot_data for nested topic-create return
+- Topic "attachment" = `active=True` on selected topics + `flow_state['topic_ids']`; no DB migration
+- Level → mode mapping: watching→observe, suggesting→suggest, sending→require_approval
+- Permission collapse: `reply_only`/`require_approval` kept at server defaults; only `mode`,
+  `allow_join`, `allow_post` set by the wizard
+- Updated spec to clarify the pragmatic topic attachment approach
+- CI: fragmentation guardrail, ruff, and 557 pytest tests all pass
+
+---
+
 ## [2026-04-24] fix | Catch socket-level queue enqueue failures
 
 - Broadened queue error normalization so non-duplicate enqueue failures such as connection-refused

@@ -62,9 +62,13 @@ when called without an existing approved target for that community.
   - Existing topics in the topic library → multi-select.
   - "Create new" → enter the step flow from `wiki/plan/topic-create-question-flow.md`. On
     finish, return here with the new topic preselected.
-- Internal effect: attach selected topics to this community via the topic-community relation.
-  Force `active=true` on any topic the operator selects or creates.
-- Success gate: at least one active topic is attached to this community.
+- Internal effect: **No per-community topic relation exists in the database.** Topics are global
+  (`EngagementTopic` with `active` flag) and the detection worker uses all active topics.
+  "Attachment" in the wizard means storing the operator's selected topic IDs in the pending-edit
+  `flow_state['topic_ids']` and forcing `active=True` on each selected topic via the update API.
+  The launch summary card lists only the operator's selected topics for context.
+  No `community_topics` table or migration is needed.
+- Success gate: at least one topic ID in `flow_state['topic_ids']`.
 - Skip rules:
   - If the topic library is empty, skip the picker and go straight to topic create.
   - If the operator's selection matches what is already attached, advance without redoing attach.

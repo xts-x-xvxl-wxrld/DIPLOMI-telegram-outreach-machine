@@ -28,6 +28,13 @@ from .formatting_engagement_review import (
     format_engagement_candidates as format_engagement_candidates,
     format_engagement_semantic_rollout as format_engagement_semantic_rollout,
 )
+from .formatting_engagement_wizard import (
+    format_wizard_community_prompt as format_wizard_community_prompt,
+    format_wizard_topics_prompt as format_wizard_topics_prompt,
+    format_wizard_account_prompt as format_wizard_account_prompt,
+    format_wizard_level_prompt as format_wizard_level_prompt,
+    format_wizard_launch_card as format_wizard_launch_card,
+)
 
 def format_engagement_home(data: dict[str, Any]) -> str:
     counts = data.get("counts") or data

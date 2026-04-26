@@ -113,6 +113,7 @@ ACTION_ENGAGEMENT_ADMIN_LIMITS = "eng:admin:lim"
 ACTION_ENGAGEMENT_ADMIN_ADVANCED = "eng:admin:adv"
 ACTION_CONFIG_EDIT_SAVE = "eng:edit:save"
 ACTION_CONFIG_EDIT_CANCEL = "eng:edit:cancel"
+ACTION_ENGAGEMENT_WIZARD = "eng:wz"
 
 
 @dataclass(frozen=True)

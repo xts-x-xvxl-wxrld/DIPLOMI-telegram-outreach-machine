@@ -147,6 +147,9 @@ async def _handle_config_edit_text(update: Any, context: Any, raw_text: str) -> 
         }
     elif pending.entity == "topic_create":
         return await _handle_topic_create_text(update, context, pending, raw_text)
+    elif pending.entity == "wizard":
+        from bot.engagement_wizard_flow import _handle_wizard_text
+        return await _handle_wizard_text(update, context, pending, raw_text)
     elif pending.entity == "target_create":
         parsed = _parse_create_engagement_target_text(raw_text)
         if parsed is None:
@@ -183,6 +186,9 @@ async def _save_config_edit_callback(update: Any, context: Any) -> None:
     if pending.admin_only and not await _is_engagement_admin_async(update, context):
         await _callback_reply(update, ENGAGEMENT_ADMIN_ONLY_MESSAGE)
         return
+    if pending.entity == "wizard":
+        await _callback_reply(update, "Use the wizard buttons to complete setup.")
+        return
     if pending.entity == "topic_create" and (
         pending.flow_step != "confirm" or not isinstance(pending.parsed_value, dict)
     ):
@@ -193,6 +199,12 @@ async def _save_config_edit_callback(update: Any, context: Any) -> None:
         return
     data = await _save_config_edit(update, context, pending)
     store.cancel(operator_id)
+    if pending.entity == "topic_create":
+        from bot.engagement_wizard_flow import _wizard_return_pop, _wizard_resume_after_topic_create
+        wizard_state = _wizard_return_pop(context, operator_id)
+        if wizard_state is not None:
+            await _wizard_resume_after_topic_create(update, context, wizard_state, data)
+            return
     message, markup = _saved_config_edit_response(pending, data)
     await _edit_callback_message(update, message, reply_markup=markup)
 
@@ -441,6 +453,9 @@ async def _save_config_edit(update: Any, context: Any, pending: PendingEdit) -> 
             **payload,
             operator_user_id=operator_user_id,
         )
+
+    if pending.entity == "wizard":
+        raise BotApiError("Wizard state cannot be saved directly.")
 
     raise BotApiError("That edit type is not available yet.")
 

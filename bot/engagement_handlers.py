@@ -3,11 +3,13 @@ from __future__ import annotations
 
 from .engagement_commands_daily import *
 from .engagement_commands_admin import *
+from .engagement_commands_wizard import *
 from .engagement_commands_config import *
 from .engagement_targets_flow import *
 from .engagement_prompts_flow import *
 from .engagement_review_flow import *
 from .engagement_topics_flow import *
+from .engagement_wizard_flow import *
 
 __all__ = [
     "engagement_candidates_command",
@@ -125,4 +127,9 @@ __all__ = [
     "_update_topic_keywords",
     "_review_engagement_candidate",
     "_send_engagement_reply",
+    "_start_engagement_wizard",
+    "_handle_wizard_callback",
+    "_handle_wizard_text",
+    "_wizard_resume_after_topic_create",
+    "_wizard_return_pop",
 ]

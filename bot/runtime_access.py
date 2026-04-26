@@ -105,6 +105,7 @@ def _capability_cache(context: Any) -> dict[int, bool]:
 
 def _callback_action_requires_engagement_admin(action: str, parts: list[str]) -> bool:
     if action in {
+        ACTION_ENGAGEMENT_WIZARD,
         ACTION_ENGAGEMENT_ADMIN,
         ACTION_ENGAGEMENT_ADMIN_LIMITS,
         ACTION_ENGAGEMENT_ADMIN_ADVANCED,

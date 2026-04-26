@@ -47,6 +47,11 @@ from .formatting_search import (
     format_search_seed_conversion,
 )
 from .formatting_engagement import (
+    format_wizard_community_prompt,
+    format_wizard_topics_prompt,
+    format_wizard_account_prompt,
+    format_wizard_level_prompt,
+    format_wizard_launch_card,
     format_engagement_home,
     format_engagement_admin_home,
     format_engagement_admin_limits_home,
@@ -152,4 +157,9 @@ __all__ = [
     "format_engagement_candidate_card",
     "format_engagement_candidate_review",
     "format_engagement_candidate_revisions",
+    "format_wizard_community_prompt",
+    "format_wizard_topics_prompt",
+    "format_wizard_account_prompt",
+    "format_wizard_level_prompt",
+    "format_wizard_launch_card",
 ]

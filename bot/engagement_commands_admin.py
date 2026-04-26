@@ -288,32 +288,6 @@ async def engagement_target_command(update: Any, context: Any) -> None:
         await _reply(update, format_api_error(exc.message))
 
 
-async def add_engagement_target_command(update: Any, context: Any) -> None:
-    if not await _require_engagement_admin(update, context):
-        return
-    target_ref = _first_arg(context)
-    if target_ref is None:
-        await _reply(update, "Usage: /add_engagement_target <telegram_link_or_username_or_community_id>")
-        return
-    client = _api_client(context)
-    try:
-        data = await client.create_engagement_target(
-            target_ref=target_ref,
-            added_by=_reviewer_label(update),
-            operator_user_id=_telegram_user_id(update),
-        )
-    except BotApiError as exc:
-        await _reply(update, format_api_error(exc.message))
-        return
-    await _reply(
-        update,
-        "Engagement target added.\n\n" + format_engagement_target_card(data, detail=True),
-        reply_markup=engagement_target_actions_markup(
-            str(data.get("id", "unknown")),
-            status=str(data.get("status") or "pending"),
-        ),
-    )
-
 
 async def approve_engagement_target_command(update: Any, context: Any) -> None:
     if not await _require_engagement_admin(update, context):
@@ -458,7 +432,6 @@ __all__ = [
     "engagement_admin_command",
     "engagement_targets_command",
     "engagement_target_command",
-    "add_engagement_target_command",
     "approve_engagement_target_command",
     "resolve_engagement_target_command",
     "reject_engagement_target_command",

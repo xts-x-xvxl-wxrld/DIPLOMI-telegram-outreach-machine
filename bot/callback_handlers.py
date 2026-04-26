@@ -79,6 +79,7 @@ from bot.formatting import (
 )
 from bot.ui import (
     ACCOUNTS_MENU_LABEL,
+    ACTION_ENGAGEMENT_WIZARD,
     ACTION_ENGAGEMENT_ACCOUNT_CANCEL,
     ACTION_ENGAGEMENT_ACCOUNT_CONFIRM,
     ACTION_APPROVE_COMMUNITY,
@@ -351,7 +352,10 @@ async def callback_query(update: Any, context: Any) -> None:
             await _send_engagement_targets(update, context, status=status, offset=offset)
             return
         if action == ACTION_ENGAGEMENT_TARGET_ADD:
-            await _start_target_create(update, context)
+            await _start_engagement_wizard(update, context)
+            return
+        if action == ACTION_ENGAGEMENT_WIZARD:
+            await _handle_wizard_callback(update, context, parts)
             return
         if action == ACTION_ENGAGEMENT_TARGET_OPEN and len(parts) == 1:
             await _send_engagement_target(update, context, parts[0])

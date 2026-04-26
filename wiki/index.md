@@ -73,11 +73,11 @@
 - `bot/formatting.py` - compatibility exports for Telegram message formatting
 - `bot/formatting_common.py` - shared bot formatting helpers
 - `bot/formatting_discovery.py` - discovery, seed, community, account, and access message formatting
-- `bot/formatting_engagement.py`, `bot/formatting_engagement_review.py` - engagement target/admin plus candidate, action, and rollout formatting
+- `bot/formatting_engagement.py`, `bot/formatting_engagement_review.py`, `bot/formatting_engagement_wizard.py` - engagement target/admin, candidate/action/rollout, and wizard step formatting
 - `bot/main.py` - compatibility exports for the Telegram bot entrypoints
 - `bot/app.py` - Telegram application wiring and handler registration
 - `bot/runtime*.py` - shared bot context, parsing, access, config-edit, markup, and reply helpers
-- `bot/*_handlers.py`, `bot/account_onboarding.py`, `bot/formatting_accounts.py`, `bot/formatting_search.py`, `bot/ui_search.py`, `bot/engagement_commands_*.py`, `bot/engagement_*_flow.py` - split bot command, account onboarding, search, callback, and engagement workflow handlers
+- `bot/*_handlers.py`, `bot/account_onboarding.py`, `bot/formatting_accounts.py`, `bot/formatting_search.py`, `bot/ui_search.py`, `bot/engagement_commands_*.py`, `bot/engagement_*_flow.py`, `bot/engagement_wizard_flow.py`, `bot/engagement_commands_wizard.py` - split bot command, account onboarding, search, callback, engagement workflow, and 5-step add wizard handlers
 - `bot/ui.py` - compatibility exports for Telegram markups and callback constants
 - `bot/ui_common.py` - shared callback constants, fallback Telegram types, and markup helpers
 - `bot/ui_discovery.py` - operator, discovery, seed, community, member, and job markups

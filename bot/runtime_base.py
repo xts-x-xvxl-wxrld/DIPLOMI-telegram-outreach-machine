@@ -19,6 +19,11 @@ from bot.config_editing import (
     render_edit_saved,
 )
 from bot.formatting import (
+    format_wizard_community_prompt,
+    format_wizard_topics_prompt,
+    format_wizard_account_prompt,
+    format_wizard_level_prompt,
+    format_wizard_launch_card,
     format_access_denied,
     format_accounts,
     format_api_error,
@@ -77,6 +82,12 @@ from bot.formatting import (
     format_whoami,
 )
 from bot.ui import (
+    ACTION_ENGAGEMENT_WIZARD,
+    engagement_wizard_topics_markup,
+    engagement_wizard_accounts_markup,
+    engagement_wizard_level_markup,
+    engagement_wizard_launch_markup,
+    engagement_wizard_retry_markup,
     ACCOUNTS_MENU_LABEL,
     ACTION_ENGAGEMENT_ACCOUNT_CANCEL,
     ACTION_ENGAGEMENT_ACCOUNT_CONFIRM,
@@ -213,6 +224,7 @@ API_CLIENT_KEY = "api_client"
 CONFIG_EDIT_STORE_KEY = "config_edit_store"
 ACCOUNT_CONFIRM_STORE_KEY = "account_confirm_store"
 OPERATOR_CAPABILITY_CACHE_KEY = "operator_capabilities"
+WIZARD_RETURN_STORE_KEY = "wizard_return_store"
 CANDIDATE_PAGE_SIZE = 5
 CHANNEL_PAGE_SIZE = 5
 MEMBER_PAGE_SIZE = 10

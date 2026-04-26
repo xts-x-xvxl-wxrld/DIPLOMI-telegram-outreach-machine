@@ -1464,21 +1464,18 @@ async def test_engagement_target_detail_command_reads_target_without_seed_api() 
 
 
 @pytest.mark.asyncio
-async def test_add_engagement_target_command_uses_target_api_only() -> None:
+async def test_add_engagement_target_command_starts_wizard() -> None:
     client = _FakeApiClient()
     update = _message_update()
 
     await add_engagement_target_command(update, _context(client, "@newgroup"))
 
-    assert client.create_target_calls == [
-        {
-            "target_ref": "@newgroup",
-            "added_by": "telegram:123:@operator",
-            "notes": None,
-        }
-    ]
+    # Wizard resolves community via create_engagement_target API
+    assert client.create_target_calls
+    assert client.create_target_calls[0]["target_ref"] == "@newgroup"
     assert client.seed_resolution_calls == []
-    assert "Engagement target added." in update.message.replies[0]["text"]
+    # Wizard shows step 2 (topics) after successful community resolution
+    assert "Step 2 of 5: Topics" in update.message.replies[0]["text"]
 
 
 @pytest.mark.asyncio

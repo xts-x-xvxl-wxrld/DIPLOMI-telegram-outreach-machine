@@ -314,6 +314,14 @@ EDITABLE_FIELDS: dict[tuple[str, str], EditableField] = {
         requires_confirmation=True,
         admin_only=True,
     ),
+    ("wizard", "state"): EditableField(
+        entity="wizard",
+        field="state",
+        label="Engagement wizard",
+        value_type="text",
+        api_method="",
+        admin_only=True,
+    ),
     ("settings", "max_posts_per_day"): EditableField(
         entity="settings",
         field="max_posts_per_day",
