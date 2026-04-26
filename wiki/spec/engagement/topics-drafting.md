@@ -1,6 +1,6 @@
 # Engagement Topics And Drafting
 
-Topic matching, trigger selection, sample input, and prompt rules for reply opportunity drafting.
+Topic matching, trigger selection, runtime prompt assembly, and prompt rules for reply opportunity drafting.
 
 ## Topics
 
@@ -81,16 +81,16 @@ def list_active_topics(db) -> list[EngagementTopic]:
 
 ## Detection And Drafting Prompt Rules
 
-The engagement detector may use OpenAI to decide whether a message sample is a good moment for a
-reply and to draft that reply.
+The engagement detector may use OpenAI to decide whether a live message sample is a good moment for
+a reply and to draft that reply at detection time.
 
 ### Instruction Model
 
-The message-generation agent must be instructed through durable admin configuration, not ad hoc
+The reply-generation agent must be instructed through durable admin configuration, not ad hoc
 worker code. The active prompt profile is editable through the engagement bot controls, and every
 edit should create an immutable prompt-profile version before activation.
 
-Draft generation should use a lean prompt. The worker assembles the final drafting prompt from
+Draft generation should use a lean prompt. The worker assembles the final drafting prompt at runtime from
 these layers:
 
 ```text
@@ -104,8 +104,22 @@ immutable safety floor
 ```
 
 Recent public message batches may be used for opportunity detection, but they should not be dumped
-into the draft-generation prompt by default. The draft prompt should receive the minimum context
-needed to write a focused public reply.
+into the draft-generation prompt by default. The runtime prompt should receive only the minimum
+context needed to write a focused public reply.
+
+The runtime prompt input is assembled from:
+
+- community identity and description
+- topic guidance and examples
+- selected source post text
+- optional reply-context text from the same thread
+- community summary and dominant themes
+- active global/account/community/topic style rules
+- active prompt profile plus immutable safety floor
+
+The detector stores the model-produced `suggested_reply` and prompt provenance on the candidate.
+Operators may then approve it as-is or edit it into `final_reply` before send. The send worker uses
+the approved `final_reply`; it does not call OpenAI again.
 
 The operator-facing instruction controls should answer five questions:
 
@@ -179,7 +193,8 @@ Structured output:
 ```
 
 If `should_engage = false`, the worker should not create a reply opportunity unless the operator
-requested a debug trace.
+requested a debug trace. A runtime-generated reply opportunity is therefore conditional on both
+context quality and model output.
 
 Reply validation rules:
 

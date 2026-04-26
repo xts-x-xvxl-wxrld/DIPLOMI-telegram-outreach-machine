@@ -6,8 +6,8 @@ workflow, API, bot, prompt, and rollout contracts live in focused shards under `
 ## Responsibility
 
 Engagement turns approved community monitoring into human-reviewed public reply opportunities. It
-covers target permission gates, topic matching, candidate drafting, review, send orchestration, and
-audit trails.
+covers target permission gates, topic matching, runtime reply drafting from live context, review,
+send orchestration, and audit trails.
 
 ## Non-Goals
 
@@ -19,8 +19,8 @@ audit trails.
 ## Invariants
 
 - Engagement targets must be explicitly approved before collection, joining, detection, or posting.
-- Drafting may suggest replies, but public sends require an approved reply opportunity and outbound
-action audit row.
+- Drafting happens at detection time from live community/topic/source-post context and may suggest
+  replies, but public sends require an approved reply opportunity and outbound action audit row.
 - Collection stores only bounded artifacts needed for community-level matching and drafting.
 - OpenAI calls remain in `engagement.detect`; sending and scheduling do not call OpenAI.
 - Dedicated engagement account-pool routing is enforced before joins or sends.
@@ -28,8 +28,8 @@ action audit row.
 ## Interface Summary
 
 - `community.join` joins an approved engagement target with an engagement-purpose account.
-- `engagement.detect` samples recent approved-target activity, matches topics, drafts candidates,
-and notifies operators.
+- `engagement.detect` samples recent approved-target activity, matches topics, renders the active
+prompt against live context, drafts reply candidates, and notifies operators.
 - `engagement.send` revalidates approval, rate limits, and membership state before replying.
 - API routes under `backend/api/routes/engagement*.py` expose settings, topics, targets, prompts,
 style rules, candidates, actions, and rollout summaries.

@@ -38,6 +38,17 @@ Key changes:
 - Updated queue regression coverage to exercise a built-in connection error, matching the live
   target-resolve failure mode more closely.
 
+## [2026-04-26] spec | Clarified runtime-generated engagement reply model
+
+Verified from the implementation that engagement reply text is generated at detection time from
+live context, not authored as a fixed prewritten outbound message. Updated engagement, drafting,
+frontend, and bot operator cockpit specs so they describe prompt-profile-driven runtime reply
+generation, stored `suggested_reply` candidates, operator approval/edit into `final_reply`, and
+send-time use of the approved final text without a second OpenAI call. `python3
+scripts/check_fragmentation.py` passed locally; `python3 -m ruff check .` and `python3 -m pytest
+-q` could not run because the current environment does not have the `ruff` or `pytest` modules
+installed.
+
 ## [2026-04-24] fix | Normalize queue outages on engagement target resolve
 
 - Wrapped Redis/RQ enqueue failures in `backend/queue/client.py` so `engagement_target.resolve`

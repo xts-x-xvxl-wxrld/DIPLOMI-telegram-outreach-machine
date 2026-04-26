@@ -7,6 +7,8 @@ Top-level routing contract for the inline operator cockpit. Details live in `wik
 - Replace the old persistent reply keyboard with inline top-level navigation.
 - Keep discovery, engagement, accounts, and help entrypoints visible and callback-routed.
 - Maintain command compatibility while the cockpit becomes the preferred surface.
+- For engagement surfaces, route operators through review of runtime-generated reply opportunities
+  rather than treating outbound content as fixed prewritten messages.
 
 ## Code Map
 
