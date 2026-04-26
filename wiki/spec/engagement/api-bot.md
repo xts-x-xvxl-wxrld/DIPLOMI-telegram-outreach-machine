@@ -4,6 +4,9 @@ API DTO and Telegram bot surface details for engagement operator workflows.
 
 ## API Surface
 
+The implemented API and bot flow are centered on reply opportunities derived from runtime prompt
+rendering. They are not centered on pre-authored outbound engagement messages.
+
 Initial endpoints:
 
 ```http
@@ -28,6 +31,8 @@ API rules:
 - Bot and API auth remain required.
 - Engagement settings default to disabled unless explicitly created.
 - Reply opportunity approval records the approving operator.
+- Approval may accept the runtime-generated `suggested_reply` as-is or persist an operator-edited
+  `final_reply` before send.
 - The send endpoint enqueues a job; it should not call Telethon directly.
 - Target-scoped manual collection requires an approved engagement target with `allow_detect = true`
   and enqueues `collection.run`; collection-run listing exposes recent status and message counts for
@@ -143,7 +148,8 @@ The Telegram bot may expose operator controls:
 ```
 
 `/engagement_candidates` and `eng:cand:*` are legacy command/callback names. Bot copy should say
-reply opportunity.
+reply opportunity. The bot should treat `candidate` as implementation vocabulary and `reply
+opportunity` as operator vocabulary.
 
 Inline review cards should show:
 
@@ -151,10 +157,13 @@ Inline review cards should show:
 - matched topic
 - capped source excerpt
 - suggested reply
+- current `final_reply` when it differs from the suggestion
+- approval / review state and deadlines
 - approve/send button
 - reject button
 
-Editing suggested replies may be added after the basic approve/reject flow.
+Editing is part of the current workflow contract: operators may edit the generated suggestion into a
+durable `final_reply` before approval or send.
 
 Bot callback contract:
 

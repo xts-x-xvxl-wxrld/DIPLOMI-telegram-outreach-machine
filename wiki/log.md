@@ -49,6 +49,10 @@ scripts/check_fragmentation.py` passed locally; `python3 -m ruff check .` and `p
 -q` could not run because the current environment does not have the `ruff` or `pytest` modules
 installed.
 
+Followed up by tightening the bot engagement and engagement API/bot shards so the operator workflow
+is described as Telegram-native review of runtime-generated reply opportunities, with explicit
+`suggested_reply` to `final_reply` review/edit/send steps instead of campaign-style message authoring.
+
 ## [2026-04-24] fix | Normalize queue outages on engagement target resolve
 
 - Wrapped Redis/RQ enqueue failures in `backend/queue/client.py` so `engagement_target.resolve`

@@ -10,6 +10,10 @@ Give operators a compact Telegram bot surface for reviewing reply opportunities,
 engagement targets, editing prompt/style configuration, and inspecting readiness before any public
 reply is sent.
 
+The current implementation is bot-first and opportunity-first. Operators are not configuring
+campaign-style outbound messages ahead of time; they are reviewing runtime-generated reply
+opportunities, approving or editing `final_reply`, and then sending audited public replies.
+
 ## Goals
 
 - Keep daily engagement review fast and low-noise.
@@ -32,6 +36,12 @@ callbacks.
 - Conversation-state edits are registered in `bot/config_editing.py` and confirmed through
 `eng:edit:*` callbacks.
 - Formatting and markup are split into `bot/formatting_engagement.py` and `bot/ui_engagement.py`.
+
+Daily review should consistently expose these operator decisions:
+
+- Is this reply opportunity worth taking?
+- Is the suggested reply safe and useful?
+- Does the operator want to approve as-is, edit into `final_reply`, reject, expire, or send?
 
 ## Code Map
 
