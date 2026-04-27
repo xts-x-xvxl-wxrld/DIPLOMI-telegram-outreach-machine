@@ -39,13 +39,31 @@ Worker gates:
 - `engagement.detect` requires an approved target with `allow_detect = true`.
 - `engagement.send` requires an approved target with `allow_post = true`.
 
-### `community_engagement_settings`
+### `engagements`
 
-Per-community engagement controls. Absence of a row means engagement is disabled.
+First-class operator engagement records.
+
+```sql
+id                    uuid PRIMARY KEY
+target_id             uuid NOT NULL REFERENCES engagement_targets(id)
+community_id          uuid NOT NULL REFERENCES communities(id)
+status                text NOT NULL DEFAULT 'draft'
+                      -- draft | active | paused | archived
+name                  text
+created_by            text NOT NULL
+created_at            timestamptz NOT NULL DEFAULT now()
+updated_at            timestamptz NOT NULL DEFAULT now()
+
+UNIQUE (target_id)
+```
+
+### `engagement_settings`
+
+Per-engagement controls. Absence of a row means the engagement is disabled.
 
 ```sql
 id                         uuid PRIMARY KEY
-community_id               uuid NOT NULL REFERENCES communities(id)
+engagement_id              uuid NOT NULL REFERENCES engagements(id)
 mode                       text NOT NULL DEFAULT 'suggest'
                            -- disabled | observe | suggest | require_approval | auto_limited
 allow_join                 boolean NOT NULL DEFAULT false
@@ -60,7 +78,20 @@ assigned_account_id        uuid REFERENCES telegram_accounts(id)
 created_at                 timestamptz NOT NULL DEFAULT now()
 updated_at                 timestamptz NOT NULL DEFAULT now()
 
-UNIQUE (community_id)
+UNIQUE (engagement_id)
+```
+
+### `engagement_topic_selections`
+
+Selected topics per engagement.
+
+```sql
+id                   uuid PRIMARY KEY
+engagement_id        uuid NOT NULL REFERENCES engagements(id)
+topic_id             uuid NOT NULL REFERENCES engagement_topics(id)
+created_at           timestamptz NOT NULL DEFAULT now()
+
+UNIQUE (engagement_id, topic_id)
 ```
 
 ### `community_account_memberships`

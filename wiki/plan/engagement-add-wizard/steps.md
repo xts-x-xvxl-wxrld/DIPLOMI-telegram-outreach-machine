@@ -4,7 +4,7 @@ Detailed step contracts for the engagement add wizard described in
 `wiki/plan/engagement-add-wizard/overview.md`. Each step lists its operator-facing prompt, the
 internal effect, the success gate, skip and auto-pick rules, and failure modes.
 
-## Step 1: Community
+## Step 1: Target
 
 - Prompt: "Which community? Paste @handle or t.me/... link."
 - Internal effect: resolve via the existing engagement target intake. If no engagement target row
@@ -18,7 +18,7 @@ internal effect, the success gate, skip and auto-pick rules, and failure modes.
     target row is created.
   - Operator pastes an invalid string → re-prompt without state changes.
 
-## Step 2: Topic(s)
+## Step 2: Topic
 
 - Prompt: "Pick at least one topic the bot should watch for."
 - Pick-or-create:
@@ -58,57 +58,63 @@ internal effect, the success gate, skip and auto-pick rules, and failure modes.
     wizard.
   - Account-create sub-flow aborts → return to the picker with no account assigned, allow retry.
 
-## Step 4: Level
+## Step 4: Sending Mode
 
-- Prompt: "How active should this engagement be?"
-- Choices (single-select radio):
-  - **Watching** — detect only, never queue replies.
-  - **Suggesting** (default) — queue replies for operator review, do not send automatically.
-  - **Sending** — post approved replies after operator review.
+- Prompt: "How should sending work?"
+- Choices:
+  - `Draft` (default) — create draft replies for operator approval.
+  - `Auto send` — allow capped automatic sends after setup.
 - Internal effect: write the corresponding engagement mode to
-  `community_engagement_settings.mode`. Drop redundant per-action and MVP-locked flags as described
-  in `wiki/plan/engagement-add-wizard/collapse.md`.
+  `community_engagement_settings.mode`. Drop redundant per-action and MVP-locked
+  flags as described in `wiki/plan/engagement-add-wizard/collapse.md`.
 - Mode mapping (canonical):
-  - Watching → `OBSERVE`
-  - Suggesting → `SUGGEST`
-  - Sending → `REQUIRE_APPROVAL`
-- Success gate: settings row records the chosen Level via the mapped mode.
-- Skip rules: none. The operator must pick one Level.
+  - `Draft` → `SUGGEST`
+  - `Auto send` → `AUTO_LIMITED`
+- Derived flags:
+  - `Draft` → `allow_detect=true`, `allow_post=false`
+  - `Auto send` → `allow_detect=true`, `allow_post=true`
+- Success gate: settings row records the chosen sending mode.
+- Skip rules: none.
+- Rule: no detect-only option exists in the wizard.
+- Implementation requirement: MVP validation currently rejects `AUTO_LIMITED`;
+  that guard must be removed in the same slice that ships `Auto send`.
 
-## Step 5: Launch
+## Step 5: Final Review
 
-- Prompt: a summary card showing community, attached topics, assigned account, and chosen Level.
-  One primary button labeled "Start engagement."
+- Prompt: a read-only summary card showing target, selected topics, account, and
+  chosen sending mode.
+- Actions:
+  - `Confirm`
+  - `Cancel`
+  - `Retry`
 - Internal effect (atomic — all-or-nothing):
   1. Enqueue the first `engagement.detect` job for this community.
   2. Only on enqueue acceptance, flip the engagement target's `status` to `APPROVED`.
   3. Show "Started ✓ — first results will appear in the cockpit shortly."
-  4. Redirect the operator to the cockpit view for this community.
+  4. Redirect the operator to the engagement detail view for this community.
 - Success gate: detect job accepted by the queue AND target at `APPROVED`.
 - Failure modes:
-  - Detect enqueue fails (queue down) → leave the target at its pre-launch status, stay in the
-    wizard with a "Retry" button and the queue error reason. Operator never lands in a half-broken
-    cockpit.
+  - Detect enqueue fails (queue down) → leave the target at its pre-review
+    status, stay on final review, and show the queue error.
+- Behavior:
+  - `Retry` restarts the wizard from Step 1.
+  - `Cancel` requires confirmation before discard.
 
-## Resume Behavior
+## Start-Again Behavior
 
-- Wizard entry reads current state of the target row, settings row, account membership rows, and
-  topic-community relations for this community.
-- If the target is already at `APPROVED`, the wizard exits and opens the cockpit for that
-  community. A community paused via cockpit settings (mode=DISABLED) stays in cockpit world; the
-  wizard does not reopen for it.
-- Otherwise, the first incomplete step is determined as:
-  1. No target row → Step 1.
-  2. Target exists but no attached active topic → Step 2.
-  3. No assigned account or no joined membership for that account → Step 3.
-  4. Settings mode unset → Step 4.
-  5. All of the above satisfied → Step 5.
-- Each step is idempotent. Re-running it must not duplicate rows, re-trigger destructive
-  operations, or restart already-completed join progress.
+- `Add engagement` always starts at Step 1.
+- The wizard does not reopen abandoned setup where it left off.
+- Temporary wizard state is cleared on fresh entry.
+- Durable rows created in a previous attempt may still be reused safely once the
+  operator chooses the same target again.
+- Editing an existing engagement is separate:
+  - it reopens the full wizard with prefilled values
+  - it jumps to the tapped step
+  - it still allows backward navigation
 
 ## Cancellation
 
 - `/cancel_edit` is active throughout the wizard, matching the topic create flow precedent.
-- Cancellation leaves any partial state in place (target row at `RESOLVED`, attached topics,
-  assigned account if already joined). Re-entry resumes from the first incomplete step.
+- Cancellation may leave durable rows in place, but abandoned setup is not
+  treated as resumable flow state.
 - Cancellation never triggers `APPROVED`. A cancelled wizard cannot start engagement.

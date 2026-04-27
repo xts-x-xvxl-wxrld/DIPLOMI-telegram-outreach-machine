@@ -179,6 +179,287 @@ Inside the wizard:
 Using `<< Engagements` outside the wizard should leave immediately without an
 extra warning.
 
+## Callback Namespace And Screen Routing
+
+Use `op:*` for home-entry actions and `eng:*` for engagement surfaces.
+
+Top-level home callbacks:
+
+- `op:home` → `Engagements`
+- `op:approve` → `Approve draft`
+- `op:issues` → `Top issues`
+- `op:engs` → `My engagements`
+- `op:sent` → `Sent messages`
+- `op:add` → `Add engagement`
+
+These are the only callbacks the home screen should emit.
+
+Surface families:
+
+- `eng:appr` — draft approval queue controller
+- `eng:iss` — issue queue controller
+- `eng:mine` — engagement list
+- `eng:det` — engagement detail
+- `eng:sent` — sent-message feed
+- `eng:wz` — add/edit wizard
+
+Keep each family to one two-segment callback action and put the verb in
+callback parts. This matches the existing callback parser and keeps payloads
+short enough for Telegram.
+
+Primary routing:
+
+- `op:approve` and the home draft preview both route to `eng:appr:list:0`
+- `op:issues` and the home issue preview both route to `eng:iss:list:0`
+- `op:engs` routes to `eng:mine:list:0`
+- `op:sent` routes to `eng:sent:list:0`
+- `op:add` routes to `eng:wz:start`
+
+Approval callbacks:
+
+- `eng:appr:list:<offset>` — queue controller screen titled `Approve draft`
+- `eng:appr:eng:<engagement_id>` — scoped approval queue for one engagement
+- `eng:appr:open:<draft_id>` — reopen a specific draft card
+- `eng:appr:ok:<draft_id>` — request approve confirmation
+- `eng:appr:okc:<draft_id>` — confirm approve
+- `eng:appr:no:<draft_id>` — request reject confirmation
+- `eng:appr:noc:<draft_id>` — confirm reject
+- `eng:appr:edit:<draft_id>` — start draft edit flow
+
+Approval routing rules:
+
+- `eng:appr:list:<offset>` is the queue controller, not a separate archive list
+- `eng:appr:eng:<engagement_id>` is the same controller shape, filtered to one
+  engagement
+- after approve, reject, or completed edit, route back to `eng:appr:list:0`
+- if an edit flow exits early, return to `eng:appr:open:<draft_id>`
+- when a scoped approval flow launched from engagement detail finishes, return to
+  `eng:det:open:<engagement_id>`
+
+Issue callbacks:
+
+- `eng:iss:list:<offset>` — queue controller screen titled `Top issues`
+- `eng:iss:eng:<engagement_id>` — scoped issue queue for one engagement
+- `eng:iss:open:<issue_id>` — reopen a specific issue card
+- `eng:iss:skip:<issue_id>` — mark skipped and advance
+- `eng:iss:act:<issue_id>:<action_key>` — launch a concrete fix path
+
+Issue action keys should stay short. Examples:
+
+- `chtopic`
+- `crtopic`
+- `chacct`
+- `resume`
+- `retry`
+- `apptgt`
+- `rsvtgt`
+- `fixperm`
+- `ratelimit`
+- `quiet`
+- `swapacct`
+
+Issue routing rules:
+
+- `eng:iss:list:<offset>` is the queue controller for one-by-one issue work
+- `eng:iss:eng:<engagement_id>` is the same controller shape, filtered to one
+  engagement
+- successful fixes return to `eng:iss:list:0`
+- early exit from a fix flow returns to `eng:iss:open:<issue_id>`
+- skipped issues stay unresolved but the controller still advances
+- when a scoped issue flow launched from engagement detail finishes, return to
+  `eng:det:open:<engagement_id>`
+
+My-engagement callbacks:
+
+- `eng:mine:list:<offset>` — `My engagements`
+- `eng:mine:open:<engagement_id>` — open engagement detail
+
+Engagement-detail callbacks:
+
+- `eng:det:open:<engagement_id>` — detail screen
+- `eng:det:resume:<engagement_id>` — resume the primary pending task
+- `eng:det:edit:<engagement_id>:topic` — reopen wizard at topic step
+- `eng:det:edit:<engagement_id>:account` — reopen wizard at account step
+- `eng:det:edit:<engagement_id>:mode` — reopen wizard at sending-mode step
+
+Sent-message callbacks:
+
+- `eng:sent:list:<offset>` — read-only sent-message feed
+
+No row-open callback is needed for `Sent messages` in the first version.
+
+Wizard integration:
+
+- `eng:wz:start`
+- `eng:wz:edit:<engagement_id>:topic`
+- `eng:wz:edit:<engagement_id>:account`
+- `eng:wz:edit:<engagement_id>:mode`
+
+Issue actions such as `Choose topic` and `Choose account` should route through
+`eng:wz`, not through separate one-off subflows.
+
+Return-context rule:
+
+- when a draft edit flow or issue fix flow must return to the same item on early
+  exit, store that return target in pending state rather than encoding a history
+  stack in callback data
+- returning home always uses `op:home`
+
+## Data Contract
+
+The task-first cockpit should use explicit read-model payloads instead of
+forcing the bot to merge multiple legacy candidate, target, action, and
+settings responses on every screen.
+
+Required read models:
+
+- home summary
+- approval queue controller
+- issue queue controller
+- engagement list
+- engagement detail
+- sent-message feed
+
+Home payload must include:
+
+- `state`
+  one of: `first_run`, `approvals`, `issues`, `clear`
+- `draft_count`
+- `issue_count`
+- `active_engagement_count`
+- `has_sent_messages`
+- `next_draft_preview`
+  with draft ID, draft text preview, target label, why text, and `updated` flag
+- `latest_issue_preview`
+  with issue ID, issue label, engagement ID, created-at timestamp, and optional
+  badge label
+
+Approval queue payload must include:
+
+- `queue_count`
+- `updating_count`
+- `current`
+  either the current draft card or `null`
+- `placeholders`
+  ordered `Updating draft` placeholders when replacements are still pending
+- `empty_state`
+  one of: `none`, `waiting_for_updates`, `no_drafts`
+
+Current draft card must include:
+
+- draft ID
+- engagement ID
+- target label
+- draft text
+- why text
+- optional badge label
+
+Issue queue payload must include:
+
+- `queue_count`
+- `current`
+  either the current issue card or `null`
+- `empty_state`
+  one of: `none`, `no_issues`
+
+Current issue card must include:
+
+- issue ID
+- engagement ID
+- issue type
+- issue label
+- created-at timestamp
+- optional badge label
+- zero or more fix actions
+- the domain IDs needed to resolve those actions safely
+  such as candidate ID, target ID, community ID, and assigned account ID when
+  applicable
+
+Each fix action must include:
+
+- `action_key`
+- label
+- destination callback family
+
+Issue mutations should not force the bot to construct low-level permission or
+status patches.
+
+Use one semantic issue-action layer:
+
+- `POST /api/engagement/cockpit/issues/{issue_id}/actions/{action_key}`
+
+Allowed mutation results:
+
+- `resolved`
+- `next_step`
+- `noop`
+- `stale`
+- `blocked`
+
+The bot should route from the mutation result, not from inferred backend state.
+
+Engagement list payload must include:
+
+- ordered items newest first
+- each row's engagement ID
+- primary row label
+- community label
+- sending-mode badge label
+- issue-count badge value when non-zero
+- pending-task summary when present
+
+Engagement detail payload must include:
+
+- engagement ID
+- target label
+- topic label
+- account label
+- sending mode label
+- approval count
+- issue count
+- optional pending task object
+
+Pending task object must include:
+
+- `task_kind`
+- label
+- count
+- resume callback target
+
+Allowed `task_kind` values:
+
+- `approvals`
+- `approval_updates`
+- `issues`
+
+Pending-task priority on engagement detail:
+
+1. `approvals`
+2. `approval_updates`
+3. `issues`
+
+Only one primary pending task should surface on engagement detail even when
+multiple kinds exist. Lower-priority work remains visible only through counts.
+
+Sent-message payload must include:
+
+- ordered items newest first
+- action ID or sent-message ID
+- message text
+- community label
+- absolute send time in the operator's local timezone
+
+The same task-first screen should not have to infer these fields from unrelated
+low-level endpoints.
+
+Issue-fix mutation rules:
+
+- direct one-tap fixes should resolve inside the issue-action endpoint
+- guided fixes should return `next_step` with the next callback target
+- informational actions such as rate-limit detail may return `next_step` without
+  mutating anything
+- stale issues should return `stale` so the queue can refresh immediately
+
 ## Draft Approval Flow
 
 Entry:
@@ -270,20 +551,106 @@ Do not include broader plausible-but-unconfirmed operational issues yet.
 
 Do not use broad umbrella issue labels when a more exact split is available.
 
+## Issue Generation Contract
+
+The backend must generate cockpit issues from explicit state rules, not from UI
+guesswork.
+
+Storage model:
+
+- the backend may materialize issues in a table or synthesize them on read
+- behavior must be the same either way
+
+Core rules:
+
+- generate exact issue types, not umbrellas
+- allow at most one active issue of a given type per engagement
+- when an issue condition changes from false to true, create or surface that
+  issue with a fresh `created_at`
+- when the condition becomes false, remove the issue immediately from all read
+  models
+- if the same condition becomes true again later, it is a new issue with a new
+  `created_at`
+- `Top issues` ordering stays newest first by issue `created_at`
+
+Generation conditions:
+
+- `Topics not chosen`
+  emit when a completed engagement has zero chosen topics in the engagement
+  read model
+
+- `Account not connected`
+  emit when the engagement has no usable joined engagement account
+
+- `Sending is paused`
+  emit when the engagement is explicitly paused or disabled and would otherwise
+  be eligible to run
+
+- `Reply expired`
+  emit when a reply opportunity tied to the engagement reaches `expired` while
+  still unresolved from the operator's point of view
+
+- `Reply failed`
+  emit when a reply opportunity tied to the engagement reaches `failed` and is
+  retryable
+
+- `Target not approved`
+  emit when the engagement's target exists but is not approved
+
+- `Target not resolved`
+  emit when the engagement's target intake has not resolved to a usable
+  community
+
+- `Community permissions missing`
+  emit when the target/settings permission state does not satisfy what the
+  engagement's current sending mode requires
+
+- `Rate limit active`
+  emit when account or send limits currently block a real engagement action for
+  that engagement
+
+- `Quiet hours active`
+  emit when quiet hours currently block a real engagement action for that
+  engagement
+
+- `Account restricted`
+  emit when the assigned or selected engagement account is banned, restricted,
+  or otherwise unusable for the engagement
+
+Do not emit passive non-actionable issues:
+
+- do not emit `Rate limit active` when no real action is currently blocked
+- do not emit `Quiet hours active` when no real action is currently blocked
+- do not emit duplicate issues that differ only by backend source
+
+Issue payloads should carry the domain IDs needed for safe mutation:
+
+- `engagement_id`
+- `candidate_id` when the issue comes from a reply opportunity
+- `target_id` when the issue comes from target state
+- `community_id` when the issue comes from engagement settings or membership
+- `assigned_account_id` when the issue is account-specific
+
 Confirmed issue types and actions:
 
 - `Topics not chosen`
   Actions:
   `Choose topic`
   `Create topic`
+  Mutation handling:
+  return `next_step` into the wizard topic step
 
 - `Account not connected`
   Action:
   `Choose account`
+  Mutation handling:
+  return `next_step` into the wizard account step
 
 - `Sending is paused`
   Action:
   `Resume sending`
+  Mutation handling:
+  resolve directly through a semantic resume-sending mutation
 
 - `Reply expired`
   Action:
@@ -292,30 +659,200 @@ Confirmed issue types and actions:
 - `Reply failed`
   Action:
   `Retry`
+  Mutation handling:
+  resolve directly through candidate retry
 
 - `Target not approved`
   Action:
   `Approve target`
+  Mutation handling:
+  resolve directly through target approval
 
 - `Target not resolved`
   Action:
   `Resolve target`
+  Mutation handling:
+  resolve directly through target resolve-job enqueue
 
 - `Community permissions missing`
   Action:
   `Fix permissions`
+  Mutation handling:
+  resolve directly through a semantic permission-sync mutation
 
 - `Rate limit active`
   Action:
   `See rate limit`
+  Mutation handling:
+  return `next_step` into read-only rate-limit detail
 
 - `Quiet hours active`
   Action:
   `Change quiet hours`
+  Mutation handling:
+  return `next_step` into quiet-hours editing
 
 - `Account restricted`
   Action:
   `Choose another account`
+  Mutation handling:
+  return `next_step` into the wizard account step
+
+## Issue-Fix Subflow Screens
+
+Not every issue action needs its own screen.
+
+Direct-mutation actions should not open an intermediate subflow screen:
+
+- `Resume sending`
+- `Retry`
+- `Approve target`
+- `Resolve target`
+- `Fix permissions`
+
+These should execute their semantic backend mutation immediately and then return
+to the issue queue controller.
+
+Wizard-entry issue actions:
+
+- `Choose topic`
+- `Create topic`
+- `Choose account`
+- `Choose another account`
+
+These should enter the existing engagement wizard with stored return context so
+early exit returns to the same issue card.
+
+Rate-limit detail screen:
+
+- callback family: `eng:rate`
+- title: `Rate limit active`
+- body:
+  - affected target or engagement
+  - blocked account label when available
+  - short plain-language reason
+  - next retry time in the operator's local timezone when available
+- actions:
+  - `Back`
+  - `<< Engagements`
+
+Rules:
+
+- this is read-only in the first version
+- exiting with `Back` returns to the same issue card
+
+Quiet-hours editor screen:
+
+- callback family: `eng:quiet`
+- title: `Change quiet hours`
+- body:
+  - current quiet-hours range
+  - short explanation that quiet hours are blocking the engagement right now
+- actions:
+  - `Edit start`
+  - `Edit end`
+  - `Turn off quiet hours`
+  - `Save`
+  - `Cancel`
+
+Rules:
+
+- open this screen prefilled with the engagement's current quiet-hours values
+- `Cancel` exits back to the same issue card with no mutation
+- successful save returns to the issue queue controller
+- `Turn off quiet hours` is equal-weight with editing the range
+
+Scoped return rule:
+
+- any issue-launched subflow must store enough return context to reopen the same
+  issue card on early exit
+- successful completion should return to the issue queue controller instead
+  unless the subflow is explicitly read-only
+
+## Confirmation And Result Copy
+
+Keep confirmations and result messages short.
+
+Confirmation rules:
+
+- require confirmation for `Approve`
+- require confirmation for `Reject`
+- require confirmation for wizard `Cancel`
+- do not require confirmation for direct issue fixes in the first version
+- do not require confirmation for quiet-hours `Save`
+
+Confirmation copy:
+
+- `Approve this draft?`
+- `Reject this draft?`
+- `Cancel setup?`
+
+Confirm/cancel button labels:
+
+- draft approve confirm:
+  `Approve` and `Cancel`
+- draft reject confirm:
+  `Reject` and `Cancel`
+- wizard cancel confirm:
+  `Confirm cancel` and `Back`
+
+Success copy:
+
+- draft approve:
+  `Draft approved`
+- draft reject:
+  `Draft rejected`
+- direct issue fix:
+  `Issue resolved`
+- resume sending:
+  `Sending resumed`
+- reply retry:
+  `Reply reopened`
+- target approve:
+  `Target approved`
+- target resolve enqueue:
+  `Target resolution started`
+- permission sync:
+  `Permissions fixed`
+- quiet-hours save:
+  `Quiet hours updated`
+- quiet-hours off:
+  `Quiet hours turned off`
+- wizard confirm:
+  `Engagement started`
+- wizard cancel:
+  `Setup canceled`
+
+Error copy:
+
+- draft approve:
+  `Couldn't approve draft`
+- draft reject:
+  `Couldn't reject draft`
+- direct issue fix:
+  `Couldn't resolve issue`
+- resume sending:
+  `Couldn't resume sending`
+- reply retry:
+  `Couldn't reopen reply`
+- target approve:
+  `Couldn't approve target`
+- target resolve enqueue:
+  `Couldn't start target resolution`
+- permission sync:
+  `Couldn't fix permissions`
+- quiet-hours save:
+  `Couldn't update quiet hours`
+- wizard confirm:
+  `Couldn't start engagement`
+
+Result-message rules:
+
+- success and error messages should be one short line
+- avoid backend codes in operator-facing copy
+- when a queue auto-advances immediately after success, the success line may be
+  shown briefly before the next card replaces it
+- read-only subflows such as `Rate limit active` do not need a result message
 
 ## Add Engagement Wizard
 
@@ -415,6 +952,15 @@ If there is no pending task:
 
 - no main action is needed yet
 
+Pending-task rules:
+
+- the detail screen should expose at most one primary pending-task action
+- if multiple task kinds exist, use the priority order defined above
+- use `Approve draft` for `approvals` and `approval_updates`
+- use `Top issues` for `issues`
+- scoped pending-task actions launched from detail should return to the same
+  detail screen when their queue is exhausted
+
 Editable fields:
 
 - topic
@@ -439,6 +985,110 @@ Each row should show:
 - absolute send time
 
 Use the same `Back` plus `<< Engagements` navigation pattern.
+
+## Display Contract
+
+Keep all secondary screens short and operator-readable.
+
+### Approve Draft
+
+Card shape:
+
+- optional badge line
+- draft text
+- `Target: <target label>`
+- `Why: <why text>`
+
+Rules:
+
+- show the badge `Updated draft` above the draft text when applicable
+- do not repeat the draft count inside the card body when the screen already
+  shows queue context
+- keep `why` to one short line when possible
+
+Queue states:
+
+- if only updating placeholders remain: `Waiting for updated drafts`
+- if no drafts remain at all: `No drafts for approval`
+
+### Top Issues
+
+Card shape:
+
+- optional badge line
+- issue label
+- `Target: <target label>`
+- optional short context line when needed
+- created-at timestamp in the operator's local timezone
+
+Rules:
+
+- show the badge `Skipped before` above the issue label when applicable
+- keep context to one short line; do not dump backend diagnostics into the main
+  card
+- use the exact issue label as the main card title
+
+Empty state:
+
+- `No issues`
+
+### My Engagements
+
+Row shape:
+
+- line 1: primary label
+- line 2: community label
+- badges after the text, not inline inside it
+
+Primary label rules:
+
+- use engagement name when it exists
+- otherwise use topic name
+
+Badge rules:
+
+- first badge: sending mode
+- second badge: issue count, only when non-zero
+- issue-count badge text should be `1 issue` or `<n> issues`
+
+Empty state:
+
+- `No engagements`
+
+### Engagement Detail
+
+Body shape:
+
+- `Target: <target label>`
+- `Topic: <topic label>`
+- `Account: <account label>`
+- `Sending mode: <mode label>`
+- `Approvals: <count>`
+- `Issues: <count>`
+
+Rules:
+
+- keep this screen read-focused; editable fields open the wizard instead of
+  exposing inline controls
+- if a primary pending-task action exists, it should be the only main action
+
+### Sent Messages
+
+Row shape:
+
+- line 1-2: message text
+- next line: community label
+- next line: absolute send time in the operator's local timezone
+
+Rules:
+
+- message text may wrap to two lines before truncation
+- truncate the message text before truncating community or time
+- do not add a separate detail screen in the first version
+
+Empty state:
+
+- `No sent messages`
 
 ## Badge Convention
 

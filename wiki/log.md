@@ -1279,3 +1279,82 @@ while preserving the staged testing contract.
 - Replaced `wiki/spec/bot-operator-cockpit-v2.md` with a short superseded stub so historical links still resolve without leaving two competing cockpit directions active.
 - Updated cockpit-experience and simplification companion references to point at the new task-first engagement cockpit shard instead of v2.
 - Kept shared attention and navigation rules intact while removing the remaining active wording that treated v2 as the current home-dashboard source of truth.
+
+## [2026-04-27] docs | Make task-first cockpit shard authoritative
+
+- Marked `wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md` as the sole active UX source of truth for the engagement cockpit.
+- Narrowed `wiki/spec/bot-cockpit-experience.md` so it no longer defines competing home, navigation, or wizard-topology rules.
+- Superseded the older combined `Needs attention` and `Home` footer contract in `wiki/spec/bot-cockpit-experience/attention-and-navigation.md`.
+- Added an explicit override note to `wiki/spec/bot/engagement-add-wizard.md` so older wizard terms cannot silently overrule the newer cockpit contract.
+
+## [2026-04-27] docs | Rewrite engagement wizard around two sending modes
+
+- Rewrote `wiki/spec/bot/engagement-add-wizard.md` around the active task-first cockpit contract: `Target -> Topic -> Account -> Sending mode -> Final review`.
+- Removed the old `Watching` / `Suggesting` / `Sending` wizard model and the detect-only setup path from the operator-facing flow.
+- Defined the new operator-facing sending modes as `Draft` and `Auto send`, with `Draft` as the default and `Auto send` mapped to backend `auto_limited`.
+- Locked `Auto send` as an immediate feature rather than a deferred one, so the implementation slice must remove the current backend guard that rejects `auto_limited`.
+- Changed abandoned setup behavior from wizard resume to fresh restart, while still allowing idempotent reuse of durable backend rows behind the scenes.
+- Aligned the engagement wizard plan shards and the active simplification notes with the new sending-mode wording.
+
+## [2026-04-27] docs | Add explicit task-first cockpit callback contract
+
+- Added an explicit callback namespace and screen-routing section to `wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md`.
+- Defined the home-entry callbacks under `op:*` and the task-first surface families under `eng:*`.
+- Documented the concrete routing contract for `Approve draft`, `Top issues`, `My engagements`, `Sent messages`, engagement detail, and wizard edit-entry points.
+- Made early-exit return behavior explicit by requiring stored return context for draft-edit and issue-fix subflows.
+
+## [2026-04-27] docs | Add task-first cockpit data contract
+
+- Added a task-first cockpit data-contract section to `wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md`.
+- Defined the required read models for home, approvals, issues, engagement list, engagement detail, and sent messages.
+- Added matching API read-model endpoint contracts to `wiki/spec/api/engagement.md` under `/api/engagement/cockpit/*`.
+- Kept legacy candidate, target, settings, and action endpoints as the mutation and low-level detail path while moving the main operator surfaces to explicit read models.
+
+## [2026-04-27] docs | Add issue-fix mutation contract
+
+- Added a semantic issue-action mutation layer to the task-first cockpit spec and API contract.
+- Defined `POST /api/engagement/cockpit/issues/{issue_id}/actions/{action_key}` with `resolved`, `next_step`, `noop`, `stale`, and `blocked` results.
+- Mapped each confirmed issue action either to a direct backend mutation or to a guided next-step flow such as the wizard or quiet-hours editor.
+- Added recommended semantic helper mutations for target approval, resume sending, and permission sync so the bot does not construct raw low-level permission/status patches.
+
+## [2026-04-27] docs | Define engagement-detail pending task contract
+
+- Defined `pending_task` on engagement detail as a strict computed object instead of a loose hint.
+- Added pending-task priority rules: `approvals` first, then `approval_updates`, then `issues`.
+- Added scoped queue callbacks such as `eng:appr:eng:<engagement_id>` and `eng:iss:eng:<engagement_id>` so detail can resume work for one engagement and return back to that detail screen on completion.
+- Aligned the API detail DTO so it returns `task_kind`, stable labels, scoped counts, and a scoped `resume_callback`.
+
+## [2026-04-27] docs | Add display contract for secondary task-first screens
+
+- Added explicit row/card display rules to `wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md`.
+- Defined exact body shapes, badge placement, truncation rules, and empty-state copy for `Approve draft`, `Top issues`, `My engagements`, `Engagement detail`, and `Sent messages`.
+- Kept the secondary-screen copy short and operator-readable while preventing backend diagnostics from leaking into the default card layouts.
+
+## [2026-04-27] docs | Define task-first issue-generation rules
+
+- Added an explicit issue-generation contract to the task-first cockpit spec.
+- Defined how each confirmed issue type is derived from engagement, target, candidate, account, and settings state.
+- Added de-duplication, removal, and recurrence rules so issues behave as stable read-model items instead of ad hoc UI guesses.
+- Mirrored the same derivation rules into the cockpit issues API contract.
+
+## [2026-04-27] docs | Make engagement a first-class backend entity
+
+- Defined `engagement` as a first-class backend entity instead of treating the cockpit as community-only state plus global topics.
+- Updated the wizard spec so setup creates or reuses an engagement record and writes topic/account/mode choices against that engagement.
+- Added `engagements`, `engagement_settings`, and `engagement_topic_selections` to the storage docs.
+- Added engagement-scoped write-path direction to the API spec and marked older community-scoped settings routes as legacy compatibility.
+- Updated core lifecycle and settings docs so `auto_limited` is part of the active mode model rather than a permanently rejected future placeholder.
+
+## [2026-04-27] docs | Define issue-fix subflow screens
+
+- Defined which issue actions mutate immediately versus which enter a subflow.
+- Added read-only `Rate limit active` detail-screen rules and editable `Change quiet hours` screen rules.
+- Routed topic/account-related issue fixes through the existing engagement wizard with explicit return-context behavior.
+- Kept direct fixes such as `Retry`, `Resume sending`, `Approve target`, `Resolve target`, and `Fix permissions` as no-intermediate-screen actions.
+
+## [2026-04-27] docs | Define confirmation and result copy
+
+- Added a dedicated confirmation/result-copy section to the task-first cockpit spec.
+- Defined which actions require confirmation and kept direct issue fixes confirmation-free in the first version.
+- Added short operator-facing success and error lines for draft actions, direct issue fixes, quiet-hours updates, and wizard confirm/cancel.
+- Kept the copy terse, one-line, and free of backend error-code leakage.

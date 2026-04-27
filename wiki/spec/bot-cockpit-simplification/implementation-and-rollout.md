@@ -8,19 +8,21 @@
 - Allowed: watch/draft yes, join yes, post reviewed replies yes
 ```
 
-This row reflects the internal `allow_detect`, `allow_join`, `allow_post` flags, not
-the operator-facing Level concept. After the wizard derives these flags from Level,
-showing raw permission flags is noise and may confuse operators who see a mismatch.
+This row reflects the internal `allow_detect`, `allow_join`, `allow_post`
+flags, not the operator-facing sending-mode concept. After the wizard derives
+these flags from sending mode, showing raw permission flags is noise and may
+confuse operators who see a mismatch.
 
 Replace with:
 
 ```text
-- Level: Suggesting
+- Sending mode: Draft
 ```
 
-Derived from `community_engagement_settings.mode` where available. Fall back to the
-permission flag summary only when mode is unset (pre-wizard targets). Raw permission
-fields remain in the audit section (`detail=True`).
+Derived from `community_engagement_settings.mode` where available, with
+operator-facing labels such as `Draft` and `Auto send`. Fall back to the
+permission flag summary only when mode is unset (pre-wizard targets). Raw
+permission fields remain in the audit section (`detail=True`).
 
 ## Code Map
 
@@ -28,7 +30,7 @@ fields remain in the audit section (`detail=True`).
 |---|---|
 | `bot/formatting_engagement_review.py` | Slim `format_engagement_candidate_card`; move debug fields to detail view. |
 | `bot/ui_engagement.py` | Remove `👀 Open` from `engagement_candidate_actions_markup`; remove `Join/Post on/off` from `engagement_settings_markup`; remove `➕ Add target` from `engagement_target_list_markup`; simplify `_target_status_filter_rows` usage. |
-| `bot/formatting_engagement.py` | Replace permission row with Level label in `format_engagement_target_card`; remove `format_engagement_admin_limits_home`. |
+| `bot/formatting_engagement.py` | Replace permission row with sending-mode label in `format_engagement_target_card`; remove `format_engagement_admin_limits_home`. |
 | `bot/ui_common.py` | Remove or deprecate `ACTION_ENGAGEMENT_ADMIN_LIMITS`. |
 | `bot/callback_handlers.py` | Remove `ACTION_ENGAGEMENT_ADMIN_LIMITS` dispatch; remove `ACTION_ENGAGEMENT_TARGET_ADD` from list markup path. |
 
@@ -41,7 +43,7 @@ fields remain in the audit section (`detail=True`).
 - Unit test: `engagement_settings_markup` does not emit `ACTION_ENGAGEMENT_SETTINGS_JOIN`
   or `ACTION_ENGAGEMENT_SETTINGS_POST`.
 - Unit test: `engagement_target_list_markup` does not emit `ACTION_ENGAGEMENT_TARGET_ADD`.
-- Unit test: `format_engagement_target_card` shows Level label, not raw permission row,
+- Unit test: `format_engagement_target_card` shows sending-mode label, not raw permission row,
   when mode is set.
 - Regression test: `ACTION_ENGAGEMENT_CANDIDATE_OPEN` still routes to the detail view
   via callback and slash command.
@@ -59,5 +61,5 @@ Recommended order:
 2. Remove `👀 Open` from list buttons.
 3. Candidate status filter simplification.
 4. Settings screen permission toggle removal.
-5. Community list cleanup (redundant Add button, status filter simplification, Level label).
+5. Community list cleanup (redundant Add button, status filter simplification, sending-mode label).
 6. Remove Limits screen.

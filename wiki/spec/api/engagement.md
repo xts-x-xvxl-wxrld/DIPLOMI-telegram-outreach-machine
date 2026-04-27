@@ -7,6 +7,14 @@ Engagement target, settings, topic, prompt, style, candidate, action, and rollou
 Engagement endpoints are optional/future. They must remain operator-controlled and separate from
 discovery snapshots and analysis.
 
+Backend model rule:
+
+- engagement is a first-class backend entity
+- selected topics, assigned account, sending mode, and pending-task state belong
+  to an engagement record
+- older community-scoped settings endpoints remain compatibility paths until the
+  engagement-scoped write surface is complete
+
 Admin-only engagement mutations are authorized by backend capabilities when
 `ENGAGEMENT_ADMIN_USER_IDS` is configured. The bot sends `X-Telegram-User-Id`; protected target,
 prompt-profile, style-rule, topic, and community engagement-settings mutation routes return
@@ -23,6 +31,35 @@ Query parameters:
 - `status`
 - `limit`
 - `offset`
+
+### `GET /api/engagements`
+
+Lists first-class engagement records.
+
+### `POST /api/engagements`
+
+Creates a draft engagement tied to an existing target.
+
+### `GET /api/engagements/{engagement_id}`
+
+Returns one engagement record with target, community, status, and high-level
+operator fields.
+
+### `PATCH /api/engagements/{engagement_id}`
+
+Updates engagement-level fields such as name or status.
+
+### `PUT /api/engagements/{engagement_id}/settings`
+
+Creates or updates engagement-scoped settings.
+
+### `PUT /api/engagements/{engagement_id}/topics`
+
+Replaces the selected topics for one engagement.
+
+### `POST /api/engagements/{engagement_id}/activate`
+
+Confirms a draft engagement and makes it active.
 
 ### `GET /api/engagement/targets/{target_id}`
 
@@ -246,6 +283,324 @@ Query parameters:
 - `topic_id`
 - `limit`
 - `offset`
+
+## Task-First Cockpit Read Models
+
+The task-first Telegram cockpit should not have to assemble its primary screens
+from a mix of low-level candidate, action, target, and settings endpoints.
+
+Add explicit read-model endpoints for the task-first surfaces:
+
+```http
+GET /api/engagement/cockpit/home
+GET /api/engagement/cockpit/approvals
+GET /api/engagement/cockpit/issues
+GET /api/engagement/cockpit/engagements
+GET /api/engagement/cockpit/engagements/{engagement_id}
+GET /api/engagement/cockpit/sent
+```
+
+These are read-model endpoints only. Existing candidate, target, settings, and
+action mutation endpoints remain the write path.
+
+### `GET /api/engagement/cockpit/home`
+
+Returns the home summary state for `Engagements`.
+
+Response:
+
+```json
+{
+  "state": "approvals",
+  "draft_count": 2,
+  "issue_count": 1,
+  "active_engagement_count": 3,
+  "has_sent_messages": true,
+  "next_draft_preview": {
+    "draft_id": "uuid",
+    "engagement_id": "uuid",
+    "text_preview": "draft text trimmed for home preview",
+    "target_label": "Open-source CRM · @example",
+    "why": "Matched topic: CRM",
+    "updated": false
+  },
+  "latest_issue_preview": {
+    "issue_id": "uuid",
+    "engagement_id": "uuid",
+    "issue_type": "topics_not_chosen",
+    "issue_label": "Topics not chosen",
+    "badge": "Skipped before",
+    "created_at": "iso_datetime"
+  }
+}
+```
+
+Rules:
+
+- `state` is one of `first_run`, `approvals`, `issues`, or `clear`.
+- `next_draft_preview` is `null` when no drafts are waiting.
+- `latest_issue_preview` is `null` when no issues exist.
+- `active_engagement_count` is omitted only if the product explicitly decides to
+  derive it elsewhere; otherwise include it here so the bot can render the
+  clear-state summary directly.
+
+### `GET /api/engagement/cockpit/approvals`
+
+Returns the controller payload for `Approve draft`.
+
+Response:
+
+```json
+{
+  "queue_count": 2,
+  "updating_count": 1,
+  "empty_state": "none",
+  "placeholders": [
+    {
+      "slot": 0,
+      "label": "Updating draft"
+    }
+  ],
+  "current": {
+    "draft_id": "uuid",
+    "engagement_id": "uuid",
+    "target_label": "Open-source CRM · @example",
+    "text": "full draft text",
+    "why": "Matched topic: CRM",
+    "badge": "Updated draft"
+  }
+}
+```
+
+Rules:
+
+- `empty_state` is one of `none`, `waiting_for_updates`, or `no_drafts`.
+- `current` is `null` only when no actionable draft is available.
+- Placeholder order must preserve original queue order.
+
+### `GET /api/engagement/cockpit/issues`
+
+Returns the controller payload for `Top issues`.
+
+Response:
+
+```json
+{
+  "queue_count": 3,
+  "empty_state": "none",
+  "current": {
+    "issue_id": "uuid",
+    "engagement_id": "uuid",
+    "issue_type": "topics_not_chosen",
+    "issue_label": "Topics not chosen",
+    "badge": "Skipped before",
+    "created_at": "iso_datetime",
+    "fix_actions": [
+      {
+        "action_key": "chtopic",
+        "label": "Choose topic",
+        "callback_family": "eng:wz"
+      },
+      {
+        "action_key": "crtopic",
+        "label": "Create topic",
+        "callback_family": "eng:wz"
+      }
+    ]
+  }
+}
+```
+
+Rules:
+
+- `empty_state` is one of `none` or `no_issues`.
+- `fix_actions` may be empty.
+- `issue_type` is the stable machine key; `issue_label` is the operator-facing
+  copy.
+- only one active issue of a given type may exist per engagement at a time.
+- when an issue condition resolves, it disappears immediately from this payload.
+- when the same condition happens again later, it returns as a new issue with a
+  fresh `created_at`.
+
+Each issue item should also carry the domain IDs needed for safe mutation, such
+as `candidate_id`, `target_id`, `community_id`, and `assigned_account_id` when
+applicable.
+
+Generation rules:
+
+- `topics_not_chosen` — completed engagement has zero chosen topics
+- `account_not_connected` — no usable joined engagement account
+- `sending_is_paused` — engagement is paused or disabled and would otherwise be
+  eligible to run
+- `reply_expired` — reply opportunity reached `expired`
+- `reply_failed` — reply opportunity reached `failed` and is retryable
+- `target_not_approved` — target exists but is not approved
+- `target_not_resolved` — target intake not yet resolved to a usable community
+- `community_permissions_missing` — target/settings permissions do not satisfy
+  the engagement's current sending mode
+- `rate_limit_active` — a real engagement action is currently blocked by rate
+  limiting
+- `quiet_hours_active` — a real engagement action is currently blocked by quiet
+  hours
+- `account_restricted` — assigned or selected engagement account is unusable
+
+Do not emit passive non-actionable blockers for `rate_limit_active` or
+`quiet_hours_active` when no real action is currently blocked.
+
+### `POST /api/engagement/cockpit/issues/{issue_id}/actions/{action_key}`
+
+Semantic mutation layer for issue-resolution actions.
+
+This endpoint validates that the issue still exists, performs the mutation when
+the action is one-tap safe, or returns the next guided step when operator input
+is still required.
+
+Response:
+
+```json
+{
+  "result": "resolved",
+  "message": "Target approved",
+  "next_callback": "eng:iss:list:0"
+}
+```
+
+Rules:
+
+- `result` is one of `resolved`, `next_step`, `noop`, `stale`, or `blocked`.
+- `next_callback` is required for `next_step` and may also be returned for
+  `resolved` when the backend wants the bot to refresh a specific controller.
+- The bot should route from this response instead of inferring the next action
+  itself.
+
+Action handling:
+
+- `chtopic` — return `next_step` to `eng:wz:edit:<engagement_id>:topic`
+- `crtopic` — return `next_step` to `eng:wz:edit:<engagement_id>:topic`
+- `chacct` — return `next_step` to `eng:wz:edit:<engagement_id>:account`
+- `swapacct` — return `next_step` to `eng:wz:edit:<engagement_id>:account`
+- `resume` — direct semantic resume-sending mutation
+- `retry` — call existing `POST /api/engagement/candidates/{candidate_id}/retry`
+- `apptgt` — direct semantic target-approve mutation
+- `rsvtgt` — call existing `POST /api/engagement/targets/{target_id}/resolve-jobs`
+- `fixperm` — direct semantic permission-sync mutation
+- `ratelimit` — return `next_step` to read-only rate-limit detail
+- `quiet` — return `next_step` to quiet-hours editing
+
+Recommended semantic helper mutations:
+
+```http
+POST /api/engagement/targets/{target_id}/approve
+POST /api/engagement/cockpit/engagements/{engagement_id}/resume
+POST /api/engagement/cockpit/engagements/{engagement_id}/fix-permissions
+```
+
+These keep the bot away from raw low-level `PATCH` payload construction for
+status and permission fields.
+
+### `GET /api/engagement/cockpit/engagements`
+
+Returns the list payload for `My engagements`.
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "engagement_id": "uuid",
+      "primary_label": "CRM replies",
+      "community_label": "@example",
+      "sending_mode_label": "Draft",
+      "issue_count": 1,
+      "pending_task": {
+        "task_kind": "issues",
+        "label": "Top issues",
+        "count": 1
+      },
+      "created_at": "iso_datetime"
+    }
+  ],
+  "total": 1,
+  "offset": 0,
+  "limit": 20
+}
+```
+
+Rules:
+
+- Items are ordered newest first.
+- Incomplete engagements are excluded.
+- `issue_count` is `0` when no issue badge should show.
+- `pending_task` is `null` when none exists.
+
+### `GET /api/engagement/cockpit/engagements/{engagement_id}`
+
+Returns the detail payload for one engagement.
+
+Response:
+
+```json
+{
+  "engagement_id": "uuid",
+  "target_label": "@example",
+  "topic_label": "CRM replies",
+  "account_label": "+ENGAGEMENT-1",
+  "sending_mode_label": "Draft",
+  "approval_count": 2,
+  "issue_count": 1,
+  "pending_task": {
+    "task_kind": "approvals",
+    "label": "Approve draft",
+    "count": 2,
+    "resume_callback": "eng:appr:eng:uuid"
+  }
+}
+```
+
+Rules:
+
+- `pending_task` is `null` when no main action should show.
+- `pending_task.task_kind` is one of `approvals`, `approval_updates`, or `issues`.
+- `pending_task.label` is `Approve draft` for `approvals` and
+  `approval_updates`, and `Top issues` for `issues`.
+- `pending_task.count` is the scoped count for that engagement and task kind.
+- if multiple pending-task kinds exist, the backend returns only the
+  highest-priority one:
+  1. `approvals`
+  2. `approval_updates`
+  3. `issues`
+- `resume_callback` points to the callback target, not a UI label.
+- `resume_callback` should use the scoped queue controller for that engagement,
+  such as `eng:appr:eng:<engagement_id>` or `eng:iss:eng:<engagement_id>`.
+
+### `GET /api/engagement/cockpit/sent`
+
+Returns the read-only feed payload for `Sent messages`.
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "action_id": "uuid",
+      "message_text": "public reply text",
+      "community_label": "@example",
+      "sent_at": "iso_datetime"
+    }
+  ],
+  "total": 1,
+  "offset": 0,
+  "limit": 20
+}
+```
+
+Rules:
+
+- Items are ordered newest first.
+- `sent_at` is absolute time rendered in the operator's local timezone, not
+  relative text.
 
 ### `GET /api/engagement/candidates/{candidate_id}`
 

@@ -16,18 +16,19 @@ expose what remains after collapse.
 ## Derived (no longer operator-facing)
 
 - `engagement_targets.allow_join` — always `true` once Step 3 succeeds. The account's chat
-  membership is the real join state; this flag is redundant. Drop the per-Level mapping and stop
+  membership is the real join state; this flag is redundant. Drop the per-mode mapping and stop
   toggling it from the wizard.
-- `engagement_targets.allow_detect`, `allow_post` — derived from the wizard's Level choice.
+- `engagement_targets.allow_detect`, `allow_post` — derived from the wizard's
+  sending-mode choice.
   Mapping:
-  - Watching → `allow_detect=true`, `allow_post=false`.
-  - Suggesting → `allow_detect=true`, `allow_post=false` (reply queueing applied in the worker).
-  - Sending → `allow_detect=true`, `allow_post=true`.
+  - `Draft` → `allow_detect=true`, `allow_post=false`.
+  - `Auto send` → `allow_detect=true`, `allow_post=true`.
 - `engagement_targets.status` — operator never sees the six-state machine. The wizard transitions
   it implicitly: `RESOLVED` after Step 1, `APPROVED` after Step 5. Other states remain valid for
   backend workflow but are not presented in the wizard.
-- `community_engagement_settings.allow_join` and `allow_post` — same Level-derived mapping. The
-  defensive double-check today in `engagement_detect_process.py:48-51` and
+- `community_engagement_settings.allow_join` and `allow_post` — same
+  sending-mode-derived mapping. The defensive double-check today in
+  `engagement_detect_process.py:48-51` and
   `engagement_send.py:119-125` becomes redundant once `mode` is the single operator-facing source
   of truth.
 
@@ -44,7 +45,7 @@ expose what remains after collapse.
 ## Kept as-is
 
 - The `EngagementMode` enum values themselves remain in the database as the canonical truth. The
-  wizard's Level → mode mapping is documented in
+  wizard's sending-mode → mode mapping is documented in
   `wiki/plan/engagement-add-wizard/steps.md`.
 - `AccountPool` separation. Step 3 of the wizard filters to ENGAGEMENT pool accounts only.
 - `EngagementTopic.active`. The wizard forces `active=true` on any topic it attaches; deactivation
@@ -58,15 +59,18 @@ expose what remains after collapse.
   2. After one release with no rollback hits, drop the columns in an Alembic migration.
 - Existing communities at `mode = DISABLED` continue to work. The wizard never produces
   `DISABLED`; an operator can still flip a community to off via the cockpit settings.
-- The Level → mode mapping must match the existing preset table in
-  `wiki/plan/engagement-operator-controls/surface.md` so cockpit and wizard agree.
+- `Auto send` ships immediately. Its implementation slice must remove the
+  current MVP validation guard that rejects `mode = auto_limited`.
 
 ## Validation Hooks
 
 - A unit or service test asserting that `community_engagement_settings.create` and `update` paths
   reject any attempt to set `require_approval=False` or `reply_only=False` while the MVP
   constraint stands.
-- A wizard test asserting that each Level selection produces the documented engagement mode and
-  the documented derived per-action flags on both the target and the settings rows.
-- A service test asserting that re-entering the wizard for a partially-configured community does
-  not duplicate target rows, topic attachments, or account memberships.
+- A wizard test asserting that each sending-mode selection produces the
+  documented engagement mode and the documented derived per-action flags on both
+  the target and the settings rows.
+- A backend test asserting that `auto_limited` is accepted in the same slice
+  that ships `Auto send`.
+- A service test asserting that reusing the same target does not duplicate rows,
+  topic attachments, or account memberships.

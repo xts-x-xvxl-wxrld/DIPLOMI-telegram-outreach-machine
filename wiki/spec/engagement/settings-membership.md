@@ -1,16 +1,50 @@
-# Engagement Settings And Membership
+# Engagements, Settings, And Membership
 
-Community settings and account membership contracts used by engagement workers and APIs.
+Engagement entity, settings, topic-selection, and account-membership contracts
+used by engagement workers and APIs.
 
-## Community Settings
+## Engagements
 
-Each community has explicit engagement settings. Absence of settings means engagement is disabled.
+Engagement is a first-class backend entity.
 
-Recommended table: `community_engagement_settings`
+An engagement is not just a community plus global topics. It is the operator's
+chosen target, selected topics, chosen account, and sending mode bundled into
+one durable record.
+
+Recommended table: `engagements`
+
+```sql
+id                   uuid PRIMARY KEY
+target_id            uuid NOT NULL REFERENCES engagement_targets(id)
+community_id         uuid NOT NULL REFERENCES communities(id)
+status               text NOT NULL DEFAULT 'draft'
+                     -- draft | active | paused | archived
+name                 text
+created_by           text NOT NULL
+created_at           timestamptz NOT NULL DEFAULT now()
+updated_at           timestamptz NOT NULL DEFAULT now()
+
+UNIQUE (target_id)
+```
+
+Rules:
+
+- A finished operator-visible engagement row must exist before the engagement
+  appears in `My engagements`.
+- A draft engagement may exist during wizard setup and remain hidden from the
+  operator list until confirmed.
+- Target approval remains a separate allowlist concept, but the engagement row
+  is the primary operator object.
+
+## Engagement Settings
+
+Each engagement has explicit engagement settings.
+
+Recommended table: `engagement_settings`
 
 ```sql
 id                         uuid PRIMARY KEY
-community_id               uuid NOT NULL REFERENCES communities(id)
+engagement_id              uuid NOT NULL REFERENCES engagements(id)
 mode                       text NOT NULL DEFAULT 'suggest'
                            -- disabled | observe | suggest | require_approval | auto_limited
 allow_join                 boolean NOT NULL DEFAULT false
@@ -25,7 +59,7 @@ assigned_account_id        uuid REFERENCES telegram_accounts(id)
 created_at                 timestamptz NOT NULL DEFAULT now()
 updated_at                 timestamptz NOT NULL DEFAULT now()
 
-UNIQUE (community_id)
+UNIQUE (engagement_id)
 ```
 
 Mode meanings:
@@ -36,7 +70,7 @@ Mode meanings:
 | `observe` | Reserved observe-only mode. In the current MVP, detection exits early without drafting or creating reply opportunities. |
 | `suggest` | Draft reply opportunities for operator review. |
 | `require_approval` | Operator approval is required before every send. |
-| `auto_limited` | Future mode for tightly capped automatic replies after policy is proven safe. |
+| `auto_limited` | Tightly capped automatic replies after explicit operator setup. |
 
 MVP default:
 
@@ -52,9 +86,8 @@ min_minutes_between_posts = 240
 
 Validation contract:
 
-- `community_id` must reference an existing community.
+- `engagement_id` must reference an existing engagement.
 - `mode = disabled` forces `allow_join = false` and `allow_post = false`.
-- MVP rejects `mode = auto_limited`.
 - MVP rejects `require_approval = false`.
 - MVP rejects `reply_only = false`.
 - `max_posts_per_day` must be between 0 and 3 in MVP.
@@ -69,21 +102,43 @@ Validation contract:
 Service contract:
 
 ```python
-def get_engagement_settings(db, community_id: UUID) -> EngagementSettingsView:
+def get_engagement_settings(db, engagement_id: UUID) -> EngagementSettingsView:
     ...
 
 def upsert_engagement_settings(
     db,
     *,
-    community_id: UUID,
+    engagement_id: UUID,
     payload: EngagementSettingsUpdate,
     updated_by: str,
 ) -> EngagementSettingsView:
     ...
 ```
 
-`get_engagement_settings` returns a disabled synthetic view when no row exists. It should not create
-a database row just because the operator viewed settings.
+`get_engagement_settings` returns a disabled synthetic view when no row exists.
+It should not create a database row just because the operator viewed settings.
+
+## Engagement Topic Selections
+
+Selected topics belong to an engagement, not just to a global active-topic
+pool.
+
+Recommended table: `engagement_topic_selections`
+
+```sql
+id                   uuid PRIMARY KEY
+engagement_id        uuid NOT NULL REFERENCES engagements(id)
+topic_id             uuid NOT NULL REFERENCES engagement_topics(id)
+created_at           timestamptz NOT NULL DEFAULT now()
+
+UNIQUE (engagement_id, topic_id)
+```
+
+Rules:
+
+- An engagement with zero selected topics should raise `Topics not chosen`.
+- Topic library rows remain reusable global topic definitions.
+- Topic selection is engagement-specific.
 
 ## Account Memberships
 
@@ -117,7 +172,7 @@ Rules:
 
 Selection contract:
 
-1. If `community_engagement_settings.assigned_account_id` is set, use that account only if it is in
+1. If `engagement_settings.assigned_account_id` is set, use that account only if it is in
    the `engagement` account pool.
 2. Else if a `joined` membership already exists for the community with an `engagement` account, use
    that account.

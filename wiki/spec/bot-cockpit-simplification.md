@@ -156,9 +156,9 @@ tab directly, so the tabs exist for navigation within the list, not for discover
 - Assign account
 
 The `Join on/off` and `Post on/off` toggles duplicate what the wizard derives from
-the Level choice. An operator who used the wizard should never need to touch these.
+the sending-mode choice. An operator who used the wizard should never need to touch these.
 Showing them as editable buttons exposes the internal permission flag model and invites
-misconfiguration (e.g. setting mode to Sending but leaving `Post on` as off).
+misconfiguration (e.g. setting auto sending while leaving `Post on` as off).
 
 ### Target button set
 

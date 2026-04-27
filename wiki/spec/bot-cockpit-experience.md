@@ -1,12 +1,19 @@
 # Bot Cockpit Experience
 
-Behavioral and structural contracts that complete the task-first cockpit
-direction. Companion to
+Behavioral and structural companion notes for the task-first cockpit
+direction. Primary UX source of truth:
+`wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md`.
+
+This shard is no longer allowed to define competing home-screen, navigation, or
+wizard-topology rules. If any text here conflicts with the task-first cockpit
+spec, the task-first cockpit spec wins.
+
+Companion to
 `wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md` and
 `wiki/spec/bot-cockpit-simplification.md`.
 
-Covers: first-run empty state, proactive review notifications, unified "Needs
-attention" definition, and navigation footer consistency rules.
+Covers only secondary behavior that does not replace the main task-first
+cockpit contract.
 
 The task-first engagement cockpit blueprint now lives in
 `wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md`.
@@ -14,76 +21,11 @@ The task-first engagement cockpit blueprint now lives in
 ---
 
 ## 1. First-Run Empty State
+Defined by
+`wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md`.
 
-### Problem
-
-A new operator opens the bot for the first time. There are no communities, no topics,
-no accounts. A naive home dashboard would show "All clear" — accurate but useless. The
-operator has no signal that they need to set something up before the bot can do
-anything.
-
-### Detection
-
-The home screen is in first-run state when all of the following are true:
-
-- Zero approved engagement communities.
-- Zero active engagement topics.
-- Zero ENGAGEMENT-pool accounts.
-
-Any one of those conditions being satisfied means setup has started and the standard
-dashboard applies (even if it shows low counts).
-
-### First-run card
-
-```text
-Operator cockpit
-
-Welcome. Nothing is set up yet.
-
-To start engaging, add your first community.
-The wizard will walk you through topics, account, and engagement level.
-```
-
-### First-run buttons
-
-```text
-[➕ Add first community]
-[🔍 Discovery]  [❓ Help]
-```
-
-`Add first community` launches the engagement wizard identically to `op:add` on the
-standard home screen. No separate flow is needed.
-
-`Discovery` and `Help` remain available in case the operator wants to import seed
-communities first or read the help card before setting up engagement.
-
-### Partial setup state
-
-If setup has started but is incomplete — for example, one topic exists but no
-communities — the standard dashboard applies. The "All clear" empty message is
-replaced by a partial-state hint:
-
-```text
-Operator cockpit
-
-No communities set up yet.
-
-[➕ Add community]  [🔍 Discovery]
-[⚙ Manage]  [❓ Help]
-```
-
-The counts row is omitted when all counts are zero. The `Add community` button is
-promoted to the top row to keep the next action visible.
-
-### Implementation notes
-
-- `format_operator_home` in `bot/formatting_engagement.py` receives the count
-  payload. Add a helper `_is_first_run(data)` that checks for zero on
-  `approved_community_count`, `active_topic_count`, and `account_count`.
-- `operator_home_markup` in `bot/ui_engagement.py` accepts a `first_run: bool`
-  parameter and renders the appropriate button set.
-- The API call that populates the home dashboard must include `approved_community_count`
-  and `account_count` alongside the existing reply counts.
+Do not use the older `Operator cockpit`, discovery-first, or partial-setup home
+contracts that previously lived in this shard.
 
 ---
 
@@ -173,9 +115,14 @@ The detailed contracts for the unified `Needs attention` count and the navigatio
 footer rules now live in
 `wiki/spec/bot-cockpit-experience/attention-and-navigation.md`.
 
-That shard covers:
+That shard is a companion only. Where it conflicts with the task-first cockpit
+spec on home labels, top-level routing, or footer behavior, the task-first
+cockpit spec wins.
 
-- the combined engagement + discovery attention count and tap routing
-- footer level rules (`Home`, `Back`, modal exceptions)
-- stable back targets and wizard navigation behavior
+That shard should cover only:
+
+- issue-list routing and related technical notes that do not redefine the home
+  screen
+- navigation details that stay consistent with `Back` plus `<< Engagements`
+- technical implementation notes for subordinate screens
 - the related API and test contracts

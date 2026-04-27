@@ -40,9 +40,7 @@ MVP allowed modes:
 - `observe`
 - `suggest`
 - `require_approval`
-
-`auto_limited` is reserved and must be rejected by the API until a later plan explicitly enables
-automatic sending.
+- `auto_limited`
 
 ### Membership Statuses
 
@@ -128,7 +126,7 @@ These rules apply across all engagement code:
 - No engagement worker writes `community_members.event_count` or `analysis_summaries`.
 - No engagement prompt includes phone numbers or unnecessary sender identity.
 - No reply opportunity is sent unless its status is `approved`.
-- No reply opportunity is sent when `require_approval = false` in MVP because that setting is rejected.
+- No reply opportunity is sent outside the engagement's configured send mode.
 - No send occurs when the community settings row is missing or disabled.
 - No send occurs when `allow_post = false`.
 - No join occurs when `allow_join = false`.
@@ -159,12 +157,13 @@ Baseline rules:
 ## Safety Rules
 
 - Engagement is opt-in per community.
-- Human approval is required before send in MVP.
+- `Draft` mode requires human approval before send.
+- `Auto send` is allowed only through explicit operator setup and capped
+  automatic-send policy.
 - No DMs.
 - No person-level scoring.
 - No hidden manipulation or fake consensus.
 - No mass joining.
-- No automatic posting until manual review has proven the topic policy and rate limits.
 - All outbound actions are auditable.
 - Collection remains read-only and must not send messages.
 - Analysis remains community-level and must not produce outreach instructions for individuals.
