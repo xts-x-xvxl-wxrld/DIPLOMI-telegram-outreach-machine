@@ -1,11 +1,12 @@
 # Bot Cockpit Simplification
 
 Screen-level UX simplifications to reduce noise and friction across the operator cockpit.
-Companion to `wiki/spec/bot-operator-cockpit-v2.md`, which covers top-level navigation.
+Companion to `wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md`,
+which covers the active top-level engagement cockpit direction.
 
 ## Motivation
 
-The v2 cockpit redesign promotes daily actions to the home screen. This spec addresses
+The task-first cockpit direction promotes daily actions to the home screen. This spec addresses
 the remaining friction inside each screen: over-verbose cards, redundant navigation
 steps, internal state exposed as operator UI, and settings knobs that the wizard
 already handles.

@@ -30,3 +30,4 @@ Top-level routing contract for the Telegram operator UI. Command details live in
 - [Engagement Commands](bot/engagement-commands.md)
 - [Engagement Add Wizard](bot/engagement-add-wizard.md)
 - [Access and UX](bot/access-ux.md)
+- [Task-First Engagement Cockpit](bot-cockpit-experience/engagement-task-first-cockpit.md)

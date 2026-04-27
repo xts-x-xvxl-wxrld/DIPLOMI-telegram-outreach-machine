@@ -1267,3 +1267,15 @@ while preserving the staged testing contract.
 - Reframed the engagement admin/config surface around operator questions such as allowed communities, detection topics, reply style, send safety, and drafting/diagnostics.
 - Renamed the related formatter headers so targets, topics, style rules, prompt profiles, and settings read as intent-led setup surfaces instead of backend object lists.
 - Kept the existing commands, callbacks, and admin gating intact while updating focused handler, UI, and formatting expectations plus the engagement navigation spec.
+
+## [2026-04-27] docs | Task-first engagement cockpit blueprint
+
+- Added a dedicated wiki shard for the preferred task-first engagement cockpit, centered on clear operator intentions, wizard-first setup, and daily-work-first navigation.
+- Documented first-run, in-progress setup, daily operations, and all-clear states with concrete home-screen button layouts and copy rules for non-technical Telegram operators.
+- Linked the new blueprint from the cockpit experience parent doc, bot spec shard list, and wiki index so future implementation work has a clear source of truth.
+
+## [2026-04-27] docs | Retire operator cockpit v2 spec
+
+- Replaced `wiki/spec/bot-operator-cockpit-v2.md` with a short superseded stub so historical links still resolve without leaving two competing cockpit directions active.
+- Updated cockpit-experience and simplification companion references to point at the new task-first engagement cockpit shard instead of v2.
+- Kept shared attention and navigation rules intact while removing the remaining active wording that treated v2 as the current home-dashboard source of truth.

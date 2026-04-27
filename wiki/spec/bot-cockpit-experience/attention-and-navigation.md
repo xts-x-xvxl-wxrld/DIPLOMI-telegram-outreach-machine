@@ -7,7 +7,7 @@ document scannable and within fragmentation limits.
 
 ### Problem
 
-Both the v2 home dashboard and the discovery cockpit have a "Needs attention" concept,
+Both the home dashboard and the discovery cockpit have a "Needs attention" concept,
 defined independently with no shared contract. The home dashboard's count may be
 inconsistent with what the discovery cockpit surfaces. The operator sees two different
 "attention" signals with no clear relationship.

@@ -60,7 +60,7 @@
 - `wiki/spec/api/` - foundation, search, discovery, communities/snapshots, engagement, accounts, and jobs/debug API shards
 - `wiki/spec/database/` - foundation, search/collection, engagement, indexes, and pipeline schema shards
 - `wiki/spec/engagement/` - engagement lifecycle, settings, topics, opportunities, jobs, API/bot, observability, and tests
-- `wiki/spec/bot/` - discovery command, engagement command, and bot access/UX shards
+- `wiki/spec/bot/` and `wiki/spec/bot-cockpit-experience/` - bot command/access shards plus first-run, notifications, navigation, and task-first cockpit UX shards
 - `wiki/spec/bot-engagement-controls/` - engagement cockpit navigation, config editing, slice contracts, controls, formatting, and tests
 - `wiki/spec/queue/` - queue job type and operations shards
 - `wiki/plan/engagement-mvp-testing-readiness/` - engagement MVP readiness slices, including staged-test runbook

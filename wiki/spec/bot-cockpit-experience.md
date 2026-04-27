@@ -1,11 +1,15 @@
 # Bot Cockpit Experience
 
-Behavioral and structural contracts that complete the v2 cockpit redesign.
-Companion to `wiki/spec/bot-operator-cockpit-v2.md` and
+Behavioral and structural contracts that complete the task-first cockpit
+direction. Companion to
+`wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md` and
 `wiki/spec/bot-cockpit-simplification.md`.
 
 Covers: first-run empty state, proactive review notifications, unified "Needs
 attention" definition, and navigation footer consistency rules.
+
+The task-first engagement cockpit blueprint now lives in
+`wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md`.
 
 ---
 
@@ -14,7 +18,7 @@ attention" definition, and navigation footer consistency rules.
 ### Problem
 
 A new operator opens the bot for the first time. There are no communities, no topics,
-no accounts. The v2 home dashboard shows "All clear" — accurate but useless. The
+no accounts. A naive home dashboard would show "All clear" — accurate but useless. The
 operator has no signal that they need to set something up before the bot can do
 anything.
 
