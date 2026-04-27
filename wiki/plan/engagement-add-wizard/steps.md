@@ -20,20 +20,20 @@ internal effect, the success gate, skip and auto-pick rules, and failure modes.
 
 ## Step 2: Topic
 
-- Prompt: "Pick at least one topic the bot should watch for."
+- Prompt: "Choose a topic or create a new one."
 - Pick-or-create:
-  - Existing topics in the topic library → multi-select.
+  - Existing topics in the topic library → single-choice picker.
   - "Create new" → enter the flow defined in `wiki/plan/topic-create-question-flow.md`. On finish,
-    return here with the new topic preselected.
-- Internal effect: attach selected topics to this community via the existing topic-community
-  relation. Force `active=true` on any topic the operator selects or creates.
-- Success gate: at least one active topic is attached to this community.
+    return here with the new topic selected.
+- Internal effect: write exactly one chosen topic to the draft engagement. Force `active=true` on
+  any topic the operator selects or creates.
+- Success gate: one active topic is attached to this engagement.
 - Skip rules:
   - If the topic library is empty, skip the picker and go straight to topic create.
-  - If the operator's selection matches what is already attached (returning to the wizard),
-    advance without redoing the attach.
+  - If the operator's selection matches the current engagement topic (returning to the wizard),
+    advance without redoing the write.
 - Failure modes:
-  - Topic create flow aborts → return to Step 2 with no topics attached, allow retry.
+  - Topic create flow aborts → return to Step 2 with no topic selected, allow retry.
 
 ## Step 3: Account
 
@@ -43,7 +43,7 @@ internal effect, the success gate, skip and auto-pick rules, and failure modes.
   - "Add new account" → run phone-verification as a sub-flow inside the wizard. On success, the
     new account joins the ENGAGEMENT pool and is preselected when control returns to Step 3.
 - Internal effect:
-  1. Set `assigned_account_id` on `community_engagement_settings`.
+  1. Set `assigned_account_id` on engagement-scoped settings.
   2. Trigger `community.join` for the community using that account.
   3. Stream join progress in the wizard message ("joining…" → "joined ✓" or failure).
 - Success gate: a `CommunityAccountMembership` row exists for the assigned account and community.
@@ -65,8 +65,8 @@ internal effect, the success gate, skip and auto-pick rules, and failure modes.
   - `Draft` (default) — create draft replies for operator approval.
   - `Auto send` — allow capped automatic sends after setup.
 - Internal effect: write the corresponding engagement mode to
-  `community_engagement_settings.mode`. Drop redundant per-action and MVP-locked
-  flags as described in `wiki/plan/engagement-add-wizard/collapse.md`.
+  `engagement_settings.mode`. Drop redundant per-action and MVP-locked flags as
+  described in `wiki/plan/engagement-add-wizard/collapse.md`.
 - Mode mapping (canonical):
   - `Draft` → `SUGGEST`
   - `Auto send` → `AUTO_LIMITED`
@@ -81,18 +81,20 @@ internal effect, the success gate, skip and auto-pick rules, and failure modes.
 
 ## Step 5: Final Review
 
-- Prompt: a read-only summary card showing target, selected topics, account, and
+- Prompt: a read-only summary card showing target, chosen topic, account, and
   chosen sending mode.
 - Actions:
   - `Confirm`
   - `Cancel`
   - `Retry`
 - Internal effect (atomic — all-or-nothing):
-  1. Enqueue the first `engagement.detect` job for this community.
-  2. Only on enqueue acceptance, flip the engagement target's `status` to `APPROVED`.
+  1. Validate target, topic, joined account, and sending mode on the draft engagement.
+  2. Enqueue the first `engagement.detect` job for this engagement's community.
+  3. Only on enqueue acceptance, flip the engagement target's `status` to `APPROVED` and
+     activate the engagement.
   3. Show "Started ✓ — first results will appear in the cockpit shortly."
-  4. Redirect the operator to the engagement detail view for this community.
-- Success gate: detect job accepted by the queue AND target at `APPROVED`.
+  4. Redirect the operator to the engagement detail view for this engagement.
+- Success gate: detect job accepted by the queue, target at `APPROVED`, and engagement active.
 - Failure modes:
   - Detect enqueue fails (queue down) → leave the target at its pre-review
     status, stay on final review, and show the queue error.

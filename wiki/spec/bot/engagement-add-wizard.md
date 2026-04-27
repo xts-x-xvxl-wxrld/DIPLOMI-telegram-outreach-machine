@@ -18,7 +18,7 @@ Backend model rule:
 - an engagement is a first-class backend entity
 - the wizard creates or reuses an `engagement` record, not just loose
   per-community settings
-- selected topics, chosen account, and sending mode belong to that engagement
+- the chosen topic, chosen account, and sending mode belong to that engagement
 
 ## Goals
 
@@ -42,6 +42,57 @@ Backend model rule:
 ```text
 Target  ->  Topic  ->  Account  ->  Sending mode  ->  Final review
 ```
+
+## Screen Layout Contract
+
+Step 1 — Target
+
+- title: `Add engagement`
+- show `Step 1 of 5`
+- prompt: `Which target?`
+- helper line: `Paste @handle or t.me/... link`
+- do not show a primary continue button before target resolution succeeds
+
+Step 2 — Topic
+
+- title: `Add engagement`
+- show `Step 2 of 5`
+- prompt: `Choose a topic or create a new one`
+- show equal-weight actions:
+  - `Choose topic`
+  - `Create topic`
+  - `Continue`
+- enable `Continue` only after one topic is selected
+
+Step 3 — Account
+
+- title: `Add engagement`
+- show `Step 3 of 5`
+- prompt: `Which account should engage from?`
+- render a plain list of engagement accounts plus `Add new account`
+- selecting an account should trigger join work immediately and auto-advance on
+  success
+
+Step 4 — Sending mode
+
+- title: `Add engagement`
+- show `Step 4 of 5`
+- prompt: `How should sending work?`
+- options:
+  - `Draft` — `Review each reply before send`
+  - `Auto send` — `Send automatically with limits`
+- show `Continue`
+- preselect `Draft`
+
+Step 5 — Final review
+
+- title: `Add engagement`
+- show `Step 5 of 5`
+- render a read-only summary of target, topic, account, and sending mode
+- actions:
+  - `Confirm`
+  - `Retry`
+  - `Cancel`
 
 ## Step Contracts
 
@@ -69,10 +120,10 @@ Target  ->  Topic  ->  Account  ->  Sending mode  ->  Final review
   - create a new topic through the existing topic-create sub-flow, then return
     here with it preselected
 - Internal effect:
-  attach the chosen topics to the engagement. The launch summary shows only the
-  chosen topics for that engagement.
+  attach the chosen topic to the engagement. The launch summary shows only that
+  topic for the engagement.
 - Success gate:
-  at least one topic is selected.
+  one topic is selected.
 - Failure modes:
   - topic-create aborts: return here with no topic selected
 
@@ -164,6 +215,52 @@ Target  ->  Topic  ->  Account  ->  Sending mode  ->  Final review
 - Cancelled or incomplete setup does not surface on home.
 - Partial backend rows may remain, but they are implementation detail, not user
   flow state.
+
+## Wizard Write Contract
+
+Treat the wizard as a staged write flow for one draft engagement.
+
+Contract shape:
+
+- use generic write endpoints for step-owned draft fields
+- use semantic endpoints for workflow-edge actions
+- do not make the bot orchestrate full wizard commit/reset through raw field
+  patches alone
+
+Write rules:
+
+- Step 1 creates or reuses a draft `engagement` for the chosen target
+- Step 2 writes exactly one `topic_id` onto that engagement
+- Step 3 writes the assigned account and drives join work
+- Step 4 writes the sending-mode-backed engagement settings
+- Step 5 validates the full draft and activates it atomically
+
+Commit rules:
+
+- `Back` changes screen position only; it does not discard durable draft writes
+- `Retry` clears wizard-owned draft choices and restarts at Step 1
+- `Cancel` abandons the wizard flow without surfacing the incomplete engagement
+  in normal lists
+- `Confirm` is the only action that may activate the engagement
+
+Endpoint split:
+
+- generic writes:
+  - `POST /api/engagements`
+  - `PATCH /api/engagements/{engagement_id}`
+  - `PUT /api/engagements/{engagement_id}/settings`
+- semantic workflow edges:
+  - `POST /api/engagements/{engagement_id}/wizard-confirm`
+  - `POST /api/engagements/{engagement_id}/wizard-retry`
+
+Edit-entry rules:
+
+- reopening the wizard from engagement detail edits the existing engagement
+  instead of creating a new one
+- the wizard may jump directly to topic, account, or sending-mode steps, but it
+  still validates the full engagement state on `Confirm`
+- edit confirmation should update the existing engagement atomically and return
+  to engagement detail
 
 ## Permission Collapse
 

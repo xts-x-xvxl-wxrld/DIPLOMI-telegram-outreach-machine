@@ -1,6 +1,6 @@
 # Engagements, Settings, And Membership
 
-Engagement entity, settings, topic-selection, and account-membership contracts
+Engagement entity, settings, topic, and account-membership contracts
 used by engagement workers and APIs.
 
 ## Engagements
@@ -8,7 +8,7 @@ used by engagement workers and APIs.
 Engagement is a first-class backend entity.
 
 An engagement is not just a community plus global topics. It is the operator's
-chosen target, selected topics, chosen account, and sending mode bundled into
+chosen target, chosen topic, chosen account, and sending mode bundled into
 one durable record.
 
 Recommended table: `engagements`
@@ -17,6 +17,7 @@ Recommended table: `engagements`
 id                   uuid PRIMARY KEY
 target_id            uuid NOT NULL REFERENCES engagement_targets(id)
 community_id         uuid NOT NULL REFERENCES communities(id)
+topic_id             uuid REFERENCES engagement_topics(id)
 status               text NOT NULL DEFAULT 'draft'
                      -- draft | active | paused | archived
 name                 text
@@ -35,6 +36,9 @@ Rules:
   operator list until confirmed.
 - Target approval remains a separate allowlist concept, but the engagement row
   is the primary operator object.
+- One engagement maps to one topic in the first version.
+- Draft engagements may temporarily have `topic_id = null`, but activation may
+  not.
 
 ## Engagement Settings
 
@@ -118,27 +122,15 @@ def upsert_engagement_settings(
 `get_engagement_settings` returns a disabled synthetic view when no row exists.
 It should not create a database row just because the operator viewed settings.
 
-## Engagement Topic Selections
+## Engagement Topic
 
-Selected topics belong to an engagement, not just to a global active-topic
-pool.
-
-Recommended table: `engagement_topic_selections`
-
-```sql
-id                   uuid PRIMARY KEY
-engagement_id        uuid NOT NULL REFERENCES engagements(id)
-topic_id             uuid NOT NULL REFERENCES engagement_topics(id)
-created_at           timestamptz NOT NULL DEFAULT now()
-
-UNIQUE (engagement_id, topic_id)
-```
+Chosen topic belongs to an engagement, not just to a global active-topic pool.
 
 Rules:
 
-- An engagement with zero selected topics should raise `Topics not chosen`.
+- An engagement with no chosen topic should raise `Topics not chosen`.
 - Topic library rows remain reusable global topic definitions.
-- Topic selection is engagement-specific.
+- Topic choice is engagement-specific even though topic definitions are shared.
 
 ## Account Memberships
 

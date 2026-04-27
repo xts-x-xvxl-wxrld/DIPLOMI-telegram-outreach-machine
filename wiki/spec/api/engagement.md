@@ -10,10 +10,81 @@ discovery snapshots and analysis.
 Backend model rule:
 
 - engagement is a first-class backend entity
-- selected topics, assigned account, sending mode, and pending-task state belong
+- the chosen topic, assigned account, sending mode, and pending-task state belong
   to an engagement record
 - older community-scoped settings endpoints remain compatibility paths until the
   engagement-scoped write surface is complete
+
+Wizard write model rule:
+
+- use a hybrid contract for the wizard
+- draft step data writes go through generic engagement endpoints
+- workflow-edge actions stay semantic through `wizard-confirm` and
+  `wizard-retry`
+
+## Migration Contract
+
+The task-first cockpit must cut over from community-scoped engagement controls
+to engagement-scoped read and write paths without exposing mixed models to the
+operator.
+
+Migration rules:
+
+- new task-first bot surfaces read only from engagement-scoped cockpit endpoints
+- the bot must not merge community-scoped settings reads into new home, queue,
+  detail, or sent-message screens
+- engagement-scoped writes become the primary mutation surface for wizard,
+  pending-task, and issue-fix flows
+- older community-scoped settings routes remain temporary compatibility paths
+  for legacy screens and internal backfills only
+- once a bot surface is migrated, it must stop emitting callbacks that depend on
+  community-scoped engagement settings screens
+
+Compatibility boundaries:
+
+- `GET /api/communities/{community_id}/engagement-settings` may remain available
+  for legacy admin/review screens, but it is not a source for the new cockpit
+- `PUT /api/communities/{community_id}/engagement-settings` may remain available
+  during migration, but new wizard saves should write through
+  `PUT /api/engagements/{engagement_id}/settings`
+- legacy candidate, target, and settings screens may continue to call older
+  low-level mutation routes until their task-first replacements ship
+- task-first issue actions should call semantic cockpit mutations even when the
+  backend temporarily implements them by adapting to older internal services
+
+Adapter rules:
+
+- if legacy data exists only at the community scope, backend migration code may
+  seed or update an engagement record from that state before serving the new
+  cockpit
+- one active engagement per target is the migration baseline; do not infer or
+  auto-create multiple engagement variants for one community during the first
+  cutover
+- topic choice, assigned account, sending mode, quiet hours, and approval
+  settings must end up persisted against the engagement record
+- background migration or on-read backfill must be idempotent
+
+Cutover sequence:
+
+1. ship engagement tables and engagement-scoped write endpoints
+2. backfill or create engagement records for existing approved community-level
+   setups
+3. ship cockpit read-model endpoints backed only by engagement-scoped state
+4. migrate wizard, detail, approvals, issues, and sent-message bot routes to
+   the new cockpit endpoints and callbacks
+5. retire legacy community-settings navigation from the operator cockpit
+6. remove community-scoped engagement-settings writes after no active bot route
+   depends on them
+
+Operator-facing safety rules:
+
+- do not show both legacy community settings screens and the new task-first
+  cockpit entry points as parallel primary paths
+- if a legacy row has not yet been migrated into an engagement record, create or
+  backfill it before opening the new wizard/detail flow instead of showing a
+  partial screen
+- if migration cannot produce a valid engagement record, fail closed with a
+  short operator-facing error and no silent fallback to raw legacy settings
 
 Admin-only engagement mutations are authorized by backend capabilities when
 `ENGAGEMENT_ADMIN_USER_IDS` is configured. The bot sends `X-Telegram-User-Id`; protected target,
@@ -40,6 +111,22 @@ Lists first-class engagement records.
 
 Creates a draft engagement tied to an existing target.
 
+Request:
+
+```json
+{
+  "target_id": "uuid",
+  "created_by": "telegram_user_id_or_operator"
+}
+```
+
+Rules:
+
+- return the existing draft or active engagement for that target instead of
+  creating duplicates
+- do not activate the engagement from this route
+- incomplete draft engagements may exist off-list until final confirmation
+
 ### `GET /api/engagements/{engagement_id}`
 
 Returns one engagement record with target, community, status, and high-level
@@ -49,17 +136,281 @@ operator fields.
 
 Updates engagement-level fields such as name or status.
 
+Request DTO:
+
+```json
+{
+  "topic_id": "uuid-or-null",
+  "name": "optional display name"
+}
+```
+
+Wizard use:
+
+- use this route for draft-level engagement fields that belong directly on the
+  engagement row, including `topic_id`
+- this is a generic field-write route, not a commit route
+- partial draft writes are allowed while `status = draft`
+- active-engagement edits should still validate the full resulting state before
+  final confirmation succeeds
+
+Field rules:
+
+- `topic_id` sets the one chosen topic for the engagement
+- `topic_id = null` is allowed only while the engagement remains a draft or the
+  wizard is being reset
+- do not accept arrays or multi-topic payloads on this route
+- omit unchanged fields instead of requiring full-row replacement
+
+Response DTO:
+
+```json
+{
+  "result": "updated",
+  "engagement": {
+    "id": "uuid",
+    "status": "draft",
+    "topic_id": "uuid-or-null",
+    "name": "optional display name"
+  }
+}
+```
+
+`result` values:
+
+- `updated` — patch accepted
+- `blocked` — patch is syntactically valid but not allowed in current state
+- `stale` — engagement no longer exists or changed incompatibly
+
+`blocked` shape:
+
+```json
+{
+  "result": "blocked",
+  "message": "This engagement cannot change topic right now",
+  "code": "topic_edit_blocked"
+}
+```
+
 ### `PUT /api/engagements/{engagement_id}/settings`
 
 Creates or updates engagement-scoped settings.
 
-### `PUT /api/engagements/{engagement_id}/topics`
+Request DTO:
 
-Replaces the selected topics for one engagement.
+```json
+{
+  "assigned_account_id": "uuid-or-null",
+  "mode": "suggest",
+  "quiet_hours_start": "22:00",
+  "quiet_hours_end": "07:00"
+}
+```
+
+Wizard use:
+
+- step 3 and step 4 writes may pass through this route for assigned account and
+  sending mode settings
+- this is a generic field-write route, not a commit route
+- writes must be idempotent so wizard reopen and retry paths can safely repeat
+  them
+
+Field rules:
+
+- `assigned_account_id` is the wizard-owned account selection field
+- `mode` accepts wizard-backed values `suggest` and `auto_limited`
+- `quiet_hours_start` and `quiet_hours_end` are optional and usually edited
+  outside the initial add flow
+- if one quiet-hours field is present, both must be present
+- omit unchanged fields instead of requiring the caller to resend locked MVP
+  defaults
+
+Response DTO:
+
+```json
+{
+  "result": "updated",
+  "settings": {
+    "engagement_id": "uuid",
+    "assigned_account_id": "uuid-or-null",
+    "mode": "suggest",
+    "quiet_hours_start": "22:00",
+    "quiet_hours_end": "07:00"
+  }
+}
+```
+
+`result` values:
+
+- `updated` — write accepted
+- `blocked` — write is valid but cannot be applied
+- `stale` — engagement no longer exists or settings state changed underneath the
+  caller
+
+`blocked` shape:
+
+```json
+{
+  "result": "blocked",
+  "message": "This account cannot be used here",
+  "code": "account_unusable"
+}
+```
+
+### `POST /api/engagements/{engagement_id}/wizard-confirm`
+
+Validates a draft or edited engagement and commits it as the final wizard
+result.
+
+Rules:
+
+- confirm must validate presence of target, topic, joined account, and sending
+  mode
+- confirm is the only wizard route that may commit the full staged draft as an
+  operator-visible completed engagement
+- for draft engagements, confirm may activate the engagement and approve the
+  target when needed
+- for existing active engagements opened in edit mode, confirm updates the
+  current engagement atomically instead of creating a new one
+- detect-job enqueue and activation must be treated as one operator-facing
+  confirmation result
+
+Response DTO:
+
+```json
+{
+  "result": "confirmed",
+  "message": "Engagement started",
+  "engagement_id": "uuid",
+  "engagement_status": "active",
+  "target_status": "approved",
+  "next_callback": "eng:det:open:uuid"
+}
+```
+
+`result` values:
+
+- `confirmed` — confirm succeeded and the bot should route to `next_callback`
+- `validation_failed` — required wizard state is missing or invalid
+- `blocked` — confirm is well-formed but cannot complete right now
+- `stale` — the engagement or dependent state changed underneath the wizard
+
+`validation_failed` shape:
+
+```json
+{
+  "result": "validation_failed",
+  "message": "Choose a topic",
+  "field": "topic",
+  "next_callback": "eng:wz:edit:uuid:topic"
+}
+```
+
+Allowed `field` values:
+
+- `target`
+- `topic`
+- `account`
+- `sending_mode`
+
+`blocked` shape:
+
+```json
+{
+  "result": "blocked",
+  "message": "Account is not connected",
+  "code": "account_not_joined",
+  "next_callback": "eng:wz:edit:uuid:account"
+}
+```
+
+Recommended `code` values:
+
+- `target_not_resolved`
+- `target_not_approved`
+- `topic_missing`
+- `account_missing`
+- `account_not_joined`
+- `sending_mode_missing`
+- `detect_enqueue_failed`
+- `engagement_archived`
+
+`stale` shape:
+
+```json
+{
+  "result": "stale",
+  "message": "This engagement changed. Review it again.",
+  "next_callback": "eng:det:open:uuid"
+}
+```
+
+### `POST /api/engagements/{engagement_id}/wizard-retry`
+
+Clears wizard-owned draft choices and resets the engagement setup flow to step
+1 without deleting the durable engagement record.
+
+Rules:
+
+- retry is a semantic reset action, not a generic field patch
+- clear `topic_id`
+- clear assigned account if one was only chosen for the abandoned wizard flow
+- reset sending-mode-backed engagement settings to an unconfigured draft state
+- keep the target reference so idempotent restart can reuse the same draft row
+
+Response DTO:
+
+```json
+{
+  "result": "reset",
+  "message": "Start again",
+  "engagement_id": "uuid",
+  "next_callback": "eng:wz:start"
+}
+```
+
+`result` values:
+
+- `reset` — wizard-owned draft state cleared and flow should restart
+- `blocked` — retry cannot reset safely right now
+- `stale` — engagement no longer exists or is no longer a resettable draft
+
+`blocked` shape:
+
+```json
+{
+  "result": "blocked",
+  "message": "This engagement is already active",
+  "code": "engagement_active",
+  "next_callback": "eng:det:open:uuid"
+}
+```
+
+Recommended `code` values:
+
+- `engagement_active`
+- `engagement_archived`
+- `reset_not_allowed`
+
+`stale` shape:
+
+```json
+{
+  "result": "stale",
+  "message": "This draft is no longer available",
+  "next_callback": "op:add"
+}
+```
 
 ### `POST /api/engagements/{engagement_id}/activate`
 
-Confirms a draft engagement and makes it active.
+Legacy low-level activation route.
+
+Rules:
+
+- the task-first wizard should use `wizard-confirm` instead of calling this
+  route directly
+- this route may remain temporarily for compatibility or internal services
 
 ### `GET /api/engagement/targets/{target_id}`
 
@@ -428,7 +779,7 @@ applicable.
 
 Generation rules:
 
-- `topics_not_chosen` — completed engagement has zero chosen topics
+- `topics_not_chosen` — completed engagement has no chosen topic
 - `account_not_connected` — no usable joined engagement account
 - `sending_is_paused` — engagement is paused or disabled and would otherwise be
   eligible to run
@@ -533,6 +884,7 @@ Rules:
 - Incomplete engagements are excluded.
 - `issue_count` is `0` when no issue badge should show.
 - `pending_task` is `null` when none exists.
+- default page size is 20 unless the caller explicitly requests another limit.
 
 ### `GET /api/engagement/cockpit/engagements/{engagement_id}`
 
@@ -601,6 +953,7 @@ Rules:
 - Items are ordered newest first.
 - `sent_at` is absolute time rendered in the operator's local timezone, not
   relative text.
+- default page size is 20 unless the caller explicitly requests another limit.
 
 ### `GET /api/engagement/candidates/{candidate_id}`
 

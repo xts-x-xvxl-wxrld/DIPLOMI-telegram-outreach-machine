@@ -576,8 +576,8 @@ Core rules:
 Generation conditions:
 
 - `Topics not chosen`
-  emit when a completed engagement has zero chosen topics in the engagement
-  read model
+  emit when a completed engagement has no chosen topic in the engagement read
+  model
 
 - `Account not connected`
   emit when the engagement has no usable joined engagement account
@@ -909,6 +909,84 @@ Editing existing engagements:
 - the wizard should jump to the tapped step
 - the operator can still go backward to earlier steps
 
+Wizard step layout contract:
+
+Step 1 — Target
+
+- title: `Add engagement`
+- body:
+  - `Step 1 of 5`
+  - `Which target?`
+  - short helper line: `Paste @handle or t.me/... link`
+- behavior:
+  - no primary action is shown until the target resolves
+  - invalid input re-prompts in place with short error copy
+
+Step 2 — Topic
+
+- title: `Add engagement`
+- body:
+  - `Step 2 of 5`
+  - `Choose a topic or create a new one`
+- actions:
+  - `Choose topic`
+  - `Create topic`
+  - `Continue`
+- behavior:
+  - `Choose topic` and `Create topic` are equal-weight actions
+  - the chosen topic shows a selected state
+  - `Continue` is enabled only when one topic is selected
+
+Step 3 — Account
+
+- title: `Add engagement`
+- body:
+  - `Step 3 of 5`
+  - `Which account should engage from?`
+- actions:
+  - one plain list row per available engagement account
+  - `Add new account`
+- behavior:
+  - the account list is plain, not grouped or tabbed
+  - choosing an account triggers join work immediately
+  - on successful join, auto-advance to the next step
+
+Step 4 — Sending mode
+
+- title: `Add engagement`
+- body:
+  - `Step 4 of 5`
+  - `How should sending work?`
+- actions:
+  - `Draft`
+  - `Auto send`
+  - `Continue`
+- helper copy:
+  - `Draft` — `Review each reply before send`
+  - `Auto send` — `Send automatically with limits`
+- behavior:
+  - `Draft` is preselected by default
+  - `Continue` saves the selected mode and moves forward
+
+Step 5 — Final review
+
+- title: `Add engagement`
+- body:
+  - `Step 5 of 5`
+  - target
+  - selected topic or topics
+  - account
+  - sending mode
+- actions:
+  - `Confirm`
+  - `Retry`
+  - `Cancel`
+- behavior:
+  - this screen is read-only
+  - `Retry` restarts the wizard from Step 1
+  - `Cancel` requires confirmation before discard
+  - `Confirm` starts the engagement and opens engagement detail
+
 ## My Engagements
 
 List behavior:
@@ -1089,6 +1167,147 @@ Rules:
 Empty state:
 
 - `No sent messages`
+
+## Pagination And List Controls
+
+Use simple mobile paging, not free-form filters or dense table controls.
+
+General rules:
+
+- newest-first lists page by offset and limit
+- omit pager buttons when the full list fits on one page
+- show only valid pager buttons for the current page
+- keep list paging separate from the `Back` and `<< Engagements` navigation row
+
+`My engagements` paging:
+
+- default page size: 20
+- callback shape:
+  `eng:mine:list:<offset>`
+- pager labels:
+  - `Newer`
+  - `Older`
+- ordering:
+  newest created engagement first
+- end-of-list behavior:
+  omit `Older` when no more rows exist
+
+`Sent messages` paging:
+
+- default page size: 20
+- callback shape:
+  `eng:sent:list:<offset>`
+- pager labels:
+  - `Newer`
+  - `Older`
+- ordering:
+  newest sent message first
+- end-of-list behavior:
+  omit `Older` when no more rows exist
+
+Queue controllers:
+
+- `Approve draft` and `Top issues` are controller screens, not paged archive
+  lists
+- they should not show list-pager buttons in the first version
+
+Wizard pickers:
+
+- if topic or account choices exceed one screen, paginate them within the wizard
+  using the same `Newer` / `Older` labels
+- keep the picker actions and the pager row separate
+- keep the selected state visible when moving between pages
+
+## Edge And Empty States
+
+Define empty and blocked states explicitly instead of falling back to generic
+error text.
+
+Scoped approval queues launched from engagement detail:
+
+- if drafts remain for that engagement, keep the normal approval card flow
+- if only updating placeholders remain for that engagement, stay in the scoped
+  queue and show `Waiting for updated drafts`
+- if no drafts or updating placeholders remain for that engagement, leave the
+  scoped queue and return to that engagement detail screen
+
+Scoped issue queues launched from engagement detail:
+
+- if unresolved issues remain for that engagement, keep the normal issue card
+  flow
+- if no unresolved issues remain for that engagement, leave the scoped queue
+  and return to that engagement detail screen
+
+Global approval and issue queues:
+
+- if a direct action or refresh removes the final remaining draft or issue,
+  keep the operator on the same screen and render the empty queue state there
+- do not force an automatic jump home when the global queue becomes empty
+
+Stale queue items:
+
+- if a draft or issue disappears before the card opens, refresh the current
+  queue controller immediately
+- if a direct issue action returns `stale`, refresh the current queue
+  controller immediately
+- do not show raw stale-object identifiers to the operator
+
+Issue-fix subflows:
+
+- if a subflow opens and the backing issue has already resolved, return to the
+  current issue queue controller
+- if a subflow exits early by operator choice, return to the same issue card
+- if a subflow cannot continue because the editable object no longer exists,
+  return to the same issue card with a short one-line error
+
+Rate limit detail:
+
+- if the issue is still active, show the read-only rate-limit screen
+- if the issue has cleared before the screen opens, return to the current issue
+  queue controller
+- if no concrete reset time is available, show the issue label and short status
+  without inventing a countdown
+
+Quiet-hours edit:
+
+- if quiet hours are still configured, open the edit screen with current values
+- if quiet hours are no longer configured by the time the screen opens, return
+  to the current issue queue controller
+- if the operator saves without changing anything, treat it as a no-op and
+  return to the same issue card
+
+Wizard topic step:
+
+- if no existing topics are available, keep `Create topic` as the only forward
+  path
+- do not show an empty selectable topic list with dead buttons
+
+Wizard account step:
+
+- show all accounts in the list, even when some are not currently usable
+- accounts that cannot be chosen for the current engagement should still be
+  visible but marked unavailable
+- if no account is currently usable, keep the screen open, show the blocked
+  reason in one short line, and do not invent a fallback account
+
+Account-restricted issue flow:
+
+- if at least one other usable account exists, allow normal account reselection
+- if no usable replacement account exists, return to the same issue card with a
+  short blocked message instead of dropping into an empty picker
+
+Engagement detail:
+
+- if the engagement has no primary pending task, show no main action
+- if a pending task existed but clears before `resume` is opened, refresh the
+  detail screen and remove the main action
+
+Sent messages and engagement lists:
+
+- when a requested page offset is past the end after underlying data changes,
+  return the closest valid page instead of showing a broken empty page
+- keep `Newer` omitted on the first page and `Older` omitted on the last page
+  even after list shrinkage
 
 ## Badge Convention
 

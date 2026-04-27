@@ -1358,3 +1358,56 @@ while preserving the staged testing contract.
 - Defined which actions require confirmation and kept direct issue fixes confirmation-free in the first version.
 - Added short operator-facing success and error lines for draft actions, direct issue fixes, quiet-hours updates, and wizard confirm/cancel.
 - Kept the copy terse, one-line, and free of backend error-code leakage.
+
+## [2026-04-27] docs | Define wizard step layouts
+
+- Added explicit step-screen layout rules to the task-first cockpit spec and the engagement wizard spec.
+- Defined titles, step counters, prompt lines, button rows, and selection behavior for target, topic, account, sending-mode, and final-review screens.
+
+## [2026-04-27] docs | Define edge and empty states for task-first surfaces
+
+- Added a dedicated edge/empty-state section to the task-first cockpit spec.
+- Defined what happens when scoped approval or issue queues launched from engagement detail run dry.
+- Defined stale-item refresh behavior, issue-subflow return rules, and blocked account/topic picker behavior.
+- Defined how list paging should recover when offsets become invalid after underlying data changes.
+
+## [2026-04-27] docs | Define engagement-cockpit migration contract
+
+- Added an explicit migration contract to the engagement API spec.
+- Defined the compatibility boundary between legacy community-scoped settings routes and the new engagement-scoped cockpit read/write surface.
+- Added cutover sequencing, idempotent backfill rules, and operator-facing fail-closed behavior for incomplete migration state.
+- Mirrored the rollout order into the cockpit simplification rollout shard so implementation can retire old primary paths cleanly.
+
+## [2026-04-27] docs | Collapse engagement topic model to one topic per engagement
+
+- Replaced the older multi-topic engagement wording with a single chosen-topic contract.
+- Added wizard write-contract language so step 2 writes one `topic_id` and final confirmation validates the full engagement draft.
+- Updated storage docs to put `topic_id` on `engagements` and removed the separate `engagement_topic_selections` direction.
+- Aligned cockpit issue-generation and API wording so `Topics not chosen` means no chosen topic on the engagement.
+
+## [2026-04-27] docs | Make wizard API contract explicitly hybrid
+
+- Clarified that wizard step fields use generic engagement write endpoints while workflow edges stay semantic.
+- Marked `wizard-confirm` as the only wizard commit route and `wizard-retry` as the semantic reset route.
+- Marked `POST /api/engagements/{engagement_id}/activate` as a legacy low-level compatibility route rather than the task-first wizard path.
+
+## [2026-04-27] docs | Define wizard confirm and retry DTOs
+
+- Added concrete response DTOs for `wizard-confirm` and `wizard-retry`.
+- Defined result enums for success, validation failure, blocked, stale, and reset outcomes.
+- Added `field`, `code`, `message`, and `next_callback` guidance so bot handlers can route without inventing ad hoc branches.
+
+## [2026-04-27] docs | Define generic wizard step-write DTOs
+
+- Added explicit request and response DTOs for `PATCH /api/engagements/{engagement_id}` and `PUT /api/engagements/{engagement_id}/settings`.
+- Locked the engagement patch contract to one `topic_id` instead of any multi-topic payload shape.
+- Added blocked/stale result handling for generic step writes so bot handlers can treat staged writes consistently with semantic wizard endpoints.
+- Kept the topic branch equal-weight between choosing an existing topic and creating a new one.
+- Kept the account chooser as a plain list and the final review screen read-only.
+
+## [2026-04-27] docs | Define pagination and list controls
+
+- Added a dedicated pagination/list-controls section to the task-first cockpit spec.
+- Standardized `My engagements` and `Sent messages` on newest-first paging with `Newer` and `Older` controls.
+- Kept queue controllers out of generic list pagination in the first version.
+- Added the default page-size rule to the matching cockpit list endpoints in the API spec.

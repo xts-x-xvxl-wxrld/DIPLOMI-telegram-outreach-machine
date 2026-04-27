@@ -63,3 +63,30 @@ Recommended order:
 4. Settings screen permission toggle removal.
 5. Community list cleanup (redundant Add button, status filter simplification, sending-mode label).
 6. Remove Limits screen.
+
+## Engagement Cockpit Migration Contract
+
+The newer task-first cockpit replaces the older community-scoped engagement
+surfaces as the operator-primary flow.
+
+Rollout rules:
+
+1. Ship engagement storage plus engagement-scoped write endpoints first.
+2. Backfill one engagement record per existing approved community-level setup.
+3. Ship the task-first cockpit read model (`home`, approvals, issues, list,
+   detail, sent) on top of engagement-scoped state only.
+4. Move the bot home and secondary callbacks to the new `op:*` and `eng:*`
+   surfaces.
+5. Keep older community settings and admin screens as temporary compatibility
+   tools only; do not surface them as parallel primary operator entry points.
+6. Remove legacy community-scoped writes after no active bot callback depends on
+   them.
+
+Operator safety rules:
+
+- never show both the old community-settings home path and the new `Engagements`
+  home as competing primary flows
+- when opening a migrated surface for legacy data, create or backfill the
+  engagement record first instead of rendering mixed-source UI
+- if migration state is incomplete, fail closed with short operator copy rather
+  than silently falling back to raw permission toggles

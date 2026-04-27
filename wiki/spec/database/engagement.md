@@ -47,6 +47,7 @@ First-class operator engagement records.
 id                    uuid PRIMARY KEY
 target_id             uuid NOT NULL REFERENCES engagement_targets(id)
 community_id          uuid NOT NULL REFERENCES communities(id)
+topic_id              uuid REFERENCES engagement_topics(id)
 status                text NOT NULL DEFAULT 'draft'
                       -- draft | active | paused | archived
 name                  text
@@ -81,18 +82,11 @@ updated_at                 timestamptz NOT NULL DEFAULT now()
 UNIQUE (engagement_id)
 ```
 
-### `engagement_topic_selections`
+Rules:
 
-Selected topics per engagement.
-
-```sql
-id                   uuid PRIMARY KEY
-engagement_id        uuid NOT NULL REFERENCES engagements(id)
-topic_id             uuid NOT NULL REFERENCES engagement_topics(id)
-created_at           timestamptz NOT NULL DEFAULT now()
-
-UNIQUE (engagement_id, topic_id)
-```
+- one engagement maps to exactly one topic in the first version
+- incomplete draft engagements may temporarily have `topic_id = null`
+- activation requires a non-null `topic_id`
 
 ### `community_account_memberships`
 
