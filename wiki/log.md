@@ -38,6 +38,16 @@ Key changes:
 - Updated queue regression coverage to exercise a built-in connection error, matching the live
   target-resolve failure mode more closely.
 
+## [2026-04-27] spec | Added bot engagement redesign build plan
+
+Added `wiki/plan/bot-engagement-redesign.md` to guide the next implementation phase for the
+Telegram-bot-exclusive engagement surface. The plan keeps the redesign codebase-native by centering
+reply opportunities, blockers, approvals, runtime-generated suggestions, edited final replies, and
+admin-vs-daily intent separation instead of introducing a generic campaign-style cockpit model.
+`python3 scripts/check_fragmentation.py` passed locally after trimming `wiki/index.md` back to the
+150-line cap; `ruff` and `pytest` still could not run here because those modules are not installed
+in the current environment.
+
 ## [2026-04-26] spec | Clarified runtime-generated engagement reply model
 
 Verified from the implementation that engagement reply text is generated at detection time from
