@@ -29,6 +29,7 @@ from bot.main import (
     engagement_admin_command,
     engagement_actions_command,
     engagement_candidate_command,
+    engagement_candidates_command,
     engagement_command,
     engagement_prompt_command,
     engagement_prompts_command,
@@ -65,6 +66,17 @@ from bot.main import (
     toggle_engagement_topic_command,
     telegram_entity_text,
 )
+
+__all__ = [
+    "_FakeApiClient",
+    "_callback_data_values",
+    "_callback_update",
+    "_context",
+    "_message_update",
+    "callback_query",
+    "engagement_candidate_command",
+    "engagement_candidates_command",
+]
 
 
 class _FakeMessage:
