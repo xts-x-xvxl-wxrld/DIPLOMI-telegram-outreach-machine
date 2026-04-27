@@ -79,7 +79,7 @@ def engagement_candidate_actions_markup(candidate_id: str):
             _button("✅ Approve", ACTION_ENGAGEMENT_APPROVE, candidate_id),
             _button("✖ Reject", ACTION_ENGAGEMENT_REJECT, candidate_id),
         ],
-        [_button("💬 More replies", ACTION_ENGAGEMENT_CANDIDATES, "needs_review", "0")],
+        [_button("⚠ Pending approvals", ACTION_ENGAGEMENT_CANDIDATES, "needs_review", "0")],
     ]
     return _inline_markup(
         _with_navigation(
@@ -94,7 +94,7 @@ def engagement_candidate_send_markup(candidate_id: str):
     rows = [
         [_button("📤 Queue send", ACTION_ENGAGEMENT_SEND, candidate_id)],
         [_button("👀 Open", ACTION_ENGAGEMENT_CANDIDATE_OPEN, candidate_id)],
-        [_button("✅ Approved replies", ACTION_ENGAGEMENT_CANDIDATES, "approved", "0")],
+        [_button("✅ Ready to send", ACTION_ENGAGEMENT_CANDIDATES, "approved", "0")],
     ]
     return _inline_markup(
         _with_navigation(
@@ -105,11 +105,26 @@ def engagement_candidate_send_markup(candidate_id: str):
     )
 
 
-def engagement_candidate_detail_markup(candidate_id: str, *, status: str):
+def engagement_candidate_detail_markup(
+    candidate_id: str,
+    *,
+    status: str,
+    community_id: str | None = None,
+    blocked: bool = False,
+):
+    has_fix_row = bool(community_id and (blocked or status == "failed"))
     rows = [[_button("🗂 Revisions", ACTION_ENGAGEMENT_CANDIDATE_REVISIONS, candidate_id)]]
-    if status == "needs_review":
+    if has_fix_row:
         rows.insert(
             0,
+            [
+                _button("⚙ Fix settings", ACTION_ENGAGEMENT_SETTINGS_OPEN, str(community_id)),
+                _button("📜 Recent actions", ACTION_ENGAGEMENT_ACTIONS, str(community_id), "0"),
+            ],
+        )
+    if status == "needs_review":
+        rows.insert(
+            1 if has_fix_row else 0,
             [
                 _button("✏ Edit", ACTION_ENGAGEMENT_CANDIDATE_EDIT, candidate_id),
                 _button("✅ Approve", ACTION_ENGAGEMENT_APPROVE, candidate_id),
@@ -118,9 +133,12 @@ def engagement_candidate_detail_markup(candidate_id: str, *, status: str):
         )
         rows.append([_button("⏳ Expire", ACTION_ENGAGEMENT_CANDIDATE_EXPIRE, candidate_id)])
     elif status == "approved":
-        rows.insert(0, [_button("📤 Queue send", ACTION_ENGAGEMENT_SEND, candidate_id)])
         rows.insert(
-            1,
+            1 if has_fix_row else 0,
+            [_button("📤 Queue send", ACTION_ENGAGEMENT_SEND, candidate_id)],
+        )
+        rows.insert(
+            2 if has_fix_row else 1,
             [
                 _button("✏ Edit", ACTION_ENGAGEMENT_CANDIDATE_EDIT, candidate_id),
                 _button("✖ Reject", ACTION_ENGAGEMENT_REJECT, candidate_id),
@@ -129,7 +147,7 @@ def engagement_candidate_detail_markup(candidate_id: str, *, status: str):
         rows.append([_button("⏳ Expire", ACTION_ENGAGEMENT_CANDIDATE_EXPIRE, candidate_id)])
     elif status == "failed":
         rows.insert(
-            0,
+            1 if has_fix_row else 0,
             [
                 _button("🔁 Retry", ACTION_ENGAGEMENT_CANDIDATE_RETRY, candidate_id),
                 _button("✏ Edit", ACTION_ENGAGEMENT_CANDIDATE_EDIT, candidate_id),
@@ -141,7 +159,10 @@ def engagement_candidate_detail_markup(candidate_id: str, *, status: str):
         _with_navigation(
             rows,
             back_action=ACTION_ENGAGEMENT_CANDIDATES,
-            back_parts=[status if status in {"approved", "failed", "sent", "rejected"} else "needs_review", "0"],
+            back_parts=[
+                status if status in {"approved", "failed", "sent", "rejected", "expired"} else "needs_review",
+                "0",
+            ],
         )
     )
 
@@ -179,10 +200,10 @@ def engagement_candidate_pager_markup(
 
 def engagement_home_markup(*, show_admin: bool = True):
     rows = [
-        [_button("💬 Today", ACTION_ENGAGEMENT_HOME)],
+        [_button("⚠ Pending approvals", ACTION_ENGAGEMENT_CANDIDATES, "needs_review", "0")],
         [
-            _button("⚠ Review replies", ACTION_ENGAGEMENT_CANDIDATES, "needs_review", "0"),
-            _button("✅ Approved", ACTION_ENGAGEMENT_CANDIDATES, "approved", "0"),
+            _button("✅ Ready to send", ACTION_ENGAGEMENT_CANDIDATES, "approved", "0"),
+            _button("⛔ Needs attention", ACTION_ENGAGEMENT_CANDIDATES, "failed", "0"),
         ],
         [
             _button("🏘 Communities", ACTION_ENGAGEMENT_TARGETS, "0"),
@@ -209,17 +230,17 @@ def engagement_admin_home_markup():
             _button("➕ Create topic", ACTION_ENGAGEMENT_TOPIC_CREATE),
         ],
         [
-            _button("🗣 Voice rules", ACTION_ENGAGEMENT_STYLE, "0"),
-            _button("⚙ Limits/accounts", ACTION_ENGAGEMENT_ADMIN_LIMITS),
+            _button("🗣 Reply style", ACTION_ENGAGEMENT_STYLE, "0"),
+            _button("⚙ Send safety", ACTION_ENGAGEMENT_ADMIN_LIMITS),
         ],
-        [_button("🧪 Advanced", ACTION_ENGAGEMENT_ADMIN_ADVANCED)],
+        [_button("🧠 Drafting/audit", ACTION_ENGAGEMENT_ADMIN_ADVANCED)],
     ]
     return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))
 
 
 def engagement_admin_limits_markup():
     rows = [
-        [_button("⚙ Settings lookup", ACTION_ENGAGEMENT_SETTINGS_LOOKUP, "0")],
+        [_button("⚙ Safety lookup", ACTION_ENGAGEMENT_SETTINGS_LOOKUP, "0")],
         [_button("🏘 Communities", ACTION_ENGAGEMENT_TARGETS, "0")],
     ]
     return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_ADMIN))
@@ -260,7 +281,7 @@ def engagement_settings_lookup_markup(
 
 def engagement_admin_advanced_markup():
     rows = [
-        [_button("🧠 Prompt profiles", ACTION_ENGAGEMENT_PROMPTS, "0")],
+        [_button("🧠 Drafting profiles", ACTION_ENGAGEMENT_PROMPTS, "0")],
         [_button("📜 Audit/diagnostics", ACTION_ENGAGEMENT_ACTIONS, "0")],
     ]
     return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_ADMIN))
@@ -678,14 +699,22 @@ def engagement_account_confirm_markup():
     )
 
 def engagement_candidate_filter_markup(*, status: str = "needs_review"):
-    statuses = ["needs_review", "approved", "failed", "sent", "rejected"]
+    labels = {
+        "needs_review": "Pending approvals",
+        "approved": "Ready to send",
+        "failed": "Needs attention",
+        "expired": "Expired",
+        "sent": "Sent",
+        "rejected": "Rejected",
+    }
+    statuses = ["needs_review", "approved", "failed", "expired", "sent", "rejected"]
     rows = []
     row = []
     for candidate_status in statuses:
-        label = candidate_status.replace("_", " ")
+        label = labels.get(candidate_status, candidate_status.replace("_", " ").title())
         if candidate_status == status:
             label = f"• {label}"
-        row.append(_button(label.title(), ACTION_ENGAGEMENT_CANDIDATES, candidate_status, "0"))
+        row.append(_button(label, ACTION_ENGAGEMENT_CANDIDATES, candidate_status, "0"))
         if len(row) == 2:
             rows.append(row)
             row = []

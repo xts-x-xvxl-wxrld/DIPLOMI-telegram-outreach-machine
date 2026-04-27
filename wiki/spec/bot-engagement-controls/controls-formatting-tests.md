@@ -35,11 +35,22 @@ The exact names may change during implementation if needed to preserve the 64-by
 The important contract is that engagement callbacks stay inside the `eng:*` namespace and route
 only through bot API-client methods.
 
+Queue filters must expose at least:
+
+- `needs_review`
+- `approved`
+- `failed`
+- `expired`
+- `sent`
+- `rejected`
+
 ## Message Formatting
 
-Candidate cards should show:
+Reply opportunity cards should show:
 
+- queue label such as `Pending approvals`, `Ready to send`, or `Needs attention`
 - send readiness summary
+- next safe action sentence
 - candidate ID
 - community title and username when available
 - topic name
@@ -51,6 +62,12 @@ Candidate cards should show:
 - prompt profile and version
 - risk notes
 - next safe actions
+
+Open reply-opportunity detail should act as a review workspace:
+
+- show `Source context`, `Reply workspace`, and `Audit fields` sections
+- show generated suggestion and final reply as separate fields
+- when the final reply still matches the generated suggestion, say so explicitly
 
 Target cards should show:
 
@@ -82,8 +99,18 @@ Style cards should show:
 - capped rule text
 - next safe actions
 
+Config surfaces should show:
+
+- `Engagement setup` as the admin home heading
+- operator-intent labels such as `Allowed communities`, `Detection topics`, `Reply style rules`,
+  `Send safety`, and `Drafting profiles`
+- send-safety surfaces that lead with readiness, posting posture, pacing, quiet hours, and account assignment
+- drafting/audit surfaces that keep prompt-profile and diagnostics controls clearly separate from ordinary review work
+
 Formatting rules:
 
+- queue list headers should be status-specific (`Pending approvals`, `Ready to send`, `Needs attention`,
+  `Expired opportunities`, `Sent replies`, `Rejected opportunities`)
 - Put the operator-facing summary and next safe action above raw IDs and backend fields.
 - Prefer compact cards over long lists.
 - Use plain-text visual hierarchy first: short emoji/glyph markers, labeled fields, and section

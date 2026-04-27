@@ -310,15 +310,26 @@ def test_engagement_candidate_actions_markup_exposes_review_controls() -> None:
     assert rows[1][1].callback_data == f"{ACTION_ENGAGEMENT_APPROVE}:candidate-1"
     assert rows[1][2].text.endswith("Reject")
     assert rows[2][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:needs_review:0"
+    assert rows[2][0].text.endswith("Pending approvals")
 
 
 def test_engagement_candidate_detail_markup_is_state_aware() -> None:
     approved = engagement_candidate_detail_markup("candidate-1", status="approved")
+    blocked = engagement_candidate_detail_markup(
+        "candidate-4",
+        status="approved",
+        community_id="community-1",
+        blocked=True,
+    )
+    expired = engagement_candidate_detail_markup("candidate-4", status="expired")
     failed = engagement_candidate_detail_markup("candidate-2", status="failed")
     sent = engagement_candidate_detail_markup("candidate-3", status="sent")
 
     assert "eng:cand:send:candidate-1" in _callbacks(approved)
+    assert f"{ACTION_ENGAGEMENT_SETTINGS_OPEN}:community-1" in _callbacks(blocked)
+    assert f"{ACTION_ENGAGEMENT_ACTIONS}:community-1:0" in _callbacks(blocked)
     assert f"{ACTION_ENGAGEMENT_CANDIDATE_EXPIRE}:candidate-1" in _callbacks(approved)
+    assert f"{ACTION_ENGAGEMENT_CANDIDATES}:expired:0" in _callbacks(expired)
     assert f"{ACTION_ENGAGEMENT_CANDIDATE_RETRY}:candidate-2" in _callbacks(failed)
     assert f"{ACTION_ENGAGEMENT_CANDIDATE_REVISIONS}:candidate-3" in _callbacks(sent)
     assert "eng:cand:send:candidate-3" not in _callbacks(sent)
@@ -343,15 +354,15 @@ def test_engagement_home_markup_links_core_surfaces() -> None:
     markup = engagement_home_markup()
     rows = markup.inline_keyboard
 
-    assert rows[0][0].text.startswith("💬 ")
-    assert rows[0][0].text.endswith("Today")
-    assert rows[0][0].callback_data == ACTION_ENGAGEMENT_HOME
-    assert rows[1][0].text.startswith("⚠ ")
-    assert rows[1][0].text.endswith("Review replies")
-    assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:needs_review:0"
-    assert rows[1][1].text.startswith("✅ ")
-    assert rows[1][1].text.endswith("Approved")
-    assert rows[1][1].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:approved:0"
+    assert rows[0][0].text.startswith("⚠ ")
+    assert rows[0][0].text.endswith("Pending approvals")
+    assert rows[0][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:needs_review:0"
+    assert rows[1][0].text.startswith("✅ ")
+    assert rows[1][0].text.endswith("Ready to send")
+    assert rows[1][1].text.startswith("⛔ ")
+    assert rows[1][1].text.endswith("Needs attention")
+    assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:approved:0"
+    assert rows[1][1].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:failed:0"
     assert rows[2][0].text.startswith("🏘 ")
     assert rows[2][0].text.endswith("Communities")
     assert rows[2][0].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:0"
@@ -389,13 +400,13 @@ def test_engagement_admin_home_markup_links_setup_and_advanced_surfaces() -> Non
     assert rows[1][1].text == "➕ Create topic"
     assert rows[1][1].callback_data == ACTION_ENGAGEMENT_TOPIC_CREATE
     assert rows[2][0].text.startswith("🗣 ")
-    assert rows[2][0].text.endswith("Voice rules")
+    assert rows[2][0].text.endswith("Reply style")
     assert rows[2][0].callback_data == f"{ACTION_ENGAGEMENT_STYLE}:0"
     assert rows[2][1].text.startswith("⚙ ")
-    assert rows[2][1].text.endswith("Limits/accounts")
+    assert rows[2][1].text.endswith("Send safety")
     assert rows[2][1].callback_data == ACTION_ENGAGEMENT_ADMIN_LIMITS
-    assert rows[3][0].text.startswith("🧪 ")
-    assert rows[3][0].text.endswith("Advanced")
+    assert rows[3][0].text.startswith("🧠 ")
+    assert rows[3][0].text.endswith("Drafting/audit")
     assert rows[3][0].callback_data == ACTION_ENGAGEMENT_ADMIN_ADVANCED
 
 
@@ -614,8 +625,14 @@ def test_engagement_candidate_send_and_filter_markup() -> None:
     assert send_markup.inline_keyboard[0][0].callback_data == "eng:cand:send:candidate-1"
     assert send_markup.inline_keyboard[1][0].callback_data == "eng:cand:open:candidate-1"
     assert send_markup.inline_keyboard[2][0].callback_data == "eng:cand:list:approved:0"
+    assert send_markup.inline_keyboard[2][0].text.endswith("Ready to send")
     assert any(
         button.callback_data == "eng:cand:list:failed:0"
+        for row in filter_markup.inline_keyboard
+        for button in row
+    )
+    assert any(
+        button.callback_data == "eng:cand:list:expired:0"
         for row in filter_markup.inline_keyboard
         for button in row
     )

@@ -183,13 +183,17 @@ def _button_label(label: str, action: str, parts: Sequence[str]) -> str:
     key = (action, tuple(parts))
     overrides = {
         (ACTION_ENGAGEMENT_CANDIDATES, ("needs_review", "0")): _ButtonLabel(
-            "⚠ Review replies",
-            equals_alias="Review replies",
+            "⚠ Pending approvals",
+            equals_alias="Pending approvals",
         ),
         (ACTION_ENGAGEMENT_CANDIDATES, ("approved", "0")): _ButtonLabel(
-            "✅ Approved to send",
+            "✅ Ready to send",
             endswith_alias="Approved",
-            equals_alias="Approved to send",
+            equals_alias="Ready to send",
+        ),
+        (ACTION_ENGAGEMENT_CANDIDATES, ("failed", "0")): _ButtonLabel(
+            "⛔ Needs attention",
+            equals_alias="Needs attention",
         ),
         (ACTION_ENGAGEMENT_TARGETS, ("0",)): _ButtonLabel(
             "🏘 Communities",
@@ -214,16 +218,16 @@ def _button_label(label: str, action: str, parts: Sequence[str]) -> str:
             equals_alias="Admin",
         ),
         (ACTION_ENGAGEMENT_STYLE, ("0",)): _ButtonLabel(
-            "🗣 Voice rules",
-            equals_alias="Voice rules",
+            "🗣 Reply style",
+            equals_alias="Reply style",
         ),
         (ACTION_ENGAGEMENT_ADMIN_LIMITS, ()): _ButtonLabel(
-            "⚙ Limits/accounts",
-            equals_alias="Limits/accounts",
+            "⚙ Send safety",
+            equals_alias="Send safety",
         ),
         (ACTION_ENGAGEMENT_ADMIN_ADVANCED, ()): _ButtonLabel(
-            "🧪 Advanced",
-            equals_alias="Advanced",
+            "🧠 Drafting/audit",
+            equals_alias="Drafting/audit",
         ),
     }
     return overrides.get(key, label)

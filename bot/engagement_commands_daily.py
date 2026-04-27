@@ -411,7 +411,7 @@ async def edit_reply_command(update: Any, context: Any) -> None:
         return
     await _reply(
         update,
-        "Reply edited.\n\n" + format_engagement_candidate_card(data),
+        "Final reply updated.\n\n" + format_engagement_candidate_card(data, detail=True),
         reply_markup=_engagement_candidate_detail_markup(candidate_id, data),
     )
 

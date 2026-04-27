@@ -1231,3 +1231,39 @@ while preserving the staged testing contract.
   state in the shared pending edit store.
 - Left legacy inline /create_engagement_topic ... | ... | ... parsing available for direct command
   users, and updated the bot spec/plan shards to describe the new default flow.
+
+## [2026-04-27] implementation | Engagement home hierarchy refresh
+
+- Reworked the `/engagement` home copy to lead with pending approvals, separate ready-to-send work from needs-attention blockers, and spell out the review -> edit/approve -> send path.
+- Reordered the engagement home inline keyboard so pending approvals is the first primary action, added a direct needs-attention queue button, and kept config/admin shortcuts secondary.
+- Updated the engagement navigation spec plus focused formatting, UI, and handler tests for the new operator-first home surface.
+
+## [2026-04-27] implementation | Reply opportunity queue refinement
+
+- Reworked reply-opportunity queue headers and card copy around operator states such as `Pending approvals`, `Ready to send`, `Needs attention`, and `Expired opportunities`.
+- Added the missing `expired` queue filter, preserved queue-specific back navigation from detail cards, and aligned list buttons with the new operator wording.
+- Added lightweight within-page prioritization for pending/approved queues using freshness and deadline hints, plus focused test coverage for queue ordering and filter availability.
+
+## [2026-04-27] implementation | Reply workspace detail view
+
+- Split open reply-opportunity detail from the compact queue card so operators now see `Source context`, `Reply workspace`, and `Audit fields` sections in one place.
+- Made generated suggestion and final reply render as explicitly separate fields, including a clear “matches the generated suggestion” state before any edit.
+- Updated detail return paths after edit, expire, and retry so operators land back in the richer review workspace rather than the compact queue card.
+
+## [2026-04-27] implementation | Blocked reply fix paths
+
+- Enriched reply-opportunity detail views with community settings context so blocked send readiness can explain a concrete blocker without a backend schema change.
+- Added `Blocked path` guidance for posting-disabled, not-joined, account/quiet-hours/rate-limit, failed-send, and expired states, with direct commands to the right fix surfaces.
+- Added blocked-detail action buttons for community settings and recent engagement actions when a reply opportunity needs operator remediation.
+
+## [2026-04-27] implementation | Reply-opportunity copy consistency
+
+- Normalized operator-facing engagement wording around `reply opportunity`, `generated suggestion`, and `final reply` while keeping legacy `candidate` only for audit IDs and command compatibility.
+- Renamed review/revision/send-adjacent copy so approval, revision history, and queued-send surfaces read as one coherent workflow.
+- Updated the engagement formatting/navigation spec language to match the shipped Telegram bot vocabulary.
+
+## [2026-04-27] implementation | Config surfaces by operator intent
+
+- Reframed the engagement admin/config surface around operator questions such as allowed communities, detection topics, reply style, send safety, and drafting/diagnostics.
+- Renamed the related formatter headers so targets, topics, style rules, prompt profiles, and settings read as intent-led setup surfaces instead of backend object lists.
+- Kept the existing commands, callbacks, and admin gating intact while updating focused handler, UI, and formatting expectations plus the engagement navigation spec.

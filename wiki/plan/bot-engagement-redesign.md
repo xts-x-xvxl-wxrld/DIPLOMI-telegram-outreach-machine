@@ -1,7 +1,6 @@
 # Bot Engagement Redesign Plan
 
 ## Goal
-
 Refine the Telegram-bot-exclusive engagement operator surface so it feels guided, intention-first,
 and aligned with the current `tg-outreach` implementation.
 
@@ -17,7 +16,6 @@ The redesign must reflect the actual codebase:
 This is not a plan for a parallel web cockpit or a generic campaign object.
 
 ## Product Direction
-
 The operator experience should be organized around four recurring jobs:
 
 1. Review pending reply opportunities
@@ -28,7 +26,6 @@ The operator experience should be organized around four recurring jobs:
 The redesign should make those jobs obvious from the first `/engagement` screen.
 
 ## Current Context
-
 Already implemented:
 
 - top-level inline operator cockpit
@@ -47,7 +44,6 @@ Current problem:
 - the runtime-generated reply model is now documented, but the UI flow should express it more clearly
 
 ## Non-Goals
-
 - no web frontend as the primary operator surface
 - no new campaign or engagement-run object that bypasses current target/topic/candidate models
 - no auto-send workflow in MVP
@@ -140,7 +136,7 @@ Keep the admin/config surfaces powerful, but organize them by operator intent in
 
 Work items:
 
-- group topic, prompt-profile, style-rule, and settings surfaces by what they influence
+- group topic, prompt-profile, style-rule, target, and settings surfaces by what they influence
 - make it obvious which controls shape future detection vs future reply wording vs send safety
 - keep destructive or risky changes behind confirmation
 - preserve current capability gating and callback namespaces
@@ -195,7 +191,6 @@ Acceptance:
 - Telegram message length and callback-data limits remain hard constraints
 
 ## Suggested Build Order
-
 1. Slice 1: Home And Mode Hierarchy
 2. Slice 2: Reply Opportunity Queue Refinement
 3. Slice 3: Candidate Detail As Review Workspace

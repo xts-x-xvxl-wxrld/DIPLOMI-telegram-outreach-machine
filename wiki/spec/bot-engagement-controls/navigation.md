@@ -59,27 +59,33 @@ Recommended top-level engagement menu:
 
 ```text
 Engagement
-  Today
-  Review replies
-  Approved to send
+  Pending approvals
+  Ready to send
+  Needs attention
   Communities
   Topics
+  Settings lookup
   Recent actions
   Admin
 ```
 
+Home-screen rule:
+
+- when `needs_review > 0`, `Pending approvals` is the first primary CTA
+- `Ready to send` and `Needs attention` must be separate actions, not one blended queue
+- configuration and admin shortcuts stay visible but secondary to the review flow
+
 Recommended engagement admin menu:
 
 ```text
-Engagement Admin
-  Setup
-    Communities
-    Topics
-    Voice rules
-    Limits and accounts
-  Advanced
-    Prompt profiles
-    Audit and diagnostics
+Engagement setup
+  Communities
+  Topics
+  Add community
+  Create topic
+  Reply style
+  Send safety
+  Drafting/audit
 ```
 
 The operator-facing labels should answer common questions:
@@ -105,12 +111,12 @@ The cockpit should hide backend complexity until it helps the operator make a de
 
 | Operator intention | Primary UI label | Backend concepts behind it |
 |---|---|---|
-| Review what needs attention | Today, Review replies, Approved to send | candidates, candidate statuses, revisions, send jobs |
+| Review what needs attention | Pending approvals, Ready to send, Needs attention | candidates, candidate statuses, revisions, send jobs |
 | Decide where engagement is allowed | Communities | engagement targets, community engagement settings, memberships |
-| Decide what to notice | Topics | engagement topics, trigger keywords, negative keywords, topic examples |
-| Tune how replies sound | Voice rules | style rules, topic guidance, prompt fragments |
-| Understand whether posting is safe | Readiness, Blocked reasons | target permissions, settings mode, joined account, rate limits, expiry |
-| Investigate or tune internals | Advanced | prompt profiles, prompt versions, audit/action rows, diagnostics |
+| Decide what to notice | Topics, Detection topics | engagement topics, trigger keywords, negative keywords, topic examples |
+| Tune how replies sound | Reply style | style rules, topic guidance, prompt fragments |
+| Understand whether posting is safe | Send safety, Blocked path | target permissions, settings mode, joined account, rate limits, expiry |
+| Investigate or tune internals | Drafting/audit | prompt profiles, prompt versions, audit/action rows, diagnostics |
 
 Rules:
 
@@ -139,7 +145,7 @@ Recommended readiness labels:
 - `Blocked: posting permission off`
 - `Blocked: rate limit or quiet hours`
 
-Candidate cards should summarize send readiness in one line:
+Reply opportunity cards should summarize send readiness in one line:
 
 - `Needs review`
 - `Approved, ready to send`
@@ -158,9 +164,9 @@ human-readable explanation of the same preflight rules.
 The bot should keep the default card small. Detailed controls should appear only when the operator
 opens the relevant item.
 
-Candidate card default actions:
+Reply opportunity default actions:
 
-| Candidate state | Default actions |
+| Reply state | Default actions |
 |---|---|
 | `needs_review` | Edit, Approve, Reject |
 | `approved` | Send, Reopen/Edit, Reject |
@@ -176,3 +182,9 @@ Community card default actions should be similarly state-aware:
 - Drafting: review suggested replies, adjust topics, or pause.
 - Ready to post: review approved replies, adjust limits, or pause posting.
 - Blocked: show the single most important next fix first.
+
+Blocked reply-opportunity workspace rule:
+
+- if send readiness is blocked, the detail view should name the blocker in plain language
+- the same detail view should surface one primary fix path before secondary diagnostics
+- when possible, include direct links to community settings and recent engagement actions

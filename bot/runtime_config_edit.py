@@ -464,7 +464,7 @@ def _saved_config_edit_response(pending: PendingEdit, data: dict[str, Any]) -> t
     prefix = render_edit_saved(pending)
     if pending.entity == "candidate":
         return (
-            prefix + "\n\n" + format_engagement_candidate_card(data),
+            prefix + "\n\n" + format_engagement_candidate_card(data, detail=True),
             _engagement_candidate_detail_markup(pending.object_id, data),
         )
     if pending.entity == "target":

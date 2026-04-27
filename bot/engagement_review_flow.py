@@ -251,6 +251,96 @@ ENGAGEMENT_ADMIN_ONLY_MESSAGE = (
 from .runtime import *
 
 
+def _candidate_timeliness_rank(item: dict[str, Any]) -> int:
+    return {"fresh": 0, "aging": 1, "stale": 2}.get(str(item.get("timeliness") or "").casefold(), 3)
+
+
+def _candidate_moment_rank(item: dict[str, Any]) -> int:
+    return {"strong": 0, "good": 1, "weak": 2}.get(str(item.get("moment_strength") or "").casefold(), 3)
+
+
+def _candidate_value_rank(item: dict[str, Any]) -> int:
+    return {
+        "practical_tip": 0,
+        "correction": 1,
+        "resource": 2,
+        "clarifying_question": 3,
+        "other": 4,
+        "none": 5,
+    }.get(str(item.get("reply_value") or "").casefold(), 6)
+
+
+def _sorted_candidate_items(items: list[dict[str, Any]], *, status: str) -> list[dict[str, Any]]:
+    if status == "needs_review":
+        return sorted(
+            items,
+            key=lambda item: (
+                _candidate_timeliness_rank(item),
+                str(item.get("review_deadline_at") or item.get("reply_deadline_at") or "9999-99-99"),
+                _candidate_moment_rank(item),
+                _candidate_value_rank(item),
+                str(item.get("created_at") or "9999-99-99"),
+            ),
+        )
+    if status == "approved":
+        return sorted(
+            items,
+            key=lambda item: (
+                _candidate_timeliness_rank(item),
+                str(item.get("reply_deadline_at") or item.get("review_deadline_at") or "9999-99-99"),
+                _candidate_moment_rank(item),
+                str(item.get("created_at") or "9999-99-99"),
+            ),
+        )
+    if status in {"failed", "expired"}:
+        return sorted(
+            items,
+            key=lambda item: (
+                _candidate_timeliness_rank(item),
+                str(item.get("reply_deadline_at") or item.get("review_deadline_at") or "9999-99-99"),
+                str(item.get("created_at") or "9999-99-99"),
+            ),
+        )
+    return items
+
+
+def _candidate_with_settings_context(candidate: dict[str, Any], settings: dict[str, Any] | None) -> dict[str, Any]:
+    if not settings:
+        return candidate
+    merged = {**candidate}
+    status = str(candidate.get("status") or "")
+    if settings.get("quiet_hours_active") is True:
+        merged["send_block_reason"] = "Blocked: quiet hours active"
+    elif settings.get("rate_limit_active") is True or settings.get("rate_limited") is True:
+        merged["send_block_reason"] = "Blocked: rate limit active"
+    elif settings.get("has_joined_engagement_account") is False:
+        merged["send_block_reason"] = "Blocked: no joined engagement account"
+    elif status in {"approved", "failed"} and not bool(settings.get("allow_post")):
+        merged["send_block_reason"] = "Blocked: posting permission off"
+    elif settings.get("assigned_account_status") in {"rate_limited", "banned"}:
+        merged["send_block_reason"] = (
+            f"Blocked: account {str(settings['assigned_account_status']).replace('_', ' ')}"
+        )
+    if merged.get("send_block_reason") and candidate.get("community_id"):
+        merged["fix_settings_command"] = f"/engagement_settings {candidate['community_id']}"
+        merged["fix_actions_command"] = f"/engagement_actions {candidate['community_id']}"
+        merged["fix_community_command"] = f"/community {candidate['community_id']}"
+        merged["fix_join_command"] = f"/join_community {candidate['community_id']}"
+    return merged
+
+
+async def _candidate_detail_context(client: Any, candidate_id: str) -> dict[str, Any]:
+    data = await client.get_engagement_candidate(candidate_id)
+    community_id = data.get("community_id")
+    if not community_id:
+        return data
+    try:
+        settings = await client.get_engagement_settings(str(community_id))
+    except BotApiError:
+        return data
+    return _candidate_with_settings_context(data, settings)
+
+
 async def _send_engagement_candidates(
     update: Any,
     context: Any,
@@ -264,12 +354,13 @@ async def _send_engagement_candidates(
         limit=ENGAGEMENT_CANDIDATE_PAGE_SIZE,
         offset=offset,
     )
+    items = _sorted_candidate_items(list(data.get("items") or []), status=status)
     await _callback_reply(
         update,
         format_engagement_candidates(data, offset=offset, status=status),
         reply_markup=engagement_candidate_filter_markup(status=status),
     )
-    for index, item in enumerate(data.get("items") or [], start=offset + 1):
+    for index, item in enumerate(items, start=offset + 1):
         candidate_id = str(item.get("id", "unknown"))
         candidate_status = str(item.get("status") or status)
         reply_markup = None
@@ -291,7 +382,7 @@ async def _send_engagement_candidates(
         status=status,
     )
     if pager_markup is not None:
-        await _callback_reply(update, "Reply page controls", reply_markup=pager_markup)
+        await _callback_reply(update, "Reply queue page controls", reply_markup=pager_markup)
 
 
 async def _send_engagement_candidate_detail(
@@ -300,10 +391,10 @@ async def _send_engagement_candidate_detail(
     candidate_id: str,
 ) -> None:
     client = _api_client(context)
-    data = await client.get_engagement_candidate(candidate_id)
+    data = await _candidate_detail_context(client, candidate_id)
     await _callback_reply(
         update,
-        format_engagement_candidate_card(data),
+        format_engagement_candidate_card(data, detail=True),
         reply_markup=_engagement_candidate_detail_markup(candidate_id, data),
     )
 
@@ -334,7 +425,8 @@ async def _expire_engagement_candidate(
         candidate_id,
         expired_by=_reviewer_label(update),
     )
-    message = "Candidate expired.\n\n" + format_engagement_candidate_card(data)
+    data = await _candidate_detail_context(client, candidate_id) if data.get("community_id") else data
+    message = "Reply opportunity expired.\n\n" + format_engagement_candidate_card(data, detail=True)
     reply_markup = _engagement_candidate_detail_markup(candidate_id, data)
     if edit_callback:
         await _edit_callback_message(update, message, reply_markup=reply_markup)
@@ -354,7 +446,8 @@ async def _retry_engagement_candidate(
         candidate_id,
         retried_by=_reviewer_label(update),
     )
-    message = "Candidate reopened for review.\n\n" + format_engagement_candidate_card(data)
+    data = await _candidate_detail_context(client, candidate_id) if data.get("community_id") else data
+    message = "Reply opportunity reopened for review.\n\n" + format_engagement_candidate_card(data, detail=True)
     reply_markup = _engagement_candidate_detail_markup(candidate_id, data)
     if edit_callback:
         await _edit_callback_message(update, message, reply_markup=reply_markup)

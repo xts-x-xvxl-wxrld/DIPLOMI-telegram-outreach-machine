@@ -29,7 +29,6 @@ from bot.main import (
     engagement_admin_command,
     engagement_actions_command,
     engagement_candidate_command,
-    engagement_candidates_command,
     engagement_command,
     engagement_prompt_command,
     engagement_prompts_command,
@@ -382,6 +381,7 @@ class _FakeApiClient:
                 "items": [
                     {
                         "id": "candidate-review",
+                        "community_id": "community-1",
                         "community_title": "Founder Circle",
                         "topic_name": "Open CRM",
                         "status": "needs_review",
@@ -396,6 +396,7 @@ class _FakeApiClient:
                 "items": [
                     {
                         "id": "candidate-approved",
+                        "community_id": "community-1",
                         "community_title": "Founder Circle",
                         "topic_name": "Open CRM",
                         "status": "approved",
@@ -754,6 +755,7 @@ class _FakeApiClient:
                     return dict(candidate)
         return {
             "id": candidate_id,
+            "community_id": "community-1",
             "community_title": "Founder Circle",
             "topic_name": "Open CRM",
             "status": "needs_review",
@@ -960,6 +962,7 @@ class _FakeApiClient:
         self.approve_calls.append({"candidate_id": candidate_id, "reviewed_by": reviewed_by})
         return {
             "id": candidate_id,
+            "community_id": "community-1",
             "community_title": "Founder Circle",
             "status": "approved",
             "reviewed_by": reviewed_by,
@@ -992,6 +995,7 @@ class _FakeApiClient:
         )
         return {
             "id": candidate_id,
+            "community_id": "community-1",
             "community_title": "Founder Circle",
             "topic_name": "Open CRM",
             "status": "needs_review",
@@ -1010,6 +1014,7 @@ class _FakeApiClient:
         self.expire_candidate_calls.append({"candidate_id": candidate_id, "expired_by": expired_by})
         return {
             "id": candidate_id,
+            "community_id": "community-1",
             "community_title": "Founder Circle",
             "topic_name": "Open CRM",
             "status": "expired",
@@ -1027,6 +1032,7 @@ class _FakeApiClient:
         self.retry_candidate_calls.append({"candidate_id": candidate_id, "retried_by": retried_by})
         return {
             "id": candidate_id,
+            "community_id": "community-1",
             "community_title": "Founder Circle",
             "topic_name": "Open CRM",
             "status": "needs_review",
@@ -1106,15 +1112,15 @@ async def test_engagement_command_builds_home_counts_from_api_client() -> None:
 
     await engagement_command(update, _context(client))
 
-    assert "Review replies: 1" in update.message.replies[0]["text"]
-    assert "Approved to send: 1" in update.message.replies[0]["text"]
+    assert "Pending approvals: 1" in update.message.replies[0]["text"]
+    assert "Ready to send: 1" in update.message.replies[0]["text"]
     assert "Needs attention: 3" in update.message.replies[0]["text"]
     assert "Active topics: 1" in update.message.replies[0]["text"]
     labels = _button_labels(update.message.replies[0]["reply_markup"])
     for label in [
-        "Today",
-        "Review replies",
-        "Approved to send",
+        "Pending approvals",
+        "Ready to send",
+        "Needs attention",
         "Communities",
         "Topics",
         "Settings lookup",
@@ -1126,6 +1132,7 @@ async def test_engagement_command_builds_home_counts_from_api_client() -> None:
     callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
     assert "eng:cand:list:needs_review:0" in callbacks
     assert "eng:cand:list:approved:0" in callbacks
+    assert "eng:cand:list:failed:0" in callbacks
     assert "eng:admin:tgt:0" in callbacks
     assert "eng:set:lookup:0" in callbacks
     assert [call["status"] for call in client.list_candidate_calls] == [
@@ -1142,16 +1149,16 @@ async def test_engagement_admin_command_uses_setup_navigation() -> None:
 
     await engagement_admin_command(update, _context(client))
 
-    assert "Communities: 3" in update.message.replies[0]["text"]
-    assert "Topics: 2" in update.message.replies[0]["text"]
-    assert "Voice rules: 4" in update.message.replies[0]["text"]
+    assert "Allowed communities: 3" in update.message.replies[0]["text"]
+    assert "Detection topics: 2" in update.message.replies[0]["text"]
+    assert "Reply style rules: 4" in update.message.replies[0]["text"]
     labels = _button_labels(update.message.replies[0]["reply_markup"])
     for label in [
         "Communities",
         "Topics",
-        "Voice rules",
-        "Limits/accounts",
-        "Advanced",
+        "Reply style",
+        "Send safety",
+        "Drafting/audit",
         "Back",
         "Home",
     ]:
@@ -1170,12 +1177,12 @@ async def test_engagement_admin_limit_and_advanced_callbacks_have_destinations()
     await callback_query(limits_update, _context(client))
     await callback_query(advanced_update, _context(client))
 
-    assert "Limits and accounts" in limits_update.callback_query.message.replies[0]["text"]
-    assert "Settings lookup: /engagement_settings <community_id>" in (
+    assert "Send safety" in limits_update.callback_query.message.replies[0]["text"]
+    assert "Community safety lookup: /engagement_settings <community_id>" in (
         limits_update.callback_query.message.replies[0]["text"]
     )
-    assert "Advanced engagement" in advanced_update.callback_query.message.replies[0]["text"]
-    assert "Prompt profiles: /engagement_prompts" in (
+    assert "Drafting and diagnostics" in advanced_update.callback_query.message.replies[0]["text"]
+    assert "Drafting profiles: /engagement_prompts" in (
         advanced_update.callback_query.message.replies[0]["text"]
     )
 
@@ -1188,7 +1195,7 @@ async def test_engagement_settings_lookup_callback_lists_settings_buttons() -> N
     await callback_query(update, _context(client))
 
     assert client.target_list_calls[-1] == {"status": "approved", "limit": 5, "offset": 0}
-    assert "Settings lookup" in update.callback_query.message.replies[0]["text"]
+    assert "Send safety lookup" in update.callback_query.message.replies[0]["text"]
     callbacks = _callback_data_values(update.callback_query.message.replies[0]["reply_markup"])
     assert "eng:set:open:community-1" in callbacks
 
@@ -1439,7 +1446,7 @@ async def test_engagement_targets_command_filters_and_shows_target_controls() ->
     await engagement_targets_command(update, _context(client, "approved"))
 
     assert client.target_list_calls[-1] == {"status": "approved", "limit": 5, "offset": 0}
-    assert "Engagement targets | approved" in update.message.replies[0]["text"]
+    assert "Allowed communities | approved" in update.message.replies[0]["text"]
     card = update.message.replies[1]
     assert "Readiness: Drafting replies" in card["text"]
     callbacks = _callback_data_values(card["reply_markup"])
@@ -2151,7 +2158,7 @@ async def test_engagement_topics_command_lists_topic_cards_with_toggle_controls(
 
     await engagement_topics_command(update, _context(client))
 
-    assert "Engagement topics (1-2 of 2) | active 1" in update.message.replies[0]["text"]
+    assert "Detection topics (1-2 of 2) | active 1" in update.message.replies[0]["text"]
     assert "Open CRM" in update.message.replies[1]["text"]
     assert "Notice: crm, open source" in update.message.replies[1]["text"]
     assert "Good examples: #1 Compare export paths first." in update.message.replies[1]["text"]
@@ -2401,7 +2408,7 @@ async def test_engagement_style_command_lists_scoped_rules_with_actions() -> Non
     assert client.style_list_calls == [
         {"scope_type": "community", "scope_id": "community-1", "limit": 5, "offset": 0}
     ]
-    assert "Engagement style rules (1-1 of 1) | community community-1" in update.message.replies[0]["text"]
+    assert "Reply style rules (1-1 of 1) | community community-1" in update.message.replies[0]["text"]
     callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
     assert "eng:admin:src" in callbacks
     assert "eng:admin:sr:community:community-1:0" in callbacks
@@ -2498,21 +2505,6 @@ async def test_style_rule_inline_create_flow_previews_then_saves() -> None:
 
 
 @pytest.mark.asyncio
-async def test_engagement_candidates_approved_status_exposes_send_not_review() -> None:
-    client = _FakeApiClient()
-    update = _message_update()
-
-    await engagement_candidates_command(update, _context(client, "approved"))
-
-    assert "Engagement replies | approved" in update.message.replies[0]["text"]
-    card = update.message.replies[1]
-    callbacks = _callback_data_values(card["reply_markup"])
-    assert "eng:cand:send:candidate-approved" in callbacks
-    assert "eng:cand:approve:candidate-approved" not in callbacks
-    assert client.list_candidate_calls[0]["status"] == "approved"
-
-
-@pytest.mark.asyncio
 async def test_engagement_candidate_command_opens_detail_with_revision_and_edit_controls() -> None:
     client = _FakeApiClient()
     update = _message_update()
@@ -2555,7 +2547,7 @@ async def test_candidate_revisions_command_lists_revision_history() -> None:
 
     assert client.revision_calls == ["candidate-review"]
     message = update.message.replies[0]["text"]
-    assert "Candidate revisions (1)" in message
+    assert "Reply revisions (1)" in message
     assert "Revision 1" in message
     assert "Edited reply text." in message
 
@@ -2575,8 +2567,8 @@ async def test_expire_and_retry_candidate_commands_call_candidate_routes() -> No
     assert client.retry_candidate_calls == [
         {"candidate_id": "candidate-failed", "retried_by": "telegram:123:@operator"}
     ]
-    assert "Candidate expired." in expire_update.message.replies[0]["text"]
-    assert "Candidate reopened for review." in retry_update.message.replies[0]["text"]
+    assert "Reply opportunity expired." in expire_update.message.replies[0]["text"]
+    assert "Reply opportunity reopened for review." in retry_update.message.replies[0]["text"]
 
 
 @pytest.mark.asyncio
@@ -2588,8 +2580,8 @@ async def test_expire_and_retry_candidate_callbacks_edit_current_card() -> None:
     await callback_query(expire_update, _context(client))
     await callback_query(retry_update, _context(client))
 
-    assert "Candidate expired." in expire_update.callback_query.edits[0]["text"]
-    assert "Candidate reopened for review." in retry_update.callback_query.edits[0]["text"]
+    assert "Reply opportunity expired." in expire_update.callback_query.edits[0]["text"]
+    assert "Reply opportunity reopened for review." in retry_update.callback_query.edits[0]["text"]
 
 
 @pytest.mark.asyncio
@@ -2600,7 +2592,7 @@ async def test_approve_reply_returns_queue_send_button_without_sending() -> None
     await approve_reply_command(update, _context(client, "candidate-review"))
 
     callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
-    assert "Queue send: /send_reply candidate-review" in update.message.replies[0]["text"]
+    assert "Ready to send: /send_reply candidate-review" in update.message.replies[0]["text"]
     assert "eng:cand:send:candidate-review" in callbacks
     assert client.approve_calls == [
         {"candidate_id": "candidate-review", "reviewed_by": "telegram:123:@operator"}
