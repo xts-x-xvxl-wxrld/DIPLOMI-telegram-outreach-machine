@@ -56,9 +56,21 @@ installed the narrow rules:
 
 ```bash
 sudo -u deploy /srv/tg-outreach/bin/tg-outreach-status staging
-sudo -u deploy /srv/tg-outreach/bin/tg-outreach-logs staging api
+sudo -u deploy /srv/tg-outreach/bin/tg-outreach-logs staging api 300
+sudo -u deploy /srv/tg-outreach/bin/tg-outreach-logs staging worker 300
+sudo -u deploy /srv/tg-outreach/bin/tg-outreach-logs staging scheduler 300
+sudo -u deploy /srv/tg-outreach/bin/tg-outreach-logs staging all 300
 sudo -u deploy /srv/tg-outreach/bin/tg-outreach-diagnostics staging 300
 ```
+
+When debugging an issue, pull all services and grep for signals:
+
+```bash
+sudo -u deploy /srv/tg-outreach/bin/tg-outreach-logs staging all 300 2>&1 | grep -i "error\|exception\|warning\|account\|wizard"
+```
+
+Postgres errors surface in the `all` log stream (not in the API or worker streams alone).
+Check worker logs for job-level failures and scheduler logs for periodic task errors.
 
 Diagnostics bundles are saved under `/srv/tg-outreach/diagnostics` with status output, container
 state, and bounded logs for API, worker, scheduler, bot, Postgres, and Redis. They must not include
