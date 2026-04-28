@@ -305,6 +305,132 @@ Return-context rule:
   stack in callback data
 - returning home always uses `op:home`
 
+## Bot Handler Contract
+
+Bot handlers should be thin callback-to-endpoint routers. They should not
+reconstruct workflow meaning from low-level state.
+
+Home-entry handlers:
+
+- `op:home` → `GET /api/engagement/cockpit/home`
+- `op:approve` → `GET /api/engagement/cockpit/approvals`
+- `op:issues` → `GET /api/engagement/cockpit/issues`
+- `op:engs` → `GET /api/engagement/cockpit/engagements`
+- `op:sent` → `GET /api/engagement/cockpit/sent`
+- `op:add` → open Step 1 wizard screen, then create or reuse the draft
+  engagement only after target resolution
+
+Approval handlers:
+
+- `eng:appr:list:<offset>` → `GET /api/engagement/cockpit/approvals`
+- `eng:appr:eng:<engagement_id>` →
+  `GET /api/engagement/cockpit/engagements/{engagement_id}/approvals`
+- `eng:appr:open:<draft_id>` → reopen the current approval card from the same
+  approvals payload family
+- `eng:appr:ok:<draft_id>` and `eng:appr:no:<draft_id>` → local confirmation
+  UI only; no backend mutation yet
+- `eng:appr:okc:<draft_id>` →
+  `POST /api/engagement/cockpit/drafts/{draft_id}/approve`
+- `eng:appr:noc:<draft_id>` →
+  `POST /api/engagement/cockpit/drafts/{draft_id}/reject`
+- `eng:appr:edit:<draft_id>` → draft-edit subflow entry that ends at
+  `POST /api/engagement/cockpit/drafts/{draft_id}/edit`
+
+Approval result handling:
+
+- approve or reject success → refresh the same approvals controller
+- completed draft edit → refresh the same approvals controller
+- early-exit draft edit → return to `eng:appr:open:<draft_id>`
+- scoped approvals finishing from engagement detail → return to
+  `eng:det:open:<engagement_id>`
+
+Issue handlers:
+
+- `eng:iss:list:<offset>` → `GET /api/engagement/cockpit/issues`
+- `eng:iss:eng:<engagement_id>` →
+  `GET /api/engagement/cockpit/engagements/{engagement_id}/issues`
+- `eng:iss:open:<issue_id>` → reopen the current issue card from the same
+  issues payload family
+- `eng:iss:skip:<issue_id>` → local skip-state mutation plus controller advance
+- `eng:iss:act:<issue_id>:<action_key>` →
+  `POST /api/engagement/cockpit/issues/{issue_id}/actions/{action_key}`
+- `ratelimit` next-step target →
+  `GET /api/engagement/cockpit/issues/{issue_id}/rate-limit`
+- `quiet` next-step target →
+  `GET /api/engagement/cockpit/engagements/{engagement_id}/quiet-hours`
+- quiet-hours `Save` and `Turn off quiet hours` →
+  `PUT /api/engagement/cockpit/engagements/{engagement_id}/quiet-hours`
+
+Issue result handling:
+
+- `resolved` → refresh the same issue controller
+- `next_step` → route to `next_callback`
+- `noop` → stay on the same issue card with short copy
+- `stale` → refresh the same issue controller
+- `blocked` → stay on the same issue card with short copy
+- early-exit fix subflow → return to `eng:iss:open:<issue_id>`
+- rate-limit detail `ready` → render the read-only detail screen
+- rate-limit detail `stale` → refresh the same issue controller
+- quiet-hours read `ready` → render the edit screen with current values
+- quiet-hours read `stale` → refresh the same issue controller
+- quiet-hours write `updated` → refresh the same issue controller
+- quiet-hours write `noop` → return to `eng:iss:open:<issue_id>`
+- quiet-hours write `blocked` → stay on the quiet-hours screen with short copy
+- quiet-hours write `stale` → refresh the same issue controller
+- scoped issues finishing from engagement detail → return to
+  `eng:det:open:<engagement_id>`
+
+List and detail handlers:
+
+- `eng:mine:list:<offset>` → `GET /api/engagement/cockpit/engagements`
+- `eng:mine:open:<engagement_id>` → `GET /api/engagement/cockpit/engagements/{engagement_id}`
+- `eng:det:open:<engagement_id>` → `GET /api/engagement/cockpit/engagements/{engagement_id}`
+- `eng:det:resume:<engagement_id>` → use `pending_task.resume_callback` from the
+  detail payload instead of recomputing priority in bot code
+- `eng:det:edit:<engagement_id>:topic` → wizard topic edit entry
+- `eng:det:edit:<engagement_id>:account` → wizard account edit entry
+- `eng:det:edit:<engagement_id>:mode` → wizard mode edit entry
+- `eng:sent:list:<offset>` → `GET /api/engagement/cockpit/sent`
+
+Wizard handlers:
+
+- `eng:wz:start` → local Step 1 screen, no backend draft creation before a
+  target resolves
+- target resolved in Step 1 → `POST /api/engagements`
+- Step 2 topic save → `PATCH /api/engagements/{engagement_id}`
+- Step 3 account save → `PUT /api/engagements/{engagement_id}/settings`
+- Step 4 sending-mode save → `PUT /api/engagements/{engagement_id}/settings`
+- `Confirm` → `POST /api/engagements/{engagement_id}/wizard-confirm`
+- `Retry` → `POST /api/engagements/{engagement_id}/wizard-retry`
+- `Cancel` → local confirmation; no backend call unless implementation later
+  adds explicit draft-abandon mutation
+
+Wizard result handling:
+
+- generic step-write `updated` → advance to the next step or rerender current
+  step with selected state
+- generic step-write `blocked` → stay on the same step with short copy
+- generic step-write `stale` → leave the wizard and refresh the relevant
+  engagement detail or restart entry point
+- `wizard-confirm.confirmed` → route to `next_callback`
+- `wizard-confirm.validation_failed` → route to the returned field step
+- `wizard-confirm.blocked` → stay on final review with short copy
+- `wizard-confirm.stale` → route to `next_callback`
+- `wizard-retry.reset` → route to `next_callback`
+- `wizard-retry.blocked` → stay on final review with short copy
+- `wizard-retry.stale` → route to `next_callback`
+
+Handler safety rules:
+
+- prefer returned `next_callback` values over locally inferred routing whenever
+  the backend provides one
+- do not construct raw target-status or permission mutations from bot handlers
+- keep callback handlers idempotent; refreshing the same controller twice should
+  be safe
+- treat backend `blocked` and `validation_failed` results as user-visible flow
+  states, not exceptions
+- use the same short operator-facing copy rules already defined in this spec
+
 ## Data Contract
 
 The task-first cockpit should use explicit read-model payloads instead of
@@ -353,6 +479,26 @@ Current draft card must include:
 - draft text
 - why text
 - optional badge label
+
+Draft approval mutations should not force the bot to call low-level
+candidate-review endpoints directly.
+
+Use one semantic draft-action layer:
+
+- `POST /api/engagement/cockpit/drafts/{draft_id}/approve`
+- `POST /api/engagement/cockpit/drafts/{draft_id}/reject`
+- `POST /api/engagement/cockpit/drafts/{draft_id}/edit`
+
+Allowed mutation results:
+
+- `approved`
+- `rejected`
+- `queued_update`
+- `blocked`
+- `stale`
+
+The bot should route from the mutation result, not from inferred candidate
+status.
 
 Issue queue payload must include:
 

@@ -1402,6 +1402,42 @@ while preserving the staged testing contract.
 - Added explicit request and response DTOs for `PATCH /api/engagements/{engagement_id}` and `PUT /api/engagements/{engagement_id}/settings`.
 - Locked the engagement patch contract to one `topic_id` instead of any multi-topic payload shape.
 - Added blocked/stale result handling for generic step writes so bot handlers can treat staged writes consistently with semantic wizard endpoints.
+
+## [2026-04-27] docs | Define task-first bot handler contract
+
+- Added an explicit callback-to-endpoint handler matrix to the task-first cockpit spec.
+- Defined how approval, issue, list/detail, and wizard callbacks map onto read-model and mutation endpoints.
+- Added result-handling rules so bot handlers know when to refresh, reroute by `next_callback`, or stay on the same card with short copy.
+
+## [2026-04-27] docs | Define draft-approval mutation contract
+
+- Added semantic task-first draft approval endpoints for approve, reject, and edit-request flows.
+- Defined DTOs and result enums for `approved`, `rejected`, `queued_update`, `blocked`, and `stale` outcomes.
+- Updated the bot-handler contract so approval callbacks point at the new cockpit draft-action routes instead of unnamed review mutations.
+
+## [2026-04-27] docs | Define quiet-hours and rate-limit DTOs
+
+- Added read DTOs for the task-first `Rate limit active` and `Change quiet hours` screens.
+- Added a dedicated quiet-hours write endpoint with `updated`, `noop`, `blocked`, and `stale` outcomes.
+- Kept quiet-hours mutation separate from generic settings writes so the issue-fix flow has its own stable contract.
+
+## [2026-04-28] docs | Finish task-first spec polish
+
+- Added explicit scoped approvals/issues read endpoints to the cockpit API contract.
+- Folded rate-limit and quiet-hours subflow routing into the bot-handler matrix.
+- Added a short terminology rule so operator-facing copy prefers `reply opportunity` and `draft` while legacy backend `candidate` names remain implementation-only.
+
+## [2026-04-28] docs | Write task-first cockpit implementation plan
+
+- Added a phased implementation plan for the task-first engagement cockpit.
+- Sequenced delivery from schema/backfill through wizard writes, read models, semantic mutations, bot routing, queue flows, and legacy retirement.
+- Added slice order, risk watchpoints, and definition-of-done guidance for build execution.
+
+## [2026-04-28] docs | Break task-first cockpit plan into slices
+
+- Added a dedicated slice plan for the task-first engagement cockpit.
+- Broke delivery into mergeable slices covering schema, wizard writes, read models, semantic mutations, bot shell, wizard UI, queue controllers, detail/feed, and legacy retirement.
+- Linked the high-level implementation plan to the new slices doc.
 - Kept the topic branch equal-weight between choosing an existing topic and creating a new one.
 - Kept the account chooser as a plain list and the final review screen read-only.
 

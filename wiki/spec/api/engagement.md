@@ -15,6 +15,12 @@ Backend model rule:
 - older community-scoped settings endpoints remain compatibility paths until the
   engagement-scoped write surface is complete
 
+Operator terminology rule:
+
+- operator-facing copy should prefer `reply opportunity` and `draft`
+- legacy backend/storage names such as `candidate` and `candidate_id` may
+  remain in implementation-facing APIs until a later rename
+
 Wizard write model rule:
 
 - use a hybrid contract for the wizard
@@ -729,6 +735,150 @@ Rules:
 - `current` is `null` only when no actionable draft is available.
 - Placeholder order must preserve original queue order.
 
+### `GET /api/engagement/cockpit/engagements/{engagement_id}/approvals`
+
+Returns the scoped controller payload for `Approve draft` for one engagement.
+
+Response:
+
+- same DTO shape as `GET /api/engagement/cockpit/approvals`
+
+Rules:
+
+- filter the queue to drafts for the requested engagement only
+- use the same `empty_state` contract as the global approvals controller
+- when no drafts remain for that engagement, the bot may return to engagement
+  detail instead of leaving the operator on an empty scoped queue
+
+### `POST /api/engagement/cockpit/drafts/{draft_id}/approve`
+
+Approves the current draft from the task-first approval queue.
+
+Rules:
+
+- this is the operator-facing semantic approval route for `Approve draft`
+- backend may implement it by adapting to lower-level candidate approval
+  services
+- approval uses edited reply text when one already exists; otherwise it uses the
+  current suggested draft text
+
+Response DTO:
+
+```json
+{
+  "result": "approved",
+  "message": "Draft approved",
+  "draft_id": "uuid",
+  "next_callback": "eng:appr:list:0"
+}
+```
+
+`result` values:
+
+- `approved` — approval succeeded
+- `blocked` — draft exists but cannot be approved right now
+- `stale` — draft is no longer reviewable
+
+`blocked` shape:
+
+```json
+{
+  "result": "blocked",
+  "message": "Couldn't approve draft",
+  "code": "draft_not_reviewable"
+}
+```
+
+Recommended `code` values:
+
+- `draft_not_reviewable`
+- `draft_expired`
+- `engagement_paused`
+
+### `POST /api/engagement/cockpit/drafts/{draft_id}/reject`
+
+Rejects the current draft from the task-first approval queue.
+
+Rules:
+
+- this is the operator-facing semantic reject route for `Approve draft`
+- rejection removes the draft from the active approval queue
+
+Response DTO:
+
+```json
+{
+  "result": "rejected",
+  "message": "Draft rejected",
+  "draft_id": "uuid",
+  "next_callback": "eng:appr:list:0"
+}
+```
+
+`result` values:
+
+- `rejected` — reject succeeded
+- `blocked` — draft exists but cannot be rejected right now
+- `stale` — draft is no longer reviewable
+
+`blocked` shape:
+
+```json
+{
+  "result": "blocked",
+  "message": "Couldn't reject draft",
+  "code": "draft_not_reviewable"
+}
+```
+
+### `POST /api/engagement/cockpit/drafts/{draft_id}/edit`
+
+Accepts operator edit guidance and queues a replacement draft.
+
+Request DTO:
+
+```json
+{
+  "edit_request": "Make it shorter and less salesy"
+}
+```
+
+Rules:
+
+- this route should not overwrite the current approved candidate text in place
+- it should queue replacement-draft generation and convert the current queue
+  slot into an `Updating draft` placeholder
+- when the replacement draft is ready, it should re-enter the approval queue as
+  an `Updated draft`
+
+Response DTO:
+
+```json
+{
+  "result": "queued_update",
+  "message": "Updating draft",
+  "draft_id": "uuid",
+  "engagement_id": "uuid",
+  "next_callback": "eng:appr:list:0"
+}
+```
+
+`result` values:
+
+- `queued_update` — replacement-draft generation was accepted
+- `blocked` — edit request is valid but cannot be queued
+- `stale` — draft is no longer reviewable
+
+`blocked` shape:
+
+```json
+{
+  "result": "blocked",
+  "message": "Couldn't update draft",
+  "code": "edit_not_allowed"
+}
+```
+
 ### `GET /api/engagement/cockpit/issues`
 
 Returns the controller payload for `Top issues`.
@@ -761,6 +911,21 @@ Response:
   }
 }
 ```
+
+### `GET /api/engagement/cockpit/engagements/{engagement_id}/issues`
+
+Returns the scoped controller payload for `Top issues` for one engagement.
+
+Response:
+
+- same DTO shape as `GET /api/engagement/cockpit/issues`
+
+Rules:
+
+- filter the queue to issues for the requested engagement only
+- use the same `empty_state` contract as the global issues controller
+- when no issues remain for that engagement, the bot may return to engagement
+  detail instead of leaving the operator on an empty scoped queue
 
 Rules:
 
@@ -845,6 +1010,169 @@ POST /api/engagement/targets/{target_id}/approve
 POST /api/engagement/cockpit/engagements/{engagement_id}/resume
 POST /api/engagement/cockpit/engagements/{engagement_id}/fix-permissions
 ```
+
+### `GET /api/engagement/cockpit/issues/{issue_id}/rate-limit`
+
+Returns the read-only detail payload for `Rate limit active`.
+
+Response DTO:
+
+```json
+{
+  "result": "ready",
+  "issue_id": "uuid",
+  "engagement_id": "uuid",
+  "title": "Rate limit active",
+  "target_label": "Open-source CRM · @example",
+  "blocked_action_label": "Send reply",
+  "scope_label": "Account limit",
+  "message": "Sending is paused until the limit clears.",
+  "reset_at": "iso_datetime_or_null",
+  "next_callback": "eng:iss:open:uuid"
+}
+```
+
+`result` values:
+
+- `ready` — detail payload is available
+- `stale` — issue is no longer active
+
+`stale` shape:
+
+```json
+{
+  "result": "stale",
+  "message": "Rate limit is no longer active",
+  "next_callback": "eng:iss:list:0"
+}
+```
+
+Rules:
+
+- `reset_at` may be `null` when no exact reset time is known
+- this endpoint is read-only; it does not mutate engagement state
+- `next_callback` should return to the issue card or controller, not to home
+
+### `GET /api/engagement/cockpit/engagements/{engagement_id}/quiet-hours`
+
+Returns the edit payload for `Change quiet hours`.
+
+Response DTO:
+
+```json
+{
+  "result": "ready",
+  "engagement_id": "uuid",
+  "title": "Change quiet hours",
+  "target_label": "Open-source CRM · @example",
+  "message": "Quiet hours are blocking the engagement right now.",
+  "quiet_hours_enabled": true,
+  "quiet_hours_start": "22:00",
+  "quiet_hours_end": "07:00",
+  "next_callback": "eng:iss:open:uuid"
+}
+```
+
+`result` values:
+
+- `ready` — quiet-hours edit payload is available
+- `stale` — quiet-hours issue is no longer active or the engagement no longer
+  has editable quiet-hours state
+
+`stale` shape:
+
+```json
+{
+  "result": "stale",
+  "message": "Quiet hours no longer need changes",
+  "next_callback": "eng:iss:list:0"
+}
+```
+
+Rules:
+
+- `quiet_hours_enabled = false` is allowed for surfaces that expose a pure
+  “turn off” state
+- if quiet hours are configured, both `quiet_hours_start` and
+  `quiet_hours_end` must be present
+- this endpoint is for screen rendering; save uses the write endpoint below
+
+### `PUT /api/engagement/cockpit/engagements/{engagement_id}/quiet-hours`
+
+Saves or clears quiet hours for one engagement.
+
+Request DTO:
+
+```json
+{
+  "quiet_hours_enabled": true,
+  "quiet_hours_start": "22:00",
+  "quiet_hours_end": "07:00"
+}
+```
+
+Turn-off request:
+
+```json
+{
+  "quiet_hours_enabled": false
+}
+```
+
+Rules:
+
+- when `quiet_hours_enabled = true`, both `quiet_hours_start` and
+  `quiet_hours_end` are required
+- when `quiet_hours_enabled = false`, start and end must be cleared
+- this is the task-first quiet-hours mutation route; bot handlers should not
+  patch quiet-hours fields through unrelated generic settings writes
+
+Response DTO:
+
+```json
+{
+  "result": "updated",
+  "message": "Quiet hours updated",
+  "engagement_id": "uuid",
+  "quiet_hours_enabled": true,
+  "quiet_hours_start": "22:00",
+  "quiet_hours_end": "07:00",
+  "next_callback": "eng:iss:list:0"
+}
+```
+
+`result` values:
+
+- `updated` — quiet hours saved or cleared
+- `noop` — submitted values match current values
+- `blocked` — request is valid but cannot be applied
+- `stale` — engagement or issue state changed underneath the editor
+
+`noop` shape:
+
+```json
+{
+  "result": "noop",
+  "message": "No quiet-hours changes",
+  "next_callback": "eng:iss:open:uuid"
+}
+```
+
+`blocked` shape:
+
+```json
+{
+  "result": "blocked",
+  "message": "Couldn't update quiet hours",
+  "code": "quiet_hours_invalid"
+}
+```
+
+Recommended `code` values:
+
+- `quiet_hours_invalid`
+- `quiet_hours_edit_blocked`
+- `engagement_archived`
 
 These keep the bot away from raw low-level `PATCH` payload construction for
 status and permission fields.
