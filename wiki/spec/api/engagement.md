@@ -425,8 +425,8 @@ available, status, permissions, notes, approval metadata, and last error.
 
 ### `POST /api/engagement/targets`
 
-Creates or returns an engagement target from an existing `community_id`, public Telegram username,
-or public Telegram link.
+Creates a new engagement target from an existing `community_id`, public Telegram username, or
+public Telegram link.
 
 Request:
 
@@ -442,7 +442,8 @@ Rules:
 
 - Existing `community_id` targets are created as `resolved`.
 - Public username/link targets are created as `pending` and must be resolved by an engagement job.
-- Duplicate normalized targets return the existing row instead of creating seed rows.
+- Normalized public refs are stored canonically, but repeated submissions still create a new
+  engagement-target row instead of reusing an older one.
 - Private invite-link resolution remains out of scope for MVP.
 
 ### `PATCH /api/engagement/targets/{target_id}`
@@ -1388,8 +1389,8 @@ Rules:
 - API handlers must not call Telethon directly.
 - API responses must not expose phone numbers.
 - API responses must not expose person-level scores.
-- Engagement workers fail closed unless an approved engagement target grants the matching
-  join/detect/post permission.
+- Engagement workers fail closed unless at least one approved engagement target for the community
+  grants the matching join/detect/post permission.
 - Audit rows should remain available for operator review.
 
 ### `GET /api/engagement/semantic-rollout`

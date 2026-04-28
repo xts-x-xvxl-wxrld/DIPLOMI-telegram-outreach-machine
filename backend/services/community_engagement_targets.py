@@ -99,26 +99,6 @@ async def create_engagement_target(
         if community is None:
             raise EngagementNotFound("community_not_found", "Community not found")
 
-        existing = await db.scalar(
-            select(EngagementTarget).where(EngagementTarget.community_id == community.id)
-        )
-        if existing is not None:
-            if notes is not None:
-                existing.notes = _optional_text(notes)
-                existing.updated_at = _utcnow()
-                await db.flush()
-            return _target_view(existing)
-
-    existing_by_ref = await db.scalar(
-        select(EngagementTarget).where(EngagementTarget.submitted_ref == ref["submitted_ref"])
-    )
-    if existing_by_ref is not None:
-        if notes is not None:
-            existing_by_ref.notes = _optional_text(notes)
-            existing_by_ref.updated_at = _utcnow()
-            await db.flush()
-        return _target_view(existing_by_ref)
-
     now = _utcnow()
     target = EngagementTarget(
         id=uuid.uuid4(),
@@ -256,21 +236,21 @@ async def has_engagement_target_permission(
     if permission not in {"join", "detect", "post"}:
         raise EngagementValidationError("invalid_target_permission", "Unknown engagement target permission")
 
+    permission_field = {
+        "join": EngagementTarget.allow_join,
+        "detect": EngagementTarget.allow_detect,
+        "post": EngagementTarget.allow_post,
+    }[permission]
     target = await db.scalar(
         select(EngagementTarget)
         .where(
             EngagementTarget.community_id == community_id,
             EngagementTarget.status == EngagementTargetStatus.APPROVED.value,
+            permission_field.is_(True),
         )
         .limit(1)
     )
-    if target is None:
-        return False
-    if permission == "join":
-        return bool(target.allow_join)
-    if permission == "detect":
-        return bool(target.allow_detect)
-    return bool(target.allow_post)
+    return target is not None
 
 
 async def resolve_engagement_target(

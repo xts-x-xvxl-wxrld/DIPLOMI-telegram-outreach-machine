@@ -150,7 +150,6 @@ def test_engagement_model_defaults_are_contract_defaults() -> None:
 
 def test_engagement_uniqueness_constraints_are_declared() -> None:
     assert _has_unique_constraint(CommunityEngagementSettings, ["community_id"])
-    assert _has_unique_constraint(EngagementTarget, ["community_id"])
     assert _has_unique_constraint(Engagement, ["target_id"])
     assert _has_unique_constraint(EngagementSettings, ["engagement_id"])
     assert _has_unique_constraint(CommunityAccountMembership, ["community_id", "telegram_account_id"])

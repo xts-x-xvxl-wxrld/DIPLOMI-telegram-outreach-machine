@@ -84,7 +84,7 @@ async def test_engagement_target_permission_requires_approved_target_and_flag() 
     approved = _target(community_id=community_id, status=EngagementTargetStatus.APPROVED.value)
     approved.allow_join = True
     approved.allow_detect = False
-    db = FakeDb(target=approved)
+    db = FakeDb(targets=[approved])
 
     assert await has_engagement_target_permission(  # type: ignore[arg-type]
         db,
@@ -105,6 +105,28 @@ async def test_engagement_target_permission_requires_approved_target_and_flag() 
     )
 
 
+@pytest.mark.asyncio
+async def test_engagement_target_permission_allows_any_approved_target_with_requested_flag() -> None:
+    community_id = uuid4()
+    approved_without_detect = _target(
+        community_id=community_id,
+        status=EngagementTargetStatus.APPROVED.value,
+    )
+    approved_without_detect.allow_detect = False
+    approved_with_detect = _target(
+        community_id=community_id,
+        status=EngagementTargetStatus.APPROVED.value,
+    )
+    approved_with_detect.allow_detect = True
+    db = FakeDb(targets=[approved_without_detect, approved_with_detect])
+
+    assert await has_engagement_target_permission(  # type: ignore[arg-type]
+        db,
+        community_id=community_id,
+        permission="detect",
+    )
+
+
 class FakeResolver:
     def __init__(self, outcomes: dict[str, TelegramEntityResolveOutcome]) -> None:
         self.outcomes = outcomes
@@ -114,16 +136,24 @@ class FakeResolver:
 
 
 class FakeDb:
-    def __init__(self, *, target: EngagementTarget) -> None:
+    def __init__(
+        self,
+        *,
+        target: EngagementTarget | None = None,
+        targets: list[EngagementTarget] | None = None,
+    ) -> None:
         self.target = target
+        self.targets = list(targets or ([] if target is None else [target]))
         self.communities: list[Community] = []
         self.seed_groups: list[object] = []
         self.seed_channels: list[object] = []
         self.flushes = 0
 
     async def get(self, model: object, item_id: UUID) -> object | None:
-        if model is EngagementTarget and item_id == self.target.id:
-            return self.target
+        if model is EngagementTarget:
+            for target in self.targets:
+                if item_id == target.id:
+                    return target
         return None
 
     async def scalar(self, statement: object) -> object | None:
@@ -131,7 +161,22 @@ class FakeDb:
         if entity is Community:
             return self.communities[0] if self.communities else None
         if entity is EngagementTarget:
-            return self.target if self.target.status == EngagementTargetStatus.APPROVED.value else None
+            statement_text = str(statement)
+            required_permission: str | None = None
+            if "engagement_targets.allow_join IS true" in statement_text:
+                required_permission = "allow_join"
+            elif "engagement_targets.allow_detect IS true" in statement_text:
+                required_permission = "allow_detect"
+            elif "engagement_targets.allow_post IS true" in statement_text:
+                required_permission = "allow_post"
+
+            for target in self.targets:
+                if target.status != EngagementTargetStatus.APPROVED.value:
+                    continue
+                if required_permission is not None and not getattr(target, required_permission):
+                    continue
+                return target
+            return None
         return None
 
     def add(self, model: object) -> None:

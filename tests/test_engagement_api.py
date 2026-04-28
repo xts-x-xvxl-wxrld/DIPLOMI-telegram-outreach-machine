@@ -1424,7 +1424,7 @@ async def test_create_engagement_target_from_public_username_is_pending() -> Non
     assert db.commits == 1
 
 @pytest.mark.asyncio
-async def test_duplicate_engagement_target_returns_existing_row() -> None:
+async def test_duplicate_engagement_target_creates_new_row() -> None:
     target = _target(uuid4(), status=EngagementTargetStatus.PENDING.value)
     target.community_id = None
     target.submitted_ref = "username:example"
@@ -1436,8 +1436,10 @@ async def test_duplicate_engagement_target_returns_existing_row() -> None:
         db,  # type: ignore[arg-type]
     )
 
-    assert response.id == target.id
-    assert db.added == []
+    assert response.id != target.id
+    assert len(db.added) == 1
+    assert isinstance(db.added[0], EngagementTarget)
+    assert db.added[0].submitted_ref == "username:example"
     assert db.commits == 1
 
 @pytest.mark.asyncio

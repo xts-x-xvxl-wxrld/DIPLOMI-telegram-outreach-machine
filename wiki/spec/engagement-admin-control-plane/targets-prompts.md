@@ -75,7 +75,6 @@ last_error            text
 created_at            timestamptz NOT NULL DEFAULT now()
 updated_at            timestamptz NOT NULL DEFAULT now()
 
-UNIQUE (community_id)
 ```
 
 Rules:
@@ -83,7 +82,9 @@ Rules:
 - `add_engagement_target` accepts an existing `community_id`, public Telegram username, public link,
   or future invite-link placeholder.
 - Public usernames and public links are normalized to a canonical `username:<lowercase_username>`
-  submitted reference for duplicate detection.
+  submitted reference for audit consistency.
+- Re-adding a public ref or resolved community must create a fresh engagement-target row instead of
+  reusing an older one, so the same group can participate in multiple engagement workflows.
 - Resolving a target may reuse the existing Telegram entity resolver, but the queue job must be an
   engagement job, not a seed job.
 - A target must be `approved` before `community.join`, `engagement.detect`, or `engagement.send`

@@ -31,13 +31,17 @@ last_error            text
 created_at            timestamptz NOT NULL DEFAULT now()
 updated_at            timestamptz NOT NULL DEFAULT now()
 
-UNIQUE (community_id)
 ```
+
+`community_id` is intentionally not unique here. Operators may create multiple engagement-target rows
+for the same community when they need separate engagement workflows or approval history.
 
 Worker gates:
 - `community.join` requires an approved target with `allow_join = true`.
 - `engagement.detect` requires an approved target with `allow_detect = true`.
 - `engagement.send` requires an approved target with `allow_post = true`.
+- When more than one approved target exists for the same community, any approved row with the
+  requested permission grants the worker action.
 
 ### `engagements`
 

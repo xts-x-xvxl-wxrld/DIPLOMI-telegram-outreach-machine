@@ -1488,3 +1488,11 @@ while preserving the staged testing contract.
 - Added a checkout-local deploy lock to `scripts/vps-deploy.sh` so GitHub Actions deploys and manual `tg-outreach-deploy` runs cannot overlap on the same staging checkout.
 - Exposed lock wait behavior through `TG_OUTREACH_DEPLOY_LOCK_WAIT_SECONDS` and included lock-holder metadata in timeout diagnostics.
 - Updated the deployment spec, VPS pipeline plan, and redacted agent context to document the new hardening behavior.
+## [2026-04-28] fix | Allow duplicate engagement targets per community
+
+- Removed the engagement-target uniqueness rule on `community_id` so operators can add the same
+  Telegram group to multiple engagement target rows.
+- Stopped engagement target creation from reusing an older row with the same submitted ref, while
+  keeping public refs normalized for consistent audit history.
+- Tightened worker permission checks so join, detect, and send actions succeed when any approved
+  target row for the community grants the requested permission.

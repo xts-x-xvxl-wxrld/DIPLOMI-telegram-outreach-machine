@@ -12,7 +12,7 @@ from backend.db.models import EngagementTarget
 
 
 @pytest.mark.asyncio
-async def test_duplicate_pending_engagement_target_without_loaded_community_does_not_error() -> None:
+async def test_duplicate_pending_engagement_target_without_loaded_community_creates_new_row() -> None:
     target = EngagementTarget(
         id=uuid4(),
         community_id=None,
@@ -33,9 +33,10 @@ async def test_duplicate_pending_engagement_target_without_loaded_community_does
         db,  # type: ignore[arg-type]
     )
 
-    assert response.id == target.id
+    assert response.id != target.id
     assert response.community_id is None
     assert response.community_title is None
+    assert len(db.added) == 1
 
 
 class _FakeDb:

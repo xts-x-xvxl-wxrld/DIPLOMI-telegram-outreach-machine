@@ -37,7 +37,6 @@ class CommunityEngagementSettings(Base):
 class EngagementTarget(Base):
     __tablename__ = "engagement_targets"
     __table_args__ = (
-        UniqueConstraint("community_id"),
         Index("ix_engagement_targets_community_id", "community_id"),
         Index("ix_engagement_targets_status", "status"),
         Index("ix_engagement_targets_submitted_ref", "submitted_ref"),
