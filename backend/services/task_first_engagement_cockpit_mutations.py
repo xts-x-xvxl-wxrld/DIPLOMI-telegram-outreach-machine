@@ -27,6 +27,10 @@ from backend.services.community_engagement import (
     retry_candidate,
 )
 from backend.services.community_engagement_targets import update_engagement_target
+from backend.services.task_first_engagement_draft_updates import (
+    get_draft_update_request_by_source_candidate,
+    has_active_draft_update_request,
+)
 from backend.services.task_first_engagement_issues import get_task_first_issue, list_task_first_issues
 
 
@@ -100,7 +104,7 @@ async def approve_cockpit_draft(
     candidate = await _get_candidate(db, draft_id)
     if candidate is None:
         return CockpitDraftActionResult(result="stale", message="Draft no longer needs approval")
-    if await _has_active_update_request(db, source_candidate_id=candidate.id):
+    if await has_active_draft_update_request(db, source_candidate_id=candidate.id):
         return CockpitDraftActionResult(
             result="blocked",
             message="Couldn't approve draft",
@@ -138,7 +142,7 @@ async def reject_cockpit_draft(
             result="stale",
             message="Draft no longer needs approval",
         )
-    if await _has_active_update_request(db, source_candidate_id=candidate.id):
+    if await has_active_draft_update_request(db, source_candidate_id=candidate.id):
         return CockpitDraftActionResult(
             result="blocked",
             message="Couldn't reject draft",
@@ -170,7 +174,7 @@ async def queue_cockpit_draft_update(
     candidate = await _get_candidate(db, draft_id)
     if candidate is None or candidate.status != EngagementCandidateStatus.NEEDS_REVIEW.value:
         return CockpitDraftActionResult(result="stale", message="Draft no longer needs approval")
-    if await _get_update_request_by_source_candidate(db, source_candidate_id=candidate.id) is not None:
+    if await get_draft_update_request_by_source_candidate(db, source_candidate_id=candidate.id) is not None:
         return CockpitDraftActionResult(
             result="blocked",
             message="Couldn't update draft",
@@ -557,27 +561,6 @@ async def _find_candidate_engagement(
         )
         .limit(1)
     )
-
-
-async def _get_update_request_by_source_candidate(
-    db: AsyncSession,
-    *,
-    source_candidate_id: UUID,
-) -> EngagementDraftUpdateRequest | None:
-    return await db.scalar(
-        select(EngagementDraftUpdateRequest)
-        .where(EngagementDraftUpdateRequest.source_candidate_id == source_candidate_id)
-        .limit(1)
-    )
-
-
-async def _has_active_update_request(
-    db: AsyncSession,
-    *,
-    source_candidate_id: UUID,
-) -> bool:
-    request = await _get_update_request_by_source_candidate(db, source_candidate_id=source_candidate_id)
-    return request is not None and request.status == "pending"
 
 
 async def _get_engagement_settings(

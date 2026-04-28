@@ -93,6 +93,7 @@ from backend.db.models import (
     TelegramAccount,
 )
 from backend.queue.client import QueuedJob, QueueUnavailable
+from backend.services.task_first_engagement_draft_updates import complete_draft_update_request
 
 _FIXTURE_NOW = datetime.now(timezone.utc).replace(microsecond=0)
 
@@ -964,6 +965,102 @@ async def test_post_engagement_cockpit_draft_edit_creates_durable_update_state()
 
 
 @pytest.mark.asyncio
+async def test_complete_draft_update_request_surfaces_updated_replacement_draft_in_approvals() -> None:
+    community_id = uuid4()
+    topic = _topic(uuid4(), name="CRM replies")
+    target = _target(community_id, status=EngagementTargetStatus.APPROVED.value)
+    engagement = _engagement(target=target, topic=topic, status=EngagementStatus.ACTIVE.value)
+    source_candidate = _candidate(uuid4(), target.community, topic)
+    replacement_candidate = _candidate(
+        uuid4(),
+        target.community,
+        topic,
+        suggested_reply="Here is a tighter reply with less sales language.",
+        created_at=_now() + timedelta(minutes=2),
+        updated_at=_now() + timedelta(minutes=2),
+    )
+    request = _draft_update_request(
+        engagement_id=engagement.id,
+        source_candidate_id=source_candidate.id,
+        status="pending",
+        source_queue_created_at=source_candidate.created_at,
+    )
+    db = FakeDb(
+        targets=[target],
+        topics=[topic],
+        engagements=[engagement],
+        candidates=[source_candidate, replacement_candidate],
+        draft_update_requests=[request],
+    )
+
+    completed = await complete_draft_update_request(
+        db,  # type: ignore[arg-type]
+        source_candidate_id=source_candidate.id,
+        replacement_candidate_id=replacement_candidate.id,
+    )
+    queue = await get_engagement_cockpit_approvals(db)  # type: ignore[arg-type]
+
+    assert completed is request
+    assert request.status == "completed"
+    assert request.replacement_candidate_id == replacement_candidate.id
+    assert request.completed_at is not None
+    assert request.updated_at == request.completed_at
+    assert db.flushes == 1
+    assert queue.queue_count == 1
+    assert queue.updating_count == 0
+    assert queue.empty_state == "none"
+    assert queue.current is not None
+    assert queue.current.draft_id == replacement_candidate.id
+    assert queue.current.badge == "Updated draft"
+
+
+@pytest.mark.asyncio
+async def test_complete_draft_update_request_keeps_placeholder_when_replacement_draft_is_invalid() -> None:
+    community_id = uuid4()
+    topic = _topic(uuid4(), name="CRM replies")
+    other_topic = _topic(uuid4(), name="Founder replies")
+    target = _target(community_id, status=EngagementTargetStatus.APPROVED.value)
+    engagement = _engagement(target=target, topic=topic, status=EngagementStatus.ACTIVE.value)
+    source_candidate = _candidate(uuid4(), target.community, topic)
+    replacement_candidate = _candidate(
+        uuid4(),
+        target.community,
+        other_topic,
+        created_at=_now() + timedelta(minutes=2),
+        updated_at=_now() + timedelta(minutes=2),
+    )
+    request = _draft_update_request(
+        engagement_id=engagement.id,
+        source_candidate_id=source_candidate.id,
+        status="pending",
+        source_queue_created_at=source_candidate.created_at,
+    )
+    db = FakeDb(
+        targets=[target],
+        topics=[topic, other_topic],
+        engagements=[engagement],
+        candidates=[source_candidate, replacement_candidate],
+        draft_update_requests=[request],
+    )
+
+    completed = await complete_draft_update_request(
+        db,  # type: ignore[arg-type]
+        source_candidate_id=source_candidate.id,
+        replacement_candidate_id=replacement_candidate.id,
+    )
+    queue = await get_engagement_cockpit_approvals(db)  # type: ignore[arg-type]
+
+    assert completed is None
+    assert request.status == "pending"
+    assert request.replacement_candidate_id is None
+    assert request.completed_at is None
+    assert db.flushes == 0
+    assert queue.queue_count == 0
+    assert queue.updating_count == 1
+    assert queue.empty_state == "waiting_for_updates"
+
+
+@pytest.mark.asyncio
 async def test_post_engagement_cockpit_draft_approve_and_reject_return_semantic_results() -> None:
     community_id = uuid4()
     topic = _topic(uuid4(), name="CRM replies")
@@ -1065,6 +1162,165 @@ async def test_post_engagement_cockpit_issue_action_returns_next_step_and_resolv
     assert resume_response.result == "resolved"
     assert paused_engagement.status == EngagementStatus.ACTIVE.value
     assert paused_db.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_post_engagement_cockpit_issue_action_retry_reopens_failed_candidate() -> None:
+    topic = _topic(uuid4(), name="CRM replies")
+    target = _target(uuid4(), status=EngagementTargetStatus.APPROVED.value)
+    engagement = _engagement(target=target, topic=topic, status=EngagementStatus.ACTIVE.value)
+    account = _account(uuid4())
+    settings = _engagement_settings(engagement.id, account_id=account.id, mode=EngagementMode.SUGGEST.value)
+    membership = _membership(community_id=target.community_id, account_id=account.id)
+    candidate = _candidate(
+        uuid4(),
+        target.community,
+        topic,
+        status=EngagementCandidateStatus.FAILED.value,
+        final_reply="Short follow-up reply.",
+        created_at=_now() - timedelta(minutes=15),
+        updated_at=_now() - timedelta(minutes=15),
+    )
+    db = FakeDb(
+        targets=[target],
+        topics=[topic],
+        engagements=[engagement],
+        engagement_settings_rows=[settings],
+        memberships=[membership],
+        accounts=[account],
+        candidates=[candidate],
+        candidate=candidate,
+    )
+    issue_id = (await get_engagement_cockpit_issues(db)).current.issue_id  # type: ignore[union-attr]
+
+    response = await post_engagement_cockpit_issue_action(
+        issue_id,
+        "retry",
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.result == "resolved"
+    assert response.message == "Reply reopened"
+    assert candidate.status == EngagementCandidateStatus.NEEDS_REVIEW.value
+    assert db.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_post_engagement_cockpit_issue_action_apptgt_approves_target_from_resolved_state() -> None:
+    topic = _topic(uuid4(), name="CRM replies")
+    target = _target(uuid4(), status=EngagementTargetStatus.RESOLVED.value)
+    target.allow_join = False
+    target.allow_detect = False
+    target.allow_post = False
+    engagement = _engagement(target=target, topic=topic, status=EngagementStatus.ACTIVE.value)
+    account = _account(uuid4())
+    settings = _engagement_settings(engagement.id, account_id=account.id, mode=EngagementMode.AUTO_LIMITED.value)
+    membership = _membership(community_id=target.community_id, account_id=account.id)
+    db = FakeDb(
+        targets=[target],
+        topics=[topic],
+        engagements=[engagement],
+        engagement_settings_rows=[settings],
+        memberships=[membership],
+        accounts=[account],
+    )
+    issue_id = (await get_engagement_cockpit_issues(db)).current.issue_id  # type: ignore[union-attr]
+
+    response = await post_engagement_cockpit_issue_action(
+        issue_id,
+        "apptgt",
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.result == "resolved"
+    assert response.message == "Target approved"
+    assert target.status == EngagementTargetStatus.APPROVED.value
+    assert target.allow_join is True
+    assert target.allow_detect is True
+    assert target.allow_post is True
+    assert target.approved_by == "operator"
+    assert target.approved_at is not None
+    assert db.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_post_engagement_cockpit_issue_action_rsvtgt_enqueues_resolution_job() -> None:
+    topic = _topic(uuid4(), name="CRM replies")
+    target = _target(uuid4(), status=EngagementTargetStatus.PENDING.value)
+    engagement = _engagement(target=target, topic=topic, status=EngagementStatus.ACTIVE.value)
+    account = _account(uuid4())
+    settings = _engagement_settings(engagement.id, account_id=account.id, mode=EngagementMode.SUGGEST.value)
+    membership = _membership(community_id=target.community_id, account_id=account.id)
+    db = FakeDb(
+        targets=[target],
+        topics=[topic],
+        engagements=[engagement],
+        engagement_settings_rows=[settings],
+        memberships=[membership],
+        accounts=[account],
+    )
+    captured: dict[str, object] = {}
+
+    def fake_enqueue(target_id: object, *, requested_by: str) -> QueuedJob:
+        captured.update({"target_id": target_id, "requested_by": requested_by})
+        return QueuedJob(id="resolve-job", type="engagement_target.resolve")
+
+    issue_id = (await get_engagement_cockpit_issues(db)).current.issue_id  # type: ignore[union-attr]
+
+    from backend.api.routes import engagement as engagement_routes
+
+    original_enqueue = engagement_routes.enqueue_engagement_target_resolve
+    engagement_routes.enqueue_engagement_target_resolve = fake_enqueue
+    try:
+        response = await post_engagement_cockpit_issue_action(
+            issue_id,
+            "rsvtgt",
+            db,  # type: ignore[arg-type]
+        )
+    finally:
+        engagement_routes.enqueue_engagement_target_resolve = original_enqueue
+
+    assert response.result == "resolved"
+    assert response.message == "Target resolution started"
+    assert captured == {"target_id": target.id, "requested_by": "operator"}
+    assert db.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_post_engagement_cockpit_issue_action_fixperm_syncs_target_and_settings() -> None:
+    topic = _topic(uuid4(), name="CRM replies")
+    target = _target(uuid4(), status=EngagementTargetStatus.APPROVED.value)
+    target.allow_detect = False
+    target.allow_post = False
+    engagement = _engagement(target=target, topic=topic, status=EngagementStatus.ACTIVE.value)
+    account = _account(uuid4())
+    settings = _engagement_settings(engagement.id, account_id=account.id, mode=EngagementMode.AUTO_LIMITED.value)
+    settings.allow_post = False
+    membership = _membership(community_id=target.community_id, account_id=account.id)
+    db = FakeDb(
+        targets=[target],
+        topics=[topic],
+        engagements=[engagement],
+        engagement_settings_rows=[settings],
+        memberships=[membership],
+        accounts=[account],
+    )
+    issue_id = (await get_engagement_cockpit_issues(db)).current.issue_id  # type: ignore[union-attr]
+
+    response = await post_engagement_cockpit_issue_action(
+        issue_id,
+        "fixperm",
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.result == "resolved"
+    assert response.message == "Permissions fixed"
+    assert settings.allow_join is True
+    assert settings.allow_post is True
+    assert target.allow_join is True
+    assert target.allow_detect is True
+    assert target.allow_post is True
+    assert db.commits == 1
 
 
 @pytest.mark.asyncio
