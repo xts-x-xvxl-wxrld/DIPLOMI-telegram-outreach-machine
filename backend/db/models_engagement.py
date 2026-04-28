@@ -137,6 +137,39 @@ class EngagementSettings(Base):
     assigned_account: Mapped[TelegramAccount | None] = relationship()
 
 
+class EngagementDraftUpdateRequest(Base):
+    __tablename__ = "engagement_draft_update_requests"
+    __table_args__ = (
+        UniqueConstraint("source_candidate_id"),
+        UniqueConstraint("replacement_candidate_id"),
+        Index("ix_engagement_draft_update_requests_engagement_status", "engagement_id", "status"),
+        Index("ix_engagement_draft_update_requests_queue_created", "source_queue_created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    engagement_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("engagements.id"), nullable=False)
+    source_candidate_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("engagement_candidates.id"),
+        nullable=False,
+    )
+    replacement_candidate_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("engagement_candidates.id"))
+    status: Mapped[str] = mapped_column(Text, server_default="pending", nullable=False)
+    edit_request: Mapped[str] = mapped_column(Text, nullable=False)
+    requested_by: Mapped[str] = mapped_column(Text, nullable=False)
+    source_queue_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    engagement: Mapped[Engagement] = relationship()
+    source_candidate: Mapped["EngagementCandidate"] = relationship(
+        foreign_keys=[source_candidate_id],
+    )
+    replacement_candidate: Mapped["EngagementCandidate | None"] = relationship(
+        foreign_keys=[replacement_candidate_id],
+    )
+
+
 class CommunityAccountMembership(Base):
     __tablename__ = "community_account_memberships"
     __table_args__ = (
@@ -449,6 +482,7 @@ __all__ = [
     "EngagementTarget",
     "Engagement",
     "EngagementSettings",
+    "EngagementDraftUpdateRequest",
     "CommunityAccountMembership",
     "EngagementTopic",
     "EngagementTopicEmbedding",

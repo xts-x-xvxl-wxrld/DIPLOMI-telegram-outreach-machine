@@ -186,6 +186,110 @@ class BotApiClient(AccountApiClientMixin, SearchApiClientMixin):
     async def list_engagement_candidate_revisions(self, candidate_id: str) -> dict[str, Any]:
         return await self._request("GET", f"/engagement/candidates/{candidate_id}/revisions")
 
+    async def get_engagement_cockpit_home(self) -> dict[str, Any]:
+        return await self._request("GET", "/engagement/cockpit/home")
+
+    async def get_engagement_cockpit_approvals(self) -> dict[str, Any]:
+        return await self._request("GET", "/engagement/cockpit/approvals")
+
+    async def get_engagement_cockpit_approvals_for_engagement(self, engagement_id: str) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            f"/engagement/cockpit/engagements/{engagement_id}/approvals",
+        )
+
+    async def approve_engagement_cockpit_draft(self, draft_id: str) -> dict[str, Any]:
+        return await self._request("POST", f"/engagement/cockpit/drafts/{draft_id}/approve")
+
+    async def reject_engagement_cockpit_draft(self, draft_id: str) -> dict[str, Any]:
+        return await self._request("POST", f"/engagement/cockpit/drafts/{draft_id}/reject")
+
+    async def edit_engagement_cockpit_draft(
+        self,
+        draft_id: str,
+        *,
+        edit_request: str,
+        requested_by: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"edit_request": edit_request}
+        if requested_by is not None:
+            payload["requested_by"] = requested_by
+        return await self._request(
+            "POST",
+            f"/engagement/cockpit/drafts/{draft_id}/edit",
+            json=payload,
+        )
+
+    async def get_engagement_cockpit_issues(self) -> dict[str, Any]:
+        return await self._request("GET", "/engagement/cockpit/issues")
+
+    async def get_engagement_cockpit_issues_for_engagement(self, engagement_id: str) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            f"/engagement/cockpit/engagements/{engagement_id}/issues",
+        )
+
+    async def act_on_engagement_cockpit_issue(self, issue_id: str, *, action_key: str) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            f"/engagement/cockpit/issues/{issue_id}/actions/{action_key}",
+        )
+
+    async def get_engagement_cockpit_issue_rate_limit(self, issue_id: str) -> dict[str, Any]:
+        return await self._request("GET", f"/engagement/cockpit/issues/{issue_id}/rate-limit")
+
+    async def get_engagement_cockpit_quiet_hours(self, engagement_id: str) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            f"/engagement/cockpit/engagements/{engagement_id}/quiet-hours",
+        )
+
+    async def update_engagement_cockpit_quiet_hours(
+        self,
+        engagement_id: str,
+        *,
+        quiet_hours_enabled: bool,
+        quiet_hours_start: str | None = None,
+        quiet_hours_end: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"quiet_hours_enabled": quiet_hours_enabled}
+        if quiet_hours_start is not None:
+            payload["quiet_hours_start"] = quiet_hours_start
+        if quiet_hours_end is not None:
+            payload["quiet_hours_end"] = quiet_hours_end
+        return await self._request(
+            "PUT",
+            f"/engagement/cockpit/engagements/{engagement_id}/quiet-hours",
+            json=payload,
+        )
+
+    async def list_engagement_cockpit_engagements(
+        self,
+        *,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            "/engagement/cockpit/engagements",
+            params={"limit": limit, "offset": offset},
+        )
+
+    async def get_engagement_cockpit_engagement(self, engagement_id: str) -> dict[str, Any]:
+        return await self._request("GET", f"/engagement/cockpit/engagements/{engagement_id}")
+
+    async def list_engagement_cockpit_sent(
+        self,
+        *,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "GET",
+            "/engagement/cockpit/sent",
+            params={"limit": limit, "offset": offset},
+        )
+
     async def list_engagement_targets(
         self,
         *,

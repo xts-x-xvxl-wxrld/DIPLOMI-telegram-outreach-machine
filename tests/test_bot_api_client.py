@@ -943,6 +943,128 @@ async def test_prompt_profile_admin_methods_use_prompt_profile_endpoints() -> No
 
 
 @pytest.mark.asyncio
+async def test_engagement_cockpit_read_methods_use_task_first_routes() -> None:
+    seen: list[tuple[str, str, dict[str, str] | None]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, request.url.path, dict(request.url.params)))
+        return httpx.Response(200, json={"ok": True})
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    await client.get_engagement_cockpit_home()
+    await client.get_engagement_cockpit_approvals()
+    await client.get_engagement_cockpit_approvals_for_engagement("eng-1")
+    await client.get_engagement_cockpit_issues()
+    await client.get_engagement_cockpit_issues_for_engagement("eng-1")
+    await client.list_engagement_cockpit_engagements(limit=5, offset=10)
+    await client.get_engagement_cockpit_engagement("eng-1")
+    await client.list_engagement_cockpit_sent(limit=5, offset=10)
+    await client.aclose()
+
+    assert seen == [
+        ("GET", "/api/engagement/cockpit/home", {}),
+        ("GET", "/api/engagement/cockpit/approvals", {}),
+        ("GET", "/api/engagement/cockpit/engagements/eng-1/approvals", {}),
+        ("GET", "/api/engagement/cockpit/issues", {}),
+        ("GET", "/api/engagement/cockpit/engagements/eng-1/issues", {}),
+        ("GET", "/api/engagement/cockpit/engagements", {"limit": "5", "offset": "10"}),
+        ("GET", "/api/engagement/cockpit/engagements/eng-1", {}),
+        ("GET", "/api/engagement/cockpit/sent", {"limit": "5", "offset": "10"}),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_engagement_cockpit_mutation_methods_use_semantic_routes() -> None:
+    seen: list[tuple[str, str, dict[str, Any] | None]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content) if request.content else None
+        seen.append((request.method, request.url.path, payload))
+        return httpx.Response(200, json={"ok": True})
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    await client.approve_engagement_cockpit_draft("draft-1")
+    await client.reject_engagement_cockpit_draft("draft-1")
+    await client.edit_engagement_cockpit_draft(
+        "draft-1",
+        edit_request="Make it shorter",
+        requested_by="telegram:123",
+    )
+    await client.act_on_engagement_cockpit_issue("issue-1", action_key="quiet")
+    await client.get_engagement_cockpit_issue_rate_limit("issue-1")
+    await client.aclose()
+
+    assert seen == [
+        ("POST", "/api/engagement/cockpit/drafts/draft-1/approve", None),
+        ("POST", "/api/engagement/cockpit/drafts/draft-1/reject", None),
+        (
+            "POST",
+            "/api/engagement/cockpit/drafts/draft-1/edit",
+            {"edit_request": "Make it shorter", "requested_by": "telegram:123"},
+        ),
+        ("POST", "/api/engagement/cockpit/issues/issue-1/actions/quiet", None),
+        ("GET", "/api/engagement/cockpit/issues/issue-1/rate-limit", None),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_engagement_cockpit_quiet_hours_methods_use_expected_payloads() -> None:
+    seen: list[tuple[str, str, dict[str, Any] | None]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content) if request.content else None
+        seen.append((request.method, request.url.path, payload))
+        return httpx.Response(200, json={"ok": True})
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    await client.get_engagement_cockpit_quiet_hours("eng-1")
+    await client.update_engagement_cockpit_quiet_hours(
+        "eng-1",
+        quiet_hours_enabled=True,
+        quiet_hours_start="22:00",
+        quiet_hours_end="07:00",
+    )
+    await client.update_engagement_cockpit_quiet_hours(
+        "eng-1",
+        quiet_hours_enabled=False,
+    )
+    await client.aclose()
+
+    assert seen == [
+        ("GET", "/api/engagement/cockpit/engagements/eng-1/quiet-hours", None),
+        (
+            "PUT",
+            "/api/engagement/cockpit/engagements/eng-1/quiet-hours",
+            {
+                "quiet_hours_enabled": True,
+                "quiet_hours_start": "22:00",
+                "quiet_hours_end": "07:00",
+            },
+        ),
+        (
+            "PUT",
+            "/api/engagement/cockpit/engagements/eng-1/quiet-hours",
+            {"quiet_hours_enabled": False},
+        ),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_api_error_uses_fastapi_detail_message() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(404, json={"detail": {"message": "Job not found"}})

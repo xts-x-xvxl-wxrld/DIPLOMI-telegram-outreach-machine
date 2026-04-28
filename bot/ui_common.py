@@ -12,6 +12,11 @@ HELP_MENU_LABEL = "❓ Help"
 
 # Operator cockpit callbacks
 ACTION_OP_HOME = "op:home"
+ACTION_OP_APPROVE = "op:approve"
+ACTION_OP_ISSUES = "op:issues"
+ACTION_OP_ENGS = "op:engs"
+ACTION_OP_SENT = "op:sent"
+ACTION_OP_ADD = "op:add"
 ACTION_OP_DISCOVERY = "op:discovery"
 ACTION_OP_ACCOUNTS = "op:accounts"
 ACTION_OP_ADD_ACCOUNT = "op:addacct"
@@ -114,6 +119,13 @@ ACTION_ENGAGEMENT_ADMIN_ADVANCED = "eng:admin:adv"
 ACTION_CONFIG_EDIT_SAVE = "eng:edit:save"
 ACTION_CONFIG_EDIT_CANCEL = "eng:edit:cancel"
 ACTION_ENGAGEMENT_WIZARD = "eng:wz"
+ACTION_ENGAGEMENT_APPROVAL_QUEUE = "eng:appr"
+ACTION_ENGAGEMENT_ISSUE_QUEUE = "eng:iss"
+ACTION_ENGAGEMENT_MINE = "eng:mine"
+ACTION_ENGAGEMENT_DETAIL = "eng:det"
+ACTION_ENGAGEMENT_SENT = "eng:sent"
+ACTION_ENGAGEMENT_RATE = "eng:rate"
+ACTION_ENGAGEMENT_QUIET = "eng:quiet"
 
 
 @dataclass(frozen=True)
@@ -150,6 +162,8 @@ def parse_callback_data(data: str) -> tuple[str, list[str]]:
             return ":".join(parts[:3]), parts[3:]
         if len(parts) >= 3 and parts[1] in {"actions", "cand", "edit", "set", "topic"}:
             return ":".join(parts[:3]), parts[3:]
+        if len(parts) >= 2 and parts[1] in {"appr", "iss", "mine", "det", "sent", "wz", "rate", "quiet"}:
+            return ":".join(parts[:2]), parts[2:]
         if len(parts) >= 2:
             return ":".join(parts[:2]), parts[2:]
     if parts[0] in {"op", "disc"} and len(parts) >= 2:

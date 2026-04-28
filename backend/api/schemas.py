@@ -631,6 +631,79 @@ class CockpitSentFeedResponse(BaseModel):
     limit: int
 
 
+class CockpitDraftEditRequest(BaseModel):
+    edit_request: str = Field(min_length=1, max_length=2000)
+    requested_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class CockpitDraftActionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    result: str
+    message: str
+    draft_id: UUID | None = None
+    engagement_id: UUID | None = None
+    next_callback: str | None = None
+    code: str | None = None
+
+
+class CockpitIssueActionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    result: str
+    message: str
+    next_callback: str | None = None
+    code: str | None = None
+
+
+class CockpitRateLimitDetailResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    result: str
+    message: str
+    next_callback: str
+    issue_id: UUID | None = None
+    engagement_id: UUID | None = None
+    title: str | None = None
+    target_label: str | None = None
+    blocked_action_label: str | None = None
+    scope_label: str | None = None
+    reset_at: datetime | None = None
+
+
+class CockpitQuietHoursReadResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    result: str
+    message: str
+    next_callback: str
+    engagement_id: UUID | None = None
+    title: str | None = None
+    target_label: str | None = None
+    quiet_hours_enabled: bool | None = None
+    quiet_hours_start: time | None = None
+    quiet_hours_end: time | None = None
+
+
+class CockpitQuietHoursWriteRequest(BaseModel):
+    quiet_hours_enabled: bool
+    quiet_hours_start: time | None = None
+    quiet_hours_end: time | None = None
+
+
+class CockpitQuietHoursWriteResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    result: str
+    message: str
+    next_callback: str
+    engagement_id: UUID | None = None
+    quiet_hours_enabled: bool | None = None
+    quiet_hours_start: time | None = None
+    quiet_hours_end: time | None = None
+    code: str | None = None
+
+
 class EngagementTargetCreateRequest(BaseModel):
     target_ref: str = Field(min_length=1, max_length=500)
     notes: str | None = Field(default=None, max_length=1000)

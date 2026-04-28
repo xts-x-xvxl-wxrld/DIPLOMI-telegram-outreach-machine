@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Iterable
@@ -10,43 +9,23 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from backend.db.enums import (
-    AccountPool,
-    AccountStatus,
-    CommunityAccountMembershipStatus,
-    EngagementActionStatus,
-    EngagementCandidateStatus,
-    EngagementMode,
-    EngagementStatus,
-    EngagementTargetStatus,
-)
+from backend.db.enums import EngagementActionStatus, EngagementCandidateStatus, EngagementMode, EngagementStatus
 from backend.db.models import (
     Community,
     CommunityAccountMembership,
     Engagement,
     EngagementAction,
     EngagementCandidate,
+    EngagementDraftUpdateRequest,
     EngagementSettings,
     EngagementTarget,
     EngagementTopic,
     TelegramAccount,
 )
+from backend.services.task_first_engagement_issues import list_task_first_issues
 
-_COCKPIT_ISSUE_NAMESPACE = uuid.UUID("4d6d439f-4d9b-4189-b4a2-38fdde7c3b50")
 _DEFAULT_PAGE_LIMIT = 20
 _MAX_PAGE_LIMIT = 100
-
-_ISSUE_LABELS = {
-    "topics_not_chosen": "Topics not chosen",
-    "account_not_connected": "Account not connected",
-    "sending_is_paused": "Sending is paused",
-    "reply_expired": "Reply expired",
-    "reply_failed": "Reply failed",
-    "target_not_approved": "Target not approved",
-    "target_not_resolved": "Target not resolved",
-    "community_permissions_missing": "Community permissions missing",
-    "account_restricted": "Account restricted",
-}
 
 
 @dataclass(frozen=True)
@@ -198,21 +177,6 @@ class _ApprovalRecord:
     badge: str | None = None
 
 
-@dataclass(frozen=True)
-class _IssueRecord:
-    issue_id: UUID
-    engagement: Engagement
-    issue_type: str
-    created_at: datetime
-    target_label: str
-    context: str | None
-    fix_actions: list[CockpitIssueActionView]
-    candidate_id: UUID | None = None
-    target_id: UUID | None = None
-    community_id: UUID | None = None
-    assigned_account_id: UUID | None = None
-
-
 @dataclass
 class _CockpitData:
     engagements: list[Engagement] = field(default_factory=list)
@@ -222,16 +186,16 @@ class _CockpitData:
     accounts_by_id: dict[UUID, TelegramAccount] = field(default_factory=dict)
     memberships_by_key: dict[tuple[UUID, UUID], CommunityAccountMembership] = field(default_factory=dict)
     candidates: list[EngagementCandidate] = field(default_factory=list)
+    draft_update_requests: list[EngagementDraftUpdateRequest] = field(default_factory=list)
     sent_actions: list[EngagementAction] = field(default_factory=list)
     communities_by_id: dict[UUID, Community] = field(default_factory=dict)
 
 
 async def get_cockpit_home(db: AsyncSession) -> CockpitHomeView:
     data = await _load_cockpit_data(db)
-    finished_engagements = _visible_engagements(data.engagements)
     approvals = _approval_records(data)
-    issues = _issue_records(data)
-    has_sent_messages = bool(data.sent_actions)
+    issues = await list_task_first_issues(db)
+    finished_engagements = _visible_engagements(data.engagements)
 
     if not finished_engagements:
         state = "first_run"
@@ -259,9 +223,9 @@ async def get_cockpit_home(db: AsyncSession) -> CockpitHomeView:
         issue = issues[0]
         latest_issue_preview = CockpitHomeIssuePreviewView(
             issue_id=issue.issue_id,
-            engagement_id=issue.engagement.id,
+            engagement_id=issue.engagement_id,
             issue_type=issue.issue_type,
-            issue_label=_ISSUE_LABELS[issue.issue_type],
+            issue_label=issue.issue_label,
             badge=None,
             created_at=issue.created_at,
         )
@@ -271,7 +235,7 @@ async def get_cockpit_home(db: AsyncSession) -> CockpitHomeView:
         draft_count=len(approvals),
         issue_count=len(issues),
         active_engagement_count=len(finished_engagements),
-        has_sent_messages=has_sent_messages,
+        has_sent_messages=bool(data.sent_actions),
         next_draft_preview=next_draft_preview,
         latest_issue_preview=latest_issue_preview,
     )
@@ -317,21 +281,27 @@ async def get_cockpit_issues(
     *,
     engagement_id: UUID | None = None,
 ) -> CockpitIssueQueueView:
-    data = await _load_cockpit_data(db)
-    issues = _issue_records(data, engagement_id=engagement_id)
+    issues = await list_task_first_issues(db, engagement_id=engagement_id)
     current = None
     if issues:
         issue = issues[0]
         current = CockpitIssueItemView(
             issue_id=issue.issue_id,
-            engagement_id=issue.engagement.id,
+            engagement_id=issue.engagement_id,
             issue_type=issue.issue_type,
-            issue_label=_ISSUE_LABELS[issue.issue_type],
+            issue_label=issue.issue_label,
             badge=None,
             created_at=issue.created_at,
             target_label=issue.target_label,
             context=issue.context,
-            fix_actions=issue.fix_actions,
+            fix_actions=[
+                CockpitIssueActionView(
+                    action_key=action.action_key,
+                    label=action.label,
+                    callback_family=action.callback_family,
+                )
+                for action in issue.fix_actions
+            ],
             candidate_id=issue.candidate_id,
             target_id=issue.target_id,
             community_id=issue.community_id,
@@ -352,14 +322,20 @@ async def list_cockpit_engagements(
     offset: int = 0,
 ) -> CockpitEngagementListView:
     data = await _load_cockpit_data(db)
+    issue_counts = _issue_counts_by_engagement(await list_task_first_issues(db))
     items = [
         CockpitEngagementListItemView(
             engagement_id=engagement.id,
             primary_label=_engagement_primary_label(engagement, data),
             community_label=_community_label(_engagement_community(engagement, data)),
             sending_mode_label=_sending_mode_label(engagement, data),
-            issue_count=_issue_count_for_engagement(engagement.id, data),
-            pending_task=_pending_task_for_engagement(engagement.id, data, include_resume_callback=False),
+            issue_count=issue_counts.get(engagement.id, 0),
+            pending_task=_pending_task_for_engagement(
+                engagement.id,
+                data,
+                include_resume_callback=False,
+                issue_count=issue_counts.get(engagement.id, 0),
+            ),
             created_at=engagement.created_at,
         )
         for engagement in _visible_engagements(data.engagements)
@@ -383,8 +359,9 @@ async def get_cockpit_engagement_detail(
     engagement = _engagement_by_id(data.engagements, engagement_id)
     if engagement is None:
         return None
+    issues = await list_task_first_issues(db, engagement_id=engagement_id)
 
-    settings = data.settings_by_engagement_id.get(engagement.id)
+    settings = data.settings_by_engagement_id.get(engagement.id) or getattr(engagement, "settings", None)
     topic = data.topics_by_id.get(engagement.topic_id) if engagement.topic_id is not None else None
     account = (
         data.accounts_by_id.get(settings.assigned_account_id)
@@ -399,8 +376,13 @@ async def get_cockpit_engagement_detail(
         account_label=None if account is None else account.phone,
         sending_mode_label=_sending_mode_label(engagement, data),
         approval_count=len(_approval_records(data, engagement_id=engagement.id)),
-        issue_count=_issue_count_for_engagement(engagement.id, data),
-        pending_task=_pending_task_for_engagement(engagement.id, data, include_resume_callback=True),
+        issue_count=len(issues),
+        pending_task=_pending_task_for_engagement(
+            engagement.id,
+            data,
+            include_resume_callback=True,
+            issue_count=len(issues),
+        ),
     )
 
 
@@ -414,7 +396,7 @@ async def list_cockpit_sent(
     items = [
         CockpitSentItemView(
             action_id=action.id,
-            message_text=action.outbound_text or _sent_fallback_text(action, data),
+            message_text=action.outbound_text or _sent_fallback_text(action),
             community_label=_community_label(_sent_action_community(action, data)),
             sent_at=action.sent_at or action.created_at,
         )
@@ -448,22 +430,12 @@ async def _load_cockpit_data(db: AsyncSession) -> _CockpitData:
     topics = list(await db.scalars(select(EngagementTopic)))
     accounts = list(await db.scalars(select(TelegramAccount)))
     memberships = list(await db.scalars(select(CommunityAccountMembership)))
+    draft_update_requests = list(await db.scalars(select(EngagementDraftUpdateRequest)))
     candidates = list(
         await db.scalars(
             select(EngagementCandidate)
-            .options(
-                joinedload(EngagementCandidate.community),
-                joinedload(EngagementCandidate.topic),
-            )
-            .where(
-                EngagementCandidate.status.in_(
-                    [
-                        EngagementCandidateStatus.NEEDS_REVIEW.value,
-                        EngagementCandidateStatus.EXPIRED.value,
-                        EngagementCandidateStatus.FAILED.value,
-                    ]
-                )
-            )
+            .options(joinedload(EngagementCandidate.topic))
+            .where(EngagementCandidate.status == EngagementCandidateStatus.NEEDS_REVIEW.value)
             .order_by(EngagementCandidate.created_at.desc())
         )
     )
@@ -500,6 +472,7 @@ async def _load_cockpit_data(db: AsyncSession) -> _CockpitData:
             for membership in memberships
         },
         candidates=candidates,
+        draft_update_requests=draft_update_requests,
         sent_actions=sent_actions,
         communities_by_id=communities,
     )
@@ -519,203 +492,33 @@ def _approval_records(data: _CockpitData, *, engagement_id: UUID | None = None) 
         for eng in _visible_engagements(data.engagements)
         if eng.topic_id is not None and (engagement_id is None or eng.id == engagement_id)
     }
+    hidden_source_candidate_ids = {
+        request.source_candidate_id
+        for request in data.draft_update_requests
+    }
+    updated_candidate_ids = {
+        request.replacement_candidate_id
+        for request in data.draft_update_requests
+        if request.status == "completed" and request.replacement_candidate_id is not None
+    }
     approvals: list[_ApprovalRecord] = []
     for candidate in data.candidates:
         if candidate.status != EngagementCandidateStatus.NEEDS_REVIEW.value:
             continue
+        if candidate.id in hidden_source_candidate_ids:
+            continue
         engagement = engagements_by_key.get((candidate.community_id, candidate.topic_id))
         if engagement is None:
             continue
-        approvals.append(_ApprovalRecord(candidate=candidate, engagement=engagement))
+        approvals.append(
+            _ApprovalRecord(
+                candidate=candidate,
+                engagement=engagement,
+                badge="Updated draft" if candidate.id in updated_candidate_ids else None,
+            )
+        )
     approvals.sort(key=lambda record: record.candidate.created_at, reverse=True)
     return approvals
-
-
-def _issue_records(data: _CockpitData, *, engagement_id: UUID | None = None) -> list[_IssueRecord]:
-    records: list[_IssueRecord] = []
-    candidates_by_key = _group_candidates_by_engagement_key(data.candidates)
-
-    for engagement in _visible_engagements(data.engagements):
-        if engagement_id is not None and engagement.id != engagement_id:
-            continue
-
-        target = data.targets_by_id.get(engagement.target_id) or getattr(engagement, "target", None)
-        settings = data.settings_by_engagement_id.get(engagement.id) or getattr(engagement, "settings", None)
-        account = (
-            data.accounts_by_id.get(settings.assigned_account_id)
-            if settings is not None and settings.assigned_account_id is not None
-            else None
-        )
-        membership = (
-            data.memberships_by_key.get((engagement.community_id, settings.assigned_account_id))
-            if settings is not None and settings.assigned_account_id is not None
-            else None
-        )
-        target_label = _engagement_target_label(engagement, data)
-        scoped_candidates = candidates_by_key.get((engagement.community_id, engagement.topic_id), [])
-
-        if target is None or target.community_id is None or target.status in {
-            EngagementTargetStatus.PENDING.value,
-            EngagementTargetStatus.FAILED.value,
-        }:
-            records.append(
-                _issue_record(
-                    engagement=engagement,
-                    issue_type="target_not_resolved",
-                    created_at=_timestamp(target, engagement),
-                    target_label=target_label,
-                    context="Target still needs resolution",
-                    fix_actions=[_issue_action("rsvtgt", "Resolve target")],
-                    target_id=None if target is None else target.id,
-                    community_id=engagement.community_id,
-                )
-            )
-        elif target.status != EngagementTargetStatus.APPROVED.value:
-            records.append(
-                _issue_record(
-                    engagement=engagement,
-                    issue_type="target_not_approved",
-                    created_at=_timestamp(target, engagement),
-                    target_label=target_label,
-                    context="Target approval is still required",
-                    fix_actions=[_issue_action("apptgt", "Approve target")],
-                    target_id=target.id,
-                    community_id=engagement.community_id,
-                )
-            )
-
-        if engagement.topic_id is None:
-            records.append(
-                _issue_record(
-                    engagement=engagement,
-                    issue_type="topics_not_chosen",
-                    created_at=_timestamp(engagement),
-                    target_label=target_label,
-                    context="Choose or create a topic",
-                    fix_actions=[
-                        _issue_action("chtopic", "Choose topic"),
-                        _issue_action("crtopic", "Create topic"),
-                    ],
-                    target_id=engagement.target_id,
-                    community_id=engagement.community_id,
-                )
-            )
-
-        account_joined = membership is not None and membership.status == CommunityAccountMembershipStatus.JOINED.value
-        if settings is None or settings.assigned_account_id is None or not account_joined:
-            records.append(
-                _issue_record(
-                    engagement=engagement,
-                    issue_type="account_not_connected",
-                    created_at=_timestamp(settings, membership, engagement),
-                    target_label=target_label,
-                    context="Choose a joined engagement account",
-                    fix_actions=[_issue_action("chacct", "Choose account")],
-                    target_id=engagement.target_id,
-                    community_id=engagement.community_id,
-                    assigned_account_id=None if settings is None else settings.assigned_account_id,
-                )
-            )
-
-        if account is not None and (
-            account.account_pool != AccountPool.ENGAGEMENT.value
-            or account.status in {AccountStatus.BANNED.value, AccountStatus.RATE_LIMITED.value}
-        ):
-            records.append(
-                _issue_record(
-                    engagement=engagement,
-                    issue_type="account_restricted",
-                    created_at=_timestamp(account, settings, engagement),
-                    target_label=target_label,
-                    context="The assigned account cannot be used right now",
-                    fix_actions=[_issue_action("swapacct", "Choose account")],
-                    target_id=engagement.target_id,
-                    community_id=engagement.community_id,
-                    assigned_account_id=account.id,
-                )
-            )
-
-        mode = None if settings is None else settings.mode
-        eligible_to_run = (
-            target is not None
-            and target.status == EngagementTargetStatus.APPROVED.value
-            and engagement.topic_id is not None
-            and settings is not None
-            and settings.assigned_account_id is not None
-            and account_joined
-        )
-        if eligible_to_run and (engagement.status == EngagementStatus.PAUSED.value or mode == EngagementMode.DISABLED.value):
-            records.append(
-                _issue_record(
-                    engagement=engagement,
-                    issue_type="sending_is_paused",
-                    created_at=_timestamp(engagement, settings),
-                    target_label=target_label,
-                    context="Resume sending for this engagement",
-                    fix_actions=[_issue_action("resume", "Resume sending")],
-                    target_id=engagement.target_id,
-                    community_id=engagement.community_id,
-                    assigned_account_id=None if settings is None else settings.assigned_account_id,
-                )
-            )
-
-        if eligible_to_run and target is not None and settings is not None:
-            permissions_missing = (
-                not target.allow_detect
-                or not settings.allow_join
-                or (settings.mode == EngagementMode.AUTO_LIMITED.value and (not settings.allow_post or not target.allow_post))
-            )
-            if permissions_missing:
-                records.append(
-                    _issue_record(
-                        engagement=engagement,
-                        issue_type="community_permissions_missing",
-                        created_at=_timestamp(target, settings, engagement),
-                        target_label=target_label,
-                        context="Permission settings do not match the current mode",
-                        fix_actions=[_issue_action("fixperm", "Fix permissions")],
-                        target_id=engagement.target_id,
-                        community_id=engagement.community_id,
-                        assigned_account_id=settings.assigned_account_id,
-                    )
-                )
-
-        latest_expired = _latest_candidate_with_status(scoped_candidates, EngagementCandidateStatus.EXPIRED.value)
-        if latest_expired is not None:
-            records.append(
-                _issue_record(
-                    engagement=engagement,
-                    issue_type="reply_expired",
-                    created_at=_timestamp(latest_expired),
-                    target_label=target_label,
-                    context="A reply opportunity expired before review",
-                    fix_actions=[],
-                    candidate_id=latest_expired.id,
-                    target_id=engagement.target_id,
-                    community_id=engagement.community_id,
-                    assigned_account_id=None if settings is None else settings.assigned_account_id,
-                )
-            )
-
-        latest_failed = _latest_candidate_with_status(scoped_candidates, EngagementCandidateStatus.FAILED.value)
-        if latest_failed is not None:
-            records.append(
-                _issue_record(
-                    engagement=engagement,
-                    issue_type="reply_failed",
-                    created_at=_timestamp(latest_failed),
-                    target_label=target_label,
-                    context="Retry the failed reply opportunity",
-                    fix_actions=[_issue_action("retry", "Retry")],
-                    candidate_id=latest_failed.id,
-                    target_id=engagement.target_id,
-                    community_id=engagement.community_id,
-                    assigned_account_id=None if settings is None else settings.assigned_account_id,
-                )
-            )
-
-    records.sort(key=lambda record: record.created_at, reverse=True)
-    return records
 
 
 def _pending_task_for_engagement(
@@ -723,10 +526,10 @@ def _pending_task_for_engagement(
     data: _CockpitData,
     *,
     include_resume_callback: bool,
+    issue_count: int,
 ) -> CockpitPendingTaskView | None:
     approval_count = len(_approval_records(data, engagement_id=engagement_id))
     approval_update_count = len(_approval_update_placeholders(data, engagement_id=engagement_id))
-    issue_count = len(_issue_records(data, engagement_id=engagement_id))
 
     if approval_count > 0:
         return CockpitPendingTaskView(
@@ -752,8 +555,11 @@ def _pending_task_for_engagement(
     return None
 
 
-def _issue_count_for_engagement(engagement_id: UUID, data: _CockpitData) -> int:
-    return len(_issue_records(data, engagement_id=engagement_id))
+def _issue_counts_by_engagement(issues) -> dict[UUID, int]:
+    counts: dict[UUID, int] = {}
+    for issue in issues:
+        counts[issue.engagement_id] = counts.get(issue.engagement_id, 0) + 1
+    return counts
 
 
 def _engagement_by_id(engagements: Iterable[Engagement], engagement_id: UUID) -> Engagement | None:
@@ -821,93 +627,21 @@ def _candidate_why(candidate: EngagementCandidate) -> str:
     return "Matched engagement topic"
 
 
-def _group_candidates_by_engagement_key(
-    candidates: Iterable[EngagementCandidate],
-) -> dict[tuple[UUID, UUID | None], list[EngagementCandidate]]:
-    grouped: dict[tuple[UUID, UUID | None], list[EngagementCandidate]] = {}
-    for candidate in candidates:
-        grouped.setdefault((candidate.community_id, candidate.topic_id), []).append(candidate)
-    for rows in grouped.values():
-        rows.sort(key=lambda candidate: candidate.created_at, reverse=True)
-    return grouped
-
-
-def _latest_candidate_with_status(
-    candidates: Iterable[EngagementCandidate],
-    status: str,
-) -> EngagementCandidate | None:
-    for candidate in candidates:
-        if candidate.status == status:
-            return candidate
-    return None
-
-
 def _approval_update_placeholders(
     data: _CockpitData,
     *,
     engagement_id: UUID | None = None,
 ) -> list[CockpitApprovalPlaceholderView]:
-    del data, engagement_id
-    # The current repo has no persisted state that uniquely identifies
-    # "replacement draft requested and still pending". Candidate status,
-    # revisions, final_reply, reviewed_at, and operator_notified_at all mean
-    # other things, and none preserve the original approval-slot ordering that
-    # the placeholder contract requires. Slice 5's semantic draft-update flow
-    # needs to land the missing source of truth before approval_updates can be
-    # emitted without inventing state.
-    return []
-
-
-def _timestamp(*objects: object | None) -> datetime:
-    for obj in objects:
-        if obj is None:
-            continue
-        updated_at = getattr(obj, "updated_at", None)
-        if updated_at is not None:
-            return updated_at
-        created_at = getattr(obj, "created_at", None)
-        if created_at is not None:
-            return created_at
-    raise ValueError("timestamp source required")
-
-
-def _issue_action(action_key: str, label: str) -> CockpitIssueActionView:
-    return CockpitIssueActionView(action_key=action_key, label=label, callback_family="eng:wz" if action_key in {"chtopic", "crtopic", "chacct", "swapacct"} else "eng:iss")
-
-
-def _issue_record(
-    *,
-    engagement: Engagement,
-    issue_type: str,
-    created_at: datetime,
-    target_label: str,
-    context: str | None,
-    fix_actions: list[CockpitIssueActionView],
-    candidate_id: UUID | None = None,
-    target_id: UUID | None = None,
-    community_id: UUID | None = None,
-    assigned_account_id: UUID | None = None,
-) -> _IssueRecord:
-    identity_parts = [
-        str(engagement.id),
-        issue_type,
-        "" if candidate_id is None else str(candidate_id),
-        "" if target_id is None else str(target_id),
-        "" if assigned_account_id is None else str(assigned_account_id),
+    requests = [
+        request
+        for request in data.draft_update_requests
+        if request.status == "pending" and (engagement_id is None or request.engagement_id == engagement_id)
     ]
-    return _IssueRecord(
-        issue_id=uuid.uuid5(_COCKPIT_ISSUE_NAMESPACE, "|".join(identity_parts)),
-        engagement=engagement,
-        issue_type=issue_type,
-        created_at=created_at,
-        target_label=target_label,
-        context=context,
-        fix_actions=fix_actions,
-        candidate_id=candidate_id,
-        target_id=target_id,
-        community_id=community_id,
-        assigned_account_id=assigned_account_id,
-    )
+    requests.sort(key=lambda request: request.source_queue_created_at, reverse=True)
+    return [
+        CockpitApprovalPlaceholderView(slot=index, label="Updating draft")
+        for index, request in enumerate(requests)
+    ]
 
 
 def _page_window(*, total: int, limit: int, offset: int) -> tuple[int, int]:
@@ -925,7 +659,7 @@ def _sent_action_community(action: EngagementAction, data: _CockpitData) -> Comm
     return getattr(action, "community", None) or data.communities_by_id.get(action.community_id)
 
 
-def _sent_fallback_text(action: EngagementAction, data: _CockpitData) -> str:
+def _sent_fallback_text(action: EngagementAction) -> str:
     candidate = getattr(action, "candidate", None)
     if candidate is not None:
         return _draft_text(candidate)

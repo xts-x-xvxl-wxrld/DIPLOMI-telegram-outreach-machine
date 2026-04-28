@@ -285,6 +285,41 @@ async def get_engagement_cockpit_sent(*args, **kwargs):
     return await _engagement_cockpit.get_engagement_cockpit_sent(*args, **kwargs)
 
 
+async def post_engagement_cockpit_draft_approve(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_cockpit.post_engagement_cockpit_draft_approve(*args, **kwargs)
+
+
+async def post_engagement_cockpit_draft_reject(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_cockpit.post_engagement_cockpit_draft_reject(*args, **kwargs)
+
+
+async def post_engagement_cockpit_draft_edit(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_cockpit.post_engagement_cockpit_draft_edit(*args, **kwargs)
+
+
+async def post_engagement_cockpit_issue_action(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_cockpit.post_engagement_cockpit_issue_action(*args, **kwargs)
+
+
+async def get_engagement_cockpit_issue_rate_limit(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_cockpit.get_engagement_cockpit_issue_rate_limit(*args, **kwargs)
+
+
+async def get_engagement_cockpit_quiet_hours(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_cockpit.get_engagement_cockpit_quiet_hours(*args, **kwargs)
+
+
+async def put_engagement_cockpit_quiet_hours(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_cockpit.put_engagement_cockpit_quiet_hours(*args, **kwargs)
+
+
 async def post_engagement_candidate_approve(*args, **kwargs):
     _sync_route_dependencies()
     return await _engagement_candidates_actions.post_engagement_candidate_approve(*args, **kwargs)
@@ -387,6 +422,13 @@ __all__ = ["router", "enqueue_community_join", "enqueue_collection", "enqueue_en
     "get_engagement_cockpit_engagements",
     "get_engagement_cockpit_engagement_detail",
     "get_engagement_cockpit_sent",
+    "post_engagement_cockpit_draft_approve",
+    "post_engagement_cockpit_draft_reject",
+    "post_engagement_cockpit_draft_edit",
+    "post_engagement_cockpit_issue_action",
+    "get_engagement_cockpit_issue_rate_limit",
+    "get_engagement_cockpit_quiet_hours",
+    "put_engagement_cockpit_quiet_hours",
     "post_engagement_candidate_approve",
     "post_engagement_candidate_edit",
     "post_engagement_candidate_reject",

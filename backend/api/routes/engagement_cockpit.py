@@ -8,12 +8,20 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from backend.api.deps import DbSession, require_bot_token
 from backend.api.schemas import (
     CockpitApprovalQueueResponse,
+    CockpitDraftActionResponse,
+    CockpitDraftEditRequest,
     CockpitEngagementDetailResponse,
     CockpitEngagementListResponse,
     CockpitHomeResponse,
+    CockpitIssueActionResponse,
     CockpitIssueQueueResponse,
+    CockpitQuietHoursReadResponse,
+    CockpitQuietHoursWriteRequest,
+    CockpitQuietHoursWriteResponse,
+    CockpitRateLimitDetailResponse,
     CockpitSentFeedResponse,
 )
+from backend.queue.client import enqueue_engagement_target_resolve
 from backend.services.task_first_engagement_cockpit import (
     get_cockpit_approvals,
     get_cockpit_engagement_detail,
@@ -21,6 +29,15 @@ from backend.services.task_first_engagement_cockpit import (
     get_cockpit_issues,
     list_cockpit_engagements,
     list_cockpit_sent,
+)
+from backend.services.task_first_engagement_cockpit_mutations import (
+    act_on_cockpit_issue,
+    approve_cockpit_draft,
+    get_cockpit_quiet_hours,
+    get_cockpit_rate_limit_detail,
+    queue_cockpit_draft_update,
+    reject_cockpit_draft,
+    update_cockpit_quiet_hours,
 )
 
 router = APIRouter(dependencies=[Depends(require_bot_token)])
@@ -126,14 +143,135 @@ async def get_engagement_cockpit_sent(
     return CockpitSentFeedResponse.model_validate(payload)
 
 
+@router.post(
+    "/engagement/cockpit/drafts/{draft_id}/approve",
+    response_model=CockpitDraftActionResponse,
+)
+async def post_engagement_cockpit_draft_approve(
+    draft_id: UUID,
+    db: DbSession,
+) -> CockpitDraftActionResponse:
+    payload = await approve_cockpit_draft(db, draft_id=draft_id, requested_by="operator")
+    if payload.result == "approved":
+        await db.commit()
+    return CockpitDraftActionResponse.model_validate(payload)
+
+
+@router.post(
+    "/engagement/cockpit/drafts/{draft_id}/reject",
+    response_model=CockpitDraftActionResponse,
+)
+async def post_engagement_cockpit_draft_reject(
+    draft_id: UUID,
+    db: DbSession,
+) -> CockpitDraftActionResponse:
+    payload = await reject_cockpit_draft(db, draft_id=draft_id, requested_by="operator")
+    if payload.result == "rejected":
+        await db.commit()
+    return CockpitDraftActionResponse.model_validate(payload)
+
+
+@router.post(
+    "/engagement/cockpit/drafts/{draft_id}/edit",
+    response_model=CockpitDraftActionResponse,
+)
+async def post_engagement_cockpit_draft_edit(
+    draft_id: UUID,
+    payload: CockpitDraftEditRequest,
+    db: DbSession,
+) -> CockpitDraftActionResponse:
+    result = await queue_cockpit_draft_update(
+        db,
+        draft_id=draft_id,
+        requested_by=payload.requested_by or "operator",
+        edit_request=payload.edit_request,
+    )
+    if result.result == "queued_update":
+        await db.commit()
+    return CockpitDraftActionResponse.model_validate(result)
+
+
+@router.post(
+    "/engagement/cockpit/issues/{issue_id}/actions/{action_key}",
+    response_model=CockpitIssueActionResponse,
+)
+async def post_engagement_cockpit_issue_action(
+    issue_id: UUID,
+    action_key: str,
+    db: DbSession,
+) -> CockpitIssueActionResponse:
+    payload = await act_on_cockpit_issue(
+        db,
+        issue_id=issue_id,
+        action_key=action_key,
+        requested_by="operator",
+        enqueue_target_resolve=enqueue_engagement_target_resolve,
+    )
+    if payload.result == "resolved":
+        await db.commit()
+    return CockpitIssueActionResponse.model_validate(payload)
+
+
+@router.get(
+    "/engagement/cockpit/issues/{issue_id}/rate-limit",
+    response_model=CockpitRateLimitDetailResponse,
+)
+async def get_engagement_cockpit_issue_rate_limit(
+    issue_id: UUID,
+    db: DbSession,
+) -> CockpitRateLimitDetailResponse:
+    payload = await get_cockpit_rate_limit_detail(db, issue_id=issue_id)
+    return CockpitRateLimitDetailResponse.model_validate(payload)
+
+
+@router.get(
+    "/engagement/cockpit/engagements/{engagement_id}/quiet-hours",
+    response_model=CockpitQuietHoursReadResponse,
+)
+async def get_engagement_cockpit_quiet_hours(
+    engagement_id: UUID,
+    db: DbSession,
+) -> CockpitQuietHoursReadResponse:
+    payload = await get_cockpit_quiet_hours(db, engagement_id=engagement_id)
+    return CockpitQuietHoursReadResponse.model_validate(payload)
+
+
+@router.put(
+    "/engagement/cockpit/engagements/{engagement_id}/quiet-hours",
+    response_model=CockpitQuietHoursWriteResponse,
+)
+async def put_engagement_cockpit_quiet_hours(
+    engagement_id: UUID,
+    payload: CockpitQuietHoursWriteRequest,
+    db: DbSession,
+) -> CockpitQuietHoursWriteResponse:
+    result = await update_cockpit_quiet_hours(
+        db,
+        engagement_id=engagement_id,
+        quiet_hours_enabled=payload.quiet_hours_enabled,
+        quiet_hours_start=payload.quiet_hours_start,
+        quiet_hours_end=payload.quiet_hours_end,
+    )
+    if result.result == "updated":
+        await db.commit()
+    return CockpitQuietHoursWriteResponse.model_validate(result)
+
+
 __all__ = [
     "get_engagement_cockpit_approvals",
     "get_engagement_cockpit_engagement_detail",
     "get_engagement_cockpit_engagements",
     "get_engagement_cockpit_home",
     "get_engagement_cockpit_issues",
+    "get_engagement_cockpit_issue_rate_limit",
+    "get_engagement_cockpit_quiet_hours",
     "get_engagement_cockpit_scoped_approvals",
     "get_engagement_cockpit_scoped_issues",
     "get_engagement_cockpit_sent",
+    "post_engagement_cockpit_draft_approve",
+    "post_engagement_cockpit_draft_edit",
+    "post_engagement_cockpit_draft_reject",
+    "post_engagement_cockpit_issue_action",
+    "put_engagement_cockpit_quiet_hours",
     "router",
 ]

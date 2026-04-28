@@ -22,6 +22,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_ACCOUNT_CANCEL,
     ACTION_ENGAGEMENT_ACCOUNT_CONFIRM,
     ACTION_ENGAGEMENT_APPROVE,
+    ACTION_ENGAGEMENT_APPROVAL_QUEUE,
     ACTION_ENGAGEMENT_CANDIDATES,
     ACTION_ENGAGEMENT_CANDIDATE_EDIT,
     ACTION_ENGAGEMENT_CANDIDATE_EXPIRE,
@@ -29,8 +30,11 @@ from bot.ui import (
     ACTION_ENGAGEMENT_CANDIDATE_RETRY,
     ACTION_ENGAGEMENT_CANDIDATE_REVISIONS,
     ACTION_ENGAGEMENT_DETECT,
+    ACTION_ENGAGEMENT_DETAIL,
     ACTION_ENGAGEMENT_HOME,
+    ACTION_ENGAGEMENT_ISSUE_QUEUE,
     ACTION_ENGAGEMENT_JOIN,
+    ACTION_ENGAGEMENT_MINE,
     ACTION_ENGAGEMENT_PROMPT_CREATE,
     ACTION_ENGAGEMENT_PROMPTS,
     ACTION_ENGAGEMENT_SETTINGS_EDIT,
@@ -51,6 +55,9 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TARGET_PERMISSION,
     ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM,
     ACTION_ENGAGEMENT_TARGETS,
+    ACTION_ENGAGEMENT_QUIET,
+    ACTION_ENGAGEMENT_RATE,
+    ACTION_ENGAGEMENT_SENT,
     ACTION_ENGAGEMENT_TOPIC_CREATE,
     ACTION_ENGAGEMENT_TOPIC_EDIT,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD,
@@ -60,9 +67,14 @@ from bot.ui import (
     ACTION_OP_ACCOUNTS,
     ACTION_OP_ADD_ACCOUNT,
     ACTION_OP_ACCOUNT_SKIP,
+    ACTION_OP_ADD,
     ACTION_OP_DISCOVERY,
+    ACTION_OP_ENGS,
     ACTION_OP_HELP,
     ACTION_OP_HOME,
+    ACTION_OP_APPROVE,
+    ACTION_OP_ISSUES,
+    ACTION_OP_SENT,
     ACTION_JOB_STATUS,
     ACTION_OPEN_COMMUNITY,
     ACTION_SEED_CANDIDATES,
@@ -797,6 +809,11 @@ def test_discovery_cockpit_callback_data_stays_under_telegram_limit() -> None:
 def test_parse_op_callbacks() -> None:
     cases = {
         "op:home": (ACTION_OP_HOME, []),
+        "op:approve": (ACTION_OP_APPROVE, []),
+        "op:issues": (ACTION_OP_ISSUES, []),
+        "op:engs": (ACTION_OP_ENGS, []),
+        "op:sent": (ACTION_OP_SENT, []),
+        "op:add": (ACTION_OP_ADD, []),
         "op:discovery": (ACTION_OP_DISCOVERY, []),
         "op:accounts": (ACTION_OP_ACCOUNTS, []),
         "op:addacct:search": (ACTION_OP_ADD_ACCOUNT, ["search"]),
@@ -830,3 +847,18 @@ def test_parse_op_disc_do_not_break_eng_namespace() -> None:
     assert parse_callback_data("eng:home") == (ACTION_ENGAGEMENT_HOME, [])
     assert parse_callback_data("eng:cand:list:needs_review:0") == ("eng:cand:list", ["needs_review", "0"])
     assert parse_callback_data("eng:admin:to:target-1") == (ACTION_ENGAGEMENT_TARGET_OPEN, ["target-1"])
+
+
+def test_parse_task_first_engagement_callback_families() -> None:
+    cases = {
+        "eng:appr:list:0": (ACTION_ENGAGEMENT_APPROVAL_QUEUE, ["list", "0"]),
+        "eng:appr:okc:draft-1": (ACTION_ENGAGEMENT_APPROVAL_QUEUE, ["okc", "draft-1"]),
+        "eng:iss:act:issue-1:quiet": (ACTION_ENGAGEMENT_ISSUE_QUEUE, ["act", "issue-1", "quiet"]),
+        "eng:mine:open:eng-1": (ACTION_ENGAGEMENT_MINE, ["open", "eng-1"]),
+        "eng:det:resume:eng-1": (ACTION_ENGAGEMENT_DETAIL, ["resume", "eng-1"]),
+        "eng:sent:list:20": (ACTION_ENGAGEMENT_SENT, ["list", "20"]),
+        "eng:rate:open:issue-1": (ACTION_ENGAGEMENT_RATE, ["open", "issue-1"]),
+        "eng:quiet:open:eng-1:issue-1": (ACTION_ENGAGEMENT_QUIET, ["open", "eng-1", "issue-1"]),
+    }
+    for raw_data, expected in cases.items():
+        assert parse_callback_data(raw_data) == expected
