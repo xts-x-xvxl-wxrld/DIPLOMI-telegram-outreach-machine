@@ -407,8 +407,8 @@ async def test_wizard_step2_continue_advances_to_step3() -> None:
     client.accounts = {
         "counts": {"available": 2},
         "items": [
-            {"id": _ACCT_1_ID, "phone": "+1*****11", "status": "available", "pool": "engagement"},
-            {"id": _ACCT_2_ID, "phone": "+1*****22", "status": "available", "pool": "engagement"},
+            {"id": _ACCT_1_ID, "phone": "+1*****11", "status": "available", "account_pool": "engagement"},
+            {"id": _ACCT_2_ID, "phone": "+1*****22", "status": "available", "account_pool": "engagement"},
         ],
     }
     context = _wiz_context(client)
@@ -433,7 +433,7 @@ async def test_wizard_step3_auto_picks_single_account() -> None:
     client = _FakeWizardApiClient()
     client.accounts = {
         "counts": {"available": 1},
-        "items": [{"id": _ACCT_SOLO_ID, "phone": "+1*****99", "status": "available", "pool": "engagement"}],
+        "items": [{"id": _ACCT_SOLO_ID, "phone": "+1*****99", "status": "available", "account_pool": "engagement"}],
     }
     context = _wiz_context(client)
 
@@ -455,8 +455,8 @@ async def test_wizard_step3_manual_account_pick() -> None:
     client.accounts = {
         "counts": {"available": 2},
         "items": [
-            {"id": _ACCT_1_ID, "phone": "+1*****11", "status": "available", "pool": "engagement"},
-            {"id": _ACCT_2_ID, "phone": "+1*****22", "status": "available", "pool": "engagement"},
+            {"id": _ACCT_1_ID, "phone": "+1*****11", "status": "available", "account_pool": "engagement"},
+            {"id": _ACCT_2_ID, "phone": "+1*****22", "status": "available", "account_pool": "engagement"},
         ],
     }
     context = _wiz_context(client)
@@ -687,8 +687,8 @@ async def test_wizard_resume_shows_appropriate_step() -> None:
     client.accounts = {
         "counts": {"available": 2},
         "items": [
-            {"id": _ACCT_A_ID, "phone": "+1*****11", "status": "available", "pool": "engagement"},
-            {"id": _ACCT_B_ID, "phone": "+1*****22", "status": "available", "pool": "engagement"},
+            {"id": _ACCT_A_ID, "phone": "+1*****11", "status": "available", "account_pool": "engagement"},
+            {"id": _ACCT_B_ID, "phone": "+1*****22", "status": "available", "account_pool": "engagement"},
         ],
     }
     context = _wiz_context(client)
