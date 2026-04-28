@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import uuid as _uuid_mod
 from dataclasses import dataclass
 from typing import Sequence
 
@@ -169,6 +171,17 @@ def parse_callback_data(data: str) -> tuple[str, list[str]]:
     if parts[0] in {"op", "disc"} and len(parts) >= 2:
         return ":".join(parts[:2]), parts[2:]
     return parts[0], parts[1:]
+
+
+def compact_uuid(uuid_str: str) -> str:
+    """Encode a UUID as 22-char base64url (no padding) to save callback space."""
+    return base64.urlsafe_b64encode(_uuid_mod.UUID(uuid_str).bytes).rstrip(b"=").decode()
+
+
+def expand_uuid(s: str) -> str:
+    """Decode a compact_uuid string back to standard UUID format."""
+    padded = s + "=" * (-len(s) % 4)
+    return str(_uuid_mod.UUID(bytes=base64.urlsafe_b64decode(padded)))
 
 
 def encode_callback_data(action: str, *parts: str) -> str:

@@ -5,6 +5,7 @@ from typing import Any
 
 from .runtime import *
 from .engagement_wizard_target_flow import prepare_wizard_target_state
+from .ui_common import expand_uuid
 
 
 # ---------------------------------------------------------------------------
@@ -383,15 +384,15 @@ async def _handle_wizard_callback(update: Any, context: Any, parts: list[str]) -
 
     # eng:wz:tp:<topic_id>:<engagement_id>
     if sub == "tp" and len(parts) >= 3:
-        topic_id = parts[1]
-        engagement_id = parts[2]
+        topic_id = expand_uuid(parts[1])
+        engagement_id = expand_uuid(parts[2])
         await _handle_wizard_pick_topic(update, context, operator_id, topic_id, engagement_id)
         return
 
     # eng:wz:ap:<account_id>:<engagement_id>
     if sub == "ap" and len(parts) >= 3:
-        account_id = parts[1]
-        engagement_id = parts[2]
+        account_id = expand_uuid(parts[1])
+        engagement_id = expand_uuid(parts[2])
         await _handle_wizard_account_pick(update, context, operator_id, account_id, engagement_id)
         return
 

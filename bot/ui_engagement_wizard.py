@@ -9,6 +9,7 @@ from .ui_common import (
     _compact_label,
     _inline_markup,
     _with_navigation,
+    compact_uuid,
 )
 
 
@@ -43,7 +44,7 @@ def engagement_wizard_topics_markup(
         name = str(topic.get("name") or topic_id)
         checked = "✓ " if topic_id == selected_id else "☐ "
         rows.append(
-            [_button(f"{checked}{_compact_label(name, 30)}", ACTION_ENGAGEMENT_WIZARD, "tp", topic_id, engagement_id)]
+            [_button(f"{checked}{_compact_label(name, 30)}", ACTION_ENGAGEMENT_WIZARD, "tp", compact_uuid(topic_id), compact_uuid(engagement_id))]
         )
     if has_selection:
         rows.append([_button("Continue →", ACTION_ENGAGEMENT_WIZARD, "step", "3", engagement_id)])
@@ -66,7 +67,7 @@ def engagement_wizard_accounts_markup(
         if not acct_id:
             continue
         phone = str(account.get("phone") or acct_id)
-        rows.append([_button(f"📲 {phone}", ACTION_ENGAGEMENT_WIZARD, "ap", acct_id, engagement_id)])
+        rows.append([_button(f"📲 {phone}", ACTION_ENGAGEMENT_WIZARD, "ap", compact_uuid(acct_id), compact_uuid(engagement_id))])
     return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))
 
 
