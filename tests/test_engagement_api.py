@@ -348,14 +348,12 @@ async def test_post_task_first_engagement_creates_draft_for_resolved_target() ->
         TaskFirstEngagementCreateRequest(target_id=target.id, created_by="telegram:123"),
         db,  # type: ignore[arg-type]
     )
-
     assert response.result == "created"
     assert response.engagement.target_id == target.id
     assert response.engagement.community_id == community_id
     assert response.engagement.status == EngagementStatus.DRAFT.value
     assert isinstance(db.added[0], Engagement)
     assert db.commits == 1
-
 @pytest.mark.asyncio
 async def test_post_task_first_engagement_reuses_existing_row() -> None:
     community_id = uuid4()
