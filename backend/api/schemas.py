@@ -474,6 +474,163 @@ class TaskFirstWizardRetryResponse(BaseModel):
     code: str | None = None
 
 
+class CockpitHomeDraftPreviewOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    draft_id: UUID
+    engagement_id: UUID
+    text_preview: str
+    target_label: str
+    why: str
+    updated: bool
+
+
+class CockpitHomeIssuePreviewOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    issue_id: UUID
+    engagement_id: UUID
+    issue_type: str
+    issue_label: str
+    badge: str | None = None
+    created_at: datetime
+
+
+class CockpitHomeResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    state: str
+    draft_count: int
+    issue_count: int
+    active_engagement_count: int
+    has_sent_messages: bool
+    next_draft_preview: CockpitHomeDraftPreviewOut | None = None
+    latest_issue_preview: CockpitHomeIssuePreviewOut | None = None
+
+
+class CockpitApprovalPlaceholderOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    slot: int
+    label: str
+
+
+class CockpitApprovalItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    draft_id: UUID
+    engagement_id: UUID
+    target_label: str
+    text: str
+    why: str
+    badge: str | None = None
+
+
+class CockpitApprovalQueueResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    queue_count: int
+    updating_count: int
+    empty_state: str
+    placeholders: list[CockpitApprovalPlaceholderOut] = Field(default_factory=list)
+    current: CockpitApprovalItemOut | None = None
+
+
+class CockpitIssueActionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    action_key: str
+    label: str
+    callback_family: str
+
+
+class CockpitIssueItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    issue_id: UUID
+    engagement_id: UUID
+    issue_type: str
+    issue_label: str
+    badge: str | None = None
+    created_at: datetime
+    target_label: str
+    context: str | None = None
+    fix_actions: list[CockpitIssueActionOut] = Field(default_factory=list)
+    candidate_id: UUID | None = None
+    target_id: UUID | None = None
+    community_id: UUID | None = None
+    assigned_account_id: UUID | None = None
+
+
+class CockpitIssueQueueResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    queue_count: int
+    empty_state: str
+    current: CockpitIssueItemOut | None = None
+
+
+class CockpitPendingTaskOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    task_kind: str
+    label: str
+    count: int
+    resume_callback: str | None = None
+
+
+class CockpitEngagementListItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    engagement_id: UUID
+    primary_label: str
+    community_label: str
+    sending_mode_label: str
+    issue_count: int
+    pending_task: CockpitPendingTaskOut | None = None
+    created_at: datetime
+
+
+class CockpitEngagementListResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    items: list[CockpitEngagementListItemOut]
+    total: int
+    offset: int
+    limit: int
+
+
+class CockpitEngagementDetailResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    engagement_id: UUID
+    target_label: str
+    topic_label: str | None = None
+    account_label: str | None = None
+    sending_mode_label: str
+    approval_count: int
+    issue_count: int
+    pending_task: CockpitPendingTaskOut | None = None
+
+
+class CockpitSentItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    action_id: UUID
+    message_text: str
+    community_label: str
+    sent_at: datetime
+
+
+class CockpitSentFeedResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    items: list[CockpitSentItemOut]
+    total: int
+    offset: int
+    limit: int
+
+
 class EngagementTargetCreateRequest(BaseModel):
     target_ref: str = Field(min_length=1, max_length=500)
     notes: str | None = Field(default=None, max_length=1000)

@@ -8,6 +8,7 @@ from backend.api.routes import engagement_targets as _engagement_targets
 from backend.api.routes import engagement_settings_topics as _engagement_settings_topics
 from backend.api.routes import engagement_prompts_style as _engagement_prompts_style
 from backend.api.routes import engagement_candidates_actions as _engagement_candidates_actions
+from backend.api.routes import engagement_cockpit as _engagement_cockpit
 from backend.api.routes import engagement_task_first as _engagement_task_first
 from backend.queue.client import (
     enqueue_community_join,
@@ -26,6 +27,7 @@ router.include_router(_engagement_targets.router)
 router.include_router(_engagement_settings_topics.router)
 router.include_router(_engagement_prompts_style.router)
 router.include_router(_engagement_candidates_actions.router)
+router.include_router(_engagement_cockpit.router)
 router.include_router(_engagement_task_first.router)
 
 _SYNC_NAMES = (
@@ -42,6 +44,7 @@ _MODULES = (
     _engagement_settings_topics,
     _engagement_prompts_style,
     _engagement_candidates_actions,
+    _engagement_cockpit,
     _engagement_task_first,
 )
 
@@ -242,6 +245,46 @@ async def get_engagement_semantic_rollout(*args, **kwargs):
     return await _engagement_candidates_actions.get_engagement_semantic_rollout(*args, **kwargs)
 
 
+async def get_engagement_cockpit_home(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_cockpit.get_engagement_cockpit_home(*args, **kwargs)
+
+
+async def get_engagement_cockpit_approvals(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_cockpit.get_engagement_cockpit_approvals(*args, **kwargs)
+
+
+async def get_engagement_cockpit_scoped_approvals(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_cockpit.get_engagement_cockpit_scoped_approvals(*args, **kwargs)
+
+
+async def get_engagement_cockpit_issues(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_cockpit.get_engagement_cockpit_issues(*args, **kwargs)
+
+
+async def get_engagement_cockpit_scoped_issues(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_cockpit.get_engagement_cockpit_scoped_issues(*args, **kwargs)
+
+
+async def get_engagement_cockpit_engagements(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_cockpit.get_engagement_cockpit_engagements(*args, **kwargs)
+
+
+async def get_engagement_cockpit_engagement_detail(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_cockpit.get_engagement_cockpit_engagement_detail(*args, **kwargs)
+
+
+async def get_engagement_cockpit_sent(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_cockpit.get_engagement_cockpit_sent(*args, **kwargs)
+
+
 async def post_engagement_candidate_approve(*args, **kwargs):
     _sync_route_dependencies()
     return await _engagement_candidates_actions.post_engagement_candidate_approve(*args, **kwargs)
@@ -336,6 +379,14 @@ __all__ = ["router", "enqueue_community_join", "enqueue_collection", "enqueue_en
     "get_engagement_candidate_revisions",
     "get_engagement_actions",
     "get_engagement_semantic_rollout",
+    "get_engagement_cockpit_home",
+    "get_engagement_cockpit_approvals",
+    "get_engagement_cockpit_scoped_approvals",
+    "get_engagement_cockpit_issues",
+    "get_engagement_cockpit_scoped_issues",
+    "get_engagement_cockpit_engagements",
+    "get_engagement_cockpit_engagement_detail",
+    "get_engagement_cockpit_sent",
     "post_engagement_candidate_approve",
     "post_engagement_candidate_edit",
     "post_engagement_candidate_reject",

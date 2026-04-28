@@ -12,6 +12,14 @@ from backend.api.app import create_app
 from backend.api.deps import settings_dep
 from backend.api.routes.engagement import (
     patch_engagement,
+    get_engagement_cockpit_approvals,
+    get_engagement_cockpit_engagement_detail,
+    get_engagement_cockpit_engagements,
+    get_engagement_cockpit_home,
+    get_engagement_cockpit_issues,
+    get_engagement_cockpit_scoped_approvals,
+    get_engagement_cockpit_scoped_issues,
+    get_engagement_cockpit_sent,
     get_engagement_style_rule_detail,
     get_engagement_target_detail,
     get_engagement_topic_detail,
@@ -540,6 +548,276 @@ async def test_task_first_wizard_retry_clears_draft_state() -> None:
     assert db.commits == 1
 
 @pytest.mark.asyncio
+async def test_cockpit_home_selects_first_run_approvals_issues_and_clear_states() -> None:
+    community_id = uuid4()
+    topic = _topic(uuid4(), name="CRM replies")
+    target = _target(community_id, status=EngagementTargetStatus.APPROVED.value)
+    active = _engagement(target=target, topic=topic, status=EngagementStatus.ACTIVE.value)
+    settings = _engagement_settings(active.id, account_id=uuid4(), mode=EngagementMode.SUGGEST.value)
+
+    first_run = await get_engagement_cockpit_home(
+        FakeDb(targets=[target], topics=[topic], engagements=[_engagement(target=target)]),  # type: ignore[arg-type]
+    )
+    assert first_run.state == "first_run"
+    assert first_run.active_engagement_count == 0
+
+    approvals = await get_engagement_cockpit_home(
+        FakeDb(
+            targets=[target],
+            topics=[topic],
+            engagements=[active],
+            engagement_settings_rows=[settings],
+            candidates=[_candidate(uuid4(), target.community, topic)],
+        ),  # type: ignore[arg-type]
+    )
+    assert approvals.state == "approvals"
+    assert approvals.draft_count == 1
+    assert approvals.next_draft_preview is not None
+
+    issues = await get_engagement_cockpit_home(
+        FakeDb(
+            targets=[target],
+            engagements=[_engagement(target=target, status=EngagementStatus.ACTIVE.value)],
+            engagement_settings_rows=[settings],
+        ),  # type: ignore[arg-type]
+    )
+    assert issues.state == "issues"
+    assert issues.issue_count == 2
+    assert issues.latest_issue_preview is not None
+    assert issues.latest_issue_preview.issue_label == "Topics not chosen"
+
+    clear = await get_engagement_cockpit_home(
+        FakeDb(
+            targets=[target],
+            topics=[topic],
+            engagements=[active],
+            engagement_settings_rows=[settings],
+            memberships=[_membership(community_id=community_id, account_id=settings.assigned_account_id)],
+            actions=[_action(uuid4(), community=target.community, sent_at=_now())],
+        ),  # type: ignore[arg-type]
+    )
+    assert clear.state == "clear"
+    assert clear.has_sent_messages is True
+
+@pytest.mark.asyncio
+async def test_cockpit_approvals_global_and_scoped_share_queue_shape() -> None:
+    community_id = uuid4()
+    topic = _topic(uuid4(), name="CRM replies")
+    target = _target(community_id, status=EngagementTargetStatus.APPROVED.value)
+    active = _engagement(target=target, topic=topic, status=EngagementStatus.ACTIVE.value)
+    candidate = _candidate(uuid4(), target.community, topic)
+    db = FakeDb(targets=[target], topics=[topic], engagements=[active], candidates=[candidate])
+
+    global_queue = await get_engagement_cockpit_approvals(db)  # type: ignore[arg-type]
+    scoped_queue = await get_engagement_cockpit_scoped_approvals(active.id, db)  # type: ignore[arg-type]
+
+    assert global_queue.empty_state == "none"
+    assert global_queue.queue_count == 1
+    assert global_queue.placeholders == []
+    assert global_queue.current is not None
+    assert global_queue.current.draft_id == candidate.id
+    assert scoped_queue.model_dump() == global_queue.model_dump()
+
+@pytest.mark.asyncio
+async def test_cockpit_approvals_do_not_invent_placeholders_without_update_state() -> None:
+    community_id = uuid4()
+    topic = _topic(uuid4(), name="CRM replies")
+    target = _target(community_id, status=EngagementTargetStatus.APPROVED.value)
+    active = _engagement(target=target, topic=topic, status=EngagementStatus.ACTIVE.value)
+    candidate = _candidate(
+        uuid4(),
+        target.community,
+        topic,
+        final_reply="Make it shorter.",
+        operator_notified_at=_now() - timedelta(minutes=10),
+        reviewed_at=_now() - timedelta(minutes=5),
+    )
+    db = FakeDb(targets=[target], topics=[topic], engagements=[active], candidates=[candidate])
+
+    queue = await get_engagement_cockpit_approvals(db)  # type: ignore[arg-type]
+
+    assert queue.queue_count == 1
+    assert queue.updating_count == 0
+    assert queue.empty_state == "none"
+    assert queue.placeholders == []
+    assert queue.current is not None
+    assert queue.current.draft_id == candidate.id
+
+@pytest.mark.asyncio
+async def test_cockpit_issues_order_newest_first_and_scoped_shape_matches() -> None:
+    community_id = uuid4()
+    topic = _topic(uuid4(), name="CRM replies")
+    target = _target(community_id, status=EngagementTargetStatus.APPROVED.value)
+    newer_target = _target(uuid4(), status=EngagementTargetStatus.APPROVED.value)
+    older = _engagement(
+        target=target,
+        topic=topic,
+        status=EngagementStatus.ACTIVE.value,
+        created_at=_now() - timedelta(hours=3),
+        updated_at=_now() - timedelta(hours=3),
+    )
+    newer = _engagement(
+        target=newer_target,
+        status=EngagementStatus.ACTIVE.value,
+        created_at=_now() - timedelta(hours=1),
+        updated_at=_now() - timedelta(minutes=5),
+    )
+    failed_candidate = _candidate(
+        uuid4(),
+        target.community,
+        topic,
+        status=EngagementCandidateStatus.FAILED.value,
+        created_at=_now() - timedelta(hours=2),
+        updated_at=_now() - timedelta(hours=2),
+    )
+    db = FakeDb(
+        targets=[target, newer_target],
+        topics=[topic],
+        engagements=[older, newer],
+        candidates=[failed_candidate],
+    )
+
+    global_queue = await get_engagement_cockpit_issues(db)  # type: ignore[arg-type]
+    scoped_queue = await get_engagement_cockpit_scoped_issues(newer.id, db)  # type: ignore[arg-type]
+
+    assert global_queue.queue_count >= 2
+    assert global_queue.current is not None
+    assert global_queue.current.engagement_id == newer.id
+    assert global_queue.current.issue_type == "topics_not_chosen"
+    assert scoped_queue.current is not None
+    assert scoped_queue.current.engagement_id == newer.id
+    assert scoped_queue.current.issue_type == "topics_not_chosen"
+
+@pytest.mark.asyncio
+async def test_cockpit_engagement_list_hides_drafts_and_clamps_stale_offset() -> None:
+    topic = _topic(uuid4(), name="CRM replies")
+    target_a = _target(uuid4(), status=EngagementTargetStatus.APPROVED.value)
+    target_b = _target(uuid4(), status=EngagementTargetStatus.APPROVED.value)
+    target_c = _target(uuid4(), status=EngagementTargetStatus.APPROVED.value)
+    draft = _engagement(target=target_a, status=EngagementStatus.DRAFT.value)
+    newer = _engagement(target=target_b, topic=topic, status=EngagementStatus.ACTIVE.value, created_at=_now())
+    older = _engagement(
+        target=target_c,
+        topic=topic,
+        status=EngagementStatus.PAUSED.value,
+        created_at=_now() - timedelta(days=1),
+    )
+    db = FakeDb(
+        targets=[target_a, target_b, target_c],
+        topics=[topic],
+        engagements=[draft, older, newer],
+        engagement_settings_rows=[
+            _engagement_settings(newer.id, account_id=uuid4(), mode=EngagementMode.SUGGEST.value),
+            _engagement_settings(older.id, account_id=uuid4(), mode=EngagementMode.AUTO_LIMITED.value),
+        ],
+    )
+
+    response = await get_engagement_cockpit_engagements(
+        db,  # type: ignore[arg-type]
+        limit=1,
+        offset=99,
+    )
+
+    assert response.total == 2
+    assert response.offset == 1
+    assert len(response.items) == 1
+    assert response.items[0].engagement_id == older.id
+    assert response.items[0].sending_mode_label == "Auto send"
+
+@pytest.mark.asyncio
+async def test_cockpit_engagement_detail_uses_backend_pending_task_priority() -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    topic = _topic(uuid4(), name="CRM replies")
+    target = _target(community_id, status=EngagementTargetStatus.APPROVED.value)
+    engagement = _engagement(target=target, topic=topic, status=EngagementStatus.ACTIVE.value)
+    settings = _engagement_settings(engagement.id, account_id=account_id, mode=EngagementMode.SUGGEST.value)
+    db = FakeDb(
+        targets=[target],
+        topics=[topic],
+        engagements=[engagement],
+        engagement_settings_rows=[settings],
+        candidates=[
+            _candidate(uuid4(), target.community, topic, status=EngagementCandidateStatus.NEEDS_REVIEW.value),
+            _candidate(
+                uuid4(),
+                target.community,
+                topic,
+                status=EngagementCandidateStatus.FAILED.value,
+                created_at=_now() - timedelta(hours=1),
+                updated_at=_now() - timedelta(hours=1),
+            ),
+        ],
+    )
+
+    detail = await get_engagement_cockpit_engagement_detail(engagement.id, db)  # type: ignore[arg-type]
+
+    assert detail.approval_count == 1
+    assert detail.issue_count == 2
+    assert detail.pending_task is not None
+    assert detail.pending_task.task_kind == "approvals"
+    assert detail.pending_task.resume_callback == f"eng:appr:eng:{engagement.id}"
+
+@pytest.mark.asyncio
+async def test_cockpit_engagement_detail_falls_through_to_issues_when_no_approval_update_state_exists() -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    topic = _topic(uuid4(), name="CRM replies")
+    target = _target(community_id, status=EngagementTargetStatus.APPROVED.value)
+    engagement = _engagement(target=target, topic=topic, status=EngagementStatus.ACTIVE.value)
+    settings = _engagement_settings(engagement.id, account_id=account_id, mode=EngagementMode.SUGGEST.value)
+    membership = _membership(community_id=community_id, account_id=account_id)
+    failed_candidate = _candidate(
+        uuid4(),
+        target.community,
+        topic,
+        status=EngagementCandidateStatus.FAILED.value,
+        final_reply="Try again with a shorter version.",
+        operator_notified_at=_now() - timedelta(minutes=10),
+        reviewed_at=_now() - timedelta(minutes=5),
+    )
+    db = FakeDb(
+        targets=[target],
+        topics=[topic],
+        engagements=[engagement],
+        engagement_settings_rows=[settings],
+        memberships=[membership],
+        candidates=[failed_candidate],
+    )
+
+    detail = await get_engagement_cockpit_engagement_detail(engagement.id, db)  # type: ignore[arg-type]
+
+    assert detail.approval_count == 0
+    assert detail.issue_count == 1
+    assert detail.pending_task is not None
+    assert detail.pending_task.task_kind == "issues"
+    assert detail.pending_task.resume_callback == f"eng:iss:eng:{engagement.id}"
+
+@pytest.mark.asyncio
+async def test_cockpit_sent_feed_orders_newest_first_and_clamps_offset() -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    newer = _action(
+        uuid4(),
+        community=community,
+        sent_at=_now(),
+        outbound_text="Newest reply",
+    )
+    older = _action(
+        uuid4(),
+        community=community,
+        sent_at=_now() - timedelta(hours=1),
+        outbound_text="Older reply",
+    )
+    db = FakeDb(actions=[older, newer])
+
+    first_page = await get_engagement_cockpit_sent(db, limit=1, offset=0)  # type: ignore[arg-type]
+    stale_page = await get_engagement_cockpit_sent(db, limit=1, offset=20)  # type: ignore[arg-type]
+
+    assert first_page.items[0].message_text == "Newest reply"
+    assert stale_page.offset == 1
+    assert stale_page.items[0].message_text == "Older reply"
+
+@pytest.mark.asyncio
 async def test_create_engagement_target_from_existing_community() -> None:
     community_id = uuid4()
     db = FakeDb(community=_community(community_id, title="Founder Circle"))
@@ -1028,33 +1306,49 @@ class FakeDb:
         self,
         *,
         community: Community | None = None,
+        communities: list[Community] | None = None,
         settings: CommunityEngagementSettings | None = None,
         engagement: Engagement | None = None,
+        engagements: list[Engagement] | None = None,
         engagement_settings: EngagementSettings | None = None,
+        engagement_settings_rows: list[EngagementSettings] | None = None,
         membership: CommunityAccountMembership | None = None,
+        memberships: list[CommunityAccountMembership] | None = None,
         topic: EngagementTopic | None = None,
+        topics: list[EngagementTopic] | None = None,
         style_rule: EngagementStyleRule | None = None,
         target: EngagementTarget | None = None,
+        targets: list[EngagementTarget] | None = None,
         candidate: EngagementCandidate | None = None,
         candidates: list[EngagementCandidate] | None = None,
         revisions: list[EngagementCandidateRevision] | None = None,
         actions: list[EngagementAction] | None = None,
         account: TelegramAccount | None = None,
+        accounts: list[TelegramAccount] | None = None,
         scalar_result: object | None = None,
     ) -> None:
         self.community = community
+        self.communities = list(communities or ([] if community is None else [community]))
         self.settings = settings
         self.engagement = engagement
+        self.engagements = list(engagements or ([] if engagement is None else [engagement]))
         self.engagement_settings = engagement_settings
+        self.engagement_settings_rows = list(
+            engagement_settings_rows or ([] if engagement_settings is None else [engagement_settings])
+        )
         self.membership = membership
+        self.memberships = list(memberships or ([] if membership is None else [membership]))
         self.topic = topic
+        self.topics = list(topics or ([] if topic is None else [topic]))
         self.style_rule = style_rule
         self.target = target
+        self.targets = list(targets or ([] if target is None else [target]))
         self.candidate = candidate
-        self.candidates = candidates
+        self.candidates = list(candidates or ([] if candidate is None else [candidate]))
         self.revisions = revisions
-        self.actions = actions
+        self.actions = list(actions or [])
         self.account = account
+        self.accounts = list(accounts or ([] if account is None else [account]))
         self.scalar_result = scalar_result
         self.added: list[object] = []
         self.commits = 0
@@ -1062,48 +1356,74 @@ class FakeDb:
 
     async def get(self, model: object, item_id: object) -> object | None:
         if model is Community:
-            return self.community
+            return self._lookup(self.communities, item_id, self.community)
         if model is Engagement:
-            return self.engagement
+            return self._lookup(self.engagements, item_id, self.engagement)
         if model is EngagementSettings:
-            return self.engagement_settings
+            return self._lookup(self.engagement_settings_rows, item_id, self.engagement_settings, key="engagement_id")
         if model is CommunityAccountMembership:
-            return self.membership
+            return self._lookup(self.memberships, item_id, self.membership)
         if model is EngagementTopic:
-            return self.topic
+            return self._lookup(self.topics, item_id, self.topic)
         if model is EngagementStyleRule:
             return self.style_rule
         if model is EngagementTarget:
-            return self.target
+            return self._lookup(self.targets, item_id, self.target)
         if model is EngagementCandidate:
-            return self.candidate
+            return self._lookup(self.candidates, item_id, self.candidate)
         if model is TelegramAccount:
-            return self.account
+            return self._lookup(self.accounts, item_id, self.account)
         return None
 
     async def scalar(self, statement: object) -> object | None:
         if self.scalar_result is not None:
             return self.scalar_result
         model_name = _selected_model_name(statement)
+        if model_name == "CommunityEngagementSettings":
+            return self.settings
         if model_name == "Engagement":
-            return self.engagement
+            return self.engagement if self.engagement is not None else (self.engagements[0] if self.engagements else None)
         if model_name == "EngagementSettings":
-            return self.engagement_settings
+            return self.engagement_settings if self.engagement_settings is not None else (
+                self.engagement_settings_rows[0] if self.engagement_settings_rows else None
+            )
         if model_name == "CommunityAccountMembership":
-            return self.membership
+            return self.membership if self.membership is not None else (self.memberships[0] if self.memberships else None)
+        if model_name == "EngagementTopic":
+            return self.topic if self.topic is not None else (self.topics[0] if self.topics else None)
+        if model_name == "EngagementStyleRule":
+            return self.style_rule
+        if model_name == "EngagementTarget":
+            return self.target if self.target is not None else (self.targets[0] if self.targets else None)
+        if model_name == "TelegramAccount":
+            return self.account if self.account is not None else (self.accounts[0] if self.accounts else None)
         if self.target is not None:
             return self.target
-        if self.candidates is not None:
+        if self.candidates:
             return len(self.candidates)
-        if self.actions is not None:
+        if self.actions:
             return len(self.actions)
         return self.settings
 
     async def scalars(self, statement: object) -> list[object]:
-        del statement
+        model_name = _selected_model_name(statement)
         if self.revisions is not None:
             return list(self.revisions)
-        if self.actions is not None:
+        if model_name == "Community":
+            return list(self.communities)
+        if model_name == "Engagement":
+            return list(self.engagements)
+        if model_name == "EngagementSettings":
+            return list(self.engagement_settings_rows)
+        if model_name == "CommunityAccountMembership":
+            return list(self.memberships)
+        if model_name == "EngagementTopic":
+            return list(self.topics)
+        if model_name == "EngagementTarget":
+            return list(self.targets)
+        if model_name == "TelegramAccount":
+            return list(self.accounts)
+        if model_name == "EngagementAction":
             return list(self.actions)
         return list(self.candidates or [])
 
@@ -1115,6 +1435,13 @@ class FakeDb:
 
     async def commit(self) -> None:
         self.commits += 1
+
+    @staticmethod
+    def _lookup(items: list[object], item_id: object, fallback: object | None, *, key: str = "id") -> object | None:
+        for item in items:
+            if getattr(item, key, None) == item_id:
+                return item
+        return fallback
 
 
 def _community(community_id: object, *, title: str) -> Community:
@@ -1148,18 +1475,26 @@ def _engagement(
     target: EngagementTarget,
     topic: EngagementTopic | None = None,
     status: str = EngagementStatus.DRAFT.value,
+    name: str | None = None,
+    created_at: datetime | None = None,
+    updated_at: datetime | None = None,
 ) -> Engagement:
-    return Engagement(
+    engagement = Engagement(
         id=uuid4(),
         target_id=target.id,
         community_id=target.community_id,
         topic_id=None if topic is None else topic.id,
         status=status,
-        name=None,
+        name=name,
         created_by="telegram:123",
-        created_at=_now(),
-        updated_at=_now(),
+        created_at=created_at or _now(),
+        updated_at=updated_at or created_at or _now(),
     )
+    engagement.target = target
+    engagement.community = target.community
+    if topic is not None:
+        engagement.topic = topic
+    return engagement
 
 
 def _engagement_settings(
@@ -1214,6 +1549,14 @@ def _candidate(
     community: Community,
     topic: EngagementTopic,
     *,
+    status: str = EngagementCandidateStatus.NEEDS_REVIEW.value,
+    created_at: datetime | None = None,
+    updated_at: datetime | None = None,
+    detected_reason: str | None = None,
+    suggested_reply: str | None = None,
+    final_reply: str | None = None,
+    operator_notified_at: datetime | None = None,
+    reviewed_at: datetime | None = None,
     expires_at: datetime | None = None,
 ) -> EngagementCandidate:
     candidate = EngagementCandidate(
@@ -1223,19 +1566,22 @@ def _candidate(
         source_tg_message_id=123,
         source_excerpt="The group is comparing CRM tools.",
         source_message_date=_now() - timedelta(minutes=30),
-        detected_at=_now() - timedelta(minutes=25),
-        detected_reason="The group is comparing CRM alternatives.",
+        detected_at=(created_at or _now()) - timedelta(minutes=25),
+        detected_reason=detected_reason or "The group is comparing CRM alternatives.",
         moment_strength="good",
         timeliness="fresh",
         reply_value="practical_tip",
-        suggested_reply="Compare data ownership, integrations, and exit paths first.",
+        suggested_reply=suggested_reply or "Compare data ownership, integrations, and exit paths first.",
         risk_notes=[],
-        status=EngagementCandidateStatus.NEEDS_REVIEW.value,
+        status=status,
+        final_reply=final_reply,
+        reviewed_at=reviewed_at,
         review_deadline_at=_now() + timedelta(minutes=30),
         reply_deadline_at=_now() + timedelta(minutes=60),
+        operator_notified_at=operator_notified_at,
         expires_at=expires_at or datetime(2999, 4, 20, tzinfo=timezone.utc),
-        created_at=_now(),
-        updated_at=_now(),
+        created_at=created_at or _now(),
+        updated_at=updated_at or created_at or _now(),
     )
     candidate.community = community
     candidate.topic = topic
@@ -1263,6 +1609,36 @@ def _target(
     )
     target.community = community
     return target
+
+
+def _action(
+    action_id: object,
+    *,
+    community: Community,
+    sent_at: datetime | None = None,
+    outbound_text: str | None = None,
+    status: str = "sent",
+    created_at: datetime | None = None,
+) -> EngagementAction:
+    action = EngagementAction(
+        id=action_id,
+        candidate_id=None,
+        community_id=community.id,
+        telegram_account_id=uuid4(),
+        action_type="reply",
+        status=status,
+        idempotency_key=str(action_id),
+        outbound_text=outbound_text,
+        reply_to_tg_message_id=123,
+        sent_tg_message_id=456,
+        scheduled_at=created_at or _now(),
+        sent_at=sent_at,
+        error_message=None,
+        created_at=created_at or _now(),
+        updated_at=sent_at or created_at or _now(),
+    )
+    action.community = community
+    return action
 
 
 def _now() -> datetime:
