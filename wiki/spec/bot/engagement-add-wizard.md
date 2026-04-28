@@ -138,6 +138,8 @@ Step 5 — Final review
   1. set the engagement's assigned account
   2. trigger `community.join` for the chosen account
   3. stream join progress in the wizard message
+  4. if the join is queued but not finished yet, continue with a visible
+     `connecting` note instead of implying the account is already joined
 - Success gate:
   a joined account membership exists for the target.
 - Skip rules:

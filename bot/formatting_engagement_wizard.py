@@ -47,6 +47,7 @@ def format_wizard_account_prompt(
     accounts: list[dict[str, Any]],
     *,
     community_ref: str,
+    account_status_note: str | None = None,
 ) -> str:
     lines = [
         _headline(f"Community: {community_ref}", icon="🧙"),
@@ -54,6 +55,8 @@ def format_wizard_account_prompt(
         "",
         "Which engagement account should join and engage in this community?",
     ]
+    if account_status_note:
+        lines.extend(["", account_status_note])
     if not accounts:
         lines.extend(
             [
@@ -69,14 +72,19 @@ def format_wizard_level_prompt(
     *,
     community_ref: str,
     selected_topics: list[str],
+    account_status_note: str | None = None,
 ) -> str:
     topic_summary = ", ".join(selected_topics) if selected_topics else "none"
-    return "\n".join(
+    lines = [
+        _headline(f"Community: {community_ref}", icon="🧙"),
+        "Step 4 of 5: Engagement level",
+        "",
+        _field("Topics", topic_summary, icon="🧩"),
+    ]
+    if account_status_note:
+        lines.extend(["", account_status_note])
+    lines.extend(
         [
-            _headline(f"Community: {community_ref}", icon="🧙"),
-            "Step 4 of 5: Engagement level",
-            "",
-            _field("Topics", topic_summary, icon="🧩"),
             "",
             "How active should this engagement be?",
             "",
@@ -87,6 +95,7 @@ def format_wizard_level_prompt(
             "Use /cancel_edit to stop.",
         ]
     )
+    return "\n".join(lines)
 
 
 _LEVEL_LABELS = {
@@ -102,18 +111,19 @@ def format_wizard_launch_card(
     topic_names: list[str],
     account_phone: str,
     level: str,
+    account_status_note: str | None = None,
 ) -> str:
     level_label = _LEVEL_LABELS.get(level, level)
     topic_summary = ", ".join(topic_names) if topic_names else "none"
-    return "\n".join(
-        [
-            _headline("Ready to launch!", icon="🚀"),
-            "",
-            _field("Community", community_ref, icon="🏘"),
-            _field("Topics", topic_summary, icon="🧩"),
-            _field("Account", account_phone, icon="📲"),
-            _field("Level", level_label, icon="📊"),
-            "",
-            "Press Start to begin engagement.",
-        ]
-    )
+    lines = [
+        _headline("Ready to launch!", icon="🚀"),
+        "",
+        _field("Community", community_ref, icon="🏘"),
+        _field("Topics", topic_summary, icon="🧩"),
+        _field("Account", account_phone, icon="📲"),
+        _field("Level", level_label, icon="📊"),
+    ]
+    if account_status_note:
+        lines.extend(["", account_status_note])
+    lines.extend(["", "Press Start to begin engagement."])
+    return "\n".join(lines)

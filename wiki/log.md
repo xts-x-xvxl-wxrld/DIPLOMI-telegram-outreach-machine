@@ -1556,3 +1556,17 @@ while preserving the staged testing contract.
   messages.
 - Added UI and handler regression coverage proving UUID topic callbacks stay under Telegram's
   limit and that both the new short-form and older long-form edit callbacks still route correctly.
+
+## [2026-04-28] fix | Start wizard joins at Step 3 and show connecting state
+
+- Stored `community_id` in task-first wizard state so Step 3 can queue
+  `community.join` as soon as the operator chooses an engagement account.
+- Updated the bot wizard to carry a clear join-status note into later steps,
+  including `connecting` while the join is still in flight and `joined` when a
+  fast completion is already visible.
+- Kept the wizard on Step 3 when the join fails immediately so the operator can
+  retry or pick another account instead of walking into a misleading confirm
+  screen.
+- Added a distinct `Account connecting` issue label/tip when the assigned
+  membership is already in `join_requested`.
+- Added Step 3 regressions for queued, joined, and failed join flows.

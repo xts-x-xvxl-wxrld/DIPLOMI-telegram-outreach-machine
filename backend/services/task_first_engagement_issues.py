@@ -45,6 +45,7 @@ _WIZARD_ACTION_KEYS = {"chtopic", "crtopic", "chacct", "swapacct"}
 ISSUE_LABELS = {
     "topics_not_chosen": "Topics not chosen",
     "account_not_connected": "Account not connected",
+    "account_connecting": "Account connecting",
     "sending_is_paused": "Sending is paused",
     "reply_expired": "Reply expired",
     "reply_failed": "Reply failed",
@@ -281,14 +282,23 @@ async def _engagement_issues(
         and account.account_pool == AccountPool.ENGAGEMENT.value
         and account.status not in {AccountStatus.BANNED.value}
     )
+    membership_connecting = (
+        membership is not None and membership.status == CommunityAccountMembershipStatus.JOIN_REQUESTED.value
+    )
     if settings is None or settings.assigned_account_id is None or not membership_joined:
+        issue_type = "account_connecting" if membership_connecting else "account_not_connected"
+        context = (
+            "The assigned engagement account is still joining this community"
+            if membership_connecting
+            else "Choose a joined engagement account"
+        )
         records.append(
             _issue_record(
                 engagement_id=engagement.id,
-                issue_type="account_not_connected",
+                issue_type=issue_type,
                 created_at=_timestamp(settings, membership, engagement),
                 target_label=target_label,
-                context="Choose a joined engagement account",
+                context=context,
                 fix_actions=[_issue_action("chacct", "Choose account")],
                 target_id=engagement.target_id,
                 community_id=engagement.community_id,

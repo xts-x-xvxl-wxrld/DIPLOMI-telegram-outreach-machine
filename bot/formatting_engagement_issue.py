@@ -13,6 +13,7 @@ from .formatting_common import (
 _ISSUE_ICONS: dict[str, str] = {
     "topics_not_chosen": "🧩",
     "account_not_connected": "📲",
+    "account_connecting": "🔄",
     "sending_is_paused": "⏸",
     "reply_expired": "⏰",
     "reply_failed": "⛔",
@@ -27,6 +28,7 @@ _ISSUE_ICONS: dict[str, str] = {
 _ISSUE_TIPS: dict[str, str] = {
     "topics_not_chosen": "Choose or create a topic to enable detection for this engagement.",
     "account_not_connected": "Assign and join an engagement account so replies can be sent.",
+    "account_connecting": "Wait for the join to finish, or swap accounts if this keeps stalling.",
     "sending_is_paused": "Resume sending to allow automated reply delivery.",
     "reply_expired": "Review deadlines more promptly or adjust detection frequency.",
     "reply_failed": "Retry or investigate the send failure.",

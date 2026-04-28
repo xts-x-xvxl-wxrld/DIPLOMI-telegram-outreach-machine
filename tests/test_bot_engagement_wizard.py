@@ -58,12 +58,16 @@ class _FakeWizardApiClient(_FakeApiClient):
         self.put_engagement_settings_calls: list[dict[str, Any]] = []
         self.wizard_confirm_calls: list[dict[str, Any]] = []
         self.wizard_retry_calls: list[dict[str, Any]] = []
+        self.community_join_calls: list[dict[str, Any]] = []
         self._target_status = "resolved"
         self._resolved_target_status = "resolved"
         self._confirm_result = "confirmed"
         self._confirm_message = "Engagement confirmed"
         self._raise_confirm = False
         self._raise_retry = False
+        self._join_action_status = "queued"
+        self._join_action_error: str | None = None
+        self._raise_start_join = False
         # Override base-class topics with real UUIDs
         self.topics = [
             {
@@ -210,8 +214,33 @@ class _FakeWizardApiClient(_FakeApiClient):
         return {"id": topic_id, **updates}
 
     async def start_community_join(self, community_id, *, telegram_account_id=None, requested_by=None):
-        self.community_join_calls.append({"community_id": community_id, "account_id": telegram_account_id})
-        return {"id": "join-job-1", "status": "queued"}
+        self.community_join_calls.append(
+            {
+                "community_id": community_id,
+                "account_id": telegram_account_id,
+                "requested_by": requested_by,
+            }
+        )
+        if self._raise_start_join:
+            from bot.api_client import BotApiError
+
+            raise BotApiError("Join queue unavailable")
+        self.actions.insert(
+            0,
+            {
+                "id": "wizard-join-action",
+                "community_id": community_id,
+                "candidate_id": None,
+                "telegram_account_id": telegram_account_id,
+                "action_type": "join",
+                "status": self._join_action_status,
+                "outbound_text": None,
+                "created_at": "2026-04-28T20:29:00Z",
+                "sent_at": "2026-04-28T20:30:00Z" if self._join_action_status == "sent" else None,
+                "error_message": self._join_action_error,
+            },
+        )
+        return {"job": {"id": "join-job-1", "status": "queued"}}
 
     async def start_engagement_detection(self, community_id, *, window_minutes=60, requested_by=None):
         self.start_detection_calls.append({"community_id": community_id})
@@ -444,9 +473,19 @@ async def test_wizard_step3_auto_picks_single_account() -> None:
     pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
     assert pending is not None
     assert (pending.flow_state or {}).get("account_id") == _ACCT_SOLO_ID
+    assert (pending.flow_state or {}).get("community_id") == "community-new"
     assert client.put_engagement_settings_calls
     account_calls = [c for c in client.put_engagement_settings_calls if c.get("assigned_account_id") == _ACCT_SOLO_ID]
     assert account_calls
+    assert client.community_join_calls == [
+        {
+            "community_id": "community-new",
+            "account_id": _ACCT_SOLO_ID,
+            "requested_by": "telegram:123:@operator",
+        }
+    ]
+    assert (pending.flow_state or {}).get("join_status") == "connecting"
+    assert "connecting now" in str((pending.flow_state or {}).get("join_message") or "")
 
 
 @pytest.mark.asyncio
@@ -472,6 +511,65 @@ async def test_wizard_step3_manual_account_pick() -> None:
     assert (pending.flow_state or {}).get("account_id") == _ACCT_2_ID
     account_calls = [c for c in client.put_engagement_settings_calls if c.get("assigned_account_id") == _ACCT_2_ID]
     assert account_calls
+    assert client.community_join_calls == [
+        {
+            "community_id": "community-new",
+            "account_id": _ACCT_2_ID,
+            "requested_by": "telegram:123:@operator",
+        }
+    ]
+    assert "connecting now" in pick_update.callback_query.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_wizard_step3_joined_account_shows_ready_note() -> None:
+    client = _FakeWizardApiClient()
+    client._join_action_status = "sent"
+    client.accounts = {
+        "counts": {"available": 1},
+        "items": [{"id": _ACCT_SOLO_ID, "phone": "+1*****99", "status": "available", "account_pool": "engagement"}],
+    }
+    context = _wiz_context(client)
+
+    await _wizard_through_step2(context)
+    await callback_query(_callback_update(f"eng:wz:tp:{_C_TOPIC_1}:{_C_ENG_NEW}"), context)
+    ready_update = _callback_update(f"eng:wz:step:3:{_ENG_NEW_ID}")
+
+    await callback_query(ready_update, context)
+
+    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
+    assert (pending.flow_state or {}).get("join_status") == "joined"
+    assert "joined and ready" in ready_update.callback_query.message.replies[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_wizard_step3_failed_join_stays_on_account_picker() -> None:
+    client = _FakeWizardApiClient()
+    client._join_action_status = "failed"
+    client._join_action_error = "Invite required"
+    client.accounts = {
+        "counts": {"available": 2},
+        "items": [
+            {"id": _ACCT_1_ID, "phone": "+1*****11", "status": "available", "account_pool": "engagement"},
+            {"id": _ACCT_2_ID, "phone": "+1*****22", "status": "available", "account_pool": "engagement"},
+        ],
+    }
+    context = _wiz_context(client)
+
+    await _wizard_through_step2(context)
+    await callback_query(_callback_update(f"eng:wz:tp:{_C_TOPIC_1}:{_C_ENG_NEW}"), context)
+    await callback_query(_callback_update(f"eng:wz:step:3:{_ENG_NEW_ID}"), context)
+
+    failed_update = _callback_update(f"eng:wz:ap:{_C_ACCT_2}:{_C_ENG_NEW}")
+    await callback_query(failed_update, context)
+
+    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
+    assert pending is not None
+    assert pending.flow_step == "account"
+    assert (pending.flow_state or {}).get("join_status") == "failed"
+    text = failed_update.callback_query.message.replies[0]["text"]
+    assert "Step 3 of 5" in text
+    assert "Invite required" in text
 
 
 # ---------------------------------------------------------------------------

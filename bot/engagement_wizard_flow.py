@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from .runtime import *
+from .engagement_wizard_join import start_wizard_account_join, wizard_account_status_note
 from .engagement_wizard_target_flow import prepare_wizard_target_state
 from .ui_common import expand_uuid
 
@@ -22,6 +23,7 @@ _WIZARD_LEVEL_MODE = {
 # ---------------------------------------------------------------------------
 # Wizard state helpers
 # New state shape: {engagement_id, target_id, topic_id, account_id, mode,
+#                   community_id, join_status, join_message, join_job_id,
 #                   target_ref, return_callback}
 # ---------------------------------------------------------------------------
 
@@ -105,10 +107,14 @@ def _fresh_wizard_state() -> dict[str, Any]:
     return {
         "engagement_id": None,
         "target_id": None,
+        "community_id": None,
         "target_ref": None,
         "topic_id": None,
         "account_id": None,
         "mode": None,
+        "join_status": None,
+        "join_message": None,
+        "join_job_id": None,
         "return_callback": None,
     }
 
@@ -205,7 +211,11 @@ async def _show_wizard_step3(update: Any, context: Any, state: dict[str, Any]) -
     if len(engagement_accounts) == 0:
         await _callback_reply(
             update,
-            format_wizard_account_prompt([], community_ref=target_ref),
+            format_wizard_account_prompt(
+                [],
+                community_ref=target_ref,
+                account_status_note=wizard_account_status_note(state),
+            ),
             reply_markup=engagement_wizard_accounts_markup([], engagement_id=engagement_id),
         )
         return
@@ -215,7 +225,11 @@ async def _show_wizard_step3(update: Any, context: Any, state: dict[str, Any]) -
     markup = engagement_wizard_accounts_markup(engagement_accounts, engagement_id=engagement_id)
     await _callback_reply(
         update,
-        format_wizard_account_prompt(engagement_accounts, community_ref=target_ref),
+        format_wizard_account_prompt(
+            engagement_accounts,
+            community_ref=target_ref,
+            account_status_note=wizard_account_status_note(state),
+        ),
         reply_markup=markup,
     )
 
@@ -240,7 +254,11 @@ async def _show_wizard_step4(update: Any, context: Any, state: dict[str, Any]) -
         pass
     await _callback_reply(
         update,
-        format_wizard_level_prompt(community_ref=target_ref, selected_topics=topic_names),
+        format_wizard_level_prompt(
+            community_ref=target_ref,
+            selected_topics=topic_names,
+            account_status_note=wizard_account_status_note(state),
+        ),
         reply_markup=engagement_wizard_level_markup(engagement_id),
     )
 
@@ -283,6 +301,7 @@ async def _show_wizard_step5(update: Any, context: Any, state: dict[str, Any]) -
             topic_names=topic_names,
             account_phone=account_phone or "(none)",
             level=mode,
+            account_status_note=wizard_account_status_note(state),
         ),
         reply_markup=markup,
     )
@@ -533,12 +552,6 @@ async def _handle_wizard_pick_topic(
         reply_markup=markup,
     )
 
-
-# ---------------------------------------------------------------------------
-# Pick account and PUT engagement settings
-# ---------------------------------------------------------------------------
-
-
 async def _handle_wizard_account_pick(
     update: Any,
     context: Any,
@@ -552,6 +565,9 @@ async def _handle_wizard_account_pick(
         return
     state = _wizard_state(pending)
     state["account_id"] = account_id
+    state["join_status"] = None
+    state["join_message"] = None
+    state["join_job_id"] = None
     _config_edit_store(context).set_value(
         operator_id,
         raw_value=account_id,
@@ -567,6 +583,25 @@ async def _handle_wizard_account_pick(
     except BotApiError as exc:
         await _reply(update, f"Couldn't assign account: {exc.message}")
         # Non-fatal: continue wizard
+
+    join_failed = await start_wizard_account_join(
+        client,
+        state=state,
+        account_id=account_id,
+        reviewer=_reviewer_label(update),
+    )
+
+    _config_edit_store(context).set_value(
+        operator_id,
+        raw_value=account_id,
+        parsed_value=None,
+        flow_step="account",
+        flow_state=state,
+    )
+
+    if join_failed:
+        await _show_wizard_step3(update, context, state)
+        return
 
     # Check if we're in edit-reentry
     return_callback = state.get("return_callback")
@@ -597,13 +632,6 @@ async def _wizard_pick_account(
         return
     engagement_id = _wizard_state_engagement_id(state)
     await _handle_wizard_account_pick(update, context, operator_id, account_id, engagement_id)
-
-
-# ---------------------------------------------------------------------------
-# Pick mode and PUT engagement settings
-# ---------------------------------------------------------------------------
-
-
 async def _handle_wizard_level(
     update: Any,
     context: Any,
@@ -698,10 +726,14 @@ async def _handle_wizard_edit_reentry(
     state = {
         "engagement_id": engagement_id,
         "target_id": None,
+        "community_id": None,
         "target_ref": engagement_id,  # placeholder until we can fetch
         "topic_id": None,
         "account_id": None,
         "mode": None,
+        "join_status": None,
+        "join_message": None,
+        "join_job_id": None,
         "return_callback": f"eng:wz:step:5:{engagement_id}",
     }
     _config_edit_store(context).start(
