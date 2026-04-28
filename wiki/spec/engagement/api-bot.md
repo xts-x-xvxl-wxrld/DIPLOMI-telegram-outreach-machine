@@ -34,6 +34,11 @@ API rules:
 - Approval may accept the runtime-generated `suggested_reply` as-is or persist an operator-edited
   `final_reply` before send.
 - The send endpoint enqueues a job; it should not call Telethon directly.
+- Join-triggering API flows must not report success when the join job could not be enqueued; they
+  should return a blocking error so the operator can retry before assuming the engagement is ready.
+- Task-first engagement confirmation must promote a resolved target community from `candidate` to
+  `approved` before enabling `allow_join` and enqueueing `community.join`; otherwise the join worker
+  will skip the job as `community_not_approved`.
 - Target-scoped manual collection requires an approved engagement target with `allow_detect = true`
   and enqueues `collection.run`; collection-run listing exposes recent status and message counts for
   operator verification.

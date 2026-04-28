@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -51,6 +52,7 @@ class AsyncSessionContext(Protocol):
 AcquireAccountFn = Callable[..., Any]
 ReleaseAccountFn = Callable[..., Any]
 EngagementAdapterFactory = Callable[[AccountLease], TelegramEngagementAdapter]
+LOGGER = logging.getLogger(__name__)
 
 
 async def process_community_join(
@@ -64,6 +66,16 @@ async def process_community_join(
 ) -> dict[str, object]:
     validated_payload = CommunityJoinPayload.model_validate(payload)
     job_id = _current_job_id() or f"community.join:{validated_payload.community_id}"
+    LOGGER.info(
+        "Starting community join",
+        extra={
+            "job_id": job_id,
+            "community_id": str(validated_payload.community_id),
+            "telegram_account_id": None
+            if validated_payload.telegram_account_id is None
+            else str(validated_payload.telegram_account_id),
+        },
+    )
 
     async with session_factory() as session:
         lease: AccountLease | None = None
@@ -73,19 +85,35 @@ async def process_community_join(
         try:
             community = await session.get(Community, validated_payload.community_id)
             if community is None:
+                LOGGER.warning(
+                    "Skipping community join because community was not found",
+                    extra={"job_id": job_id, "community_id": str(validated_payload.community_id)},
+                )
                 return _skipped("community_not_found", validated_payload.community_id)
 
             settings = await get_engagement_settings(session, validated_payload.community_id)
             if validated_payload.telegram_account_id is None:
                 if settings.mode == EngagementMode.DISABLED.value or not settings.allow_join:
+                    LOGGER.info(
+                        "Skipping community join because joins are not allowed",
+                        extra={"job_id": job_id, "community_id": str(validated_payload.community_id)},
+                    )
                     return _skipped("join_not_allowed", validated_payload.community_id)
             if not await has_engagement_target_permission(
                 session,
                 community_id=validated_payload.community_id,
                 permission="join",
             ):
+                LOGGER.info(
+                    "Skipping community join because target approval is missing",
+                    extra={"job_id": job_id, "community_id": str(validated_payload.community_id)},
+                )
                 return _skipped("engagement_target_join_not_approved", validated_payload.community_id)
             if community.status not in {CommunityStatus.APPROVED.value, CommunityStatus.MONITORING.value}:
+                LOGGER.info(
+                    "Skipping community join because community is not approved",
+                    extra={"job_id": job_id, "community_id": str(validated_payload.community_id)},
+                )
                 return _skipped("community_not_approved", validated_payload.community_id)
 
             preferred_account_id = await _preferred_account_id(
@@ -108,6 +136,14 @@ async def process_community_join(
                     purpose="engagement_join",
                 )
             await session.commit()
+            LOGGER.info(
+                "Acquired account for community join",
+                extra={
+                    "job_id": job_id,
+                    "community_id": str(validated_payload.community_id),
+                    "telegram_account_id": str(lease.account_id),
+                },
+            )
 
             await mark_join_requested(
                 session,
@@ -126,6 +162,16 @@ async def process_community_join(
                 session_file_path=lease.session_file_path,
                 community=community,
             )
+            LOGGER.info(
+                "Completed community join attempt",
+                extra={
+                    "job_id": job_id,
+                    "community_id": str(validated_payload.community_id),
+                    "telegram_account_id": str(lease.account_id),
+                    "join_status": result.status,
+                    "join_error": result.error_message,
+                },
+            )
             await _record_join_result(
                 session,
                 payload=validated_payload,
@@ -135,6 +181,15 @@ async def process_community_join(
             )
             await session.commit()
         except EngagementAccountRateLimited as exc:
+            LOGGER.warning(
+                "Community join hit a rate limit",
+                extra={
+                    "job_id": job_id,
+                    "community_id": str(validated_payload.community_id),
+                    "telegram_account_id": None if lease is None else str(lease.account_id),
+                    "error": str(exc),
+                },
+            )
             await session.rollback()
             if lease is not None:
                 await _record_failed_join(
@@ -156,6 +211,15 @@ async def process_community_join(
                 await session.commit()
             raise
         except EngagementAccountBanned as exc:
+            LOGGER.warning(
+                "Community join found a banned or unauthorized account",
+                extra={
+                    "job_id": job_id,
+                    "community_id": str(validated_payload.community_id),
+                    "telegram_account_id": None if lease is None else str(lease.account_id),
+                    "error": str(exc),
+                },
+            )
             await session.rollback()
             if lease is not None:
                 await _record_failed_join(
@@ -176,6 +240,14 @@ async def process_community_join(
                 await session.commit()
             raise
         except Exception as exc:
+            LOGGER.exception(
+                "Community join failed unexpectedly",
+                extra={
+                    "job_id": job_id,
+                    "community_id": str(validated_payload.community_id),
+                    "telegram_account_id": None if lease is None else str(lease.account_id),
+                },
+            )
             await session.rollback()
             if lease is not None:
                 await _record_failed_join(
@@ -204,6 +276,15 @@ async def process_community_join(
                     outcome="success",
                 )
                 await session.commit()
+            LOGGER.info(
+                "Finished community join job",
+                extra={
+                    "job_id": job_id,
+                    "community_id": str(validated_payload.community_id),
+                    "telegram_account_id": None if lease is None else str(lease.account_id),
+                    "action_status": None if action is None else action.status,
+                },
+            )
             return _join_summary(validated_payload, lease, action)
         finally:
             if adapter is not None and hasattr(adapter, "aclose"):

@@ -6,7 +6,7 @@ import pytest
 
 from backend.api.routes.engagement import post_task_first_wizard_confirm
 from backend.api.schemas import TaskFirstWizardActionRequest
-from backend.db.enums import EngagementMode, EngagementStatus, EngagementTargetStatus
+from backend.db.enums import CommunityStatus, EngagementMode, EngagementStatus, EngagementTargetStatus
 from backend.queue.client import QueuedJob
 from tests.test_engagement_api import (
     FakeDb,
@@ -23,7 +23,7 @@ async def test_task_first_wizard_confirm_requires_topic() -> None:
     community_id = uuid4()
     target = _target(community_id, status=EngagementTargetStatus.RESOLVED.value)
     engagement = _engagement(target=target)
-    db = FakeDb(target=target, engagement=engagement)
+    db = FakeDb(community=target.community, target=target, engagement=engagement)
 
     response = await post_task_first_wizard_confirm(
         engagement.id,
@@ -44,7 +44,13 @@ async def test_task_first_wizard_confirm_enqueues_join_for_unjoined_account(monk
     topic = _topic(uuid4(), name="CRM")
     engagement = _engagement(target=target, topic=topic)
     settings = _engagement_settings(engagement.id, account_id=account_id, mode=EngagementMode.SUGGEST.value)
-    db = FakeDb(target=target, engagement=engagement, topic=topic, engagement_settings=settings)
+    db = FakeDb(
+        community=target.community,
+        target=target,
+        engagement=engagement,
+        topic=topic,
+        engagement_settings=settings,
+    )
     join_calls: list[dict[str, object]] = []
 
     def fake_enqueue_join(*, community_id, telegram_account_id, requested_by):
@@ -90,6 +96,7 @@ async def test_task_first_wizard_confirm_approves_target_and_activates_engagemen
     settings = _engagement_settings(engagement.id, account_id=account_id, mode=EngagementMode.AUTO_LIMITED.value)
     membership = _membership(community_id=community_id, account_id=account_id)
     db = FakeDb(
+        community=target.community,
         target=target,
         engagement=engagement,
         topic=topic,
@@ -128,3 +135,79 @@ async def test_task_first_wizard_confirm_approves_target_and_activates_engagemen
         "requested_by": "telegram:123",
     }
     assert db.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_task_first_wizard_confirm_promotes_candidate_community_before_join(monkeypatch) -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.RESOLVED.value)
+    target.community.status = CommunityStatus.CANDIDATE.value
+    target.community.reviewed_at = None
+    topic = _topic(uuid4(), name="CRM")
+    engagement = _engagement(target=target, topic=topic)
+    settings = _engagement_settings(engagement.id, account_id=account_id, mode=EngagementMode.SUGGEST.value)
+    db = FakeDb(
+        community=target.community,
+        target=target,
+        engagement=engagement,
+        topic=topic,
+        engagement_settings=settings,
+    )
+
+    def fake_enqueue_join(*, community_id, telegram_account_id, requested_by):
+        return QueuedJob(id="join-job", type="community.join")
+
+    def fake_enqueue_detect(community_id_arg, *, window_minutes, requested_by):
+        return QueuedJob(id="detect-job", type="engagement.detect")
+
+    monkeypatch.setattr("backend.services.task_first_engagements.enqueue_community_join", fake_enqueue_join)
+    monkeypatch.setattr("backend.api.routes.engagement.enqueue_manual_engagement_detect", fake_enqueue_detect)
+
+    response = await post_task_first_wizard_confirm(
+        engagement.id,
+        TaskFirstWizardActionRequest(requested_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.result == "confirmed"
+    assert target.community.status == CommunityStatus.APPROVED.value
+    assert target.community.reviewed_at is not None
+    assert db.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_task_first_wizard_confirm_blocks_when_join_enqueue_fails(monkeypatch) -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.RESOLVED.value)
+    topic = _topic(uuid4(), name="CRM")
+    engagement = _engagement(target=target, topic=topic)
+    settings = _engagement_settings(engagement.id, account_id=account_id, mode=EngagementMode.SUGGEST.value)
+    db = FakeDb(
+        community=target.community,
+        target=target,
+        engagement=engagement,
+        topic=topic,
+        engagement_settings=settings,
+    )
+
+    def fake_enqueue_join(*, community_id, telegram_account_id, requested_by):
+        raise RuntimeError("redis unavailable")
+
+    def fake_enqueue_detect(community_id_arg, *, window_minutes, requested_by):
+        return QueuedJob(id="detect-job", type="engagement.detect")
+
+    monkeypatch.setattr("backend.services.task_first_engagements.enqueue_community_join", fake_enqueue_join)
+    monkeypatch.setattr("backend.api.routes.engagement.enqueue_manual_engagement_detect", fake_enqueue_detect)
+
+    response = await post_task_first_wizard_confirm(
+        engagement.id,
+        TaskFirstWizardActionRequest(requested_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.result == "blocked"
+    assert response.code == "join_enqueue_failed"
+    assert response.message == "Could not start the community join right now."
+    assert db.commits == 0

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, time, timezone
@@ -13,11 +14,13 @@ from backend.db.enums import (
     AccountPool,
     AccountStatus,
     CommunityAccountMembershipStatus,
+    CommunityStatus,
     EngagementMode,
     EngagementStatus,
     EngagementTargetStatus,
 )
 from backend.db.models import (
+    Community,
     CommunityAccountMembership,
     Engagement,
     EngagementSettings,
@@ -26,6 +29,8 @@ from backend.db.models import (
     TelegramAccount,
 )
 from backend.queue.client import enqueue_community_join
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -127,6 +132,28 @@ def _settings_view(settings: EngagementSettings) -> TaskFirstEngagementSettingsV
         quiet_hours_start=settings.quiet_hours_start,
         quiet_hours_end=settings.quiet_hours_end,
     )
+
+
+async def _load_task_first_community(
+    db: AsyncSession,
+    *,
+    community_id: UUID,
+) -> Community | None:
+    return await db.get(Community, community_id)
+
+
+def _promote_task_first_community_for_engagement(
+    community: Community,
+    *,
+    reviewed_at: datetime,
+) -> None:
+    if community.status in {
+        CommunityStatus.APPROVED.value,
+        CommunityStatus.MONITORING.value,
+    }:
+        return
+    community.status = CommunityStatus.APPROVED.value
+    community.reviewed_at = reviewed_at
 
 
 async def _get_settings(db: AsyncSession, *, engagement_id: UUID) -> EngagementSettings | None:
@@ -367,6 +394,14 @@ async def confirm_task_first_engagement(
             code="target_not_approved",
             next_callback=_wizard_edit_callback(engagement.id, "target"),
         )
+    community = await _load_task_first_community(db, community_id=engagement.community_id)
+    if community is None:
+        return TaskFirstWizardConfirmResult(
+            result="blocked",
+            message="Target is not resolved.",
+            code="target_not_resolved",
+            next_callback=_wizard_edit_callback(engagement.id, "target"),
+        )
 
     if engagement.topic_id is None:
         return TaskFirstWizardConfirmResult(
@@ -415,6 +450,14 @@ async def confirm_task_first_engagement(
             requested_by=requested_by,
         )
     except Exception:
+        LOGGER.exception(
+            "Failed to enqueue engagement detect during task-first confirm",
+            extra={
+                "engagement_id": str(engagement.id),
+                "community_id": str(engagement.community_id),
+                "requested_by": requested_by,
+            },
+        )
         return TaskFirstWizardConfirmResult(
             result="blocked",
             message="Could not start engagement right now.",
@@ -430,6 +473,7 @@ async def confirm_task_first_engagement(
     target.allow_join = True
     target.allow_detect = True
     target.allow_post = settings.allow_post
+    _promote_task_first_community_for_engagement(community, reviewed_at=now)
     if target.approved_at is None:
         target.approved_at = now
     if not target.approved_by:
@@ -448,7 +492,21 @@ async def confirm_task_first_engagement(
                 requested_by=requested_by,
             )
         except Exception:
-            pass
+            LOGGER.exception(
+                "Failed to enqueue community join during task-first confirm",
+                extra={
+                    "engagement_id": str(engagement.id),
+                    "community_id": str(engagement.community_id),
+                    "telegram_account_id": str(settings.assigned_account_id),
+                    "requested_by": requested_by,
+                },
+            )
+            return TaskFirstWizardConfirmResult(
+                result="blocked",
+                message="Could not start the community join right now.",
+                code="join_enqueue_failed",
+                next_callback=_wizard_edit_callback(engagement.id, "account"),
+            )
 
     return TaskFirstWizardConfirmResult(
         result="confirmed",

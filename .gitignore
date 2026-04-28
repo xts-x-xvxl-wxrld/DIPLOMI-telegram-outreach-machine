@@ -21,6 +21,7 @@ venv/
 env/
 
 *.log
+*.egg-info/
 
 telegram_sessions/
 sessions/

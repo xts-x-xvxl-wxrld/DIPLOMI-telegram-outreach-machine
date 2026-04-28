@@ -788,9 +788,10 @@ async def _handle_wizard_confirm(
 
     if status == "confirmed":
         _config_edit_store(context).cancel(operator_id)
+        message = str(result.get("message") or "Engagement started")
         await _edit_callback_message(
             update,
-            "🎉 Engagement started ✓ — first results will appear in the cockpit shortly. Use /engagement to view.",
+            f"🎉 {message} ✓ — first results will appear in the cockpit shortly. Use /engagement to view.",
         )
         return
 
