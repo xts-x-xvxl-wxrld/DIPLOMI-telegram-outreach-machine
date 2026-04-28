@@ -1493,4 +1493,6 @@ while preserving the staged testing contract.
 
 - Investigated the staging task-first engagement wizard failure that surfaced as `Couldn't create engagement: Not Found`.
 - Confirmed from staging API logs that Step 1 succeeded with `POST /api/engagement/targets` and the follow-up draft creation failed on `POST /api/api/engagements`.
-- Fixed the wizard-only `BotApiClient` engagement create/update/confirm/retry methods to call `/engagements...` so the configured `.../api` base URL resolves to the documented task-first routes, and added a regression test for the wizard request sequence.
+- Fixed the wizard-only `BotApiClient` engagement create/update/confirm/retry methods to call `/engagements...` so the configured `.../api` base URL resolves to the documented task-first routes.
+- Aligned Step 1 with the wizard spec by waiting for target resolution when link intake returns `pending`, then creating the draft engagement only after the target reaches a usable resolved state.
+- Added regression coverage for both the wizard request sequence and the pending-target resolution path.

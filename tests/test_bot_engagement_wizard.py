@@ -27,12 +27,15 @@ class _FakeWizardApiClient(_FakeApiClient):
     def __init__(self) -> None:
         super().__init__()
         self.create_target_calls: list[dict[str, Any]] = []
+        self.resolve_target_calls: list[dict[str, Any]] = []
+        self.get_target_calls: list[str] = []
         self.create_engagement_calls: list[dict[str, Any]] = []
         self.patch_engagement_calls: list[dict[str, Any]] = []
         self.put_engagement_settings_calls: list[dict[str, Any]] = []
         self.wizard_confirm_calls: list[dict[str, Any]] = []
         self.wizard_retry_calls: list[dict[str, Any]] = []
         self._target_status = "resolved"
+        self._resolved_target_status = "resolved"
         self._confirm_result = "confirmed"
         self._confirm_message = "Engagement confirmed"
         self._raise_confirm = False
@@ -41,14 +44,43 @@ class _FakeWizardApiClient(_FakeApiClient):
     async def create_engagement_target(self, *, target_ref, added_by, notes=None, operator_user_id=None):
         call = {"target_ref": target_ref, "added_by": added_by}
         self.create_target_calls.append(call)
+        community_id = None if self._target_status == "pending" else "community-new"
         return {
             "id": "target-new",
-            "community_id": "community-new",
+            "community_id": community_id,
             "submitted_ref": target_ref,
             "status": self._target_status,
             "allow_join": False,
             "allow_detect": False,
             "allow_post": False,
+        }
+
+    async def resolve_engagement_target(self, target_id, *, requested_by=None, operator_user_id=None):
+        self.resolve_target_calls.append(
+            {
+                "target_id": target_id,
+                "requested_by": requested_by,
+                "operator_user_id": operator_user_id,
+            }
+        )
+        return {"job": {"id": "resolve-job-1", "status": "queued"}}
+
+    async def get_engagement_target(self, target_id):
+        self.get_target_calls.append(target_id)
+        community_id = (
+            "community-new"
+            if self._resolved_target_status in {"resolved", "approved"}
+            else None
+        )
+        return {
+            "id": target_id,
+            "community_id": community_id,
+            "submitted_ref": "@resolved_target",
+            "status": self._resolved_target_status,
+            "allow_join": False,
+            "allow_detect": False,
+            "allow_post": False,
+            "last_error": None,
         }
 
     async def create_engagement(self, *, target_id, created_by):
@@ -215,6 +247,26 @@ async def test_wizard_step1_valid_handle_creates_engagement_and_advances_to_step
     pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
     assert pending.flow_step == "topics"
     assert (pending.flow_state or {}).get("engagement_id") == "engagement-new"
+
+
+@pytest.mark.asyncio
+async def test_wizard_step1_pending_target_waits_for_resolution_before_creating_engagement() -> None:
+    client = _FakeWizardApiClient()
+    client._target_status = "pending"
+    client._resolved_target_status = "resolved"
+    context = _wiz_context(client)
+
+    await callback_query(_callback_update("eng:wz:start"), context)
+    text_update = _message_update("https://t.me/hse_live")
+
+    await telegram_entity_text(text_update, context)
+
+    assert client.resolve_target_calls[-1]["target_id"] == "target-new"
+    assert client.get_target_calls[-1] == "target-new"
+    assert client.create_engagement_calls[-1]["target_id"] == "target-new"
+
+    text = text_update.message.replies[0]["text"]
+    assert "Step 2 of 5" in text
 
 
 @pytest.mark.asyncio
