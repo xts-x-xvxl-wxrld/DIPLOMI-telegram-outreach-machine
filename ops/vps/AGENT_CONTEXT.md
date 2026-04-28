@@ -71,6 +71,10 @@ If sudoers has been explicitly installed for deploy wrappers:
 sudo -u deploy /srv/tg-outreach/bin/tg-outreach-deploy staging origin/main
 ```
 
+Deploys serialize per checkout. If GitHub Actions is already deploying staging, a manual staging
+deploy waits for the same lock instead of racing it. The wait budget defaults to 15 minutes and can
+be tuned with `TG_OUTREACH_DEPLOY_LOCK_WAIT_SECONDS`.
+
 Production deploys are not wired yet. Do not direct-deploy production from an ordinary coding-agent
 session.
 

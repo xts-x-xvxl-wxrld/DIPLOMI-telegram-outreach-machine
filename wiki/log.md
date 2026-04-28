@@ -1482,3 +1482,9 @@ while preserving the staged testing contract.
 - Routed legacy `eng:home` callback traffic to the same task-first cockpit home used by `/engagement` so callback navigation no longer falls back to the older engagement home.
 - Added bot-handler regression coverage proving `eng:home` renders the task-first `Engagements` home instead of rebuilding legacy candidate counts.
 - Updated the Slice 7 plan shard to reflect that the task-first home and `op:*` callback family are already wired, with `eng:home` kept only as a compatibility alias for remaining legacy navigation buttons.
+
+## [2026-04-28] fix | Serialize staging deploys per VPS checkout
+
+- Added a checkout-local deploy lock to `scripts/vps-deploy.sh` so GitHub Actions deploys and manual `tg-outreach-deploy` runs cannot overlap on the same staging checkout.
+- Exposed lock wait behavior through `TG_OUTREACH_DEPLOY_LOCK_WAIT_SECONDS` and included lock-holder metadata in timeout diagnostics.
+- Updated the deployment spec, VPS pipeline plan, and redacted agent context to document the new hardening behavior.

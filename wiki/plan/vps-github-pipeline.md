@@ -15,6 +15,8 @@ Prepare the repository for GitHub upload and establish a safe two-way workflow:
 - Add GitHub Actions CI for Ruff, pytest, and Docker build.
 - Add a separate deploy workflow that connects to the VPS over SSH and calls the checkout-local
   deploy script.
+- Serialize every checkout-local deploy with a shared lock in Git metadata so GitHub Actions and
+  manual SSH deploys cannot overlap on the same staging checkout.
 - Require pinned SSH known-hosts data instead of disabling host-key checks.
 - Keep application secrets in VPS `.env`, not in GitHub Actions secrets.
 - Use a reset-only deploy checkout and branch-only agent workspaces.
@@ -33,6 +35,8 @@ Prepare the repository for GitHub upload and establish a safe two-way workflow:
 - Staging deploy runs after successful CI on `main` or by manual dispatch.
 - Production deploy is not available in GitHub Actions yet.
 - VPS deploy resets to the selected ref before rebuilding.
+- VPS deploy waits for an in-flight deploy instead of racing another reset/build/migration sequence
+  on the same checkout.
 - Server-side agent edits happen on `agent/*` branches outside the deploy checkout.
 - Completed agent change slices are committed and pushed promptly to keep GitHub fresh.
 - Wiki index, architecture, deployment spec, and log describe the workflow.

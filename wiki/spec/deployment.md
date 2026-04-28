@@ -70,19 +70,27 @@ The GitHub workflow uses the `staging` GitHub environment, reads that environmen
 secrets, connects to `VPS_DEPLOY_PATH`, and runs the script. The CI-triggered staging deploy uses
 the exact commit SHA that passed CI.
 
+Every deploy path shares a checkout-local lock in the Git metadata directory. This serializes
+GitHub Actions deploys and manual `/srv/tg-outreach/bin/tg-outreach-deploy` runs against the same
+staging checkout so concurrent resets, builds, migrations, and container restarts cannot overlap.
+When a second deploy arrives while one is in progress, it waits up to
+`TG_OUTREACH_DEPLOY_LOCK_WAIT_SECONDS` seconds (default `900`) and prints the current lock holder
+metadata if it times out.
+
 The deployment process:
 
 1. Connects to the VPS over SSH with strict host-key checking.
 2. Changes into the deploy checkout.
-3. Requires a local `.env` file to exist.
-4. Fetches `origin`.
-5. Runs `git reset --hard origin/main`.
-6. Runs `git clean -ffdx` with explicit exclusions for `.env` and local runtime directories.
-7. Builds the app images.
-8. Starts Postgres and Redis.
-9. Waits for Postgres readiness.
-10. Runs `alembic upgrade head` inside the API container.
-11. Runs `docker compose up -d --remove-orphans`.
+3. Acquires the checkout-local deploy lock before mutating Git state or Docker runtime state.
+4. Requires a local `.env` file to exist.
+5. Fetches `origin`.
+6. Runs `git reset --hard origin/main`.
+7. Runs `git clean -ffdx` with explicit exclusions for `.env` and local runtime directories.
+8. Builds the app images.
+9. Starts Postgres and Redis.
+10. Waits for Postgres readiness.
+11. Runs `alembic upgrade head` inside the API container.
+12. Runs `docker compose up -d --remove-orphans`.
 
 This makes the source tree deterministic while preserving server-only secrets and Docker volume
 mount directories.

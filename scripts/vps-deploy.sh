@@ -3,18 +3,69 @@ set -euo pipefail
 
 deploy_ref="${1:-origin/main}"
 
+print_lock_context() {
+  local state_file="$1"
+
+  if [ ! -f "$state_file" ]; then
+    return
+  fi
+
+  echo "Current deploy lock state:" >&2
+  sed 's/^/  /' "$state_file" >&2
+}
+
 if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
   echo "vps-deploy.sh must be run inside the deploy Git checkout." >&2
   exit 1
 fi
 
 repo_root="$(git rev-parse --show-toplevel)"
+lock_file="$(git rev-parse --git-path vps-deploy.lock)"
+lock_state_file="$(git rev-parse --git-path vps-deploy.lock.info)"
+lock_wait_seconds="${TG_OUTREACH_DEPLOY_LOCK_WAIT_SECONDS:-900}"
 cd "$repo_root"
 
 if [ ! -f .env ]; then
   echo "Missing .env in $repo_root. Create it from .env.example before deploying." >&2
   exit 1
 fi
+
+case "$lock_wait_seconds" in
+  ''|*[!0-9]*)
+    echo "TG_OUTREACH_DEPLOY_LOCK_WAIT_SECONDS must be a non-negative integer." >&2
+    exit 2
+    ;;
+esac
+
+if ! command -v flock >/dev/null 2>&1; then
+  echo "Missing required command: flock" >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "$lock_file")"
+
+exec 9>"$lock_file"
+
+if ! flock -n 9; then
+  echo "Another deploy is already running for $repo_root; waiting up to ${lock_wait_seconds}s." >&2
+  print_lock_context "$lock_state_file"
+
+  if ! flock -w "$lock_wait_seconds" 9; then
+    echo "Timed out waiting for the deploy lock after ${lock_wait_seconds}s." >&2
+    print_lock_context "$lock_state_file"
+    exit 1
+  fi
+fi
+
+cat >"$lock_state_file" <<EOF
+repo_root=$repo_root
+deploy_ref=$deploy_ref
+user=$(id -un)
+host=$(hostname -f 2>/dev/null || hostname)
+pid=$$
+started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+EOF
+trap 'rm -f "$lock_state_file"' EXIT
 
 origin_url="$(git remote get-url origin)"
 case "$origin_url" in
