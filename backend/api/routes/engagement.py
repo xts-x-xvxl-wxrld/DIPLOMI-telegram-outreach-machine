@@ -8,6 +8,7 @@ from backend.api.routes import engagement_targets as _engagement_targets
 from backend.api.routes import engagement_settings_topics as _engagement_settings_topics
 from backend.api.routes import engagement_prompts_style as _engagement_prompts_style
 from backend.api.routes import engagement_candidates_actions as _engagement_candidates_actions
+from backend.api.routes import engagement_task_first as _engagement_task_first
 from backend.queue.client import (
     enqueue_community_join,
     enqueue_collection,
@@ -25,6 +26,7 @@ router.include_router(_engagement_targets.router)
 router.include_router(_engagement_settings_topics.router)
 router.include_router(_engagement_prompts_style.router)
 router.include_router(_engagement_candidates_actions.router)
+router.include_router(_engagement_task_first.router)
 
 _SYNC_NAMES = (
     "enqueue_community_join",
@@ -40,6 +42,7 @@ _MODULES = (
     _engagement_settings_topics,
     _engagement_prompts_style,
     _engagement_candidates_actions,
+    _engagement_task_first,
 )
 
 
@@ -269,6 +272,31 @@ async def post_engagement_candidate_send_job(*args, **kwargs):
     return await _engagement_candidates_actions.post_engagement_candidate_send_job(*args, **kwargs)
 
 
+async def post_task_first_engagement(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_task_first.post_task_first_engagement(*args, **kwargs)
+
+
+async def patch_engagement(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_task_first.patch_engagement(*args, **kwargs)
+
+
+async def put_task_first_settings(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_task_first.put_task_first_settings(*args, **kwargs)
+
+
+async def post_task_first_wizard_confirm(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_task_first.post_task_first_wizard_confirm(*args, **kwargs)
+
+
+async def post_task_first_wizard_retry(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_task_first.post_task_first_wizard_retry(*args, **kwargs)
+
+
 __all__ = ["router", "enqueue_community_join", "enqueue_collection", "enqueue_engagement_send", "enqueue_engagement_target_resolve", "enqueue_manual_engagement_detect", "list_engagement_actions", "list_engagement_candidates",
     "get_operator_capabilities",
     "get_engagement_targets",
@@ -314,4 +342,9 @@ __all__ = ["router", "enqueue_community_join", "enqueue_collection", "enqueue_en
     "post_engagement_candidate_expire",
     "post_engagement_candidate_retry",
     "post_engagement_candidate_send_job",
+    "post_task_first_engagement",
+    "patch_engagement",
+    "put_task_first_settings",
+    "post_task_first_wizard_confirm",
+    "post_task_first_wizard_retry",
 ]

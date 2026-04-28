@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from backend.api.app import create_app
 from backend.api.deps import settings_dep
 from backend.api.routes.engagement import (
+    patch_engagement,
     get_engagement_actions,
     get_engagement_candidate_detail,
     get_engagement_candidate_revisions,
@@ -37,7 +38,11 @@ from backend.api.routes.engagement import (
     post_engagement_target_resolve_job,
     patch_engagement_target,
     post_engagement_topic,
+    post_task_first_engagement,
+    post_task_first_wizard_confirm,
+    post_task_first_wizard_retry,
     put_community_engagement_settings,
+    put_task_first_settings,
 )
 from backend.api.schemas import (
     EngagementCandidateApproveRequest,
@@ -56,24 +61,33 @@ from backend.api.schemas import (
     EngagementTargetUpdateRequest,
     EngagementTopicCreate,
     EngagementTopicUpdate,
+    TaskFirstEngagementCreateRequest,
+    TaskFirstEngagementPatchRequest,
+    TaskFirstEngagementSettingsUpdate,
+    TaskFirstWizardActionRequest,
 )
 from backend.db.enums import (
     AccountPool,
     AccountStatus,
+    CommunityAccountMembershipStatus,
     CommunityStatus,
     EngagementActionStatus,
     EngagementActionType,
     EngagementCandidateStatus,
     EngagementMode,
+    EngagementStatus,
     EngagementTargetRefType,
     EngagementTargetStatus,
 )
 from backend.db.models import (
     Community,
+    CommunityAccountMembership,
     CommunityEngagementSettings,
+    Engagement,
     EngagementAction,
     EngagementCandidate,
     EngagementCandidateRevision,
+    EngagementSettings,
     EngagementTarget,
     EngagementTopic,
     EngagementStyleRule,
@@ -223,7 +237,7 @@ async def test_put_engagement_settings_forces_disabled_to_read_only() -> None:
     assert isinstance(db.added[0], CommunityEngagementSettings)
 
 @pytest.mark.asyncio
-async def test_put_engagement_settings_rejects_auto_limited() -> None:
+async def test_put_engagement_settings_accepts_auto_limited() -> None:
     community_id = uuid4()
     db = FakeDb(
         community=Community(
@@ -234,16 +248,14 @@ async def test_put_engagement_settings_rejects_auto_limited() -> None:
         )
     )
 
-    with pytest.raises(HTTPException) as exc_info:
-        await put_community_engagement_settings(
-            community_id,
-            EngagementSettingsUpdate(mode=EngagementMode.AUTO_LIMITED),
-            db,  # type: ignore[arg-type]
-        )
+    response = await put_community_engagement_settings(
+        community_id,
+        EngagementSettingsUpdate(mode=EngagementMode.AUTO_LIMITED),
+        db,  # type: ignore[arg-type]
+    )
 
-    assert exc_info.value.status_code == 400
-    assert exc_info.value.detail["code"] == "auto_limited_not_enabled"
-    assert db.commits == 0
+    assert response.mode == EngagementMode.AUTO_LIMITED.value
+    assert db.commits == 1
 
 @pytest.mark.asyncio
 async def test_put_engagement_settings_requires_approved_community_for_join() -> None:
@@ -325,6 +337,226 @@ async def test_put_engagement_settings_accepts_assigned_engagement_account() -> 
     )
 
     assert response.assigned_account_id == account_id
+    assert db.commits == 1
+
+@pytest.mark.asyncio
+async def test_post_task_first_engagement_creates_draft_for_resolved_target() -> None:
+    community_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.RESOLVED.value)
+    db = FakeDb(target=target)
+
+    response = await post_task_first_engagement(
+        TaskFirstEngagementCreateRequest(target_id=target.id, created_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.result == "created"
+    assert response.engagement.target_id == target.id
+    assert response.engagement.community_id == community_id
+    assert response.engagement.status == EngagementStatus.DRAFT.value
+    assert isinstance(db.added[0], Engagement)
+    assert db.commits == 1
+
+@pytest.mark.asyncio
+async def test_post_task_first_engagement_reuses_existing_row() -> None:
+    community_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.APPROVED.value)
+    engagement = _engagement(target=target, status=EngagementStatus.ACTIVE.value)
+    db = FakeDb(target=target, engagement=engagement)
+
+    response = await post_task_first_engagement(
+        TaskFirstEngagementCreateRequest(target_id=target.id, created_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.result == "existing"
+    assert response.engagement.id == engagement.id
+    assert db.added == []
+    assert db.commits == 1
+
+@pytest.mark.asyncio
+async def test_patch_task_first_engagement_updates_topic_and_name() -> None:
+    community_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.RESOLVED.value)
+    engagement = _engagement(target=target)
+    topic = _topic(uuid4(), name="CRM")
+    db = FakeDb(target=target, engagement=engagement, topic=topic)
+
+    response = await patch_engagement(
+        engagement.id,
+        TaskFirstEngagementPatchRequest(topic_id=topic.id, name="Founder CRM"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.result == "updated"
+    assert response.engagement is not None
+    assert response.engagement.topic_id == topic.id
+    assert response.engagement.name == "Founder CRM"
+    assert db.commits == 1
+
+@pytest.mark.asyncio
+async def test_put_task_first_settings_accepts_auto_send_and_account() -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.RESOLVED.value)
+    engagement = _engagement(target=target)
+    db = FakeDb(
+        target=target,
+        engagement=engagement,
+        account=TelegramAccount(
+            id=account_id,
+            phone="+123456789",
+            session_file_path="engagement.session",
+            account_pool=AccountPool.ENGAGEMENT.value,
+            status=AccountStatus.AVAILABLE.value,
+        ),
+    )
+
+    response = await put_task_first_settings(
+        engagement.id,
+        TaskFirstEngagementSettingsUpdate(
+            assigned_account_id=account_id,
+            mode=EngagementMode.AUTO_LIMITED,
+        ),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.result == "updated"
+    assert response.settings is not None
+    assert response.settings.assigned_account_id == account_id
+    assert response.settings.mode == EngagementMode.AUTO_LIMITED.value
+    created_settings = next(item for item in db.added if isinstance(item, EngagementSettings))
+    assert created_settings.allow_join is True
+    assert created_settings.allow_post is True
+    assert db.commits == 1
+
+@pytest.mark.asyncio
+async def test_put_task_first_settings_blocks_invalid_account() -> None:
+    community_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.RESOLVED.value)
+    engagement = _engagement(target=target)
+    db = FakeDb(target=target, engagement=engagement)
+
+    response = await put_task_first_settings(
+        engagement.id,
+        TaskFirstEngagementSettingsUpdate(assigned_account_id=uuid4()),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.result == "blocked"
+    assert response.code == "account_missing"
+    assert db.commits == 0
+
+@pytest.mark.asyncio
+async def test_task_first_wizard_confirm_requires_topic() -> None:
+    community_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.RESOLVED.value)
+    engagement = _engagement(target=target)
+    db = FakeDb(target=target, engagement=engagement)
+
+    response = await post_task_first_wizard_confirm(
+        engagement.id,
+        TaskFirstWizardActionRequest(requested_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.result == "validation_failed"
+    assert response.field == "topic"
+    assert db.commits == 0
+
+@pytest.mark.asyncio
+async def test_task_first_wizard_confirm_blocks_unjoined_account() -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.RESOLVED.value)
+    topic = _topic(uuid4(), name="CRM")
+    engagement = _engagement(target=target, topic=topic)
+    settings = _engagement_settings(engagement.id, account_id=account_id, mode=EngagementMode.SUGGEST.value)
+    db = FakeDb(target=target, engagement=engagement, topic=topic, engagement_settings=settings)
+
+    response = await post_task_first_wizard_confirm(
+        engagement.id,
+        TaskFirstWizardActionRequest(requested_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.result == "blocked"
+    assert response.code == "account_not_joined"
+    assert db.commits == 0
+
+@pytest.mark.asyncio
+async def test_task_first_wizard_confirm_approves_target_and_activates_engagement(monkeypatch) -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.RESOLVED.value)
+    topic = _topic(uuid4(), name="CRM")
+    engagement = _engagement(target=target, topic=topic)
+    settings = _engagement_settings(engagement.id, account_id=account_id, mode=EngagementMode.AUTO_LIMITED.value)
+    membership = _membership(community_id=community_id, account_id=account_id)
+    db = FakeDb(
+        target=target,
+        engagement=engagement,
+        topic=topic,
+        engagement_settings=settings,
+        membership=membership,
+    )
+    captured: dict[str, object] = {}
+
+    def fake_enqueue(
+        community_id_arg: object,
+        *,
+        window_minutes: int,
+        requested_by: str,
+    ) -> QueuedJob:
+        captured.update(
+            {
+                "community_id": community_id_arg,
+                "window_minutes": window_minutes,
+                "requested_by": requested_by,
+            }
+        )
+        return QueuedJob(id="detect-job", type="engagement.detect")
+
+    monkeypatch.setattr("backend.api.routes.engagement.enqueue_manual_engagement_detect", fake_enqueue)
+
+    response = await post_task_first_wizard_confirm(
+        engagement.id,
+        TaskFirstWizardActionRequest(requested_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.result == "confirmed"
+    assert response.engagement_status == EngagementStatus.ACTIVE.value
+    assert response.target_status == EngagementTargetStatus.APPROVED.value
+    assert target.allow_join is True
+    assert target.allow_detect is True
+    assert target.allow_post is True
+    assert captured == {
+        "community_id": community_id,
+        "window_minutes": 60,
+        "requested_by": "telegram:123",
+    }
+    assert db.commits == 1
+
+@pytest.mark.asyncio
+async def test_task_first_wizard_retry_clears_draft_state() -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.RESOLVED.value)
+    topic = _topic(uuid4(), name="CRM")
+    engagement = _engagement(target=target, topic=topic)
+    settings = _engagement_settings(engagement.id, account_id=account_id, mode=EngagementMode.SUGGEST.value)
+    db = FakeDb(target=target, engagement=engagement, topic=topic, engagement_settings=settings)
+
+    response = await post_task_first_wizard_retry(
+        engagement.id,
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.result == "reset"
+    assert engagement.topic_id is None
+    assert settings.assigned_account_id is None
+    assert settings.mode == EngagementMode.DISABLED.value
     assert db.commits == 1
 
 @pytest.mark.asyncio
@@ -1255,6 +1487,9 @@ class FakeDb:
         *,
         community: Community | None = None,
         settings: CommunityEngagementSettings | None = None,
+        engagement: Engagement | None = None,
+        engagement_settings: EngagementSettings | None = None,
+        membership: CommunityAccountMembership | None = None,
         topic: EngagementTopic | None = None,
         style_rule: EngagementStyleRule | None = None,
         target: EngagementTarget | None = None,
@@ -1267,6 +1502,9 @@ class FakeDb:
     ) -> None:
         self.community = community
         self.settings = settings
+        self.engagement = engagement
+        self.engagement_settings = engagement_settings
+        self.membership = membership
         self.topic = topic
         self.style_rule = style_rule
         self.target = target
@@ -1283,6 +1521,12 @@ class FakeDb:
     async def get(self, model: object, item_id: object) -> object | None:
         if model is Community:
             return self.community
+        if model is Engagement:
+            return self.engagement
+        if model is EngagementSettings:
+            return self.engagement_settings
+        if model is CommunityAccountMembership:
+            return self.membership
         if model is EngagementTopic:
             return self.topic
         if model is EngagementStyleRule:
@@ -1298,6 +1542,13 @@ class FakeDb:
     async def scalar(self, statement: object) -> object | None:
         if self.scalar_result is not None:
             return self.scalar_result
+        model_name = _selected_model_name(statement)
+        if model_name == "Engagement":
+            return self.engagement
+        if model_name == "EngagementSettings":
+            return self.engagement_settings
+        if model_name == "CommunityAccountMembership":
+            return self.membership
         if self.target is not None:
             return self.target
         if self.candidates is not None:
@@ -1348,6 +1599,72 @@ def _topic(topic_id: object, *, name: str) -> EngagementTopic:
         created_at=_now(),
         updated_at=_now(),
     )
+
+
+def _engagement(
+    *,
+    target: EngagementTarget,
+    topic: EngagementTopic | None = None,
+    status: str = EngagementStatus.DRAFT.value,
+) -> Engagement:
+    return Engagement(
+        id=uuid4(),
+        target_id=target.id,
+        community_id=target.community_id,
+        topic_id=None if topic is None else topic.id,
+        status=status,
+        name=None,
+        created_by="telegram:123",
+        created_at=_now(),
+        updated_at=_now(),
+    )
+
+
+def _engagement_settings(
+    engagement_id: object,
+    *,
+    account_id: object | None,
+    mode: str,
+) -> EngagementSettings:
+    allow_post = mode == EngagementMode.AUTO_LIMITED.value
+    return EngagementSettings(
+        id=uuid4(),
+        engagement_id=engagement_id,
+        mode=mode,
+        allow_join=mode in {EngagementMode.SUGGEST.value, EngagementMode.AUTO_LIMITED.value},
+        allow_post=allow_post,
+        reply_only=True,
+        require_approval=True,
+        max_posts_per_day=1,
+        min_minutes_between_posts=240,
+        quiet_hours_start=None,
+        quiet_hours_end=None,
+        assigned_account_id=account_id,
+        created_at=_now(),
+        updated_at=_now(),
+    )
+
+
+def _membership(*, community_id: object, account_id: object) -> CommunityAccountMembership:
+    return CommunityAccountMembership(
+        id=uuid4(),
+        community_id=community_id,
+        telegram_account_id=account_id,
+        status=CommunityAccountMembershipStatus.JOINED.value,
+        joined_at=_now(),
+        last_checked_at=_now(),
+        last_error=None,
+        created_at=_now(),
+        updated_at=_now(),
+    )
+
+
+def _selected_model_name(statement: object) -> str | None:
+    descriptions = getattr(statement, "column_descriptions", None)
+    if not descriptions:
+        return None
+    entity = descriptions[0].get("entity")
+    return None if entity is None else getattr(entity, "__name__", None)
 
 
 def _candidate(

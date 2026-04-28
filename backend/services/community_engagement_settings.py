@@ -312,11 +312,6 @@ async def _validate_settings_values(
     community: Community,
     values: dict[str, Any],
 ) -> None:
-    if values["mode"] == EngagementMode.AUTO_LIMITED.value:
-        raise EngagementValidationError(
-            "auto_limited_not_enabled",
-            "auto_limited engagement mode is not enabled in the MVP",
-        )
     if values["require_approval"] is False:
         raise EngagementValidationError(
             "approval_required",

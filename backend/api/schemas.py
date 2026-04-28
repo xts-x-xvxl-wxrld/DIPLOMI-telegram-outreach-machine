@@ -373,6 +373,89 @@ class EngagementSettingsOut(BaseModel):
     updated_at: datetime | None = None
 
 
+class TaskFirstEngagementCreateRequest(BaseModel):
+    target_id: UUID
+    created_by: str = Field(min_length=1, max_length=200)
+
+
+class TaskFirstEngagementPatchRequest(BaseModel):
+    topic_id: UUID | None = None
+    name: str | None = Field(default=None, max_length=200)
+
+
+class TaskFirstEngagementSettingsUpdate(BaseModel):
+    assigned_account_id: UUID | None = None
+    mode: EngagementMode | None = None
+    quiet_hours_start: time | None = None
+    quiet_hours_end: time | None = None
+
+
+class TaskFirstWizardActionRequest(BaseModel):
+    requested_by: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class TaskFirstEngagementOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    target_id: UUID
+    community_id: UUID
+    topic_id: UUID | None = None
+    status: str
+    name: str | None = None
+    created_by: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class TaskFirstEngagementSettingsOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    engagement_id: UUID
+    assigned_account_id: UUID | None = None
+    mode: str
+    quiet_hours_start: time | None = None
+    quiet_hours_end: time | None = None
+
+
+class TaskFirstEngagementCreateResponse(BaseModel):
+    result: str
+    engagement: TaskFirstEngagementOut
+
+
+class TaskFirstEngagementPatchResponse(BaseModel):
+    result: str
+    engagement: TaskFirstEngagementOut | None = None
+    message: str | None = None
+    code: str | None = None
+
+
+class TaskFirstEngagementSettingsResponse(BaseModel):
+    result: str
+    settings: TaskFirstEngagementSettingsOut | None = None
+    message: str | None = None
+    code: str | None = None
+
+
+class TaskFirstWizardConfirmResponse(BaseModel):
+    result: str
+    message: str
+    next_callback: str
+    engagement_id: UUID | None = None
+    engagement_status: str | None = None
+    target_status: str | None = None
+    field: str | None = None
+    code: str | None = None
+
+
+class TaskFirstWizardRetryResponse(BaseModel):
+    result: str
+    message: str
+    next_callback: str
+    engagement_id: UUID | None = None
+    code: str | None = None
+
+
 class EngagementTargetCreateRequest(BaseModel):
     target_ref: str = Field(min_length=1, max_length=500)
     notes: str | None = Field(default=None, max_length=1000)
