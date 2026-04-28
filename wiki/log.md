@@ -1535,6 +1535,17 @@ while preserving the staged testing contract.
   the gate for scheduler-driven joins with no explicit account.
 - Added regression coverage in `tests/test_engagement_api.py` for both paths.
 
+## [2026-04-28] fix | Finish wizard confirm regressions and restore CI fragmentation parity
+
+- Fixed the new wizard-confirm join regression stub so it matches the production
+  `enqueue_community_join` keyword call shape instead of silently tripping the
+  service's enqueue-failure fallback.
+- Split the task-first wizard confirm tests into
+  `tests/test_engagement_task_first_wizard_api.py` so the oversized
+  `tests/test_engagement_api.py` file drops back under the fragmentation guardrail.
+- Verified `python scripts/check_fragmentation.py`, `ruff check .`, and targeted
+  task-first engagement tests pass after the split.
+
 ## [2026-04-28] fix | Shorten topic edit callbacks for UUID topic IDs
 
 - Confirmed the topic detail buttons for guidance, trigger keywords, and negative keywords could

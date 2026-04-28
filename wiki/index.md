@@ -137,7 +137,7 @@
 - `tests/test_engagement_schema.py` - engagement schema enum/default/constraint/index tests
 - `tests/test_engagement_targets.py` - engagement target resolution and permission gate tests
 - `tests/test_collection_queue_payloads.py` - engagement collection queue job-id contract tests
-- `tests/test_engagement_api.py` - engagement API route tests for targets, settings, topics, style rules, prompts, candidates, actions, and rollout summaries
+- `tests/test_engagement_api.py`, `tests/test_engagement_task_first_wizard_api.py` - engagement API route tests for targets, settings, topics, style rules, prompts, candidates, actions, rollout summaries, and task-first wizard confirm regressions
 - `tests/test_engagement_prompt_controls.py` - prompt template variable privacy tests
 - `tests/test_engagement_detect_worker.py`, `tests/test_collection_worker.py` - engagement detection and collection worker tests
 - `tests/test_engagement_send_worker.py` - engagement send worker preflight, rate-limit, idempotency, and Telethon error-mapping tests
