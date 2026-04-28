@@ -200,7 +200,7 @@ async def _show_wizard_step3(update: Any, context: Any, state: dict[str, Any]) -
     all_accounts = data.get("items") or []
     engagement_accounts = [
         a for a in all_accounts
-        if a.get("pool") in ("engagement", None) and a.get("status") != "banned"
+        if a.get("account_pool") == "engagement" and a.get("status") != "banned"
     ]
     if len(engagement_accounts) == 0:
         await _callback_reply(
