@@ -1459,3 +1459,15 @@ while preserving the staged testing contract.
 - Split the task-first cockpit implementation plan into phase shards to satisfy the wiki plan size cap.
 - Split the detailed slice plan into two shard files while keeping the top-level plan entrypoints stable.
 - Added the new shard directory to the wiki index so the fragmented plan layout stays discoverable.
+
+## [2026-04-28] docs | Add task-first cockpit next-work queue
+
+- Updated `wiki/plan/engagement-task-first-cockpit-slices.md` from a static slice index into a real next-work queue.
+- Marked Slice 1 as complete and noted that the task-first wizard-write surface is already underway in code.
+- Recommended execution order from Slice 3 onward, including the late home-shell cutover so old and new primary operator paths do not overlap.
+
+## [2026-04-28] code | Fix fragmentation blockers for task-first cockpit push
+
+- Split search API DTOs out of `backend/api/schemas.py` into `backend/api/schemas_search.py` while keeping the public import surface stable through the aggregator module.
+- Split candidate/action engagement API coverage into `tests/test_engagement_api_candidates.py` so the main engagement API test shard stays under the test-file ceiling.
+- Passed `python3 scripts/check_fragmentation.py`, `./.venv/bin/ruff check .`, and `./.venv/bin/pytest -q` after the split.
