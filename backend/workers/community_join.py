@@ -76,8 +76,9 @@ async def process_community_join(
                 return _skipped("community_not_found", validated_payload.community_id)
 
             settings = await get_engagement_settings(session, validated_payload.community_id)
-            if settings.mode == EngagementMode.DISABLED.value or not settings.allow_join:
-                return _skipped("join_not_allowed", validated_payload.community_id)
+            if validated_payload.telegram_account_id is None:
+                if settings.mode == EngagementMode.DISABLED.value or not settings.allow_join:
+                    return _skipped("join_not_allowed", validated_payload.community_id)
             if not await has_engagement_target_permission(
                 session,
                 community_id=validated_payload.community_id,

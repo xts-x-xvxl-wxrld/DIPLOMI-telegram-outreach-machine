@@ -25,6 +25,7 @@ from backend.db.models import (
     EngagementTopic,
     TelegramAccount,
 )
+from backend.queue.client import enqueue_community_join
 
 
 @dataclass(frozen=True)
@@ -405,13 +406,7 @@ async def confirm_task_first_engagement(
         community_id=engagement.community_id,
         telegram_account_id=settings.assigned_account_id,
     )
-    if membership is None or membership.status != CommunityAccountMembershipStatus.JOINED.value:
-        return TaskFirstWizardConfirmResult(
-            result="blocked",
-            message="Account is not connected.",
-            code="account_not_joined",
-            next_callback=_wizard_edit_callback(engagement.id, "account"),
-        )
+    need_join = membership is None or membership.status != CommunityAccountMembershipStatus.JOINED.value
 
     try:
         enqueue_detect(
@@ -444,6 +439,16 @@ async def confirm_task_first_engagement(
         engagement.status = EngagementStatus.ACTIVE.value
     engagement.updated_at = now
     await db.flush()
+
+    if need_join:
+        try:
+            enqueue_community_join(
+                community_id=engagement.community_id,
+                telegram_account_id=settings.assigned_account_id,
+                requested_by=requested_by,
+            )
+        except Exception:
+            pass
 
     return TaskFirstWizardConfirmResult(
         result="confirmed",

@@ -1524,6 +1524,17 @@ while preserving the staged testing contract.
 - Strengthened wizard regression coverage with production-sized UUID IDs and an assertion that the
   Step 2 callback payloads stay within Telegram's limit.
 
+## [2026-04-28] fix | Auto-join community on wizard confirm instead of blocking
+
+- Removed the hard block when the engagement account isn't joined at wizard confirm time.
+- Wizard confirm now enqueues `community.join` automatically when membership is missing or not
+  in `JOINED` state, then continues to create the engagement so the operator sees immediate
+  confirmation rather than an error.
+- Bypassed the `allow_join` / `mode` settings gate inside the community join worker when the
+  payload carries an explicit `telegram_account_id` (wizard-triggered joins), while preserving
+  the gate for scheduler-driven joins with no explicit account.
+- Added regression coverage in `tests/test_engagement_api.py` for both paths.
+
 ## [2026-04-28] fix | Shorten topic edit callbacks for UUID topic IDs
 
 - Confirmed the topic detail buttons for guidance, trigger keywords, and negative keywords could
