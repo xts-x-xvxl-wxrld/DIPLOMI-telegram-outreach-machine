@@ -1488,3 +1488,9 @@ while preserving the staged testing contract.
 - Added a checkout-local deploy lock to `scripts/vps-deploy.sh` so GitHub Actions deploys and manual `tg-outreach-deploy` runs cannot overlap on the same staging checkout.
 - Exposed lock wait behavior through `TG_OUTREACH_DEPLOY_LOCK_WAIT_SECONDS` and included lock-holder metadata in timeout diagnostics.
 - Updated the deployment spec, VPS pipeline plan, and redacted agent context to document the new hardening behavior.
+
+## [2026-04-28] fix | Remove duplicated /api prefix from engagement wizard client routes
+
+- Investigated the staging task-first engagement wizard failure that surfaced as `Couldn't create engagement: Not Found`.
+- Confirmed from staging API logs that Step 1 succeeded with `POST /api/engagement/targets` and the follow-up draft creation failed on `POST /api/api/engagements`.
+- Fixed the wizard-only `BotApiClient` engagement create/update/confirm/retry methods to call `/engagements...` so the configured `.../api` base URL resolves to the documented task-first routes, and added a regression test for the wizard request sequence.
