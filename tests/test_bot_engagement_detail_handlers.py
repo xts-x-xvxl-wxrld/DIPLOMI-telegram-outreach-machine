@@ -15,7 +15,6 @@ from bot.formatting_engagement_detail import (
 )
 from bot.ui_engagement_detail import (
     engagement_list_markup,
-    engagement_preview_markup,
     engagement_detail_markup,
     sent_messages_markup,
 )

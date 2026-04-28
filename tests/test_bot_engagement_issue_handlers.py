@@ -957,7 +957,6 @@ def test_time_range_parser_with_spaces() -> None:
 async def test_skipped_issues_are_per_user() -> None:
     client = _FakeApiClient()
     update_a = _callback_update("eng:iss:skip:issue-uuid-1", user_id=123)
-    update_b = _callback_update("eng:iss:skip:issue-uuid-1", user_id=456)
     ctx = _context(client)
 
     await handle_issue_skip(update_a, ctx, issue_id="issue-uuid-1")

@@ -7,10 +7,6 @@ def format_approval_queue_header(data: dict[str, Any], *, scoped: bool = False, 
     queue_count = int(data.get("queue_count") or 0)
     updating_count = int(data.get("updating_count") or 0)
     empty_state = str(data.get("empty_state") or "")
-    current = data.get("current")
-    placeholders = data.get("placeholders") or []
-
-    all_placeholder = current is None and not [p for p in placeholders if not str(p.get("label", "")).startswith("Updating")]
 
     if queue_count == 0 and updating_count == 0:
         return "No drafts for approval"

@@ -1198,8 +1198,8 @@ async def test_engagement_command_builds_home_counts_from_api_client() -> None:
     assert "Engagements" in text
     labels = _button_labels(update.message.replies[0]["reply_markup"])
     # clear state: Add engagement and My engagements are always present
-    assert any("Add" in l for l in labels)
-    assert any("My engagements" in l for l in labels)
+    assert any("Add" in lbl for lbl in labels)
+    assert any("My engagements" in lbl for lbl in labels)
     # No back/home nav on the home screen itself
     callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
     assert not any("op:home" in c for c in callbacks)

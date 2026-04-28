@@ -798,7 +798,6 @@ async def _handle_wizard_confirm(
         return
 
     if status in ("validation_failed", "blocked"):
-        field = result.get("field") or ""
         message = str(result.get("message") or "Validation failed.")
         await _edit_callback_message(
             update,

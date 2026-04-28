@@ -300,8 +300,6 @@ from .engagement_detail_flow import (
 )
 from .formatting_engagement_home import format_cockpit_home
 from .ui_engagement_home import cockpit_home_markup
-from .formatting_engagement_home import format_cockpit_home
-from .ui_engagement_home import cockpit_home_markup
 
 
 async def callback_query(update: Any, context: Any) -> None:

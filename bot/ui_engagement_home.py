@@ -3,8 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 from .ui_common import (
-    ACTION_OP_APPROVE,
-    ACTION_OP_ISSUES,
     ACTION_OP_ENGS,
     ACTION_OP_SENT,
     ACTION_OP_ADD,

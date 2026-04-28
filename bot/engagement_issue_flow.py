@@ -4,7 +4,6 @@ import re
 from typing import Any
 
 from bot.api_client import BotApiClient, BotApiError
-from bot.config_editing import EditableField, PendingEditStore
 from bot.formatting_engagement_issue import (
     format_issue_card,
     format_issue_queue,
@@ -16,7 +15,6 @@ from bot.formatting_engagement_issue import (
 from bot.ui_common import (
     ACTION_ENGAGEMENT_DETAIL,
     ACTION_ENGAGEMENT_ISSUE_QUEUE,
-    ACTION_OP_HOME,
     _button,
     _inline_markup,
     _with_navigation,
@@ -199,7 +197,6 @@ def _issue_queue_markup(
         rows.append([_button("Next →", *_split_cb(next_cb))])
 
     # Navigation: back
-    back_parts: list[tuple[str, ...]] = []
     if scoped_engagement_id:
         back_action = ACTION_ENGAGEMENT_DETAIL
         back_parts_tuple = ("open", scoped_engagement_id)
@@ -316,7 +313,6 @@ async def show_scoped_issue_queue(
     if queue_count == 0 or current is None:
         text = format_issue_queue(data, offset=0, scoped=True)
         # Back to engagement detail
-        back_cb = f"{ACTION_ENGAGEMENT_DETAIL}:open:{engagement_id}"
         markup = _inline_markup(
             _with_navigation(
                 [],

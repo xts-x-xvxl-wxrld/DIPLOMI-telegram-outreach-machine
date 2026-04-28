@@ -6,7 +6,6 @@ from .formatting_common import (
     _bullet,
     _field,
     _headline,
-    _section,
     _shorten,
     _status_icon,
 )

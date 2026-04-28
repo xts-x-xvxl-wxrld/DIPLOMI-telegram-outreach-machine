@@ -24,8 +24,6 @@ from bot.ui import (
     ACTION_OP_ENGS,
     ACTION_OP_SENT,
     ACTION_OP_ADD,
-    ACTION_ENGAGEMENT_APPROVAL_QUEUE,
-    ACTION_ENGAGEMENT_ISSUE_QUEUE,
 )
 
 
@@ -182,10 +180,10 @@ def test_cockpit_home_markup_approval_focused_action_order() -> None:
     )
     labels = _labels(markup)
 
-    approve_idx = next(i for i, l in enumerate(labels) if "Approve draft" in l)
-    issues_idx = next(i for i, l in enumerate(labels) if "Top issues" in l)
-    engs_idx = next(i for i, l in enumerate(labels) if l == "My engagements")
-    add_idx = next(i for i, l in enumerate(labels) if l == "Add engagement")
+    approve_idx = next(i for i, lbl in enumerate(labels) if "Approve draft" in lbl)
+    issues_idx = next(i for i, lbl in enumerate(labels) if "Top issues" in lbl)
+    engs_idx = next(i for i, lbl in enumerate(labels) if lbl == "My engagements")
+    add_idx = next(i for i, lbl in enumerate(labels) if lbl == "Add engagement")
 
     assert approve_idx < issues_idx < engs_idx < add_idx
 
@@ -218,7 +216,7 @@ def test_cockpit_home_markup_approval_focused_shows_draft_count() -> None:
     markup = cockpit_home_markup(_home_payload(state="approvals", draft_count=5))
     labels = _labels(markup)
 
-    assert any("5" in l for l in labels)
+    assert any("5" in lbl for lbl in labels)
 
 
 def test_cockpit_home_markup_issues_action_order() -> None:
@@ -227,10 +225,10 @@ def test_cockpit_home_markup_issues_action_order() -> None:
     )
     labels = _labels(markup)
 
-    issues_idx = next(i for i, l in enumerate(labels) if "Top issues" in l)
-    add_idx = next(i for i, l in enumerate(labels) if l == "Add engagement")
-    engs_idx = next(i for i, l in enumerate(labels) if l == "My engagements")
-    sent_idx = next(i for i, l in enumerate(labels) if l == "Sent messages")
+    issues_idx = next(i for i, lbl in enumerate(labels) if "Top issues" in lbl)
+    add_idx = next(i for i, lbl in enumerate(labels) if lbl == "Add engagement")
+    engs_idx = next(i for i, lbl in enumerate(labels) if lbl == "My engagements")
+    sent_idx = next(i for i, lbl in enumerate(labels) if lbl == "Sent messages")
 
     assert issues_idx < add_idx < engs_idx < sent_idx
 
@@ -259,10 +257,10 @@ def test_cockpit_home_markup_clear_action_order() -> None:
     )
     labels = _labels(markup)
 
-    add_idx = next(i for i, l in enumerate(labels) if l == "Add engagement")
-    engs_idx = next(i for i, l in enumerate(labels) if l == "My engagements")
-    issues_idx = next(i for i, l in enumerate(labels) if "Top issues" in l)
-    sent_idx = next(i for i, l in enumerate(labels) if l == "Sent messages")
+    add_idx = next(i for i, lbl in enumerate(labels) if lbl == "Add engagement")
+    engs_idx = next(i for i, lbl in enumerate(labels) if lbl == "My engagements")
+    issues_idx = next(i for i, lbl in enumerate(labels) if "Top issues" in lbl)
+    sent_idx = next(i for i, lbl in enumerate(labels) if lbl == "Sent messages")
 
     assert add_idx < engs_idx < issues_idx < sent_idx
 

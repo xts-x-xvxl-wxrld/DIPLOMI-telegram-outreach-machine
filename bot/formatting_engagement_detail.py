@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
 
-from .formatting_common import _headline, _field, _bullet, _shorten
+from .formatting_common import _headline, _field, _shorten
 
 
 def format_engagement_list(payload: dict) -> str:
