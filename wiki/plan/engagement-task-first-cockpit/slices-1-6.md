@@ -4,7 +4,7 @@ Detailed early build slices for the task-first `Engagements` cockpit.
 
 ## Slice 1: Schema And Backfill Foundation
 
-Status: planned.
+Status: done.
 
 Work items:
 
@@ -26,7 +26,7 @@ Acceptance:
 
 ## Slice 2: Engagement-Scoped Wizard Write Endpoints
 
-Status: planned.
+Status: done enough for sequencing.
 
 Work items:
 
@@ -49,7 +49,7 @@ Acceptance:
 
 ## Slice 3: Cockpit Read Models
 
-Status: planned.
+Status: not started.
 
 Work items:
 
@@ -68,7 +68,7 @@ Acceptance:
 
 ## Slice 4: Issue Generation Service
 
-Status: planned.
+Status: not started.
 
 Work items:
 
@@ -85,7 +85,7 @@ Acceptance:
 
 ## Slice 5: Semantic Draft And Issue Mutations
 
-Status: planned.
+Status: not started.
 
 Work items:
 
@@ -105,7 +105,7 @@ Acceptance:
 
 ## Slice 6: Bot API Client And Callback Parsing
 
-Status: planned.
+Status: not started.
 
 Work items:
 

@@ -35,6 +35,19 @@ schema through bot rollout.
   legacy wizard/review surfaces, but those are community-scoped and should not
   be counted as progress on the new cockpit slices.
 
+## Repo Anchors
+
+- The landed task-first write foundation is centered in
+  `backend/api/routes/engagement_task_first.py`,
+  `backend/services/task_first_engagements.py`, and
+  `tests/test_engagement_api.py`.
+- The old operator path that still needs replacement is centered in
+  `bot/callback_handlers.py`, `bot/ui_common.py`,
+  `bot/engagement_wizard_flow.py`, and `bot/engagement_review_flow.py`.
+- The source-of-truth contracts for every open slice already exist in
+  `wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md` and
+  `wiki/spec/api/engagement.md`.
+
 ## Slice Status Map
 
 | Slice | State | Repo-verified note |
@@ -51,6 +64,21 @@ schema through bot rollout.
 | 10 | blocked by issue contract | no task-first issue queue controller yet |
 | 11 | blocked by read models/routing | no task-first detail or sent-feed surfaces yet |
 | 12 | blocked by all prior slices | legacy retirement comes last |
+
+## Open Slice Entry Files
+
+| Slice | First file touches | Repo-verified reason |
+| --- | --- | --- |
+| 3 | `backend/api/routes/engagement.py`, `backend/api/schemas.py`, `backend/services/community_engagement_views.py` or a new cockpit read-model service, `tests/test_engagement_api.py` | No `GET /api/engagement/cockpit/*` routes exist yet. |
+| 4 | a new backend issue-generation service next to `backend/services/task_first_engagements.py`, plus `tests/test_engagement_api.py` | The confirmed issue taxonomy is still spec-only. |
+| 5 | `backend/api/routes/engagement.py`, a new cockpit mutation service layer, `tests/test_engagement_api.py` | Semantic task-first draft and issue endpoints do not exist yet. |
+| 6 | `bot/ui_common.py`, `bot/callback_handlers.py`, `tests/test_bot_api_client.py`, `tests/test_bot_ui.py` | The parser and callback constants do not yet support `op:approve`, `eng:appr`, `eng:iss`, `eng:mine`, `eng:det`, or `eng:sent`. |
+| 7 | `bot/callback_handlers.py`, `bot/ui.py`, and new cockpit formatting/UI helpers | The default operator home is still the old shell. |
+| 8 | `bot/engagement_wizard_flow.py`, `bot/ui_engagement_wizard.py`, `bot/runtime_base.py`, `tests/test_bot_engagement_wizard.py` | A wizard exists, but it is community-scoped and uses the wrong task contract. |
+| 9 | `bot/engagement_review_flow.py`, `bot/callback_handlers.py`, `tests/test_bot_engagement_queue_handlers.py` | The current review flow is candidate-status-driven, not task-first approval-queue-driven. |
+| 10 | a new issue queue controller in `bot/`, plus dedicated queue tests | No task-first issue queue controller exists yet. |
+| 11 | `bot/ui_engagement.py`, new detail/sent formatting helpers, `tests/test_bot_engagement_handlers.py`, and the Slice 3 read models | No task-first detail or sent-message surfaces are wired end to end. |
+| 12 | cleanup across `bot/ui_common.py`, `bot/callback_handlers.py`, legacy engagement flows, and regression tests | Legacy operator paths should only disappear after slices 3-11 are live. |
 
 ## Do Not Count As Done
 

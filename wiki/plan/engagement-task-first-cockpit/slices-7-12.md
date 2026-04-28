@@ -4,7 +4,7 @@ Detailed later build slices for the task-first `Engagements` cockpit.
 
 ## Slice 7: `Engagements` Home And Navigation Shell
 
-Status: planned.
+Status: not started.
 
 Work items:
 
@@ -23,7 +23,7 @@ Acceptance:
 
 ## Slice 8: Wizard UI And Edit Reentry
 
-Status: planned.
+Status: blocked by Slice 6 and the finished Slice 2 contract.
 
 Work items:
 
@@ -42,7 +42,7 @@ Acceptance:
 
 ## Slice 9: Approval Queue Controller
 
-Status: planned.
+Status: blocked by Slices 5-6.
 
 Work items:
 
@@ -61,7 +61,7 @@ Acceptance:
 
 ## Slice 10: Issue Queue Controller
 
-Status: planned.
+Status: blocked by Slices 4-6.
 
 Work items:
 
@@ -80,7 +80,7 @@ Acceptance:
 
 ## Slice 11: Engagement Detail And Sent Messages
 
-Status: planned.
+Status: blocked by Slice 3 and bot routing work.
 
 Work items:
 
@@ -97,7 +97,7 @@ Acceptance:
 
 ## Slice 12: Legacy Retirement And Release Hardening
 
-Status: planned.
+Status: blocked by all prior slices.
 
 Work items:
 
