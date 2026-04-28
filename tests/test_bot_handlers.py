@@ -672,7 +672,7 @@ async def test_op_help_callback_renders_help_with_cockpit_navigation() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Regression: existing engagement cockpit callbacks still route
+# Regression: legacy engagement home callbacks now alias the task-first home
 # ---------------------------------------------------------------------------
 
 
@@ -684,8 +684,7 @@ async def test_engagement_home_callback_still_routes() -> None:
 
     await callback_query(update, context)
 
-    # The engagement home handler was invoked (it queries candidates and topics)
-    assert client.topic_calls == 1
-    replies = update.callback_query.message.replies
-    assert replies
-    assert any("engagement" in r["text"].lower() for r in replies)
+    assert client.topic_calls == 0
+    edits = update.callback_query.edits
+    assert edits
+    assert any("engagements" in edit["text"].lower() for edit in edits)

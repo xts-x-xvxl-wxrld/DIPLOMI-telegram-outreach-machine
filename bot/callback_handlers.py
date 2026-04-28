@@ -359,8 +359,8 @@ async def callback_query(update: Any, context: Any) -> None:
             return
         if await _handle_search_callback(update, context, action, parts):
             return
-        if action == ACTION_ENGAGEMENT_HOME:
-            await _send_engagement_home(update, context)
+        if action in {ACTION_ENGAGEMENT_HOME, ACTION_OP_HOME}:
+            await _send_cockpit_home(update, context)
             return
         if action == ACTION_ENGAGEMENT_ADMIN:
             await _send_engagement_admin(update, context)
@@ -776,9 +776,6 @@ async def callback_query(update: Any, context: Any) -> None:
         if action in {ACTION_APPROVE_COMMUNITY, ACTION_REJECT_COMMUNITY} and len(parts) == 1:
             decision = "approve" if action == ACTION_APPROVE_COMMUNITY else "reject"
             await _review_callback(update, context, parts[0], decision=decision)
-            return
-        if action == ACTION_OP_HOME:
-            await _send_cockpit_home(update, context)
             return
         if action in {ACTION_OP_DISCOVERY, ACTION_DISC_HOME}:
             await _send_discovery_cockpit(update)

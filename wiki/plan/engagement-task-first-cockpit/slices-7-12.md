@@ -4,15 +4,13 @@ Detailed later build slices for the task-first `Engagements` cockpit.
 
 ## Slice 7: `Engagements` Home And Navigation Shell
 
-Status: not started.
+Status: in progress.
 
 Repo status check:
 
-- The current operator shell still routes the engagement entrypoint to the old
-  engagement home and candidate-review surfaces.
-- There is no `Engagements` home renderer for the four task-first home states.
-- The new `op:approve`, `op:issues`, `op:engs`, `op:sent`, and `op:add`
-  callbacks are not wired anywhere yet.
+- `/engagement` already renders the task-first `Engagements` home from the cockpit read model.
+- The task-first `op:approve`, `op:issues`, `op:engs`, `op:sent`, and `op:add` callbacks are already wired in the callback router.
+- Legacy `eng:home` compatibility callbacks and older back targets still exist, so the cutover shim must keep `eng:home` aligned with the task-first renderer.
 
 Work items:
 
@@ -68,8 +66,8 @@ Rollout notes:
 - Gate this slice behind completed downstream controllers; do not make
   `Engagements` the primary shell until `Approve draft`, `Top issues`,
   `My engagements`, detail, and sent-feed screens are real.
-- Keep `/engagement` or any equivalent primary operator shortcut pointing to one
-  shell only.
+- Keep `/engagement` or any equivalent primary operator shortcut pointing to one shell only.
+- Keep `eng:home` as a compatibility alias to the same task-first home until later legacy callback cleanup removes the old identifier entirely.
 
 ## Slice 8: Wizard UI And Edit Reentry
 

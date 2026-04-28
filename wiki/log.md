@@ -1476,3 +1476,9 @@ while preserving the staged testing contract.
 
 - Replaced the `min(uuid)` aggregate in `20260428_0013_task_first_engagements` with a text-cast aggregate so Postgres can backfill single-topic engagements during deploy.
 - Added a regression test that compiles the migration query against the PostgreSQL dialect and asserts the UUID aggregate does not return.
+
+## [2026-04-28] fix | Cut engagement home callbacks over to the task-first cockpit
+
+- Routed legacy `eng:home` callback traffic to the same task-first cockpit home used by `/engagement` so callback navigation no longer falls back to the older engagement home.
+- Added bot-handler regression coverage proving `eng:home` renders the task-first `Engagements` home instead of rebuilding legacy candidate counts.
+- Updated the Slice 7 plan shard to reflect that the task-first home and `op:*` callback family are already wired, with `eng:home` kept only as a compatibility alias for remaining legacy navigation buttons.
