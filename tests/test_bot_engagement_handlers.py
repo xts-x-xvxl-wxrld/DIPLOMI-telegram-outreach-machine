@@ -492,7 +492,7 @@ class _FakeApiClient:
             {"target_ref": target_ref, "added_by": added_by, "notes": notes}
         )
         return {
-            **self.targets[0],
+            **self.targets[2],
             "id": "target-created",
             "submitted_ref": f"username:{target_ref.lstrip('@')}",
         }

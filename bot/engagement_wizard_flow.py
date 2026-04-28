@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from .runtime import *
+from .engagement_wizard_target_flow import prepare_wizard_target_state
 
 
 # ---------------------------------------------------------------------------
@@ -131,54 +132,17 @@ async def _wizard_resolve_target(
     operator_id: int,
     raw_ref: str,
 ) -> None:
-    client = _api_client(context)
-    reviewer = _reviewer_label(update)
-
-    # First resolve the target reference into a target record
-    try:
-        target_data = await client.create_engagement_target(
-            target_ref=raw_ref,
-            added_by=reviewer,
-            operator_user_id=operator_id,
-        )
-    except BotApiError as exc:
-        await _reply(update, f"Couldn't add that community: {exc.message}\n\nTry again or /cancel_edit.")
+    state, message = await prepare_wizard_target_state(
+        update,
+        context,
+        operator_id=operator_id,
+        raw_ref=raw_ref,
+    )
+    if message is not None:
+        if state is None:
+            _config_edit_store(context).cancel(operator_id)
+        await _reply(update, message)
         return
-
-    target_id = str(target_data.get("id") or "")
-    target_status = str(target_data.get("status") or "pending")
-    target_ref_saved = str(target_data.get("submitted_ref") or raw_ref)
-
-    if target_status == "approved":
-        _config_edit_store(context).cancel(operator_id)
-        await _reply(
-            update,
-            f"✅ {target_ref_saved} is already active in the engagement system. Use /engagement to open the cockpit.",
-        )
-        return
-
-    # Create the draft engagement
-    try:
-        eng_data = await client.create_engagement(
-            target_id=target_id,
-            created_by=reviewer,
-        )
-    except BotApiError as exc:
-        await _reply(update, f"Couldn't create engagement: {exc.message}\n\nTry again or /cancel_edit.")
-        return
-
-    engagement = eng_data.get("engagement") or eng_data
-    engagement_id = str(engagement.get("id") or "")
-
-    state: dict[str, Any] = {
-        "engagement_id": engagement_id,
-        "target_id": target_id,
-        "target_ref": target_ref_saved,
-        "topic_id": None,
-        "account_id": None,
-        "mode": None,
-        "return_callback": None,
-    }
     _config_edit_store(context).set_value(
         operator_id,
         raw_value=raw_ref,

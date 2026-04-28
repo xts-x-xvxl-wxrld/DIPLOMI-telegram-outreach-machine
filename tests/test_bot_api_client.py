@@ -978,7 +978,6 @@ async def test_engagement_cockpit_read_methods_use_task_first_routes() -> None:
     ]
 
 
-@pytest.mark.asyncio
 async def test_engagement_cockpit_mutation_methods_use_semantic_routes() -> None:
     seen: list[tuple[str, str, dict[str, Any] | None]] = []
 

@@ -844,7 +844,7 @@ class BotApiClient(AccountApiClientMixin, SearchApiClientMixin):
     ) -> dict[str, Any]:
         return await self._request(
             "POST",
-            "/api/engagements",
+            "/engagements",
             json={"target_id": target_id, "created_by": created_by},
         )
 
@@ -862,7 +862,7 @@ class BotApiClient(AccountApiClientMixin, SearchApiClientMixin):
             payload["name"] = name
         return await self._request(
             "PATCH",
-            f"/api/engagements/{engagement_id}",
+            f"/engagements/{engagement_id}",
             json=payload,
         )
 
@@ -880,7 +880,7 @@ class BotApiClient(AccountApiClientMixin, SearchApiClientMixin):
             payload["mode"] = mode
         return await self._request(
             "PUT",
-            f"/api/engagements/{engagement_id}/settings",
+            f"/engagements/{engagement_id}/settings",
             json=payload,
         )
 
@@ -895,7 +895,7 @@ class BotApiClient(AccountApiClientMixin, SearchApiClientMixin):
             payload["requested_by"] = requested_by
         return await self._request(
             "POST",
-            f"/api/engagements/{engagement_id}/wizard-confirm",
+            f"/engagements/{engagement_id}/wizard-confirm",
             json=payload,
         )
 
@@ -905,7 +905,7 @@ class BotApiClient(AccountApiClientMixin, SearchApiClientMixin):
     ) -> dict[str, Any]:
         return await self._request(
             "POST",
-            f"/api/engagements/{engagement_id}/wizard-retry",
+            f"/engagements/{engagement_id}/wizard-retry",
             json={},
         )
 
