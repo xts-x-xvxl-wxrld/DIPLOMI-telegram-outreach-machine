@@ -12,11 +12,27 @@ from .ui_common import (
 )
 
 
+# ---------------------------------------------------------------------------
+# Step 1: target prompt — no markup needed (user types text)
+# ---------------------------------------------------------------------------
+
+
+def engagement_wizard_step1_markup():
+    """Cancel button only for Step 1 (target entry)."""
+    rows: list[list[object]] = []
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))
+
+
+# ---------------------------------------------------------------------------
+# Step 2: topic picker (single-select)
+# ---------------------------------------------------------------------------
+
+
 def engagement_wizard_topics_markup(
     topics: Sequence[dict[str, object]],
     *,
-    selected_ids: Sequence[str],
-    community_id: str,
+    selected_id: str | None = None,
+    engagement_id: str,
     has_selection: bool = False,
 ):
     rows = []
@@ -25,18 +41,24 @@ def engagement_wizard_topics_markup(
         if not topic_id:
             continue
         name = str(topic.get("name") or topic_id)
-        checked = "✓ " if topic_id in selected_ids else "☐ "
-        rows.append([_button(f"{checked}{_compact_label(name, 30)}", ACTION_ENGAGEMENT_WIZARD, "tp", topic_id)])
-    rows.append([_button("➕ Create new topic", ACTION_ENGAGEMENT_WIZARD, "tn")])
+        checked = "✓ " if topic_id == selected_id else "☐ "
+        rows.append(
+            [_button(f"{checked}{_compact_label(name, 30)}", ACTION_ENGAGEMENT_WIZARD, "tp", topic_id, engagement_id)]
+        )
     if has_selection:
-        rows.append([_button("Continue →", ACTION_ENGAGEMENT_WIZARD, "step", "3", community_id)])
+        rows.append([_button("Continue →", ACTION_ENGAGEMENT_WIZARD, "step", "3", engagement_id)])
     return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))
+
+
+# ---------------------------------------------------------------------------
+# Step 3: account picker
+# ---------------------------------------------------------------------------
 
 
 def engagement_wizard_accounts_markup(
     accounts: Sequence[dict[str, object]],
     *,
-    community_id: str,
+    engagement_id: str,
 ):
     rows = []
     for account in accounts:
@@ -44,27 +66,66 @@ def engagement_wizard_accounts_markup(
         if not acct_id:
             continue
         phone = str(account.get("phone") or acct_id)
-        rows.append([_button(f"📲 {phone}", ACTION_ENGAGEMENT_WIZARD, "ap", acct_id)])
-    rows.append([_button("➕ Add new account", ACTION_ENGAGEMENT_WIZARD, "an", community_id)])
+        rows.append([_button(f"📲 {phone}", ACTION_ENGAGEMENT_WIZARD, "ap", acct_id, engagement_id)])
     return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))
 
 
-def engagement_wizard_level_markup(community_id: str):
+# ---------------------------------------------------------------------------
+# Step 4: mode picker
+# ---------------------------------------------------------------------------
+
+
+def engagement_wizard_level_markup(engagement_id: str):
     rows = [
         [
-            _button("👀 Watching", ACTION_ENGAGEMENT_WIZARD, "lv", "watching", community_id),
-            _button("✍ Suggesting", ACTION_ENGAGEMENT_WIZARD, "lv", "suggesting", community_id),
-            _button("📤 Sending", ACTION_ENGAGEMENT_WIZARD, "lv", "sending", community_id),
+            _button("👀 Watching", ACTION_ENGAGEMENT_WIZARD, "lv", "watching", engagement_id),
+            _button("✍ Suggesting", ACTION_ENGAGEMENT_WIZARD, "lv", "suggesting", engagement_id),
+            _button("📤 Sending", ACTION_ENGAGEMENT_WIZARD, "lv", "sending", engagement_id),
         ],
     ]
     return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))
 
 
-def engagement_wizard_launch_markup(community_id: str):
-    rows = [[_button("🚀 Start engagement", ACTION_ENGAGEMENT_WIZARD, "go", community_id)]]
+# ---------------------------------------------------------------------------
+# Step 5: review + confirm
+# ---------------------------------------------------------------------------
+
+
+def engagement_wizard_launch_markup(engagement_id: str):
+    rows = [
+        [_button("🚀 Confirm", ACTION_ENGAGEMENT_WIZARD, "confirm", engagement_id)],
+        [
+            _button("✏ Topic", ACTION_ENGAGEMENT_WIZARD, "edit", engagement_id, "topic"),
+            _button("✏ Account", ACTION_ENGAGEMENT_WIZARD, "edit", engagement_id, "account"),
+            _button("✏ Mode", ACTION_ENGAGEMENT_WIZARD, "edit", engagement_id, "mode"),
+        ],
+        [_button("✖ Cancel", ACTION_ENGAGEMENT_WIZARD, "cancel", engagement_id)],
+    ]
     return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))
 
 
-def engagement_wizard_retry_markup(community_id: str):
-    rows = [[_button("🔁 Retry", ACTION_ENGAGEMENT_WIZARD, "retry", community_id)]]
+# ---------------------------------------------------------------------------
+# Retry markup (shown after validation/stale failure)
+# ---------------------------------------------------------------------------
+
+
+def engagement_wizard_retry_markup(engagement_id: str):
+    rows = [
+        [_button("🔁 Retry", ACTION_ENGAGEMENT_WIZARD, "retry", engagement_id)],
+    ]
+    return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))
+
+
+# ---------------------------------------------------------------------------
+# Cancel confirmation markup
+# ---------------------------------------------------------------------------
+
+
+def engagement_wizard_cancel_confirm_markup(engagement_id: str):
+    rows = [
+        [
+            _button("Yes, cancel", ACTION_ENGAGEMENT_WIZARD, "cancel_yes", engagement_id),
+            _button("No, continue", ACTION_ENGAGEMENT_WIZARD, "step", "5", engagement_id),
+        ],
+    ]
     return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME))

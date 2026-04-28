@@ -95,4 +95,4 @@ async def test_target_add_callback_starts_wizard() -> None:
     pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
     assert pending is not None
     assert pending.entity == "wizard"
-    assert pending.flow_step == "community"
+    assert pending.flow_step == "target"

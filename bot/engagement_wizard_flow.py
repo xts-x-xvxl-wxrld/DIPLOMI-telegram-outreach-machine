@@ -6,6 +6,10 @@ from typing import Any
 from .runtime import *
 
 
+# ---------------------------------------------------------------------------
+# Mode mapping: wizard "level" labels → API mode values
+# ---------------------------------------------------------------------------
+
 _WIZARD_LEVEL_MODE = {
     "watching": "observe",
     "suggesting": "suggest",
@@ -13,23 +17,36 @@ _WIZARD_LEVEL_MODE = {
 }
 
 
-def _wizard_return_save(context: Any, operator_id: int, state: dict[str, Any]) -> None:
-    store = context.application.bot_data.setdefault(WIZARD_RETURN_STORE_KEY, {})
-    store[operator_id] = dict(state)
-
-
-def _wizard_return_pop(context: Any, operator_id: int) -> dict[str, Any] | None:
-    store = context.application.bot_data.get(WIZARD_RETURN_STORE_KEY) or {}
-    return store.pop(operator_id, None)
+# ---------------------------------------------------------------------------
+# Wizard state helpers
+# New state shape: {engagement_id, target_id, topic_id, account_id, mode,
+#                   target_ref, return_callback}
+# ---------------------------------------------------------------------------
 
 
 def _wizard_state(pending: Any) -> dict[str, Any]:
     return dict(pending.flow_state or {})
 
 
-def _wizard_topic_ids(state: dict[str, Any]) -> list[str]:
-    ids = state.get("topic_ids")
-    return list(ids) if ids else []
+def _wizard_state_engagement_id(state: dict[str, Any]) -> str:
+    return str(state.get("engagement_id") or "")
+
+
+def _wizard_state_topic_id(state: dict[str, Any]) -> str | None:
+    return state.get("topic_id") or None
+
+
+def _wizard_state_account_id(state: dict[str, Any]) -> str | None:
+    return state.get("account_id") or None
+
+
+def _wizard_state_mode(state: dict[str, Any]) -> str | None:
+    return state.get("mode") or None
+
+
+# ---------------------------------------------------------------------------
+# Start / entry points
+# ---------------------------------------------------------------------------
 
 
 async def _start_engagement_wizard(
@@ -42,6 +59,7 @@ async def _start_engagement_wizard(
     if operator_id is None:
         await _reply(update, "Telegram did not include a user ID on this update.")
         return
+
     editable = editable_field("wizard", "state")
     if editable is None:
         await _reply(update, "Wizard is not available right now.")
@@ -52,52 +70,73 @@ async def _start_engagement_wizard(
         if not _looks_like_telegram_reference(target_ref):
             await _reply(update, "That doesn't look like a @handle or t.me/... link.")
             return
-        pending = _config_edit_store(context).start(
+        _config_edit_store(context).start(
             operator_id=operator_id,
             field=editable,
             object_id="new",
-            flow_step="community",
-            flow_state={"community_id": None, "target_id": None, "community_ref": None,
-                        "topic_ids": [], "account_id": None, "level": None},
+            flow_step="target",
+            flow_state=_fresh_wizard_state(),
         )
-        await _wizard_resolve_community(update, context, operator_id, pending, target_ref)
+        await _wizard_resolve_target(update, context, operator_id, target_ref)
         return
 
     # Check for resumable state
     existing = _config_edit_store(context).get(operator_id)
     if existing and existing.entity == "wizard":
         state = _wizard_state(existing)
-        if state.get("community_id"):
+        if state.get("engagement_id"):
             await _wizard_show_appropriate_step(update, context, operator_id, state)
             return
 
     # Start fresh
-    pending = _config_edit_store(context).start(
+    _config_edit_store(context).start(
         operator_id=operator_id,
         field=editable,
         object_id="new",
-        flow_step="community",
-        flow_state={"community_id": None, "target_id": None, "community_ref": None,
-                    "topic_ids": [], "account_id": None, "level": None},
+        flow_step="target",
+        flow_state=_fresh_wizard_state(),
     )
     await _show_wizard_step1(update, context)
+
+
+def _fresh_wizard_state() -> dict[str, Any]:
+    return {
+        "engagement_id": None,
+        "target_id": None,
+        "target_ref": None,
+        "topic_id": None,
+        "account_id": None,
+        "mode": None,
+        "return_callback": None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Step 1: Target entry
+# ---------------------------------------------------------------------------
 
 
 async def _show_wizard_step1(update: Any, context: Any) -> None:
     await _callback_reply(update, format_wizard_community_prompt())
 
 
-async def _wizard_resolve_community(
+# ---------------------------------------------------------------------------
+# Step 1 → resolve target → create engagement
+# ---------------------------------------------------------------------------
+
+
+async def _wizard_resolve_target(
     update: Any,
     context: Any,
     operator_id: int,
-    pending: Any,
     raw_ref: str,
 ) -> None:
     client = _api_client(context)
     reviewer = _reviewer_label(update)
+
+    # First resolve the target reference into a target record
     try:
-        data = await client.create_engagement_target(
+        target_data = await client.create_engagement_target(
             target_ref=raw_ref,
             added_by=reviewer,
             operator_user_id=operator_id,
@@ -106,23 +145,39 @@ async def _wizard_resolve_community(
         await _reply(update, f"Couldn't add that community: {exc.message}\n\nTry again or /cancel_edit.")
         return
 
-    target_id = str(data.get("id") or "")
-    community_id = str(data.get("community_id") or target_id)
-    status = str(data.get("status") or "pending")
-    community_ref = str(data.get("submitted_ref") or raw_ref)
+    target_id = str(target_data.get("id") or "")
+    target_status = str(target_data.get("status") or "pending")
+    target_ref_saved = str(target_data.get("submitted_ref") or raw_ref)
 
-    if status == "approved":
+    if target_status == "approved":
         _config_edit_store(context).cancel(operator_id)
-        await _reply(update, f"✅ {community_ref} is already active in the engagement system. Use /engagement to open the cockpit.")
+        await _reply(
+            update,
+            f"✅ {target_ref_saved} is already active in the engagement system. Use /engagement to open the cockpit.",
+        )
         return
 
+    # Create the draft engagement
+    try:
+        eng_data = await client.create_engagement(
+            target_id=target_id,
+            created_by=reviewer,
+        )
+    except BotApiError as exc:
+        await _reply(update, f"Couldn't create engagement: {exc.message}\n\nTry again or /cancel_edit.")
+        return
+
+    engagement = eng_data.get("engagement") or eng_data
+    engagement_id = str(engagement.get("id") or "")
+
     state: dict[str, Any] = {
-        "community_id": community_id,
+        "engagement_id": engagement_id,
         "target_id": target_id,
-        "community_ref": community_ref,
-        "topic_ids": [],
+        "target_ref": target_ref_saved,
+        "topic_id": None,
         "account_id": None,
-        "level": None,
+        "mode": None,
+        "return_callback": None,
     }
     _config_edit_store(context).set_value(
         operator_id,
@@ -134,30 +189,44 @@ async def _wizard_resolve_community(
     await _show_wizard_step2(update, context, state)
 
 
+# ---------------------------------------------------------------------------
+# Step 2: Topic picker
+# ---------------------------------------------------------------------------
+
+
 async def _show_wizard_step2(update: Any, context: Any, state: dict[str, Any]) -> None:
     client = _api_client(context)
-    community_ref = str(state.get("community_ref") or state.get("community_id") or "")
-    selected_ids = _wizard_topic_ids(state)
+    target_ref = str(state.get("target_ref") or state.get("target_id") or "")
+    engagement_id = _wizard_state_engagement_id(state)
+    selected_id = _wizard_state_topic_id(state)
     try:
         data = await client.list_engagement_topics()
     except BotApiError as exc:
         await _callback_reply(update, f"Couldn't load topics: {exc.message}")
         return
     topics = data.get("items") or []
-    community_id = str(state.get("community_id") or "")
     markup = engagement_wizard_topics_markup(
         topics,
-        selected_ids=selected_ids,
-        community_id=community_id,
-        has_selection=bool(selected_ids),
+        selected_id=selected_id,
+        engagement_id=engagement_id,
+        has_selection=bool(selected_id),
     )
-    await _callback_reply(update, format_wizard_topics_prompt(topics, community_ref=community_ref, selected_ids=selected_ids), reply_markup=markup)
+    await _callback_reply(
+        update,
+        format_wizard_topics_prompt(topics, community_ref=target_ref, selected_ids=[selected_id] if selected_id else []),
+        reply_markup=markup,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Step 3: Account picker
+# ---------------------------------------------------------------------------
 
 
 async def _show_wizard_step3(update: Any, context: Any, state: dict[str, Any]) -> None:
     client = _api_client(context)
-    community_ref = str(state.get("community_ref") or state.get("community_id") or "")
-    community_id = str(state.get("community_id") or "")
+    target_ref = str(state.get("target_ref") or state.get("target_id") or "")
+    engagement_id = _wizard_state_engagement_id(state)
     try:
         data = await client.get_accounts()
     except BotApiError as exc:
@@ -171,44 +240,68 @@ async def _show_wizard_step3(update: Any, context: Any, state: dict[str, Any]) -
     if len(engagement_accounts) == 0:
         await _callback_reply(
             update,
-            format_wizard_account_prompt([], community_ref=community_ref),
-            reply_markup=engagement_wizard_accounts_markup([], community_id=community_id),
+            format_wizard_account_prompt([], community_ref=target_ref),
+            reply_markup=engagement_wizard_accounts_markup([], engagement_id=engagement_id),
         )
         return
     if len(engagement_accounts) == 1:
         await _wizard_pick_account(update, context, str(engagement_accounts[0].get("id") or ""), state)
         return
-    markup = engagement_wizard_accounts_markup(engagement_accounts, community_id=community_id)
-    await _callback_reply(update, format_wizard_account_prompt(engagement_accounts, community_ref=community_ref), reply_markup=markup)
-
-
-async def _show_wizard_step4(update: Any, context: Any, state: dict[str, Any]) -> None:
-    community_ref = str(state.get("community_ref") or state.get("community_id") or "")
-    community_id = str(state.get("community_id") or "")
-    topic_ids = _wizard_topic_ids(state)
-    topic_names = list(topic_ids)  # fallback; ideally fetched, but we only have IDs here
+    markup = engagement_wizard_accounts_markup(engagement_accounts, engagement_id=engagement_id)
     await _callback_reply(
         update,
-        format_wizard_level_prompt(community_ref=community_ref, selected_topics=topic_names),
-        reply_markup=engagement_wizard_level_markup(community_id),
+        format_wizard_account_prompt(engagement_accounts, community_ref=target_ref),
+        reply_markup=markup,
     )
 
 
-async def _show_wizard_step5(update: Any, context: Any, state: dict[str, Any]) -> None:
-    community_ref = str(state.get("community_ref") or state.get("community_id") or "")
-    community_id = str(state.get("community_id") or "")
-    topic_ids = _wizard_topic_ids(state)
-    account_id = str(state.get("account_id") or "")
-    level = str(state.get("level") or "suggesting")
+# ---------------------------------------------------------------------------
+# Step 4: Mode picker
+# ---------------------------------------------------------------------------
+
+
+async def _show_wizard_step4(update: Any, context: Any, state: dict[str, Any]) -> None:
+    target_ref = str(state.get("target_ref") or state.get("target_id") or "")
+    engagement_id = _wizard_state_engagement_id(state)
+    topic_id = _wizard_state_topic_id(state)
+    topic_names: list[str] = [topic_id] if topic_id else []
+    # Try to resolve topic name
     client = _api_client(context)
-    topic_names: list[str] = []
-    account_phone = account_id
     try:
         topics_data = await client.list_engagement_topics()
         topics_by_id = {str(t.get("id") or ""): str(t.get("name") or "") for t in (topics_data.get("items") or [])}
-        topic_names = [topics_by_id.get(tid, tid) for tid in topic_ids]
+        topic_names = [topics_by_id.get(tid, tid) for tid in ([topic_id] if topic_id else [])]
     except BotApiError:
-        topic_names = topic_ids
+        pass
+    await _callback_reply(
+        update,
+        format_wizard_level_prompt(community_ref=target_ref, selected_topics=topic_names),
+        reply_markup=engagement_wizard_level_markup(engagement_id),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Step 5: Review + confirm
+# ---------------------------------------------------------------------------
+
+
+async def _show_wizard_step5(update: Any, context: Any, state: dict[str, Any]) -> None:
+    target_ref = str(state.get("target_ref") or state.get("target_id") or "")
+    engagement_id = _wizard_state_engagement_id(state)
+    topic_id = _wizard_state_topic_id(state)
+    account_id = _wizard_state_account_id(state)
+    mode = _wizard_state_mode(state) or "suggesting"
+    client = _api_client(context)
+    # Resolve topic name
+    topic_names: list[str] = [topic_id] if topic_id else []
+    account_phone = account_id or ""
+    try:
+        topics_data = await client.list_engagement_topics()
+        topics_by_id = {str(t.get("id") or ""): str(t.get("name") or "") for t in (topics_data.get("items") or [])}
+        topic_names = [topics_by_id.get(tid, tid) for tid in ([topic_id] if topic_id else [])]
+    except BotApiError:
+        pass
+    # Resolve account phone
     try:
         accounts_data = await client.get_accounts()
         for acct in (accounts_data.get("items") or []):
@@ -217,17 +310,22 @@ async def _show_wizard_step5(update: Any, context: Any, state: dict[str, Any]) -
                 break
     except BotApiError:
         pass
-    markup = engagement_wizard_launch_markup(community_id)
+    markup = engagement_wizard_launch_markup(engagement_id)
     await _callback_reply(
         update,
         format_wizard_launch_card(
-            community_ref=community_ref,
+            community_ref=target_ref,
             topic_names=topic_names,
-            account_phone=account_phone,
-            level=level,
+            account_phone=account_phone or "(none)",
+            level=mode,
         ),
         reply_markup=markup,
     )
+
+
+# ---------------------------------------------------------------------------
+# Step routing
+# ---------------------------------------------------------------------------
 
 
 async def _wizard_show_appropriate_step(
@@ -236,24 +334,29 @@ async def _wizard_show_appropriate_step(
     operator_id: int,
     state: dict[str, Any],
 ) -> None:
-    community_id = str(state.get("community_id") or "")
-    topic_ids = _wizard_topic_ids(state)
-    account_id = state.get("account_id")
-    level = state.get("level")
+    engagement_id = _wizard_state_engagement_id(state)
+    topic_id = _wizard_state_topic_id(state)
+    account_id = _wizard_state_account_id(state)
+    mode = _wizard_state_mode(state)
 
-    if not community_id:
+    if not engagement_id:
         await _show_wizard_step1(update, context)
         return
-    if not topic_ids:
+    if not topic_id:
         await _show_wizard_step2(update, context, state)
         return
     if not account_id:
         await _show_wizard_step3(update, context, state)
         return
-    if not level:
+    if not mode:
         await _show_wizard_step4(update, context, state)
         return
     await _show_wizard_step5(update, context, state)
+
+
+# ---------------------------------------------------------------------------
+# Text handler (Step 1: user types target URL/handle)
+# ---------------------------------------------------------------------------
 
 
 async def _handle_wizard_text(
@@ -266,8 +369,8 @@ async def _handle_wizard_text(
     if operator_id is None:
         return False
 
-    step = pending.flow_step or "community"
-    if step != "community":
+    step = pending.flow_step or "target"
+    if step != "target":
         await _reply(update, "Use the buttons to continue the wizard, or /cancel_edit to stop.")
         return True
 
@@ -279,8 +382,13 @@ async def _handle_wizard_text(
         )
         return True
 
-    await _wizard_resolve_community(update, context, operator_id, pending, text)
+    await _wizard_resolve_target(update, context, operator_id, text)
     return True
+
+
+# ---------------------------------------------------------------------------
+# Callback handler
+# ---------------------------------------------------------------------------
 
 
 async def _handle_wizard_callback(update: Any, context: Any, parts: list[str]) -> None:
@@ -295,48 +403,71 @@ async def _handle_wizard_callback(update: Any, context: Any, parts: list[str]) -
         await _start_engagement_wizard(update, context)
         return
 
+    # eng:wz:edit:<engagement_id>:<field>  → edit-reentry
+    if sub == "edit" and len(parts) >= 3:
+        engagement_id = parts[1]
+        field = parts[2]
+        await _handle_wizard_edit_reentry(update, context, operator_id, engagement_id, field)
+        return
+
+    # eng:wz:step:<step>:<engagement_id>
     if sub == "step" and len(parts) >= 3:
         step_num = parts[1]
-        community_id = parts[2]
-        await _handle_wizard_navigate_step(update, context, operator_id, step_num, community_id)
+        engagement_id = parts[2]
+        await _handle_wizard_navigate_step(update, context, operator_id, step_num, engagement_id)
         return
 
-    if sub == "tp" and len(parts) >= 2:
+    # eng:wz:tp:<topic_id>:<engagement_id>
+    if sub == "tp" and len(parts) >= 3:
         topic_id = parts[1]
-        await _handle_wizard_toggle_topic(update, context, operator_id, topic_id)
+        engagement_id = parts[2]
+        await _handle_wizard_pick_topic(update, context, operator_id, topic_id, engagement_id)
         return
 
-    if sub == "tn":
-        await _handle_wizard_topic_new(update, context, operator_id)
-        return
-
-    if sub == "ap" and len(parts) >= 2:
+    # eng:wz:ap:<account_id>:<engagement_id>
+    if sub == "ap" and len(parts) >= 3:
         account_id = parts[1]
-        await _handle_wizard_account_pick(update, context, operator_id, account_id)
+        engagement_id = parts[2]
+        await _handle_wizard_account_pick(update, context, operator_id, account_id, engagement_id)
         return
 
-    if sub == "an" and len(parts) >= 2:
-        community_id = parts[1]
-        await _callback_reply(update, "Add an engagement account with /add_account, then restart the wizard.")
-        return
-
+    # eng:wz:lv:<mode>:<engagement_id>
     if sub == "lv" and len(parts) >= 3:
         level = parts[1]
-        community_id = parts[2]
-        await _handle_wizard_level(update, context, operator_id, level, community_id)
+        engagement_id = parts[2]
+        await _handle_wizard_level(update, context, operator_id, level, engagement_id)
         return
 
-    if sub == "go" and len(parts) >= 2:
-        community_id = parts[1]
-        await _handle_wizard_launch(update, context, operator_id, community_id)
+    # eng:wz:confirm:<engagement_id>
+    if sub == "confirm" and len(parts) >= 2:
+        engagement_id = parts[1]
+        await _handle_wizard_confirm(update, context, operator_id, engagement_id)
         return
 
+    # eng:wz:retry:<engagement_id>
     if sub == "retry" and len(parts) >= 2:
-        community_id = parts[1]
-        await _handle_wizard_launch(update, context, operator_id, community_id)
+        engagement_id = parts[1]
+        await _handle_wizard_retry(update, context, operator_id, engagement_id)
+        return
+
+    # eng:wz:cancel:<engagement_id>
+    if sub == "cancel" and len(parts) >= 2:
+        engagement_id = parts[1]
+        await _handle_wizard_cancel_prompt(update, context, operator_id, engagement_id)
+        return
+
+    # eng:wz:cancel_yes:<engagement_id>
+    if sub == "cancel_yes" and len(parts) >= 2:
+        _config_edit_store(context).cancel(operator_id)
+        await _edit_callback_message(update, "Wizard cancelled. Use /add_engagement_target to start again.")
         return
 
     await _callback_reply(update, "Unknown wizard action.")
+
+
+# ---------------------------------------------------------------------------
+# Navigate by step number
+# ---------------------------------------------------------------------------
 
 
 async def _handle_wizard_navigate_step(
@@ -344,7 +475,7 @@ async def _handle_wizard_navigate_step(
     context: Any,
     operator_id: int,
     step_num: str,
-    community_id: str,
+    engagement_id: str,
 ) -> None:
     pending = _config_edit_store(context).get(operator_id)
     if pending is None or pending.entity != "wizard":
@@ -355,14 +486,11 @@ async def _handle_wizard_navigate_step(
     if n == "2":
         await _show_wizard_step2(update, context, state)
     elif n == "3":
-        topic_ids = _wizard_topic_ids(state)
-        if not topic_ids:
-            await _callback_reply(update, "Pick at least one topic first.")
+        topic_id = _wizard_state_topic_id(state)
+        if not topic_id:
+            await _callback_reply(update, "Pick a topic first.")
             return
-        # Force selected topics active
-        await _wizard_activate_topics(update, context, operator_id, topic_ids)
-        state_updated = _wizard_state(_config_edit_store(context).get(operator_id) or pending)
-        await _show_wizard_step3(update, context, state_updated)
+        await _show_wizard_step3(update, context, state)
     elif n == "4":
         await _show_wizard_step4(update, context, state)
     elif n == "5":
@@ -371,56 +499,52 @@ async def _handle_wizard_navigate_step(
         await _show_wizard_step1(update, context)
 
 
-async def _wizard_activate_topics(
-    update: Any,
-    context: Any,
-    operator_id: int,
-    topic_ids: list[str],
-) -> None:
-    client = _api_client(context)
-    for topic_id in topic_ids:
-        try:
-            await client.update_engagement_topic(
-                topic_id,
-                active=True,
-                operator_user_id=operator_id,
-            )
-        except BotApiError:
-            pass  # Best-effort; don't block wizard for this
+# ---------------------------------------------------------------------------
+# Pick topic (single-select) and PATCH engagement
+# ---------------------------------------------------------------------------
 
 
-async def _handle_wizard_toggle_topic(
+async def _handle_wizard_pick_topic(
     update: Any,
     context: Any,
     operator_id: int,
     topic_id: str,
+    engagement_id: str,
 ) -> None:
     pending = _config_edit_store(context).get(operator_id)
     if pending is None or pending.entity != "wizard":
         await _callback_reply(update, "Wizard session expired. Use /add_engagement_target to start again.")
         return
     state = _wizard_state(pending)
-    topic_ids = _wizard_topic_ids(state)
-    if topic_id in topic_ids:
-        topic_ids.remove(topic_id)
+
+    # Toggle: if already selected → deselect; else select
+    current_topic = _wizard_state_topic_id(state)
+    if current_topic == topic_id:
+        state["topic_id"] = None
+        has_selection = False
     else:
-        topic_ids.append(topic_id)
-    state["topic_ids"] = topic_ids
+        state["topic_id"] = topic_id
+        has_selection = True
+
     _config_edit_store(context).set_value(
         operator_id,
-        raw_value="",
+        raw_value=topic_id,
         parsed_value=None,
         flow_step="topics",
         flow_state=state,
     )
-    await _show_wizard_step2_edit(update, context, state)
 
+    # Save to backend if a topic was selected
+    if has_selection:
+        client = _api_client(context)
+        try:
+            await client.patch_engagement(engagement_id, topic_id=topic_id)
+        except BotApiError:
+            pass  # Non-fatal; state already saved locally
 
-async def _show_wizard_step2_edit(update: Any, context: Any, state: dict[str, Any]) -> None:
+    # Re-render the topic picker in-place
     client = _api_client(context)
-    community_ref = str(state.get("community_ref") or state.get("community_id") or "")
-    community_id = str(state.get("community_id") or "")
-    selected_ids = _wizard_topic_ids(state)
+    target_ref = str(state.get("target_ref") or state.get("target_id") or "")
     try:
         data = await client.list_engagement_topics()
     except BotApiError as exc:
@@ -429,40 +553,25 @@ async def _show_wizard_step2_edit(update: Any, context: Any, state: dict[str, An
     topics = data.get("items") or []
     markup = engagement_wizard_topics_markup(
         topics,
-        selected_ids=selected_ids,
-        community_id=community_id,
-        has_selection=bool(selected_ids),
+        selected_id=state["topic_id"],
+        engagement_id=engagement_id,
+        has_selection=has_selection,
     )
+    selected_id_val = state["topic_id"]
     await _edit_callback_message(
         update,
-        format_wizard_topics_prompt(topics, community_ref=community_ref, selected_ids=selected_ids),
+        format_wizard_topics_prompt(
+            topics,
+            community_ref=target_ref,
+            selected_ids=[selected_id_val] if selected_id_val else [],
+        ),
         reply_markup=markup,
     )
 
 
-async def _handle_wizard_topic_new(
-    update: Any,
-    context: Any,
-    operator_id: int,
-) -> None:
-    pending = _config_edit_store(context).get(operator_id)
-    if pending is None or pending.entity != "wizard":
-        await _callback_reply(update, "Wizard session expired. Use /add_engagement_target to start again.")
-        return
-    wizard_state = _wizard_state(pending)
-    _wizard_return_save(context, operator_id, wizard_state)
-    editable = editable_field("topic_create", "payload")
-    if editable is None:
-        await _callback_reply(update, "Topic creation is not available right now.")
-        return
-    new_pending = _config_edit_store(context).start(
-        operator_id=operator_id,
-        field=editable,
-        object_id="new",
-        flow_step="name",
-        flow_state={},
-    )
-    await _callback_reply(update, render_edit_request(new_pending))
+# ---------------------------------------------------------------------------
+# Pick account and PUT engagement settings
+# ---------------------------------------------------------------------------
 
 
 async def _handle_wizard_account_pick(
@@ -470,13 +579,13 @@ async def _handle_wizard_account_pick(
     context: Any,
     operator_id: int,
     account_id: str,
+    engagement_id: str,
 ) -> None:
     pending = _config_edit_store(context).get(operator_id)
     if pending is None or pending.entity != "wizard":
         await _callback_reply(update, "Wizard session expired. Use /add_engagement_target to start again.")
         return
     state = _wizard_state(pending)
-    community_id = str(state.get("community_id") or "")
     state["account_id"] = account_id
     _config_edit_store(context).set_value(
         operator_id,
@@ -485,28 +594,29 @@ async def _handle_wizard_account_pick(
         flow_step="account",
         flow_state=state,
     )
-    await _callback_reply(update, "Joining community… ⏳")
+
+    # Save to backend
     client = _api_client(context)
-    # Update settings with assigned account
     try:
-        current = await client.get_engagement_settings(community_id)
-        payload = _engagement_settings_payload_from_current(
-            current,
-            assigned_account_id=account_id,
-            allow_join=True,
-        )
-        await client.update_engagement_settings(community_id, **payload, operator_user_id=operator_id)
+        await client.put_engagement_settings(engagement_id, assigned_account_id=account_id)
     except BotApiError as exc:
         await _reply(update, f"Couldn't assign account: {exc.message}")
-    # Trigger join
-    try:
-        await client.start_community_join(
-            community_id,
-            telegram_account_id=account_id,
-            requested_by=_reviewer_label(update),
+        # Non-fatal: continue wizard
+
+    # Check if we're in edit-reentry
+    return_callback = state.get("return_callback")
+    if return_callback:
+        state["return_callback"] = None
+        _config_edit_store(context).set_value(
+            operator_id,
+            raw_value=account_id,
+            parsed_value=None,
+            flow_step="review",
+            flow_state=state,
         )
-    except BotApiError:
-        pass  # join failure is non-fatal for wizard
+        await _show_wizard_step5(update, context, state)
+        return
+
     await _show_wizard_step4(update, context, state)
 
 
@@ -516,10 +626,17 @@ async def _wizard_pick_account(
     account_id: str,
     state: dict[str, Any],
 ) -> None:
+    """Auto-pick a single available account (no user interaction)."""
     operator_id = _telegram_user_id(update)
     if operator_id is None:
         return
-    await _handle_wizard_account_pick(update, context, operator_id, account_id)
+    engagement_id = _wizard_state_engagement_id(state)
+    await _handle_wizard_account_pick(update, context, operator_id, account_id, engagement_id)
+
+
+# ---------------------------------------------------------------------------
+# Pick mode and PUT engagement settings
+# ---------------------------------------------------------------------------
 
 
 async def _handle_wizard_level(
@@ -527,7 +644,7 @@ async def _handle_wizard_level(
     context: Any,
     operator_id: int,
     level: str,
-    community_id: str,
+    engagement_id: str,
 ) -> None:
     if level not in _WIZARD_LEVEL_MODE:
         await _callback_reply(update, f"Unknown level: {level}.")
@@ -537,85 +654,240 @@ async def _handle_wizard_level(
         await _callback_reply(update, "Wizard session expired. Use /add_engagement_target to start again.")
         return
     state = _wizard_state(pending)
-    state["level"] = level
+    state["mode"] = level
     _config_edit_store(context).set_value(
         operator_id,
         raw_value=level,
         parsed_value=None,
-        flow_step="level",
+        flow_step="mode",
         flow_state=state,
     )
+
     mode = _WIZARD_LEVEL_MODE[level]
-    allow_post = level == "sending"
     client = _api_client(context)
     try:
-        current = await client.get_engagement_settings(community_id)
-        payload = _engagement_settings_payload_from_current(
-            current,
-            mode=mode,
-            allow_join=True,
-            allow_post=allow_post,
-        )
-        await client.update_engagement_settings(community_id, **payload, operator_user_id=operator_id)
+        await client.put_engagement_settings(engagement_id, mode=mode)
     except BotApiError as exc:
-        await _callback_reply(update, f"Couldn't save level: {exc.message}")
+        await _callback_reply(update, f"Couldn't save mode: {exc.message}")
         return
-    target_id = str(state.get("target_id") or "")
-    if target_id:
-        try:
-            await client.update_engagement_target(
-                target_id,
-                allow_detect=True,
-                allow_join=True,
-                allow_post=allow_post,
-                operator_user_id=operator_id,
-            )
-        except BotApiError:
-            pass
+
+    # Check if we're in edit-reentry
+    return_callback = state.get("return_callback")
+    if return_callback:
+        state["return_callback"] = None
+        _config_edit_store(context).set_value(
+            operator_id,
+            raw_value=level,
+            parsed_value=None,
+            flow_step="review",
+            flow_state=state,
+        )
+        await _show_wizard_step5(update, context, state)
+        return
+
     await _show_wizard_step5(update, context, state)
 
 
-async def _handle_wizard_launch(
+# ---------------------------------------------------------------------------
+# Edit reentry: jump to a specific step with return_callback set
+# ---------------------------------------------------------------------------
+
+
+async def _handle_wizard_edit_reentry(
     update: Any,
     context: Any,
     operator_id: int,
-    community_id: str,
+    engagement_id: str,
+    field: str,
+) -> None:
+    editable = editable_field("wizard", "state")
+    if editable is None:
+        await _callback_reply(update, "Wizard is not available right now.")
+        return
+
+    # Try to get existing wizard state for this user/engagement
+    pending = _config_edit_store(context).get(operator_id)
+    if pending and pending.entity == "wizard":
+        state = _wizard_state(pending)
+        if _wizard_state_engagement_id(state) == engagement_id:
+            # Already in wizard for this engagement — just jump to the step
+            state["return_callback"] = f"eng:wz:step:5:{engagement_id}"
+            _config_edit_store(context).set_value(
+                operator_id,
+                raw_value="",
+                parsed_value=None,
+                flow_step=field,
+                flow_state=state,
+            )
+            if field == "topic":
+                await _show_wizard_step2(update, context, state)
+            elif field == "account":
+                await _show_wizard_step3(update, context, state)
+            elif field == "mode":
+                await _show_wizard_step4(update, context, state)
+            else:
+                await _show_wizard_step5(update, context, state)
+            return
+
+    # Start a new wizard session for editing existing engagement
+    state = {
+        "engagement_id": engagement_id,
+        "target_id": None,
+        "target_ref": engagement_id,  # placeholder until we can fetch
+        "topic_id": None,
+        "account_id": None,
+        "mode": None,
+        "return_callback": f"eng:wz:step:5:{engagement_id}",
+    }
+    _config_edit_store(context).start(
+        operator_id=operator_id,
+        field=editable,
+        object_id=engagement_id,
+        flow_step=field,
+        flow_state=state,
+    )
+    if field == "topic":
+        await _show_wizard_step2(update, context, state)
+    elif field == "account":
+        await _show_wizard_step3(update, context, state)
+    elif field == "mode":
+        await _show_wizard_step4(update, context, state)
+    else:
+        await _show_wizard_step5(update, context, state)
+
+
+# ---------------------------------------------------------------------------
+# Confirm (Step 5 → wizard-confirm endpoint)
+# ---------------------------------------------------------------------------
+
+
+async def _handle_wizard_confirm(
+    update: Any,
+    context: Any,
+    operator_id: int,
+    engagement_id: str,
 ) -> None:
     pending = _config_edit_store(context).get(operator_id)
     if pending is None or pending.entity != "wizard":
         await _callback_reply(update, "Wizard session expired. Use /add_engagement_target to start again.")
         return
-    state = _wizard_state(pending)
-    target_id = str(state.get("target_id") or "")
+
     client = _api_client(context)
-    # Enqueue detect job first (atomic gate)
+    reviewer = _reviewer_label(update)
     try:
-        await client.start_engagement_detection(
-            community_id,
-            requested_by=_reviewer_label(update),
+        result = await client.wizard_confirm_engagement(
+            engagement_id,
+            requested_by=reviewer,
         )
     except BotApiError as exc:
         await _edit_callback_message(
             update,
-            f"Could not start engagement detection: {exc.message}\n\nUse Retry to try again.",
-            reply_markup=engagement_wizard_retry_markup(community_id),
+            f"Couldn't confirm engagement: {exc.message}\n\nUse Retry to try again.",
+            reply_markup=engagement_wizard_retry_markup(engagement_id),
         )
         return
-    # Approve target
-    if target_id:
-        try:
-            await client.update_engagement_target(
-                target_id,
-                status="approved",
-                operator_user_id=operator_id,
-            )
-        except BotApiError:
-            pass
-    _config_edit_store(context).cancel(operator_id)
+
+    status = str(result.get("result") or result.get("status") or "")
+
+    if status == "confirmed":
+        _config_edit_store(context).cancel(operator_id)
+        await _edit_callback_message(
+            update,
+            "🎉 Engagement started ✓ — first results will appear in the cockpit shortly. Use /engagement to view.",
+        )
+        return
+
+    if status in ("validation_failed", "blocked"):
+        field = result.get("field") or ""
+        message = str(result.get("message") or "Validation failed.")
+        await _edit_callback_message(
+            update,
+            f"⚠ {message}\n\nFix the issue and try again.",
+            reply_markup=engagement_wizard_retry_markup(engagement_id),
+        )
+        return
+
+    if status == "stale":
+        message = str(result.get("message") or "The engagement data is out of date.")
+        await _edit_callback_message(
+            update,
+            f"⚠ {message}\n\nRetry to refresh.",
+            reply_markup=engagement_wizard_retry_markup(engagement_id),
+        )
+        return
+
+    # Fallback
     await _edit_callback_message(
         update,
-        "🎉 Started ✓ — first results will appear in the cockpit shortly. Use /engagement to view.",
+        f"Unexpected response: {status}.\n\nUse Retry or /add_engagement_target.",
+        reply_markup=engagement_wizard_retry_markup(engagement_id),
     )
+
+
+# ---------------------------------------------------------------------------
+# Retry (restart from Step 1)
+# ---------------------------------------------------------------------------
+
+
+async def _handle_wizard_retry(
+    update: Any,
+    context: Any,
+    operator_id: int,
+    engagement_id: str,
+) -> None:
+    client = _api_client(context)
+    try:
+        await client.wizard_retry_engagement(engagement_id)
+    except BotApiError as exc:
+        await _callback_reply(update, f"Retry failed: {exc.message}")
+        return
+
+    # Reset wizard state
+    editable = editable_field("wizard", "state")
+    if editable is None:
+        await _callback_reply(update, "Wizard is not available right now.")
+        return
+    _config_edit_store(context).start(
+        operator_id=operator_id,
+        field=editable,
+        object_id="new",
+        flow_step="target",
+        flow_state=_fresh_wizard_state(),
+    )
+    await _show_wizard_step1(update, context)
+
+
+# ---------------------------------------------------------------------------
+# Cancel prompt
+# ---------------------------------------------------------------------------
+
+
+async def _handle_wizard_cancel_prompt(
+    update: Any,
+    context: Any,
+    operator_id: int,
+    engagement_id: str,
+) -> None:
+    await _edit_callback_message(
+        update,
+        "Cancel this engagement wizard? No data will be deleted.",
+        reply_markup=engagement_wizard_cancel_confirm_markup(engagement_id),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Wizard return store — kept for topic-create reentry compatibility
+# ---------------------------------------------------------------------------
+
+
+def _wizard_return_save(context: Any, operator_id: int, state: dict[str, Any]) -> None:
+    store = context.application.bot_data.setdefault(WIZARD_RETURN_STORE_KEY, {})
+    store[operator_id] = dict(state)
+
+
+def _wizard_return_pop(context: Any, operator_id: int) -> dict[str, Any] | None:
+    store = context.application.bot_data.get(WIZARD_RETURN_STORE_KEY) or {}
+    return store.pop(operator_id, None)
 
 
 async def _wizard_resume_after_topic_create(
@@ -624,25 +896,47 @@ async def _wizard_resume_after_topic_create(
     wizard_state: dict[str, Any],
     topic_data: dict[str, Any],
 ) -> None:
+    """Re-enter the wizard after a new topic was created.
+
+    In the new engagement-scoped flow, topics are single-select, so we just
+    pre-select the newly created topic and show Step 2 again.
+    """
     operator_id = _telegram_user_id(update)
     if operator_id is None:
         return
+
     editable = editable_field("wizard", "state")
     if editable is None:
         return
+
     new_topic_id = str(topic_data.get("id") or "")
-    topic_ids = _wizard_topic_ids(wizard_state)
-    if new_topic_id and new_topic_id not in topic_ids:
-        topic_ids.append(new_topic_id)
-    wizard_state["topic_ids"] = topic_ids
+    if new_topic_id:
+        wizard_state["topic_id"] = new_topic_id
+
+    # Restore wizard session
+    engagement_id = wizard_state.get("engagement_id") or "new"
     _config_edit_store(context).start(
         operator_id=operator_id,
         field=editable,
-        object_id=str(wizard_state.get("community_id") or "new"),
+        object_id=str(engagement_id),
         flow_step="topics",
         flow_state=wizard_state,
     )
+
+    # PATCH the engagement with the new topic if we have one
+    if new_topic_id and engagement_id and engagement_id != "new":
+        client = _api_client(context)
+        try:
+            await client.patch_engagement(str(engagement_id), topic_id=new_topic_id)
+        except BotApiError:
+            pass
+
     await _show_wizard_step2(update, context, wizard_state)
+
+
+# ---------------------------------------------------------------------------
+# Exports
+# ---------------------------------------------------------------------------
 
 
 __all__ = [

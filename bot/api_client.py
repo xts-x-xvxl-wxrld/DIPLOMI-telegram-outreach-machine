@@ -836,6 +836,79 @@ class BotApiClient(AccountApiClientMixin, SearchApiClientMixin):
             params["topic_id"] = topic_id
         return await self._request("GET", "/engagement/semantic-rollout", params=params)
 
+    async def create_engagement(
+        self,
+        *,
+        target_id: str,
+        created_by: str,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            "/api/engagements",
+            json={"target_id": target_id, "created_by": created_by},
+        )
+
+    async def patch_engagement(
+        self,
+        engagement_id: str,
+        *,
+        topic_id: str | None = None,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if topic_id is not None:
+            payload["topic_id"] = topic_id
+        if name is not None:
+            payload["name"] = name
+        return await self._request(
+            "PATCH",
+            f"/api/engagements/{engagement_id}",
+            json=payload,
+        )
+
+    async def put_engagement_settings(
+        self,
+        engagement_id: str,
+        *,
+        assigned_account_id: str | None = None,
+        mode: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if assigned_account_id is not None:
+            payload["assigned_account_id"] = assigned_account_id
+        if mode is not None:
+            payload["mode"] = mode
+        return await self._request(
+            "PUT",
+            f"/api/engagements/{engagement_id}/settings",
+            json=payload,
+        )
+
+    async def wizard_confirm_engagement(
+        self,
+        engagement_id: str,
+        *,
+        requested_by: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if requested_by is not None:
+            payload["requested_by"] = requested_by
+        return await self._request(
+            "POST",
+            f"/api/engagements/{engagement_id}/wizard-confirm",
+            json=payload,
+        )
+
+    async def wizard_retry_engagement(
+        self,
+        engagement_id: str,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            f"/api/engagements/{engagement_id}/wizard-retry",
+            json={},
+        )
+
     async def _request(
         self,
         method: str,

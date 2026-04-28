@@ -277,9 +277,18 @@ async def engagement_candidate_command(update: Any, context: Any) -> None:
 
 async def engagement_command(update: Any, context: Any) -> None:
     try:
-        await _send_engagement_home(update, context)
+        await _send_cockpit_home_command(update, context)
     except BotApiError as exc:
         await _reply(update, format_api_error(exc.message))
+
+
+async def _send_cockpit_home_command(update: Any, context: Any) -> None:
+    from .formatting_engagement_home import format_cockpit_home
+    from .ui_engagement_home import cockpit_home_markup
+
+    client = _api_client(context)
+    payload = await client.get_engagement_cockpit_home()
+    await _reply(update, format_cockpit_home(payload), reply_markup=cockpit_home_markup(payload))
 
 
 async def engagement_actions_command(update: Any, context: Any) -> None:

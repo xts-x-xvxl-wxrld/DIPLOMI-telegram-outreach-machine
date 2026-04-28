@@ -5,6 +5,7 @@ from .ui_common import (
     ENGAGEMENT_MENU_LABEL,
     ACCOUNTS_MENU_LABEL,
     HELP_MENU_LABEL,
+    ACTION_OP_HOME,
     ACTION_OP_DISCOVERY,
     ACTION_OP_ACCOUNTS,
     ACTION_OP_ADD_ACCOUNT,
@@ -42,7 +43,7 @@ def operator_cockpit_markup():
     return _inline_markup(
         [
             [_button("🔎 Discovery", ACTION_OP_DISCOVERY)],
-            [_button("💬 Engagement", ACTION_ENGAGEMENT_HOME)],
+            [_button("💬 Engagement", ACTION_OP_HOME)],
             [_button("📲 Accounts", ACTION_OP_ACCOUNTS)],
             [_button("❓ Help", ACTION_OP_HELP)],
         ]

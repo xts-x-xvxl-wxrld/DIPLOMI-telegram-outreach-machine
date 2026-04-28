@@ -137,6 +137,15 @@ class _FakeApiClient:
         self.topic_calls += 1
         return self.topics_data
 
+    async def get_engagement_cockpit_home(self) -> dict[str, Any]:
+        return {
+            "state": "clear",
+            "draft_count": 0,
+            "issue_count": 0,
+            "active_engagement_count": 0,
+            "has_sent_messages": False,
+        }
+
 
 def _make_update(message_text: str | None = None) -> Any:
     message = _FakeMessage(text=message_text)
@@ -369,24 +378,26 @@ async def test_seeds_command_lists_searches() -> None:
 
 
 @pytest.mark.asyncio
-async def test_op_home_callback_renders_operator_cockpit() -> None:
+async def test_op_home_callback_renders_engagements_home() -> None:
     client = _FakeApiClient()
     update = _make_callback_update(ACTION_OP_HOME)
     context = _make_context(client)
 
     await callback_query(update, context)
 
-    replies = update.callback_query.message.replies
-    assert any("cockpit" in r["text"].lower() for r in replies)
-    markups = [r["reply_markup"] for r in replies if r["reply_markup"] is not None]
-    assert markups
-    cockpit_callbacks = [
+    # New cockpit home edits the message instead of replying
+    edits = update.callback_query.edits
+    assert edits, "expected edit_message_text to be called"
+    text = edits[0]["text"]
+    assert "Engagements" in text
+    markup = edits[0]["reply_markup"]
+    assert markup is not None
+    callbacks = [
         button.callback_data
-        for markup in markups
         for row in markup.inline_keyboard
         for button in row
     ]
-    assert ACTION_OP_DISCOVERY in cockpit_callbacks
+    assert any("op:add" in c or "op:engs" in c or "op:approve" in c for c in callbacks)
 
 
 # ---------------------------------------------------------------------------

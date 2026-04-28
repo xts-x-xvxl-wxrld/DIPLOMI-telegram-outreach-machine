@@ -158,9 +158,19 @@ from bot.ui import (
     ACTION_OP_ACCOUNTS,
     ACTION_OP_ADD_ACCOUNT,
     ACTION_OP_ACCOUNT_SKIP,
+    ACTION_OP_APPROVE,
+    ACTION_OP_ISSUES,
+    ACTION_OP_ENGS,
+    ACTION_OP_SENT,
+    ACTION_OP_ADD,
     ACTION_OP_DISCOVERY,
     ACTION_OP_HELP,
     ACTION_OP_HOME,
+    ACTION_ENGAGEMENT_APPROVAL_QUEUE,
+    ACTION_ENGAGEMENT_ISSUE_QUEUE,
+    ACTION_ENGAGEMENT_MINE,
+    ACTION_ENGAGEMENT_DETAIL,
+    ACTION_ENGAGEMENT_SENT,
     ACTION_OPEN_COMMUNITY,
     ACTION_OPEN_SEED_GROUP,
     ACTION_REJECT_COMMUNITY,
@@ -260,6 +270,38 @@ from .runtime import *
 from .discovery_handlers import *
 from .search_handlers import *
 from .engagement_handlers import *
+from .engagement_approval_flow import (
+    show_global_approval_queue,
+    show_scoped_approval_queue,
+    show_draft_card,
+    handle_approve_confirm,
+    handle_approve_confirmed,
+    handle_reject_confirm,
+    handle_reject_confirmed,
+    handle_edit_request_start,
+    get_pending_approval_edit,
+)
+from .engagement_issue_flow import (
+    show_global_issue_queue,
+    show_scoped_issue_queue,
+    show_issue_card,
+    handle_issue_skip,
+    handle_issue_action,
+    show_rate_limit_detail,
+    start_quiet_hours_edit,
+    save_quiet_hours,
+)
+from .engagement_detail_flow import (
+    show_engagement_list,
+    show_engagement_preview,
+    show_engagement_detail,
+    handle_engagement_resume,
+    show_sent_messages,
+)
+from .formatting_engagement_home import format_cockpit_home
+from .ui_engagement_home import cockpit_home_markup
+from .formatting_engagement_home import format_cockpit_home
+from .ui_engagement_home import cockpit_home_markup
 
 
 async def callback_query(update: Any, context: Any) -> None:
@@ -738,7 +780,7 @@ async def callback_query(update: Any, context: Any) -> None:
             await _review_callback(update, context, parts[0], decision=decision)
             return
         if action == ACTION_OP_HOME:
-            await _send_operator_cockpit(update)
+            await _send_cockpit_home(update, context)
             return
         if action in {ACTION_OP_DISCOVERY, ACTION_DISC_HOME}:
             await _send_discovery_cockpit(update)
@@ -786,11 +828,93 @@ async def callback_query(update: Any, context: Any) -> None:
                 reply_markup=discovery_cockpit_markup(),
             )
             return
+        # --- Task-first cockpit home shortcuts ---
+        if action == ACTION_OP_APPROVE:
+            await show_global_approval_queue(update, context, offset=_parse_offset(parts[0]) if parts else 0)
+            return
+        if action == ACTION_OP_ISSUES:
+            await show_global_issue_queue(update, context, offset=_parse_offset(parts[0]) if parts else 0)
+            return
+        if action == ACTION_OP_ENGS:
+            await show_engagement_list(update, context, offset=_parse_offset(parts[0]) if parts else 0)
+            return
+        if action == ACTION_OP_SENT:
+            await show_sent_messages(update, context, offset=_parse_offset(parts[0]) if parts else 0)
+            return
+        if action == ACTION_OP_ADD:
+            await _start_engagement_wizard(update, context)
+            return
+        # --- eng:appr:* approval queue ---
+        if action == ACTION_ENGAGEMENT_APPROVAL_QUEUE and parts:
+            sub = parts[0]
+            if sub == "list":
+                await show_global_approval_queue(update, context, offset=_parse_offset(parts[1]) if len(parts) > 1 else 0)
+            elif sub == "eng" and len(parts) >= 2:
+                await show_scoped_approval_queue(update, context, engagement_id=parts[1])
+            elif sub == "open" and len(parts) >= 2:
+                await show_draft_card(update, context, draft_id=parts[1])
+            elif sub == "ok" and len(parts) >= 2:
+                await handle_approve_confirm(update, context, draft_id=parts[1])
+            elif sub == "okc" and len(parts) >= 2:
+                await handle_approve_confirmed(update, context, draft_id=parts[1])
+            elif sub == "no" and len(parts) >= 2:
+                await handle_reject_confirm(update, context, draft_id=parts[1])
+            elif sub == "noc" and len(parts) >= 2:
+                await handle_reject_confirmed(update, context, draft_id=parts[1])
+            elif sub == "edit" and len(parts) >= 2:
+                await handle_edit_request_start(update, context, draft_id=parts[1])
+            return
+        # --- eng:iss:* issue queue ---
+        if action == ACTION_ENGAGEMENT_ISSUE_QUEUE and parts:
+            sub = parts[0]
+            if sub == "list":
+                await show_global_issue_queue(update, context, offset=_parse_offset(parts[1]) if len(parts) > 1 else 0)
+            elif sub == "eng" and len(parts) >= 2:
+                await show_scoped_issue_queue(update, context, engagement_id=parts[1])
+            elif sub == "open" and len(parts) >= 2:
+                await show_issue_card(update, context, issue_id=parts[1])
+            elif sub == "skip" and len(parts) >= 2:
+                await handle_issue_skip(update, context, issue_id=parts[1])
+            elif sub == "act" and len(parts) >= 3:
+                await handle_issue_action(update, context, issue_id=parts[1], action_key=parts[2])
+            return
+        # --- eng:mine:* my engagements ---
+        if action == ACTION_ENGAGEMENT_MINE and parts:
+            sub = parts[0]
+            if sub == "list":
+                await show_engagement_list(update, context, offset=_parse_offset(parts[1]) if len(parts) > 1 else 0)
+            elif sub == "open" and len(parts) >= 2:
+                await show_engagement_preview(update, context, engagement_id=parts[1])
+            return
+        # --- eng:det:* engagement detail ---
+        if action == ACTION_ENGAGEMENT_DETAIL and parts:
+            sub = parts[0]
+            if sub == "open" and len(parts) >= 2:
+                await show_engagement_detail(update, context, engagement_id=parts[1])
+            elif sub == "resume" and len(parts) >= 2:
+                await handle_engagement_resume(update, context, engagement_id=parts[1])
+            return
+        # --- eng:sent:* sent messages ---
+        if action == ACTION_ENGAGEMENT_SENT and parts:
+            sub = parts[0]
+            if sub == "list":
+                await show_sent_messages(update, context, offset=_parse_offset(parts[1]) if len(parts) > 1 else 0)
+            return
     except BotApiError as exc:
         await _callback_reply(update, format_api_error(exc.message))
         return
 
     await _callback_reply(update, "That action is no longer available. Try /seeds or /community.")
+
+
+async def _send_cockpit_home(update: Any, context: Any) -> None:
+    client = _api_client(context)
+    payload = await client.get_engagement_cockpit_home()
+    await _edit_callback_message(
+        update,
+        format_cockpit_home(payload),
+        reply_markup=cockpit_home_markup(payload),
+    )
 
 
 __all__ = [

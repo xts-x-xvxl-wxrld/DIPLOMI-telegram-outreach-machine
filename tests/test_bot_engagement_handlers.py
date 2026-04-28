@@ -497,6 +497,75 @@ class _FakeApiClient:
             "submitted_ref": f"username:{target_ref.lstrip('@')}",
         }
 
+    async def create_engagement(
+        self,
+        *,
+        target_id: str,
+        created_by: str,
+    ) -> dict[str, Any]:
+        return {
+            "result": "created",
+            "engagement": {
+                "id": "engagement-created",
+                "target_id": target_id,
+                "community_id": "community-1",
+                "topic_id": None,
+                "status": "draft",
+                "name": None,
+                "created_by": created_by,
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z",
+            },
+        }
+
+    async def patch_engagement(
+        self,
+        engagement_id: str,
+        *,
+        topic_id: str | None = None,
+        name: str | None = None,
+    ) -> dict[str, Any]:
+        return {"result": "updated", "engagement": {"id": engagement_id, "topic_id": topic_id}}
+
+    async def put_engagement_settings(
+        self,
+        engagement_id: str,
+        *,
+        assigned_account_id: str | None = None,
+        mode: str | None = None,
+    ) -> dict[str, Any]:
+        return {"result": "updated", "settings": {"engagement_id": engagement_id, "mode": mode}}
+
+    async def wizard_confirm_engagement(
+        self,
+        engagement_id: str,
+        *,
+        requested_by: str | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "result": "confirmed",
+            "message": "Engagement confirmed",
+            "next_callback": f"eng:det:{engagement_id}",
+            "engagement_id": engagement_id,
+        }
+
+    async def wizard_retry_engagement(self, engagement_id: str) -> dict[str, Any]:
+        return {
+            "result": "reset",
+            "message": "Reset",
+            "next_callback": "eng:wz:start",
+            "engagement_id": engagement_id,
+        }
+
+    async def get_engagement_cockpit_home(self) -> dict[str, Any]:
+        return {
+            "state": "clear",
+            "draft_count": 0,
+            "issue_count": 0,
+            "active_engagement_count": 2,
+            "has_sent_messages": False,
+        }
+
     async def update_engagement_target(
         self,
         target_id: str,
@@ -1124,34 +1193,16 @@ async def test_engagement_command_builds_home_counts_from_api_client() -> None:
 
     await engagement_command(update, _context(client))
 
-    assert "Pending approvals: 1" in update.message.replies[0]["text"]
-    assert "Ready to send: 1" in update.message.replies[0]["text"]
-    assert "Needs attention: 3" in update.message.replies[0]["text"]
-    assert "Active topics: 1" in update.message.replies[0]["text"]
+    # New cockpit home: renders the task-first home state
+    text = update.message.replies[0]["text"]
+    assert "Engagements" in text
     labels = _button_labels(update.message.replies[0]["reply_markup"])
-    for label in [
-        "Pending approvals",
-        "Ready to send",
-        "Needs attention",
-        "Communities",
-        "Topics",
-        "Settings lookup",
-        "Recent actions",
-        "Admin",
-        "Home",
-    ]:
-        assert label in labels
+    # clear state: Add engagement and My engagements are always present
+    assert any("Add" in l for l in labels)
+    assert any("My engagements" in l for l in labels)
+    # No back/home nav on the home screen itself
     callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
-    assert "eng:cand:list:needs_review:0" in callbacks
-    assert "eng:cand:list:approved:0" in callbacks
-    assert "eng:cand:list:failed:0" in callbacks
-    assert "eng:admin:tgt:0" in callbacks
-    assert "eng:set:lookup:0" in callbacks
-    assert [call["status"] for call in client.list_candidate_calls] == [
-        "needs_review",
-        "approved",
-        "failed",
-    ]
+    assert not any("op:home" in c for c in callbacks)
 
 
 @pytest.mark.asyncio
@@ -1311,7 +1362,7 @@ async def test_backend_capability_overrides_local_admin_allowlist_for_admin_cont
         "This engagement admin control is limited to admin operators."
     )
     assert "Admin" not in _button_labels(home_update.message.replies[0]["reply_markup"])
-    assert client.capability_calls == [123, 123]
+    assert client.capability_calls == [123]
 
 
 @pytest.mark.asyncio
