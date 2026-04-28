@@ -38,6 +38,10 @@ to the current branch. Agents must inspect `git status` before staging and commi
 belong to their slice unless the worktree is intentionally dedicated to that task. `git ci` is safe
 only in a clean task branch because it stages all changes with `git add -A`.
 
+Completed branch-scoped work should not remain stranded on a task branch. After local parity passes,
+agents should merge the finished branch into `main` as the durable repo state unless the operator
+explicitly asks to keep the branch open for later work or review.
+
 ## CI
 
 GitHub Actions runs on every branch push and pull request:

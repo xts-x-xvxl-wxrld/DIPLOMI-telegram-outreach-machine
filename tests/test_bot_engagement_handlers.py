@@ -506,7 +506,7 @@ class _FakeApiClient:
         return {
             "result": "created",
             "engagement": {
-                "id": "engagement-created",
+                "id": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
                 "target_id": target_id,
                 "community_id": "community-1",
                 "topic_id": None,
@@ -1536,6 +1536,10 @@ async def test_engagement_target_detail_command_reads_target_without_seed_api() 
 @pytest.mark.asyncio
 async def test_add_engagement_target_command_starts_wizard() -> None:
     client = _FakeApiClient()
+    client.topics = [
+        {**client.topics[0], "id": "12345678-1234-1234-1234-123456789abc"},
+        {**client.topics[1], "id": "87654321-4321-4321-4321-cba987654321"},
+    ]
     update = _message_update()
 
     await add_engagement_target_command(update, _context(client, "@newgroup"))
@@ -2232,8 +2236,6 @@ async def test_engagement_topics_command_lists_topic_cards_with_toggle_controls(
     assert "eng:topic:toggle:topic-2:1" in _callback_data_values(
         update.message.replies[2]["reply_markup"]
     )
-
-
 @pytest.mark.asyncio
 async def test_engagement_topic_command_opens_detail_with_example_controls() -> None:
     client = _FakeApiClient()
@@ -2246,10 +2248,8 @@ async def test_engagement_topic_command_opens_detail_with_example_controls() -> 
     assert "Topic ID: topic-1" in text
     assert "Bad examples (avoid copying)" in text
     callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
-    assert "eng:topic:edit:topic-1:stance_guidance" in callbacks
+    assert "eng:topic:edit:topic-1:s" in callbacks
     assert "eng:topic:rmx:topic-1:g:0" in callbacks
-
-
 @pytest.mark.asyncio
 async def test_create_engagement_topic_command_parses_pipe_syntax() -> None:
     client = _FakeApiClient()
@@ -2289,7 +2289,6 @@ async def test_create_engagement_topic_command_parses_pipe_syntax() -> None:
         update.message.replies[0]["reply_markup"]
     )
 
-
 @pytest.mark.asyncio
 async def test_create_engagement_topic_command_requires_keywords() -> None:
     client = _FakeApiClient()
@@ -2304,7 +2303,6 @@ async def test_create_engagement_topic_command_requires_keywords() -> None:
     assert "at least one trigger keyword" in update.message.replies[0]["text"]
     assert client.create_topic_calls == []
 
-
 @pytest.mark.asyncio
 async def test_toggle_engagement_topic_command_updates_active_state() -> None:
     client = _FakeApiClient()
@@ -2318,7 +2316,6 @@ async def test_toggle_engagement_topic_command_updates_active_state() -> None:
         update.message.replies[0]["reply_markup"]
     )
 
-
 @pytest.mark.asyncio
 async def test_toggle_engagement_topic_callback_edits_topic_card() -> None:
     client = _FakeApiClient()
@@ -2329,7 +2326,6 @@ async def test_toggle_engagement_topic_callback_edits_topic_card() -> None:
     assert client.update_topic_calls == [{"topic_id": "topic-1", "updates": {"active": False}}]
     assert update.callback_query.answers == [{"text": None, "show_alert": False}]
     assert "Status: inactive" in update.callback_query.edits[0]["text"]
-
 
 @pytest.mark.asyncio
 async def test_topic_example_commands_mutate_good_and_bad_examples() -> None:
@@ -2347,7 +2343,6 @@ async def test_topic_example_commands_mutate_good_and_bad_examples() -> None:
     assert "Topic example added." in good_update.message.replies[0]["text"]
     assert "Topic example added." in bad_update.message.replies[0]["text"]
 
-
 @pytest.mark.asyncio
 async def test_topic_remove_example_command_uses_one_based_operator_index() -> None:
     client = _FakeApiClient()
@@ -2359,7 +2354,6 @@ async def test_topic_remove_example_command_uses_one_based_operator_index() -> N
         {"topic_id": "topic-1", "example_type": "good", "index": 0}
     ]
     assert "Removed good example #1." in update.message.replies[0]["text"]
-
 
 @pytest.mark.asyncio
 async def test_topic_keywords_command_updates_selected_keyword_list() -> None:
@@ -2378,7 +2372,6 @@ async def test_topic_keywords_command_updates_selected_keyword_list() -> None:
         }
     ]
     assert "Topic negative keywords updated." in update.message.replies[0]["text"]
-
 
 @pytest.mark.asyncio
 async def test_non_admin_cannot_mutate_topics_or_style_rules() -> None:
@@ -2402,7 +2395,6 @@ async def test_non_admin_cannot_mutate_topics_or_style_rules() -> None:
         "This engagement admin control is limited to admin operators."
     )
 
-
 @pytest.mark.asyncio
 async def test_edit_topic_guidance_command_starts_guided_edit() -> None:
     client = _FakeApiClient()
@@ -2417,12 +2409,11 @@ async def test_edit_topic_guidance_command_starts_guided_edit() -> None:
     assert pending.object_id == "topic-1"
     assert pending.field == "stance_guidance"
 
-
 @pytest.mark.asyncio
 async def test_topic_open_edit_and_remove_callbacks_route_correctly() -> None:
     client = _FakeApiClient()
     open_update = _callback_update("eng:topic:open:topic-1")
-    edit_update = _callback_update("eng:topic:edit:topic-1:trigger_keywords")
+    edit_update = _callback_update("eng:topic:edit:topic-1:t")
     add_update = _callback_update("eng:topic:addx:topic-1:g")
     remove_update = _callback_update("eng:topic:rmx:topic-1:b:0")
     context = _context(client)
@@ -2437,6 +2428,14 @@ async def test_topic_open_edit_and_remove_callbacks_route_correctly() -> None:
     assert "Editing Trigger keywords" in edit_update.callback_query.message.replies[0]["text"]
     assert "Editing Good topic example" in add_update.callback_query.message.replies[0]["text"]
     assert "Removed bad example #1." in remove_update.callback_query.edits[0]["text"]
+@pytest.mark.asyncio
+async def test_topic_edit_callback_accepts_legacy_long_field_name() -> None:
+    client = _FakeApiClient()
+    update = _callback_update("eng:topic:edit:topic-1:trigger_keywords")
+
+    await callback_query(update, _context(client))
+
+    assert "Editing Trigger keywords" in update.callback_query.message.replies[0]["text"]
 
 @pytest.mark.asyncio
 async def test_topic_example_inline_create_flow_previews_then_saves() -> None:

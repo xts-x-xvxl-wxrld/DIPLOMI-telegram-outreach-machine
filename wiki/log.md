@@ -1504,3 +1504,33 @@ while preserving the staged testing contract.
 - Fixed the wizard-only `BotApiClient` engagement create/update/confirm/retry methods to call `/engagements...` so the configured `.../api` base URL resolves to the documented task-first routes.
 - Aligned Step 1 with the wizard spec by waiting for target resolution when link intake returns `pending`, then creating the draft engagement only after the target reaches a usable resolved state.
 - Added regression coverage for both the wizard request sequence and the pending-target resolution path.
+
+## [2026-04-28] docs | Add completed-branch merge rule for agents
+
+- Added `wiki/plan/agent-merge-to-main.md` to record the repo workflow decision that completed
+  agent branches should land in `main`.
+- Updated `AGENTS.md` and `CLAUDE.md` so branch-scoped work that passes local parity is merged
+  into `main` unless the operator explicitly keeps the branch open.
+- Aligned the deployment spec and wiki index with the same durable-branch workflow rule.
+
+## [2026-04-28] fix | Keep add-engagement wizard responsive after community intake
+
+- Traced the live "no response after sending @handle or t.me link" failure to Step 2 callback
+  construction: topic/account picker buttons included two full UUIDs and could exceed Telegram's
+  64-byte callback limit before the bot sent the next wizard message.
+- Added compact UUID callback encoding plus matching decode logic for the wizard's topic and
+  account pick callbacks, while tolerating legacy non-UUID fixture IDs so older tests and helper
+  clients still work.
+- Strengthened wizard regression coverage with production-sized UUID IDs and an assertion that the
+  Step 2 callback payloads stay within Telegram's limit.
+
+## [2026-04-28] fix | Shorten topic edit callbacks for UUID topic IDs
+
+- Confirmed the topic detail buttons for guidance, trigger keywords, and negative keywords could
+  exceed Telegram's 64-byte callback limit when `engagement_topics.id` is a UUID because the
+  callback payload embedded the full field name.
+- Switched topic edit buttons to short field codes (`s`, `t`, `n`) while keeping the callback
+  handler backward-compatible with older long-form payloads that may still be present in sent
+  messages.
+- Added UI and handler regression coverage proving UUID topic callbacks stay under Telegram's
+  limit and that both the new short-form and older long-form edit callbacks still route correctly.

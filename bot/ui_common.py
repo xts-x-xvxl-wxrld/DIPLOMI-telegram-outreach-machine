@@ -184,6 +184,24 @@ def expand_uuid(s: str) -> str:
     return str(_uuid_mod.UUID(bytes=base64.urlsafe_b64decode(padded)))
 
 
+TOPIC_EDIT_FIELD_CODES = {
+    "s": "stance_guidance",
+    "t": "trigger_keywords",
+    "n": "negative_keywords",
+}
+
+
+def compact_topic_edit_field(field: str) -> str:
+    for code, name in TOPIC_EDIT_FIELD_CODES.items():
+        if name == field:
+            return code
+    return field
+
+
+def expand_topic_edit_field(field: str) -> str:
+    return TOPIC_EDIT_FIELD_CODES.get(field, field)
+
+
 def encode_callback_data(action: str, *parts: str) -> str:
     data = ":".join([action, *parts])
     if len(data) > 64:

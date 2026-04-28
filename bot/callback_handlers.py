@@ -300,6 +300,7 @@ from .engagement_detail_flow import (
 )
 from .formatting_engagement_home import format_cockpit_home
 from .ui_engagement_home import cockpit_home_markup
+from .ui_common import expand_topic_edit_field
 
 
 async def callback_query(update: Any, context: Any) -> None:
@@ -676,7 +677,7 @@ async def callback_query(update: Any, context: Any) -> None:
             await _send_engagement_topic(update, context, parts[0])
             return
         if action == ACTION_ENGAGEMENT_TOPIC_EDIT and len(parts) == 2:
-            field = parts[1]
+            field = expand_topic_edit_field(parts[1])
             if field not in {"stance_guidance", "trigger_keywords", "negative_keywords"}:
                 await _callback_reply(update, "That topic field is not editable from this button.")
                 return

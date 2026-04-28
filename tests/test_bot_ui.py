@@ -152,6 +152,7 @@ def test_parse_all_engagement_callback_namespaces() -> None:
         "eng:home": (ACTION_ENGAGEMENT_HOME, []),
         "eng:topic:list:10": ("eng:topic:list", ["10"]),
         "eng:topic:open:topic-1": (ACTION_ENGAGEMENT_TOPIC_OPEN, ["topic-1"]),
+        "eng:topic:edit:topic-1:s": (ACTION_ENGAGEMENT_TOPIC_EDIT, ["topic-1", "s"]),
         "eng:topic:edit:topic-1:stance_guidance": (ACTION_ENGAGEMENT_TOPIC_EDIT, ["topic-1", "stance_guidance"]),
         "eng:topic:addx:topic-1:g": (ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD, ["topic-1", "g"]),
         "eng:topic:rmx:topic-1:g:0": (ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE, ["topic-1", "g", "0"]),
@@ -237,6 +238,30 @@ def test_engagement_target_permission_callback_data_stays_under_telegram_limit()
     assert len(data) <= 64
     assert len(confirm_data) <= 64
     assert len(approve_data) <= 64
+
+
+def test_topic_edit_callback_data_stays_under_telegram_limit() -> None:
+    topic_id = "12345678-1234-1234-1234-123456789abc"
+
+    guidance_data = encode_callback_data(ACTION_ENGAGEMENT_TOPIC_EDIT, topic_id, "s")
+    trigger_data = encode_callback_data(ACTION_ENGAGEMENT_TOPIC_EDIT, topic_id, "t")
+    negative_data = encode_callback_data(ACTION_ENGAGEMENT_TOPIC_EDIT, topic_id, "n")
+
+    assert len(guidance_data) <= 64
+    assert len(trigger_data) <= 64
+    assert len(negative_data) <= 64
+
+
+def test_engagement_topic_uuid_markup_uses_short_edit_codes() -> None:
+    topic_id = "12345678-1234-1234-1234-123456789abc"
+    markup = engagement_topic_actions_markup(topic_id, active=True, good_count=1, bad_count=1)
+
+    callbacks = _callbacks(markup)
+
+    assert f"{ACTION_ENGAGEMENT_TOPIC_EDIT}:{topic_id}:s" in callbacks
+    assert f"{ACTION_ENGAGEMENT_TOPIC_EDIT}:{topic_id}:t" in callbacks
+    assert f"{ACTION_ENGAGEMENT_TOPIC_EDIT}:{topic_id}:n" in callbacks
+    assert all(len(callback) <= 64 for callback in callbacks)
 
 
 def test_job_actions_markup_omits_refresh_button_when_job_id_is_too_long() -> None:
@@ -549,7 +574,7 @@ def test_engagement_topic_markup_pages_and_toggles() -> None:
     assert ACTION_ENGAGEMENT_TOPIC_CREATE in _callbacks(pager)
     assert "eng:topic:list:5" in _callbacks(pager)
     assert f"{ACTION_ENGAGEMENT_TOPIC_OPEN}:topic-1" in _callbacks(actions)
-    assert f"{ACTION_ENGAGEMENT_TOPIC_EDIT}:topic-1:stance_guidance" in _callbacks(actions)
+    assert f"{ACTION_ENGAGEMENT_TOPIC_EDIT}:topic-1:s" in _callbacks(actions)
     assert f"{ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD}:topic-1:g" in _callbacks(actions)
     assert f"{ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD}:topic-1:b" in _callbacks(actions)
     assert f"{ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE}:topic-1:g:0" in _callbacks(actions)
@@ -571,7 +596,7 @@ def test_engagement_topic_markup_hides_mutations_for_non_admins() -> None:
     callbacks = _callbacks(actions)
 
     assert f"{ACTION_ENGAGEMENT_TOPIC_OPEN}:topic-1" in callbacks
-    assert f"{ACTION_ENGAGEMENT_TOPIC_EDIT}:topic-1:stance_guidance" not in callbacks
+    assert f"{ACTION_ENGAGEMENT_TOPIC_EDIT}:topic-1:s" not in callbacks
     assert f"{ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD}:topic-1:g" not in callbacks
     assert f"{ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE}:topic-1:g:0" not in callbacks
     assert ACTION_ENGAGEMENT_TOPIC_CREATE not in _callbacks(pager)

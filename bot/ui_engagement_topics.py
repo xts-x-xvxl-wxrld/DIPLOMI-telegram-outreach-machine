@@ -10,6 +10,7 @@ from .ui_common import (
     ACTION_ENGAGEMENT_TOPIC_OPEN,
     ACTION_ENGAGEMENT_TOPIC_TOGGLE,
     _button,
+    compact_topic_edit_field,
     _inline_markup,
     _offset_pager_row,
     _with_navigation,
@@ -50,11 +51,26 @@ def engagement_topic_actions_markup(
         rows.extend(
             [
                 [
-                    _button("Edit guidance", ACTION_ENGAGEMENT_TOPIC_EDIT, topic_id, "stance_guidance"),
-                    _button("Edit triggers", ACTION_ENGAGEMENT_TOPIC_EDIT, topic_id, "trigger_keywords"),
+                    _button(
+                        "Edit guidance",
+                        ACTION_ENGAGEMENT_TOPIC_EDIT,
+                        topic_id,
+                        compact_topic_edit_field("stance_guidance"),
+                    ),
+                    _button(
+                        "Edit triggers",
+                        ACTION_ENGAGEMENT_TOPIC_EDIT,
+                        topic_id,
+                        compact_topic_edit_field("trigger_keywords"),
+                    ),
                 ],
                 [
-                    _button("Edit negatives", ACTION_ENGAGEMENT_TOPIC_EDIT, topic_id, "negative_keywords"),
+                    _button(
+                        "Edit negatives",
+                        ACTION_ENGAGEMENT_TOPIC_EDIT,
+                        topic_id,
+                        compact_topic_edit_field("negative_keywords"),
+                    ),
                     _button(
                         "Deactivate" if active else "Activate",
                         ACTION_ENGAGEMENT_TOPIC_TOGGLE,

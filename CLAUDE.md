@@ -15,6 +15,7 @@ This project uses a wiki at `wiki/` as the source of truth for all specs, plans,
 2. Update the relevant spec if the design changed.
 3. Update `wiki/index.md` if new files, specs, shards, modules, or entrypoints were created.
 4. Run local CI parity before committing: `python scripts/check_fragmentation.py`, `ruff check .`, and `pytest -q`. Run `docker build .` too when packaging, dependency, startup, or Docker files changed.
+5. When branch-scoped work is complete and local CI parity passes, merge that branch into `main` instead of leaving the finished change only on the task branch, unless the user explicitly asks to keep the branch open.
 
 ## Context Budget
 
