@@ -1471,3 +1471,8 @@ while preserving the staged testing contract.
 - Split search API DTOs out of `backend/api/schemas.py` into `backend/api/schemas_search.py` while keeping the public import surface stable through the aggregator module.
 - Split candidate/action engagement API coverage into `tests/test_engagement_api_candidates.py` so the main engagement API test shard stays under the test-file ceiling.
 - Passed `python3 scripts/check_fragmentation.py`, `./.venv/bin/ruff check .`, and `./.venv/bin/pytest -q` after the split.
+
+## [2026-04-28] fix | Repair task-first engagement migration backfill
+
+- Replaced the `min(uuid)` aggregate in `20260428_0013_task_first_engagements` with a text-cast aggregate so Postgres can backfill single-topic engagements during deploy.
+- Added a regression test that compiles the migration query against the PostgreSQL dialect and asserts the UUID aggregate does not return.

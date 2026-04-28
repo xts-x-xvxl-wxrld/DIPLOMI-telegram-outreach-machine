@@ -94,17 +94,11 @@ def _backfill_engagement_rows() -> None:
     engagements = sa.Table("engagements", metadata, autoload_with=bind)
     engagement_settings = sa.Table("engagement_settings", metadata, autoload_with=bind)
 
-    topic_rows = bind.execute(
-        sa.select(
-            candidates.c.community_id,
-            sa.func.min(candidates.c.topic_id).label("topic_id"),
-            sa.func.count(sa.distinct(candidates.c.topic_id)).label("topic_count"),
-        )
-        .where(candidates.c.topic_id.isnot(None))
-        .group_by(candidates.c.community_id)
-    ).mappings()
+    topic_rows = bind.execute(_single_topic_rows_query(candidates)).mappings()
     single_topics = {
-        row["community_id"]: row["topic_id"] for row in topic_rows if int(row["topic_count"] or 0) == 1
+        row["community_id"]: uuid.UUID(row["topic_id_text"])
+        for row in topic_rows
+        if int(row["topic_count"] or 0) == 1 and row["topic_id_text"]
     }
 
     legacy_settings_by_community = {
@@ -206,6 +200,18 @@ def _backfilled_engagement_status(
     if legacy_mode == "disabled":
         return "paused"
     return "active"
+
+
+def _single_topic_rows_query(candidates):
+    return (
+        sa.select(
+            candidates.c.community_id,
+            sa.func.min(sa.cast(candidates.c.topic_id, sa.Text)).label("topic_id_text"),
+            sa.func.count(sa.distinct(candidates.c.topic_id)).label("topic_count"),
+        )
+        .where(candidates.c.topic_id.isnot(None))
+        .group_by(candidates.c.community_id)
+    )
 
 
 def _later_timestamp(left, right):
