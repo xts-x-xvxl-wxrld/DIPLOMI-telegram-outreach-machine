@@ -159,6 +159,13 @@ class EngagementTargetStatus(StrEnum):
     ARCHIVED = "archived"
 
 
+class EngagementStatus(StrEnum):
+    DRAFT = "draft"
+    ACTIVE = "active"
+    PAUSED = "paused"
+    ARCHIVED = "archived"
+
+
 class CommunityAccountMembershipStatus(StrEnum):
     NOT_JOINED = "not_joined"
     JOIN_REQUESTED = "join_requested"

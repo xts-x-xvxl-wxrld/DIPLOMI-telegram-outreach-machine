@@ -65,7 +65,7 @@
 - `wiki/spec/bot-engagement-controls/` - engagement cockpit navigation, config editing, slice contracts, controls, formatting, and tests
 - `wiki/spec/queue/` - queue job type and operations shards
 - `wiki/plan/engagement-mvp-testing-readiness/` - engagement MVP readiness slices, including staged-test runbook
-- `wiki/plan/bot-engagement-controls/`, `wiki/plan/community-engagement/`, `wiki/plan/engagement-operator-controls/`, `wiki/plan/engagement-add-wizard/`, `wiki/plan/search-rebuild-implementation/` - split plan shards
+- `wiki/plan/engagement-task-first-cockpit/`, `wiki/plan/bot-engagement-controls/`, `wiki/plan/community-engagement/`, `wiki/plan/engagement-operator-controls/`, `wiki/plan/engagement-add-wizard/`, `wiki/plan/search-rebuild-implementation/` - split plan shards
 ## Implementation roots
 - `bot/api_client.py`, `bot/api_client_search.py`, `bot/api_client_accounts.py` - bot HTTP client for backend API endpoints plus search/account endpoint mixins
 - `bot/config.py` - bot environment parsing for API token, operator allowlist, and engagement admin allowlist

@@ -70,6 +70,71 @@ class EngagementTarget(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     community: Mapped[Community | None] = relationship()
+    engagement: Mapped["Engagement | None"] = relationship(back_populates="target", uselist=False)
+
+
+class Engagement(Base):
+    __tablename__ = "engagements"
+    __table_args__ = (
+        UniqueConstraint("target_id"),
+        Index("ix_engagements_community_id", "community_id"),
+        Index("ix_engagements_status_created", "status", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    target_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("engagement_targets.id"), nullable=False)
+    community_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("communities.id"), nullable=False)
+    topic_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("engagement_topics.id"))
+    status: Mapped[str] = mapped_column(
+        Text,
+        default=EngagementStatus.DRAFT.value,
+        server_default=EngagementStatus.DRAFT.value,
+        nullable=False,
+    )
+    name: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    target: Mapped[EngagementTarget] = relationship(back_populates="engagement")
+    community: Mapped[Community] = relationship()
+    topic: Mapped["EngagementTopic | None"] = relationship()
+    settings: Mapped["EngagementSettings | None"] = relationship(
+        back_populates="engagement",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+
+class EngagementSettings(Base):
+    __tablename__ = "engagement_settings"
+    __table_args__ = (
+        UniqueConstraint("engagement_id"),
+        Index("ix_engagement_settings_engagement_id", "engagement_id"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    engagement_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("engagements.id"), nullable=False)
+    mode: Mapped[str] = mapped_column(
+        Text,
+        default=EngagementMode.SUGGEST.value,
+        server_default=EngagementMode.SUGGEST.value,
+        nullable=False,
+    )
+    allow_join: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    allow_post: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    reply_only: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    require_approval: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+    max_posts_per_day: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
+    min_minutes_between_posts: Mapped[int] = mapped_column(Integer, default=240, server_default="240", nullable=False)
+    quiet_hours_start: Mapped[time | None] = mapped_column(Time(timezone=False))
+    quiet_hours_end: Mapped[time | None] = mapped_column(Time(timezone=False))
+    assigned_account_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("telegram_accounts.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    engagement: Mapped[Engagement] = relationship(back_populates="settings")
+    assigned_account: Mapped[TelegramAccount | None] = relationship()
 
 
 class CommunityAccountMembership(Base):
@@ -382,6 +447,8 @@ class EngagementAction(Base):
 __all__ = [
     "CommunityEngagementSettings",
     "EngagementTarget",
+    "Engagement",
+    "EngagementSettings",
     "CommunityAccountMembership",
     "EngagementTopic",
     "EngagementTopicEmbedding",

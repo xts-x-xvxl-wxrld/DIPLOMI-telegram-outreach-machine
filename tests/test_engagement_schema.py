@@ -15,6 +15,7 @@ from backend.db.enums import (
     EngagementMomentStrength,
     EngagementMode,
     EngagementReplyValue,
+    EngagementStatus,
     EngagementStyleRuleScope,
     EngagementTimeliness,
     EngagementTargetRefType,
@@ -23,12 +24,14 @@ from backend.db.enums import (
 from backend.db.models import (
     CommunityAccountMembership,
     CommunityEngagementSettings,
+    Engagement,
     EngagementAction,
     EngagementCandidate,
     EngagementCandidateRevision,
     EngagementMessageEmbedding,
     EngagementPromptProfile,
     EngagementPromptProfileVersion,
+    EngagementSettings,
     EngagementStyleRule,
     EngagementTarget,
     EngagementTopicEmbedding,
@@ -58,6 +61,12 @@ def test_engagement_status_enums_match_contract() -> None:
         "approved",
         "rejected",
         "failed",
+        "archived",
+    ]
+    assert [item.value for item in EngagementStatus] == [
+        "draft",
+        "active",
+        "paused",
         "archived",
     ]
     assert [item.value for item in CommunityAccountMembershipStatus] == [
@@ -105,6 +114,18 @@ def test_engagement_model_defaults_are_contract_defaults() -> None:
     assert settings_columns.max_posts_per_day.default.arg == 1
     assert settings_columns.min_minutes_between_posts.default.arg == 240
 
+    engagement_columns = Engagement.__table__.c
+    assert engagement_columns.status.default.arg == EngagementStatus.DRAFT.value
+
+    engagement_settings_columns = EngagementSettings.__table__.c
+    assert engagement_settings_columns.mode.default.arg == EngagementMode.SUGGEST.value
+    assert engagement_settings_columns.allow_join.default.arg is False
+    assert engagement_settings_columns.allow_post.default.arg is False
+    assert engagement_settings_columns.reply_only.default.arg is True
+    assert engagement_settings_columns.require_approval.default.arg is True
+    assert engagement_settings_columns.max_posts_per_day.default.arg == 1
+    assert engagement_settings_columns.min_minutes_between_posts.default.arg == 240
+
     assert EngagementTarget.__table__.c.submitted_ref_type.default.arg == (
         EngagementTargetRefType.TELEGRAM_USERNAME.value
     )
@@ -130,6 +151,8 @@ def test_engagement_model_defaults_are_contract_defaults() -> None:
 def test_engagement_uniqueness_constraints_are_declared() -> None:
     assert _has_unique_constraint(CommunityEngagementSettings, ["community_id"])
     assert _has_unique_constraint(EngagementTarget, ["community_id"])
+    assert _has_unique_constraint(Engagement, ["target_id"])
+    assert _has_unique_constraint(EngagementSettings, ["engagement_id"])
     assert _has_unique_constraint(CommunityAccountMembership, ["community_id", "telegram_account_id"])
     assert _has_unique_constraint(EngagementTopicEmbedding, ["topic_id", "model", "dimensions", "profile_text_hash"])
     assert _has_unique_constraint(
@@ -147,6 +170,9 @@ def test_engagement_indexes_are_declared() -> None:
     assert _has_index(EngagementTarget, ["community_id"])
     assert _has_index(EngagementTarget, ["status"])
     assert _has_index(EngagementTarget, ["submitted_ref"])
+    assert _has_index(Engagement, ["community_id"])
+    assert _has_index(Engagement, ["status", "created_at"])
+    assert _has_index(EngagementSettings, ["engagement_id"])
     assert _has_index(CommunityAccountMembership, ["community_id", "telegram_account_id"])
     assert _has_index(EngagementTopic, ["active"])
     assert _has_index(EngagementTopicEmbedding, ["topic_id"])
@@ -184,6 +210,8 @@ def test_engagement_tables_compile_for_postgresql() -> None:
     for model in (
         CommunityEngagementSettings,
         EngagementTarget,
+        Engagement,
+        EngagementSettings,
         CommunityAccountMembership,
         EngagementTopic,
         EngagementTopicEmbedding,

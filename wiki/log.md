@@ -1447,3 +1447,15 @@ while preserving the staged testing contract.
 - Standardized `My engagements` and `Sent messages` on newest-first paging with `Newer` and `Older` controls.
 - Kept queue controllers out of generic list pagination in the first version.
 - Added the default page-size rule to the matching cockpit list endpoints in the API spec.
+
+## [2026-04-28] code | Add task-first engagement schema foundation
+
+- Added first-class `engagements` and `engagement_settings` SQLAlchemy models plus the new engagement lifecycle enum.
+- Added a migration that creates the new tables and backfills legacy target/settings state into one engagement per resolved target without duplicating rows.
+- Extended schema tests to cover the new defaults, indexes, unique constraints, and PostgreSQL DDL compilation.
+
+## [2026-04-28] docs | Shard task-first cockpit plans
+
+- Split the task-first cockpit implementation plan into phase shards to satisfy the wiki plan size cap.
+- Split the detailed slice plan into two shard files while keeping the top-level plan entrypoints stable.
+- Added the new shard directory to the wiki index so the fragmented plan layout stays discoverable.
