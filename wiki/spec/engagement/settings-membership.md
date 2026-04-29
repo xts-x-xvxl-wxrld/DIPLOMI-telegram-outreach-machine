@@ -106,13 +106,13 @@ Validation contract:
 Service contract:
 
 ```python
-def get_engagement_settings(db, engagement_id: UUID) -> EngagementSettingsView:
+def get_engagement_settings(db, community_id: UUID) -> EngagementSettingsView:
     ...
 
 def upsert_engagement_settings(
     db,
     *,
-    engagement_id: UUID,
+    community_id: UUID,
     payload: EngagementSettingsUpdate,
     updated_by: str,
 ) -> EngagementSettingsView:
@@ -121,6 +121,9 @@ def upsert_engagement_settings(
 
 `get_engagement_settings` returns a disabled synthetic view when no row exists.
 It should not create a database row just because the operator viewed settings.
+Worker-facing community lookups should prefer the active task-first `engagement_settings`
+row for that community and fall back to legacy `community_engagement_settings`
+only for compatibility while old control surfaces are retired.
 
 ## Engagement Topic
 

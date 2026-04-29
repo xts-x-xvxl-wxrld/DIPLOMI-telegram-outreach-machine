@@ -8,8 +8,8 @@ uses the same identity that joins communities and posts public engagement replie
 The app should treat account identity as part of product safety:
 
 ```text
-search account       -> read-only Telegram lookup, expansion, community snapshots, and collection
-engagement account   -> approved joining and approved public replies
+search account       -> read-only seed/entity resolution, expansion, snapshots, and collection
+engagement account   -> engagement-target resolution, approved joining, and approved public replies
 disabled account     -> never leased automatically
 ```
 
@@ -42,8 +42,8 @@ Allowed values:
 
 | Pool | Meaning |
 |---|---|
-| `search` | Read-only account for seed resolution, expansion, entity intake, target resolution, community snapshots, and collection. |
-| `engagement` | Public-facing account for approved community joins and approved public replies. |
+| `search` | Read-only account for seed resolution, expansion, entity intake, community snapshots, and collection. |
+| `engagement` | Public-facing account for engagement-target resolution, approved community joins, and approved public replies. |
 | `disabled` | Account is kept in the database but is never automatically leased. |
 
 `account_pool` is separate from `status`.
@@ -68,9 +68,10 @@ The account manager must map every lease purpose to exactly one required pool.
 |---|---|---|
 | `expansion` | `search` | Includes seed resolution and graph expansion. |
 | `community_snapshot` | `search` | Discovery metadata/member snapshots remain read-only. |
-| `collection` | `search` | Engagement message collection remains read-only until a later spec routes it differently. |
+| `collection` | `search` | Reserved for legacy read-only collection surfaces. |
+| `engagement_collection` | `engagement` | Approved engagement message intake uses the same identity that can actually read the joined community. |
 | `entity_intake` | `search` | Direct Telegram handle classification is read-only. |
-| `engagement_target_resolve` | `search` | Resolves engagement targets but does not join or post. |
+| `engagement_target_resolve` | `engagement` | Resolves engagement targets with the same identity later used to join or reply, but does not join or post during resolve. |
 | `engagement_join` | `engagement` | Joins only approved engagement targets. |
 | `engagement_send` | `engagement` | Sends only approved public replies. |
 
@@ -133,7 +134,8 @@ No Telegram account is available for pool engagement
 ```
 
 The public account-manager purpose list must include `engagement_target_resolve`; that purpose is
-read-only and belongs to the `search` pool.
+read-only during execution, but it belongs to the `engagement` pool because it validates
+engagement-specific communities.
 
 ## Engagement Assignment Contract
 
@@ -160,8 +162,8 @@ Validation rules:
 ## Target Resolution Contract
 
 `engagement_target.resolve` is engagement-specific in what it writes, but read-only in how it uses
-Telegram. It must use a `search` account because it only resolves a submitted username/link into a
-community row and target state.
+Telegram. It must use an `engagement` account so the same public-facing identity can validate the
+community before later join/send steps, even though the resolve step itself does not join or post.
 
 Target resolution must not:
 
@@ -192,7 +194,11 @@ the account has recent search/collection usage.
 - A search account must never join a community for engagement.
 - A search account must never send a public reply.
 - An engagement account must never be used for broad seed resolution, expansion, entity intake, or
-  collection.
+  discovery community snapshots.
+- Approved engagement collection is allowed because private or joined-only communities may only be
+  readable through the assigned engagement identity.
+- `engagement_target.resolve` is the one engagement-specific read-only exception that may use an
+  `engagement` account before join/send, alongside approved engagement collection.
 - A disabled account must never be leased automatically.
 - An explicit account ID must not bypass pool restrictions.
 - A joined historical membership is not enough to send; the account must also be in the
@@ -205,7 +211,7 @@ Minimum tests for implementation:
 
 - Migration defaults existing accounts to `search`.
 - Account manager leases only accounts from the required pool for each purpose.
-- `engagement_target_resolve` is accepted as an account purpose and uses the `search` pool.
+- `engagement_target_resolve` is accepted as an account purpose and uses the `engagement` pool.
 - `acquire_account_by_id()` rejects an account from the wrong pool.
 - `disabled` accounts are never leased.
 - Collection/expansion/entity-intake workers do not receive engagement accounts.
@@ -218,7 +224,7 @@ Minimum tests for implementation:
 
 1. Add `account_pool` to the database with default `search`.
 2. Update models, schemas, account-manager purpose validation, and lease filtering.
-3. Add `engagement_target_resolve` to the account-manager purpose list and map it to `search`.
+3. Add `engagement_target_resolve` to the account-manager purpose list and map it to `engagement`.
 4. Update engagement settings validation and join/send preflights.
 5. Update onboarding and any account admin output.
 6. Add tests for pool routing, explicit-account rejection, and historical membership handling.

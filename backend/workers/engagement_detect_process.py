@@ -142,8 +142,12 @@ async def process_engagement_detect(
                     )
                     model_input["_prompt_runtime"] = prompt_runtime
                     decision = await detector(model_input)
-                    decision = EngagementDetectionDecision.model_validate(decision)
                     summary.detector_calls += 1
+                    try:
+                        decision = EngagementDetectionDecision.model_validate(decision)
+                    except ValidationError:
+                        summary.skipped_validation += 1
+                        continue
                     if not decision.should_engage:
                         summary.skipped_no_signal += 1
                         continue

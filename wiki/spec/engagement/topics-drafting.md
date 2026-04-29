@@ -187,10 +187,16 @@ Structured output:
   "should_engage": true,
   "topic_match": "topic name",
   "reason": "The group is discussing CRM alternatives.",
+  "moment_strength": "good",
+  "reply_value": "practical_tip",
   "suggested_reply": "Short public reply text.",
   "risk_notes": []
 }
 ```
+
+`moment_strength` must be `weak`, `good`, or `strong`. `reply_value` must describe the public reply
+type as `clarifying_question`, `practical_tip`, `correction`, `resource`, `other`, or `none`; it must
+not describe or score the person who posted.
 
 If `should_engage = false`, the worker should not create a reply opportunity unless the operator
 requested a debug trace. A runtime-generated reply opportunity is therefore conditional on both

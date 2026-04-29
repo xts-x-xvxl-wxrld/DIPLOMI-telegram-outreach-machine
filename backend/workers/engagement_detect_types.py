@@ -7,9 +7,9 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -97,9 +97,25 @@ class EngagementDetectionDecision(BaseModel):
     topic_match: str | None = None
     source_tg_message_id: int | None = None
     reason: str = ""
-    moment_strength: str | None = None
+    moment_strength: Literal["weak", "good", "strong"] | None = Field(
+        default=None,
+        description="Conversation fit strength. Allowed values: weak, good, strong.",
+    )
     timeliness: str | None = None
-    reply_value: str | None = None
+    reply_value: Literal[
+        "clarifying_question",
+        "practical_tip",
+        "correction",
+        "resource",
+        "other",
+        "none",
+    ] | None = Field(
+        default=None,
+        description=(
+            "Public reply type, not an assessment of the person. Allowed values: "
+            "clarifying_question, practical_tip, correction, resource, other, none."
+        ),
+    )
     suggested_reply: str | None = None
     risk_notes: list[str] = Field(default_factory=list)
 

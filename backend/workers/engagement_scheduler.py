@@ -16,12 +16,20 @@ from backend.db.enums import (
     CollectionRunStatus,
     EngagementCandidateStatus,
     EngagementMode,
+    EngagementStatus,
     EngagementTargetStatus,
 )
-from backend.db.models import CollectionRun, CommunityEngagementSettings, EngagementCandidate
-from backend.db.models import EngagementTarget
+from backend.db.models import (
+    CollectionRun,
+    CommunityEngagementSettings,
+    Engagement,
+    EngagementCandidate,
+    EngagementSettings,
+    EngagementTarget,
+)
 from backend.db.session import AsyncSessionLocal
 from backend.queue.client import QueuedJob, enqueue_collection, enqueue_engagement_detect
+from backend.services.community_engagement import get_engagement_settings
 
 LOGGER = logging.getLogger(__name__)
 
@@ -230,108 +238,118 @@ async def process_engagement_collection_scheduler_tick(
 async def load_engagement_detection_targets(
     session: AsyncSession,
 ) -> list[EngagementDetectionTarget]:
-    latest_collection_completed_at = (
-        select(func.max(CollectionRun.completed_at))
-        .where(
-            CollectionRun.community_id == CommunityEngagementSettings.community_id,
-            CollectionRun.status == CollectionRunStatus.COMPLETED.value,
-            CollectionRun.completed_at.is_not(None),
+    targets: list[EngagementDetectionTarget] = []
+    for community_id in await _load_effective_settings_community_ids(session):
+        settings = await get_engagement_settings(session, community_id)
+        if settings.mode not in ENABLED_MODES:
+            continue
+        latest_collection_completed_at = await _latest_completed_collection_at(session, community_id=community_id)
+        active_candidate_count = await _active_candidate_count(session, community_id=community_id)
+        targets.append(
+            EngagementDetectionTarget(
+                community_id=community_id,
+                mode=settings.mode,
+                quiet_hours_start=settings.quiet_hours_start,
+                quiet_hours_end=settings.quiet_hours_end,
+                latest_collection_completed_at=latest_collection_completed_at,
+                active_candidate_count=active_candidate_count,
+            )
         )
-        .correlate(CommunityEngagementSettings)
-        .scalar_subquery()
-    )
-    active_candidate_count = (
-        select(func.count(EngagementCandidate.id))
-        .where(
-            EngagementCandidate.community_id == CommunityEngagementSettings.community_id,
-            EngagementCandidate.status.in_(ACTIVE_CANDIDATE_STATUSES),
-        )
-        .correlate(CommunityEngagementSettings)
-        .scalar_subquery()
-    )
-
-    rows = await session.execute(
-        select(
-            CommunityEngagementSettings.community_id.label("community_id"),
-            CommunityEngagementSettings.mode.label("mode"),
-            CommunityEngagementSettings.quiet_hours_start.label("quiet_hours_start"),
-            CommunityEngagementSettings.quiet_hours_end.label("quiet_hours_end"),
-            latest_collection_completed_at.label("latest_collection_completed_at"),
-            active_candidate_count.label("active_candidate_count"),
-        )
-        .where(CommunityEngagementSettings.mode.in_(ENABLED_MODES))
-        .order_by(CommunityEngagementSettings.community_id)
-    )
-    return [
-        EngagementDetectionTarget(
-            community_id=row["community_id"],
-            mode=row["mode"],
-            quiet_hours_start=row["quiet_hours_start"],
-            quiet_hours_end=row["quiet_hours_end"],
-            latest_collection_completed_at=row["latest_collection_completed_at"],
-            active_candidate_count=int(row["active_candidate_count"] or 0),
-        )
-        for row in rows.mappings().all()
-    ]
+    return targets
 
 
 async def load_engagement_collection_targets(
     session: AsyncSession,
 ) -> list[EngagementCollectionTarget]:
-    latest_collection_completed_at = (
-        select(func.max(CollectionRun.completed_at))
-        .where(
-            CollectionRun.community_id == CommunityEngagementSettings.community_id,
-            CollectionRun.status == CollectionRunStatus.COMPLETED.value,
-            CollectionRun.completed_at.is_not(None),
-            CollectionRun.analysis_input.is_not(None),
+    targets: list[EngagementCollectionTarget] = []
+    for community_id in await _load_effective_settings_community_ids(session):
+        settings = await get_engagement_settings(session, community_id)
+        latest_collection_completed_at = await _latest_completed_collection_at(
+            session,
+            community_id=community_id,
+            require_analysis_input=True,
         )
-        .correlate(CommunityEngagementSettings)
-        .scalar_subquery()
+        active_collection_count = await _active_collection_count(session, community_id=community_id)
+        detect_target_count = await _detect_target_count(session, community_id=community_id)
+        targets.append(
+            EngagementCollectionTarget(
+                community_id=community_id,
+                mode=settings.mode,
+                quiet_hours_start=settings.quiet_hours_start,
+                quiet_hours_end=settings.quiet_hours_end,
+                latest_collection_completed_at=latest_collection_completed_at,
+                active_collection_count=active_collection_count,
+                has_detect_permission=detect_target_count > 0,
+            )
+        )
+    return targets
+
+
+async def _load_effective_settings_community_ids(session: AsyncSession) -> list[UUID]:
+    community_ids = {
+        community_id
+        for community_id in list(await session.scalars(select(CommunityEngagementSettings.community_id)))
+        if community_id is not None
+    }
+    community_ids.update(
+        community_id
+        for community_id in list(
+            await session.scalars(
+                select(Engagement.community_id)
+                .join(EngagementSettings, EngagementSettings.engagement_id == Engagement.id)
+                .where(Engagement.status == EngagementStatus.ACTIVE.value)
+            )
+        )
+        if community_id is not None
     )
-    active_collection_count = (
-        select(func.count(CollectionRun.id))
-        .where(
-            CollectionRun.community_id == CommunityEngagementSettings.community_id,
+    return sorted(community_ids, key=str)
+
+
+async def _latest_completed_collection_at(
+    session: AsyncSession,
+    *,
+    community_id: UUID,
+    require_analysis_input: bool = False,
+) -> datetime | None:
+    query = select(func.max(CollectionRun.completed_at)).where(
+        CollectionRun.community_id == community_id,
+        CollectionRun.status == CollectionRunStatus.COMPLETED.value,
+        CollectionRun.completed_at.is_not(None),
+    )
+    if require_analysis_input:
+        query = query.where(CollectionRun.analysis_input.is_not(None))
+    return await session.scalar(query)
+
+
+async def _active_candidate_count(session: AsyncSession, *, community_id: UUID) -> int:
+    count = await session.scalar(
+        select(func.count(EngagementCandidate.id)).where(
+            EngagementCandidate.community_id == community_id,
+            EngagementCandidate.status.in_(ACTIVE_CANDIDATE_STATUSES),
+        )
+    )
+    return int(count or 0)
+
+
+async def _active_collection_count(session: AsyncSession, *, community_id: UUID) -> int:
+    count = await session.scalar(
+        select(func.count(CollectionRun.id)).where(
+            CollectionRun.community_id == community_id,
             CollectionRun.status == CollectionRunStatus.RUNNING.value,
         )
-        .correlate(CommunityEngagementSettings)
-        .scalar_subquery()
     )
-    detect_target_count = (
-        select(func.count(EngagementTarget.id))
-        .where(
-            EngagementTarget.community_id == CommunityEngagementSettings.community_id,
+    return int(count or 0)
+
+
+async def _detect_target_count(session: AsyncSession, *, community_id: UUID) -> int:
+    count = await session.scalar(
+        select(func.count(EngagementTarget.id)).where(
+            EngagementTarget.community_id == community_id,
             EngagementTarget.status == EngagementTargetStatus.APPROVED.value,
             EngagementTarget.allow_detect.is_(True),
         )
-        .correlate(CommunityEngagementSettings)
-        .scalar_subquery()
     )
-
-    rows = await session.execute(
-        select(
-            CommunityEngagementSettings.community_id.label("community_id"),
-            CommunityEngagementSettings.mode.label("mode"),
-            CommunityEngagementSettings.quiet_hours_start.label("quiet_hours_start"),
-            CommunityEngagementSettings.quiet_hours_end.label("quiet_hours_end"),
-            latest_collection_completed_at.label("latest_collection_completed_at"),
-            active_collection_count.label("active_collection_count"),
-            detect_target_count.label("detect_target_count"),
-        ).order_by(CommunityEngagementSettings.community_id)
-    )
-    return [
-        EngagementCollectionTarget(
-            community_id=row["community_id"],
-            mode=row["mode"],
-            quiet_hours_start=row["quiet_hours_start"],
-            quiet_hours_end=row["quiet_hours_end"],
-            latest_collection_completed_at=row["latest_collection_completed_at"],
-            active_collection_count=int(row["active_collection_count"] or 0),
-            has_detect_permission=int(row["detect_target_count"] or 0) > 0,
-        )
-        for row in rows.mappings().all()
-    ]
+    return int(count or 0)
 
 
 def detection_target_skip_reason(

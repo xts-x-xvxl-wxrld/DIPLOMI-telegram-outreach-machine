@@ -1,7 +1,6 @@
 # Account Manager Spec
 
 ## Purpose
-
 The account manager coordinates small pools of Telegram user accounts used by Telethon-based workers.
 
 It is a Python utility module, not a separate service. Expansion, community snapshots, collection,
@@ -32,9 +31,8 @@ Uses `telegram_accounts`.
 
 Required account pools:
 
-- `search` - read-only account for seed resolution, expansion, entity intake, target resolution,
-  community snapshots, and collection.
-- `engagement` - public-facing account for approved engagement joins and approved public replies.
+- `search` - read-only account for seed resolution, expansion, entity intake, community snapshots, and any future legacy read-only collection.
+- `engagement` - public-facing account for engagement-target resolution, approved engagement collection, approved engagement joins, and approved public replies.
 - `disabled` - never leased automatically.
 
 Required statuses:
@@ -64,6 +62,7 @@ def acquire_account(
         "expansion",
         "community_snapshot",
         "collection",
+        "engagement_collection",
         "entity_intake",
         "engagement_target_resolve",
         "engagement_join",
@@ -117,8 +116,9 @@ FOR UPDATE SKIP LOCKED
 LIMIT 1;
 ```
 
-The required pool is derived from the account purpose. Read-only purposes use `search`; engagement
-join/send purposes use `engagement`. There is no fallback between pools.
+The required pool is derived from the account purpose. Broad discovery/read-only purposes use
+`search`; engagement-target resolution, approved engagement collection, join, and send use
+`engagement`. There is no fallback between pools.
 
 If an account is found, it is marked:
 
@@ -238,9 +238,11 @@ not be used for spam, flooding, fake subscriber/view activity, or unauthorized d
 Baseline operating rules:
 
 - Use dedicated Telegram accounts, never the operator's main personal account.
-- Keep search-pool accounts read-only for discovery, expansion, entity intake, target resolution,
-  community snapshots, and collection.
-- Keep engagement-pool accounts out of broad search, snapshot, and collection work.
+- Keep search-pool accounts read-only for discovery, expansion, entity intake, community snapshots,
+  and any future legacy read-only collection.
+- Keep engagement-pool accounts out of broad search and discovery snapshot work. Approved
+  engagement collection and `engagement_target.resolve` are the engagement-specific read-only
+  exceptions because they depend on the same public-facing identity later used to join or reply.
 - Engagement is the only planned exception to read-only use. It must be explicitly enabled through
   the engagement module, stay public, require operator approval in the MVP, and write audit logs.
 - No outreach DMs, promotional mass joins, vote manipulation, or subscriber/view inflation.

@@ -23,6 +23,7 @@ from backend.db.enums import (
     EngagementActionType,
     EngagementCandidateStatus,
     EngagementMode,
+    EngagementStatus,
     EngagementStyleRuleScope,
     EngagementTargetRefType,
     EngagementTargetStatus,
@@ -33,11 +34,13 @@ from backend.db.models import (
     Community,
     CommunityAccountMembership,
     CommunityEngagementSettings,
+    Engagement,
     EngagementAction,
     EngagementCandidate,
     EngagementCandidateRevision,
     EngagementPromptProfile,
     EngagementPromptProfileVersion,
+    EngagementSettings,
     EngagementStyleRule,
     EngagementTarget,
     EngagementTopic,
@@ -93,6 +96,13 @@ async def get_engagement_settings(
     if community is None:
         raise EngagementNotFound("not_found", "Community not found")
 
+    task_first_settings = await _get_active_task_first_settings(
+        db,
+        community_id=community_id,
+    )
+    if task_first_settings is not None:
+        return _settings_view(task_first_settings, community_id=community_id)
+
     settings = await db.scalar(
         select(CommunityEngagementSettings).where(
             CommunityEngagementSettings.community_id == community_id
@@ -100,7 +110,7 @@ async def get_engagement_settings(
     )
     if settings is None:
         return _disabled_settings_view(community_id)
-    return _settings_view(settings)
+    return _settings_view(settings, community_id=community_id)
 
 
 async def upsert_engagement_settings(
@@ -144,7 +154,7 @@ async def upsert_engagement_settings(
     settings.assigned_account_id = values["assigned_account_id"]
     settings.updated_at = now
     await db.flush()
-    return _settings_view(settings)
+    return _settings_view(settings, community_id=community_id)
 
 
 async def mark_join_requested(
@@ -263,9 +273,30 @@ def _disabled_settings_view(community_id: UUID) -> EngagementSettingsView:
     )
 
 
-def _settings_view(settings: CommunityEngagementSettings) -> EngagementSettingsView:
+async def _get_active_task_first_settings(
+    db: AsyncSession,
+    *,
+    community_id: UUID,
+) -> EngagementSettings | None:
+    return await db.scalar(
+        select(EngagementSettings)
+        .join(Engagement, EngagementSettings.engagement_id == Engagement.id)
+        .where(
+            Engagement.community_id == community_id,
+            Engagement.status == EngagementStatus.ACTIVE.value,
+        )
+        .order_by(Engagement.updated_at.desc(), Engagement.created_at.desc())
+        .limit(1)
+    )
+
+
+def _settings_view(
+    settings: CommunityEngagementSettings | EngagementSettings,
+    *,
+    community_id: UUID,
+) -> EngagementSettingsView:
     return EngagementSettingsView(
-        community_id=settings.community_id,
+        community_id=community_id,
         mode=settings.mode,
         allow_join=settings.allow_join,
         allow_post=settings.allow_post,

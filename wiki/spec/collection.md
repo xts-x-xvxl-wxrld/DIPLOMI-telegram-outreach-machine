@@ -84,6 +84,9 @@ Eligibility:
 
 Collection behavior:
 
+- Use the engagement account already assigned to the active engagement when present.
+- Otherwise prefer the existing joined engagement membership for that community.
+- Otherwise lease a healthy engagement-pool account and let the worker attempt collection with it.
 - Pull all new visible messages since the last successful engagement collection checkpoint.
 - Do not re-fetch full history on normal scheduled runs.
 - Use a checkpoint based on the highest collected Telegram message ID and, where useful, the latest
@@ -155,6 +158,8 @@ Implementation note:
 
 - `backend/workers/collection.py` owns `collection.run` orchestration, account lease cleanup, and
   collection-triggered detection enqueueing.
+- `collection.run` should lease through an engagement-purpose account path because task-first
+  monitoring may depend on the same joined public-facing identity that can read the approved target.
 - `backend/services/community_collection.py` owns persistence of exact
   `analysis_input.engagement_messages` batches, checkpoints, optional raw `messages` rows, and
   visible-user activity updates.
@@ -162,7 +167,7 @@ Implementation note:
   collection reads.
 
 Default cadence for engagement collection should be shorter than analysis collection. The current
-target is every 10 minutes for engagement-enabled communities, with the engagement scheduler acting
+target is every 3 minutes for engagement-enabled communities, with the engagement scheduler acting
 as a fallback rather than the primary trigger.
 
 ## Collection Artifact

@@ -19,6 +19,7 @@ def test_account_purposes_match_worker_contract() -> None:
         "expansion",
         "community_snapshot",
         "collection",
+        "engagement_collection",
         "entity_intake",
         "search_retrieve",
         "engagement_target_resolve",
@@ -28,6 +29,7 @@ def test_account_purposes_match_worker_contract() -> None:
 
 
 def test_validate_account_purpose_accepts_engagement_purposes() -> None:
+    assert validate_account_purpose("engagement_collection") == "engagement_collection"
     assert validate_account_purpose("engagement_target_resolve") == "engagement_target_resolve"
     assert validate_account_purpose("engagement_join") == "engagement_join"
     assert validate_account_purpose("engagement_send") == "engagement_send"
@@ -44,9 +46,10 @@ def test_validate_account_purpose_rejects_unknown_purpose() -> None:
         ("expansion", AccountPool.SEARCH),
         ("community_snapshot", AccountPool.SEARCH),
         ("collection", AccountPool.SEARCH),
+        ("engagement_collection", AccountPool.ENGAGEMENT),
         ("entity_intake", AccountPool.SEARCH),
         ("search_retrieve", AccountPool.SEARCH),
-        ("engagement_target_resolve", AccountPool.SEARCH),
+        ("engagement_target_resolve", AccountPool.ENGAGEMENT),
         ("engagement_join", AccountPool.ENGAGEMENT),
         ("engagement_send", AccountPool.ENGAGEMENT),
     ],

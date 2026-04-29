@@ -443,28 +443,6 @@ async def confirm_task_first_engagement(
     )
     need_join = membership is None or membership.status != CommunityAccountMembershipStatus.JOINED.value
 
-    try:
-        enqueue_detect(
-            engagement.community_id,
-            window_minutes=60,
-            requested_by=requested_by,
-        )
-    except Exception:
-        LOGGER.exception(
-            "Failed to enqueue engagement detect during task-first confirm",
-            extra={
-                "engagement_id": str(engagement.id),
-                "community_id": str(engagement.community_id),
-                "requested_by": requested_by,
-            },
-        )
-        return TaskFirstWizardConfirmResult(
-            result="blocked",
-            message="Could not start engagement right now.",
-            code="detect_enqueue_failed",
-            next_callback=_wizard_edit_callback(engagement.id, "sending_mode"),
-        )
-
     now = _utcnow()
     settings.allow_join = True
     settings.allow_post = settings.mode == EngagementMode.AUTO_LIMITED.value
@@ -506,6 +484,28 @@ async def confirm_task_first_engagement(
                 message="Could not start the community join right now.",
                 code="join_enqueue_failed",
                 next_callback=_wizard_edit_callback(engagement.id, "account"),
+            )
+    else:
+        try:
+            enqueue_detect(
+                engagement.community_id,
+                window_minutes=60,
+                requested_by=requested_by,
+            )
+        except Exception:
+            LOGGER.exception(
+                "Failed to enqueue engagement detect during task-first confirm",
+                extra={
+                    "engagement_id": str(engagement.id),
+                    "community_id": str(engagement.community_id),
+                    "requested_by": requested_by,
+                },
+            )
+            return TaskFirstWizardConfirmResult(
+                result="blocked",
+                message="Could not start engagement right now.",
+                code="detect_enqueue_failed",
+                next_callback=_wizard_edit_callback(engagement.id, "sending_mode"),
             )
 
     return TaskFirstWizardConfirmResult(

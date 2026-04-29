@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 
+from backend.core.settings import Settings
 from backend.db.enums import EngagementMode
 from backend.queue.client import QueuedJob
 from backend.workers.engagement_scheduler import (
@@ -17,6 +18,12 @@ from backend.workers.engagement_scheduler import (
     process_engagement_collection_scheduler_tick,
     process_engagement_scheduler_tick,
 )
+
+
+def test_settings_default_engagement_collection_interval_is_three_minutes() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.engagement_active_collection_interval_seconds == 180
 
 
 @pytest.mark.asyncio

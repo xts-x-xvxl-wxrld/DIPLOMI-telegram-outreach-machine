@@ -87,6 +87,14 @@ async def _load_latest_artifact_messages(
     for run in result:
         messages = _messages_from_analysis_input(
             run.analysis_input or {},
+            key="engagement_messages",
+            cutoff=cutoff,
+            community_is_group=bool(community.is_group),
+        )
+        if messages:
+            return messages
+        messages = _messages_from_analysis_input(
+            run.analysis_input or {},
             key="sample_messages",
             cutoff=cutoff,
             community_is_group=bool(community.is_group),

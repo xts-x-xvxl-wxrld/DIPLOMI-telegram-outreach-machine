@@ -45,7 +45,8 @@ Payload:
 Uses:
 
 - `account_manager.acquire_account(purpose="engagement_target_resolve")`
-- This purpose is read-only and must lease only a `search` pool account.
+- This purpose is read-only during resolve, but it must lease only an `engagement` pool account so
+  the same identity can carry the target through later engagement steps.
 
 Reads:
 

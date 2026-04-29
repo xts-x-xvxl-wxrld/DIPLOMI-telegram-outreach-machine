@@ -52,7 +52,7 @@ class Settings(BaseSettings):
         validation_alias="ENGAGEMENT_SCHEDULER_INTERVAL_SECONDS",
     )
     engagement_active_collection_interval_seconds: int = Field(
-        default=600,
+        default=180,
         validation_alias="ENGAGEMENT_ACTIVE_COLLECTION_INTERVAL_SECONDS",
     )
     engagement_semantic_matching_enabled: bool = Field(

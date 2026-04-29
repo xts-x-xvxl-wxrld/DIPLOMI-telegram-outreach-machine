@@ -71,6 +71,7 @@ async def test_community_join_records_success_and_releases_account() -> None:
     session = _joinable_session(community_id)
     releases: list[dict[str, object]] = []
     adapter = FakeAdapter(result=JoinResult(status="joined", joined_at=joined_at))
+    detect_calls: list[dict[str, object]] = []
 
     result = await process_community_join(
         {"community_id": str(community_id), "telegram_account_id": None, "requested_by": "op"},
@@ -78,6 +79,7 @@ async def test_community_join_records_success_and_releases_account() -> None:
         acquire_account_fn=_fake_acquire(account_id),
         release_account_fn=_capture_release(releases),
         adapter_factory=lambda lease: adapter,
+        enqueue_detect_fn=_capture_detect(detect_calls),
     )
 
     assert result["status"] == "processed"
@@ -94,6 +96,13 @@ async def test_community_join_records_success_and_releases_account() -> None:
     assert adapter.closed is True
     assert releases[0]["outcome"] == "success"
     assert releases[0]["account_id"] == account_id
+    assert detect_calls == [
+        {
+            "community_id": community_id,
+            "window_minutes": 60,
+            "requested_by": "op",
+        }
+    ]
 
 
 @pytest.mark.asyncio
@@ -135,6 +144,7 @@ async def test_community_join_uses_existing_joined_membership_and_confirms_alrea
     )
     acquired_by_id: list[object] = []
     adapter = FakeAdapter(result=JoinResult(status="already_joined", joined_at=None))
+    detect_calls: list[dict[str, object]] = []
 
     async def fake_acquire_by_id(session_arg: FakeSession, **kwargs: object) -> AccountLease:
         acquired_by_id.append(kwargs["account_id"])
@@ -149,6 +159,7 @@ async def test_community_join_uses_existing_joined_membership_and_confirms_alrea
         acquire_account_by_id_fn=fake_acquire_by_id,
         release_account_fn=_capture_release([]),
         adapter_factory=lambda lease: adapter,
+        enqueue_detect_fn=_capture_detect(detect_calls),
     )
 
     assert result["status"] == "processed"
@@ -157,6 +168,13 @@ async def test_community_join_uses_existing_joined_membership_and_confirms_alrea
     assert session.membership.status == CommunityAccountMembershipStatus.JOINED.value
     assert session.action is not None
     assert session.action.status == EngagementActionStatus.SENT.value
+    assert detect_calls == [
+        {
+            "community_id": community_id,
+            "window_minutes": 60,
+            "requested_by": "op",
+        }
+    ]
 
 
 @pytest.mark.asyncio
@@ -363,6 +381,19 @@ def _capture_release(calls: list[dict[str, object]]):
         calls.append(kwargs)
 
     return fake_release
+
+
+def _capture_detect(calls: list[dict[str, object]]):
+    def fake_detect(community_id: object, *, window_minutes: int, requested_by: str) -> None:
+        calls.append(
+            {
+                "community_id": community_id,
+                "window_minutes": window_minutes,
+                "requested_by": requested_by,
+            }
+        )
+
+    return fake_detect
 
 
 def _lease(account_id: object, *, job_id: str) -> AccountLease:

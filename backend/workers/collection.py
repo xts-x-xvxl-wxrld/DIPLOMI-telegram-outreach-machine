@@ -18,7 +18,16 @@ from backend.services.community_collection import (
     collect_community_engagement_messages,
     record_collection_failure,
 )
-from backend.workers.account_manager import AccountLease, acquire_account, release_account
+from backend.services.community_engagement import (
+    get_engagement_settings,
+    get_joined_membership_for_send,
+)
+from backend.workers.account_manager import (
+    AccountLease,
+    acquire_account,
+    acquire_account_by_id,
+    release_account,
+)
 from backend.workers.telegram_collection import TelethonEngagementCollector
 
 
@@ -41,6 +50,7 @@ async def process_collection(
     *,
     session_factory: Callable[[], AsyncSessionContext] = AsyncSessionLocal,
     acquire_account_fn: AcquireAccountFn = acquire_account,
+    acquire_account_by_id_fn: AcquireAccountFn = acquire_account_by_id,
     release_account_fn: ReleaseAccountFn = release_account,
     collector_factory: CollectorFactory = TelethonEngagementCollector,
     enqueue_detect_fn: EnqueueDetectFn = enqueue_engagement_detect,
@@ -54,7 +64,23 @@ async def process_collection(
         lease: AccountLease | None = None
         collector: TelegramEngagementCollector | None = None
         try:
-            lease = await acquire_account_fn(session, job_id=job_id, purpose="collection")
+            preferred_account_id = await _preferred_collection_account_id(
+                session,
+                community_id=validated_payload.community_id,
+            )
+            if preferred_account_id is None:
+                lease = await acquire_account_fn(
+                    session,
+                    job_id=job_id,
+                    purpose="engagement_collection",
+                )
+            else:
+                lease = await acquire_account_by_id_fn(
+                    session,
+                    account_id=preferred_account_id,
+                    job_id=job_id,
+                    purpose="engagement_collection",
+                )
             await session.commit()
 
             collector = collector_factory(lease)
@@ -182,6 +208,20 @@ def _current_job_id() -> str | None:
     if job is None:
         return None
     return str(job.id)
+
+
+async def _preferred_collection_account_id(
+    session: AsyncSession,
+    *,
+    community_id: object,
+) -> object | None:
+    settings = await get_engagement_settings(session, community_id)
+    if settings.assigned_account_id is not None:
+        return settings.assigned_account_id
+    membership = await get_joined_membership_for_send(session, community_id=community_id)
+    if membership is not None:
+        return membership.telegram_account_id
+    return None
 
 
 __all__ = [

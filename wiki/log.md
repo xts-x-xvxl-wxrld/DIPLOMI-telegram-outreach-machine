@@ -1616,3 +1616,68 @@ while preserving the staged testing contract.
 - Added a distinct `Account connecting` issue label/tip when the assigned
   membership is already in `join_requested`.
 - Added Step 3 regressions for queued, joined, and failed join flows.
+
+## [2026-04-28] change | Route engagement target resolve through engagement accounts
+
+- Updated the account-pool design so `engagement_target.resolve` now leases an
+  `engagement` account instead of a `search` account.
+- Kept the resolve step read-only in behavior, but documented it as an
+  engagement-specific exception so the same public-facing identity can validate
+  a community before later join and reply steps.
+- Updated the account-manager mapping, engagement queue contract, account-pool
+  plan/spec text, and the pool-routing test to reflect the new behavior.
+
+## [2026-04-28] fix | Restore wizard topic-create action on engagement Step 2
+
+- Added the missing `Create topic` action back to the Step 2 topic picker in
+  the engagement add wizard.
+- Wired the wizard topic-create button through the existing guided topic-create
+  flow while preserving wizard return state.
+- Returned operators to Step 2 after saving or cancelling topic creation so the
+  wizard no longer drops out of context.
+- Added wizard regressions covering the Step 2 create-topic action plus save
+  and cancel returns.
+
+## [2026-04-28] fix | Reconnect task-first engagements to message detection
+
+- Made worker-facing engagement settings resolve from active task-first
+  `engagement_settings` first, with legacy `community_engagement_settings` kept
+  only as a compatibility fallback.
+- Updated the engagement scheduler to discover monitoring targets from active
+  task-first engagements so approved test groups are no longer invisible to
+  background collection and detection ticks.
+- Fixed manual detection fallback to read `engagement_messages` from recent
+  collection artifacts instead of only the older `sample_messages` key.
+- Routed `collection.run` through an engagement-purpose account path and
+  preferred the assigned or already joined engagement account so approved
+  group-message intake can read joined-only discussions.
+- Added regressions for task-first settings fallback, engagement-artifact
+  sample fallback, assigned-account collection leasing, and the new
+  `engagement_collection` account-manager purpose.
+## 2026-04-29 - Engagement sent feed and draft timing hotfix
+
+- Added `wiki/plan/engagement-send-draft-hotfix.md`.
+- Filtered the task-first cockpit sent feed to reply actions so successful join audits no longer
+  appear as sent messages.
+- Changed task-first wizard confirmation so manual detection runs only after permissions are set;
+  when an account still needs to join, the join worker enqueues detection after a successful join.
+- Mapped Telegram write-permission send errors to community access blocks for clearer failed-send
+  handling.
+- Added regression coverage for sent-feed filtering, detect ordering, post-join detection, and
+  Telethon send-permission classification.
+
+## 2026-04-29 - Engagement detector output enum fix
+
+- Investigated a live `DTOM-TEST-GROUP` draft miss after collection captured the source message and
+  `engagement.detect` skipped candidate creation on output validation.
+- Tightened engagement detector structured output for `moment_strength` and `reply_value` so model
+  metadata must match backend enum values before the worker tries to create a candidate.
+- Count invalid detector metadata as a validation skip without failing the job, preserving worker
+  observability for bad model outputs.
+
+## 2026-04-29 - Engagement collection cadence to 3 minutes
+
+- Changed the default active engagement collection cadence from 600 seconds to 180 seconds.
+- Updated the architecture, collection, scheduling specs, and `.env.example` to document
+  `ENGAGEMENT_ACTIVE_COLLECTION_INTERVAL_SECONDS=180`.
+- Added scheduler settings coverage for the new default.

@@ -177,6 +177,7 @@ async def collect_community_engagement_messages(
         collected_at=current_time,
     )
     session.add(snapshot)
+    await session.flush()
 
     unique_senders = _unique_senders(messages)
     for sender in unique_senders:

@@ -5,8 +5,8 @@
 Split managed Telegram accounts into two hard pools:
 
 ```text
-search      -> read-only resolution, expansion, entity intake, target resolution, collection
-engagement  -> approved community joins and approved public replies
+search      -> read-only seed/entity resolution, expansion, snapshots, collection
+engagement  -> engagement target resolution, approved community joins, approved public replies
 ```
 
 This prevents broad search/collection identities from becoming public posting identities.
@@ -25,7 +25,7 @@ invariant.
 - Add `telegram_accounts.account_pool` with values `search`, `engagement`, and `disabled`.
 - Existing accounts default to `search`.
 - Account status remains health/lease state and is separate from pool state.
-- `engagement_target.resolve` is read-only and uses the `search` pool.
+- `engagement_target.resolve` is read-only during execution but uses the `engagement` pool.
 - `community.join` and `engagement.send` use only the `engagement` pool.
 - `engagement.detect` remains accountless in the MVP.
 - Explicit `telegram_account_id` values must not bypass pool validation.
@@ -104,7 +104,7 @@ Tasks:
 - Validate `assigned_account_id` against the engagement pool.
 - Make `community.join` select only engagement-pool memberships/accounts.
 - Make `engagement.send` reject historical joined memberships backed by search accounts.
-- Keep `engagement_target.resolve` read-only and search-pool only.
+- Keep `engagement_target.resolve` read-only in behavior but engagement-pool only.
 
 Acceptance:
 
@@ -116,7 +116,8 @@ Implementation notes:
 - `assigned_account_id` now rejects non-engagement accounts.
 - Joined membership lookup now joins `telegram_accounts` and returns only engagement-pool
   memberships.
-- `engagement_target.resolve` is routed through the search pool by account-manager purpose mapping.
+- `engagement_target.resolve` is routed through the engagement pool by account-manager purpose
+  mapping so the same identity can validate, join, and later reply in engagement flows.
 
 ## Slice 5: Onboarding And Operator UX
 

@@ -9,7 +9,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from backend.db.enums import EngagementActionStatus, EngagementCandidateStatus, EngagementMode, EngagementStatus
+from backend.db.enums import (
+    EngagementActionStatus,
+    EngagementActionType,
+    EngagementCandidateStatus,
+    EngagementMode,
+    EngagementStatus,
+)
 from backend.db.models import (
     Community,
     CommunityAccountMembership,
@@ -448,9 +454,11 @@ async def _load_cockpit_data(db: AsyncSession) -> _CockpitData:
                 joinedload(EngagementAction.candidate).joinedload(EngagementCandidate.community),
             )
             .where(EngagementAction.status == EngagementActionStatus.SENT.value)
+            .where(EngagementAction.action_type == EngagementActionType.REPLY.value)
             .order_by(EngagementAction.sent_at.desc(), EngagementAction.created_at.desc())
         )
-        if action.sent_at is not None or action.outbound_text
+        if action.action_type == EngagementActionType.REPLY.value
+        and (action.sent_at is not None or action.outbound_text)
     ]
     communities = {
         community.id: community

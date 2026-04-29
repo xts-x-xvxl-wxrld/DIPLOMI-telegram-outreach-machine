@@ -52,6 +52,7 @@ async def test_task_first_wizard_confirm_enqueues_join_for_unjoined_account(monk
         engagement_settings=settings,
     )
     join_calls: list[dict[str, object]] = []
+    detect_calls: list[dict[str, object]] = []
 
     def fake_enqueue_join(*, community_id, telegram_account_id, requested_by):
         join_calls.append(
@@ -64,6 +65,13 @@ async def test_task_first_wizard_confirm_enqueues_join_for_unjoined_account(monk
         return QueuedJob(id="join-job", type="community.join")
 
     def fake_enqueue_detect(community_id_arg, *, window_minutes, requested_by):
+        detect_calls.append(
+            {
+                "community_id": community_id_arg,
+                "window_minutes": window_minutes,
+                "requested_by": requested_by,
+            }
+        )
         return QueuedJob(id="detect-job", type="engagement.detect")
 
     monkeypatch.setattr("backend.services.task_first_engagements.enqueue_community_join", fake_enqueue_join)
@@ -83,6 +91,7 @@ async def test_task_first_wizard_confirm_enqueues_join_for_unjoined_account(monk
             "requested_by": "telegram:123",
         }
     ]
+    assert detect_calls == []
     assert response.engagement_status == EngagementStatus.ACTIVE.value
 
 

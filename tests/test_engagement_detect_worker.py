@@ -659,16 +659,16 @@ async def test_engagement_detect_rejects_person_level_reply_value_labels() -> No
     topic = _topic(trigger_keywords=["crm"])
     session = FakeSession(community=_community(community_id), settings=_settings(community_id))
 
-    async def detector(_model_input: dict[str, object]) -> EngagementDetectionDecision:
-        return EngagementDetectionDecision(
-            should_engage=True,
-            topic_match="CRM",
-            source_tg_message_id=123,
-            reason="The group is comparing CRM tools.",
-            reply_value="high_intent_buyer",
-            suggested_reply="Compare data ownership and export access first.",
-            risk_notes=[],
-        )
+    async def detector(_model_input: dict[str, object]) -> dict[str, object]:
+        return {
+            "should_engage": True,
+            "topic_match": "CRM",
+            "source_tg_message_id": 123,
+            "reason": "The group is comparing CRM tools.",
+            "reply_value": "high_intent_buyer",
+            "suggested_reply": "Compare data ownership and export access first.",
+            "risk_notes": [],
+        }
 
     result = await process_engagement_detect(
         {"community_id": str(community_id), "window_minutes": 60, "requested_by": None},
@@ -782,6 +782,37 @@ async def test_detection_samples_skip_wrong_community_collection_run() -> None:
     )
 
     assert messages == []
+
+
+@pytest.mark.asyncio
+async def test_detection_samples_fall_back_to_latest_engagement_artifact_batch() -> None:
+    community_id = uuid4()
+    now = datetime.now(timezone.utc)
+    community = _community(community_id)
+    artifact_run = CollectionRun(
+        id=uuid4(),
+        community_id=community_id,
+        status=CollectionRunStatus.COMPLETED.value,
+        analysis_input={
+            "engagement_messages": [
+                {
+                    "tg_message_id": 300,
+                    "text": "Latest engagement artifact CRM question",
+                    "message_date": now.isoformat(),
+                    "is_replyable": True,
+                }
+            ],
+        },
+    )
+
+    messages = await load_recent_detection_samples(
+        DetectionSampleSession(artifact_runs=[artifact_run]),
+        community=community,
+        window_minutes=60,
+    )
+
+    assert [message.tg_message_id for message in messages] == [300]
+    assert messages[0].text == "Latest engagement artifact CRM question"
 
 
 class FakeSession:

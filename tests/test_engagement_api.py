@@ -204,6 +204,29 @@ async def test_get_engagement_settings_returns_disabled_default() -> None:
     assert response.created_at is None
     assert db.added == []
 
+
+@pytest.mark.asyncio
+async def test_get_engagement_settings_prefers_active_task_first_settings() -> None:
+    community_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.APPROVED.value)
+    engagement = _engagement(target=target, status=EngagementStatus.ACTIVE.value)
+    account_id = uuid4()
+    db = FakeDb(
+        community=target.community,
+        target=target,
+        engagement=engagement,
+        engagement_settings=_engagement_settings(
+            engagement.id,
+            account_id=account_id,
+            mode=EngagementMode.SUGGEST.value,
+        ),
+    )
+
+    response = await get_community_engagement_settings(community_id, db)  # type: ignore[arg-type]
+
+    assert response.mode == EngagementMode.SUGGEST.value
+    assert response.assigned_account_id == account_id
+
 @pytest.mark.asyncio
 async def test_put_engagement_settings_forces_disabled_to_read_only() -> None:
     community_id = uuid4()
@@ -842,6 +865,30 @@ async def test_cockpit_sent_feed_orders_newest_first_and_clamps_offset() -> None
     assert first_page.items[0].message_text == "Newest reply"
     assert stale_page.offset == 1
     assert stale_page.items[0].message_text == "Older reply"
+
+
+@pytest.mark.asyncio
+async def test_cockpit_sent_feed_ignores_join_audit_actions() -> None:
+    community = _community(uuid4(), title="Founder Circle")
+    reply_action = _action(
+        uuid4(),
+        community=community,
+        sent_at=_now(),
+        outbound_text="Actual public reply",
+    )
+    join_action = _action(
+        uuid4(),
+        community=community,
+        sent_at=_now() + timedelta(minutes=1),
+        outbound_text=None,
+    )
+    join_action.action_type = "join"
+    db = FakeDb(actions=[reply_action, join_action])
+
+    response = await get_engagement_cockpit_sent(db, limit=20, offset=0)  # type: ignore[arg-type]
+
+    assert response.total == 1
+    assert response.items[0].message_text == "Actual public reply"
 
 
 @pytest.mark.asyncio

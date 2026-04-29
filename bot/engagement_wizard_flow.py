@@ -369,12 +369,6 @@ async def _handle_wizard_text(
     await _wizard_resolve_target(update, context, operator_id, text)
     return True
 
-
-# ---------------------------------------------------------------------------
-# Callback handler
-# ---------------------------------------------------------------------------
-
-
 async def _handle_wizard_callback(update: Any, context: Any, parts: list[str]) -> None:
     operator_id = _telegram_user_id(update)
     if operator_id is None:
@@ -406,6 +400,12 @@ async def _handle_wizard_callback(update: Any, context: Any, parts: list[str]) -
         topic_id = expand_uuid(parts[1])
         engagement_id = expand_uuid(parts[2])
         await _handle_wizard_pick_topic(update, context, operator_id, topic_id, engagement_id)
+        return
+
+    # eng:wz:tpnew:<engagement_id>
+    if sub == "tpnew" and len(parts) >= 2:
+        engagement_id = expand_uuid(parts[1])
+        await _handle_wizard_create_topic(update, context, operator_id, engagement_id)
         return
 
     # eng:wz:ap:<account_id>:<engagement_id>
@@ -448,12 +448,6 @@ async def _handle_wizard_callback(update: Any, context: Any, parts: list[str]) -
 
     await _callback_reply(update, "Unknown wizard action.")
 
-
-# ---------------------------------------------------------------------------
-# Navigate by step number
-# ---------------------------------------------------------------------------
-
-
 async def _handle_wizard_navigate_step(
     update: Any,
     context: Any,
@@ -481,12 +475,6 @@ async def _handle_wizard_navigate_step(
         await _show_wizard_step5(update, context, state)
     else:
         await _show_wizard_step1(update, context)
-
-
-# ---------------------------------------------------------------------------
-# Pick topic (single-select) and PATCH engagement
-# ---------------------------------------------------------------------------
-
 
 async def _handle_wizard_pick_topic(
     update: Any,
@@ -551,6 +539,27 @@ async def _handle_wizard_pick_topic(
         ),
         reply_markup=markup,
     )
+
+
+async def _handle_wizard_create_topic(
+    update: Any,
+    context: Any,
+    operator_id: int,
+    engagement_id: str,
+) -> None:
+    pending = _config_edit_store(context).get(operator_id)
+    if pending is None or pending.entity != "wizard":
+        await _callback_reply(update, "Wizard session expired. Use /add_engagement_target to start again.")
+        return
+
+    state = _wizard_state(pending)
+    if _wizard_state_engagement_id(state) != engagement_id:
+        await _callback_reply(update, "Wizard session is out of sync. Use /add_engagement_target to start again.")
+        return
+
+    _wizard_return_save(context, operator_id, state)
+    await _start_topic_create(update, context)
+
 
 async def _handle_wizard_account_pick(
     update: Any,
@@ -679,12 +688,6 @@ async def _handle_wizard_level(
         return
 
     await _show_wizard_step5(update, context, state)
-
-
-# ---------------------------------------------------------------------------
-# Edit reentry: jump to a specific step with return_callback set
-# ---------------------------------------------------------------------------
-
 
 async def _handle_wizard_edit_reentry(
     update: Any,
@@ -820,12 +823,6 @@ async def _handle_wizard_confirm(
         reply_markup=engagement_wizard_retry_markup(engagement_id),
     )
 
-
-# ---------------------------------------------------------------------------
-# Retry (restart from Step 1)
-# ---------------------------------------------------------------------------
-
-
 async def _handle_wizard_retry(
     update: Any,
     context: Any,
@@ -852,12 +849,6 @@ async def _handle_wizard_retry(
         flow_state=_fresh_wizard_state(),
     )
     await _show_wizard_step1(update, context)
-
-
-# ---------------------------------------------------------------------------
-# Cancel prompt
-# ---------------------------------------------------------------------------
-
 
 async def _handle_wizard_cancel_prompt(
     update: Any,

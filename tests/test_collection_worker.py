@@ -117,6 +117,28 @@ async def test_collection_service_writes_raw_messages_only_when_enabled() -> Non
 
 
 @pytest.mark.asyncio
+async def test_collection_service_flushes_snapshot_before_collection_run() -> None:
+    community_id = uuid4()
+    session = CollectionSession(
+        community=_community(community_id, store_messages=False),
+        settings=_settings(community_id),
+        target=_target(community_id),
+        enforce_snapshot_flush=True,
+    )
+
+    summary = await collect_community_engagement_messages(
+        session,  # type: ignore[arg-type]
+        community_id=community_id,
+        collector=FakeCollector([_message(220, "Need CRM advice", sender_id=None)]),
+        reason="manual",
+        window_days=30,
+    )
+
+    assert summary.messages_seen == 1
+    assert session.snapshot_flushed is True
+
+
+@pytest.mark.asyncio
 async def test_collection_worker_records_inaccessible_community_without_banning_account() -> None:
     community_id = uuid4()
     session = CollectionSession(
@@ -157,6 +179,59 @@ async def test_collection_worker_records_inaccessible_community_without_banning_
     assert released[0]["outcome"] == "error"
 
 
+@pytest.mark.asyncio
+async def test_collection_worker_prefers_assigned_engagement_account() -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    session = CollectionSession(
+        community=_community(community_id, store_messages=False),
+        settings=_settings(community_id, assigned_account_id=account_id),
+        target=_target(community_id),
+    )
+    collector = FakeCollector([_message(301, "Need CRM advice", sender_id=701)])
+    acquired: list[dict[str, object]] = []
+
+    async def acquire_account(*_args: object, **_kwargs: object) -> AccountLease:
+        raise AssertionError("generic pool lease should not be used when an account is assigned")
+
+    async def acquire_account_by_id(*_args: object, **kwargs: object) -> AccountLease:
+        acquired.append(kwargs)
+        return AccountLease(
+            account_id=account_id,
+            phone="+10000000000",
+            session_file_path="session",
+            lease_owner="test",
+            lease_expires_at=datetime.now(timezone.utc),
+        )
+
+    def enqueue_detect(*_args: object, **_kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(id="engagement.detect:assigned", status="queued")
+
+    result = await process_collection(
+        {
+            "community_id": str(community_id),
+            "reason": "engagement",
+            "requested_by": "operator",
+            "window_days": 90,
+        },
+        session_factory=lambda: session,
+        acquire_account_fn=acquire_account,
+        acquire_account_by_id_fn=acquire_account_by_id,
+        collector_factory=lambda _lease: collector,
+        enqueue_detect_fn=enqueue_detect,
+        settings=SimpleNamespace(engagement_detection_window_minutes=10),  # type: ignore[arg-type]
+    )
+
+    assert result["status"] == CollectionRunStatus.COMPLETED.value
+    assert acquired == [
+        {
+            "account_id": account_id,
+            "job_id": f"collection:{community_id}",
+            "purpose": "engagement_collection",
+        }
+    ]
+
+
 class FakeCollector:
     def __init__(self, messages: list[TelegramCollectedMessage]) -> None:
         self.messages = messages
@@ -186,11 +261,13 @@ class CollectionSession:
         settings: CommunityEngagementSettings,
         target: EngagementTarget | None,
         previous_runs: list[CollectionRun] | None = None,
+        enforce_snapshot_flush: bool = False,
     ) -> None:
         self.community = community
         self.settings = settings
         self.target = target
         self.previous_runs = previous_runs or []
+        self.enforce_snapshot_flush = enforce_snapshot_flush
         self.collection_runs: list[CollectionRun] = []
         self.snapshots: list[CommunitySnapshot] = []
         self.messages: list[Message] = []
@@ -198,6 +275,7 @@ class CollectionSession:
         self.community_members: list[CommunityMember] = []
         self.commits = 0
         self.rollbacks = 0
+        self.snapshot_flushed = False
 
     async def __aenter__(self) -> "CollectionSession":
         return self
@@ -228,6 +306,8 @@ class CollectionSession:
 
     def add(self, model: object) -> None:
         if isinstance(model, CollectionRun):
+            if self.enforce_snapshot_flush and self.snapshots and not self.snapshot_flushed:
+                raise AssertionError("snapshot must be flushed before collection runs are added")
             self.collection_runs.append(model)
         elif isinstance(model, CommunitySnapshot):
             self.snapshots.append(model)
@@ -239,6 +319,8 @@ class CollectionSession:
             self.community_members.append(model)
 
     async def flush(self) -> None:
+        if self.snapshots and not self.collection_runs:
+            self.snapshot_flushed = True
         return None
 
     async def commit(self) -> None:
@@ -260,7 +342,11 @@ def _community(community_id: object, *, store_messages: bool) -> Community:
     )
 
 
-def _settings(community_id: object) -> CommunityEngagementSettings:
+def _settings(
+    community_id: object,
+    *,
+    assigned_account_id: object | None = None,
+) -> CommunityEngagementSettings:
     return CommunityEngagementSettings(
         id=uuid4(),
         community_id=community_id,
@@ -271,6 +357,7 @@ def _settings(community_id: object) -> CommunityEngagementSettings:
         require_approval=True,
         max_posts_per_day=1,
         min_minutes_between_posts=240,
+        assigned_account_id=assigned_account_id,
     )
 
 

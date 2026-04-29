@@ -7,7 +7,9 @@ import pytest
 from bot.config_editing import PendingEditStore
 from bot.main import (
     CONFIG_EDIT_STORE_KEY,
+    WIZARD_RETURN_STORE_KEY,
     callback_query,
+    cancel_edit_command,
     telegram_entity_text,
 )
 from bot.ui_common import compact_uuid
@@ -428,6 +430,71 @@ async def test_wizard_step2_selecting_different_topic_replaces() -> None:
 
     pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
     assert (pending.flow_state or {}).get("topic_id") == _TOPIC_2_ID
+
+
+@pytest.mark.asyncio
+async def test_wizard_step2_create_topic_starts_subflow_and_saves_return_state() -> None:
+    client = _FakeWizardApiClient()
+    context = _wiz_context(client)
+    await callback_query(_callback_update("eng:wz:start"), context)
+    text_update = _message_update("@founders_hub")
+    await telegram_entity_text(text_update, context)
+    markup = text_update.message.replies[0]["reply_markup"]
+    callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
+    labels = [button.text for row in markup.inline_keyboard for button in row]
+    assert f"eng:wz:tpnew:{_C_ENG_NEW}" in callbacks
+    assert "➕ Create topic" in labels
+    create_update = _callback_update(f"eng:wz:tpnew:{_C_ENG_NEW}")
+    await callback_query(create_update, context)
+    text = create_update.callback_query.message.replies[0]["text"]
+    assert "Creating engagement topic" in text
+    assert "Step 1 of 5: Topic name" in text
+    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
+    assert pending is not None
+    assert pending.entity == "topic_create"
+    assert pending.flow_step == "name"
+    wizard_return = context.application.bot_data[WIZARD_RETURN_STORE_KEY][123]
+    assert wizard_return["engagement_id"] == _ENG_NEW_ID
+
+
+@pytest.mark.asyncio
+async def test_wizard_topic_create_save_returns_to_step2_with_new_topic_selected() -> None:
+    client = _FakeWizardApiClient()
+    context = _wiz_context(client)
+    await _wizard_through_step2(context)
+    await callback_query(_callback_update(f"eng:wz:tpnew:{_C_ENG_NEW}"), context)
+    await telegram_entity_text(_message_update("Founder outreach"), context)
+    await telegram_entity_text(_message_update("Be concise and practical."), context)
+    await telegram_entity_text(_message_update("founder, b2b saas"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    save_update = _callback_update("eng:edit:save")
+    await callback_query(save_update, context)
+    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
+    assert pending is not None
+    assert pending.entity == "wizard"
+    assert pending.flow_step == "topics"
+    assert (pending.flow_state or {}).get("topic_id") == "topic-created"
+    assert client.patch_engagement_calls[-1]["topic_id"] == "topic-created"
+    text = save_update.callback_query.message.replies[0]["text"]
+    assert "Step 2 of 5" in text
+
+
+@pytest.mark.asyncio
+async def test_wizard_topic_create_cancel_returns_to_step2() -> None:
+    client = _FakeWizardApiClient()
+    context = _wiz_context(client)
+    await _wizard_through_step2(context)
+    await callback_query(_callback_update(f"eng:wz:tpnew:{_C_ENG_NEW}"), context)
+    cancel_update = _message_update("/cancel_edit")
+    await cancel_edit_command(cancel_update, context)
+    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
+    assert pending is not None
+    assert pending.entity == "wizard"
+    assert pending.flow_step == "topics"
+    assert (pending.flow_state or {}).get("topic_id") is None
+    text = cancel_update.message.replies[0]["text"]
+    assert "Step 2 of 5" in text
 
 
 @pytest.mark.asyncio

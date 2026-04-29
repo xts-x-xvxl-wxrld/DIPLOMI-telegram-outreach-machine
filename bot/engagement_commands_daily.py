@@ -431,6 +431,13 @@ async def cancel_edit_command(update: Any, context: Any) -> None:
         await _reply(update, "Telegram did not include a user ID on this update.")
         return
     pending = _config_edit_store(context).cancel(operator_id)
+    if pending is not None and pending.entity == "topic_create":
+        from bot.engagement_wizard_flow import _wizard_return_pop, _wizard_resume_after_topic_create
+
+        wizard_state = _wizard_return_pop(context, operator_id)
+        if wizard_state is not None:
+            await _wizard_resume_after_topic_create(update, context, wizard_state, {})
+            return
     await _reply(update, render_edit_cancelled(pending))
 
 

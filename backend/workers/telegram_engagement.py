@@ -194,7 +194,18 @@ def _raise_classified_telethon_send_exception(exc: Exception) -> None:
         raise EngagementAccountRateLimited(int(seconds or 0), message) from exc
     if any(marker in name for marker in ("banned", "deactivated", "authkey", "sessionrevoked")):
         raise EngagementAccountBanned(message) from exc
-    if any(marker in name for marker in ("private", "invalidchannel", "channelprivate", "notoccupied")):
+    if any(
+        marker in name
+        for marker in (
+            "chatadminrequired",
+            "chatwriteforbidden",
+            "forbidden",
+            "invalidchannel",
+            "notoccupied",
+            "private",
+            "userbannedinchannel",
+        )
+    ):
         raise EngagementCommunityInaccessible(message) from exc
     if any(marker in name for marker in ("msgid", "messagenotmodified", "reply", "messageidinvalid")):
         raise EngagementMessageNotReplyable(message) from exc

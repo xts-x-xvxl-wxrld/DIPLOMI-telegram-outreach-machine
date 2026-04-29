@@ -221,7 +221,7 @@ Payload:
 
 Uses:
 
-- `account_manager.acquire_account(purpose="collection")`
+- `account_manager.acquire_account(purpose="engagement_collection")`
 
 Writes:
 
@@ -244,6 +244,8 @@ artifacts and enqueues analysis or detection by ID. For analysis, it writes a co
 `collection_runs.analysis_input` artifact. For engagement detection, it writes an exact
 new-message batch in the collection artifact or raw `messages` rows and passes `collection_run_id`.
 Discovery community snapshots are handled by `community.snapshot`, not `collection.run`.
+Approved engagement collection should prefer the assigned or already joined engagement account for
+that community so message intake can see joined-only group discussions.
 ### `analysis.run`
 
 Triggered after successful collection or manually for a collection run.

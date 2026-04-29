@@ -82,7 +82,7 @@ Default cadence:
 | Setting | Default | Meaning |
 |---|---:|---|
 | `ENGAGEMENT_COLLECTION_DETECT_ON_COMPLETE` | true | queue detection after successful collection for engagement-enabled communities |
-| `ENGAGEMENT_ACTIVE_COLLECTION_INTERVAL_SECONDS` | 600 | target compact collection cadence for engagement-enabled communities |
+| `ENGAGEMENT_ACTIVE_COLLECTION_INTERVAL_SECONDS` | 180 | target compact collection cadence for engagement-enabled communities |
 | `ENGAGEMENT_SCHEDULER_INTERVAL_SECONDS` | 3600 | fallback scheduler wakes roughly once per hour |
 | `ENGAGEMENT_DETECTION_WINDOW_MINUTES` | 60 | detection considers the latest hour of collected samples |
 | `ENGAGEMENT_REPLY_DEADLINE_MINUTES` | 90 | send preflight rejects replies after this source-post age |

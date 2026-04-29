@@ -72,7 +72,7 @@ Use these environment variable names:
 | `SESSIONS_DIR` | worker | Mounted Telethon session directory |
 | `COMMUNITY_SNAPSHOT_INTERVAL_MINUTES` | worker | Scheduler interval for discovery community snapshots; default 60 |
 | `ENGAGEMENT_DETECTION_WINDOW_MINUTES` | scheduler | Recent collection window required before detection; default 60 |
-| `ENGAGEMENT_ACTIVE_COLLECTION_INTERVAL_SECONDS` | scheduler | Active engagement collection cadence; default 600 |
+| `ENGAGEMENT_ACTIVE_COLLECTION_INTERVAL_SECONDS` | scheduler | Active engagement collection cadence; default 180 |
 | `ENGAGEMENT_SCHEDULER_INTERVAL_SECONDS` | scheduler | Fallback engagement detection cadence; default 3600 |
 
 Secrets must not be committed. `.env.example` may list variable names with empty values.
