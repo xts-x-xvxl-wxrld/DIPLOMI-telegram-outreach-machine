@@ -7,7 +7,7 @@ from .ui_common import (
     ACTION_ENGAGEMENT_DETAIL,
     ACTION_ENGAGEMENT_SENT,
     ACTION_ENGAGEMENT_WIZARD,
-    ACTION_OP_HOME,
+    ACTION_ENGAGEMENT_HOME,
     _button,
     _inline_markup,
     _with_navigation,
@@ -65,7 +65,7 @@ def engagement_list_markup(
             rows.append(newer_older_row)
 
     return _inline_markup(
-        _with_navigation(rows, back_action=ACTION_OP_HOME, include_home=False)
+        _with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME, include_home=False)
     )
 
 
@@ -135,5 +135,5 @@ def sent_messages_markup(
         rows.append(pager_row)
 
     return _inline_markup(
-        _with_navigation(rows, back_action=ACTION_OP_HOME, include_home=False)
+        _with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME, include_home=False)
     )

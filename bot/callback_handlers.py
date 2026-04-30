@@ -360,7 +360,10 @@ async def callback_query(update: Any, context: Any) -> None:
             return
         if await _handle_search_callback(update, context, action, parts):
             return
-        if action in {ACTION_ENGAGEMENT_HOME, ACTION_OP_HOME}:
+        if action == ACTION_OP_HOME:
+            await _edit_callback_message(update, format_operator_cockpit(), reply_markup=operator_cockpit_markup())
+            return
+        if action == ACTION_ENGAGEMENT_HOME:
             await _send_cockpit_home(update, context)
             return
         if action == ACTION_ENGAGEMENT_ADMIN:
@@ -913,6 +916,4 @@ async def _send_cockpit_home(update: Any, context: Any) -> None:
     )
 
 
-__all__ = [
-    "callback_query",
-]
+__all__ = ["callback_query"]

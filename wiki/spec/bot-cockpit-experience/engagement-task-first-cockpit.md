@@ -183,16 +183,17 @@ extra warning.
 
 Use `op:*` for home-entry actions and `eng:*` for engagement surfaces.
 
-Top-level home callbacks:
+Engagement cockpit callbacks:
 
-- `op:home` → `Engagements`
+- `eng:home` → `Engagements`
 - `op:approve` → `Approve draft`
 - `op:issues` → `Top issues`
 - `op:engs` → `My engagements`
 - `op:sent` → `Sent messages`
 - `op:add` → `Add engagement`
 
-These are the only callbacks the home screen should emit.
+These are the only callbacks the engagement home screen should emit. The global
+`op:home` callback returns to the top-level operator cockpit.
 
 Surface families:
 
@@ -303,7 +304,7 @@ Return-context rule:
 - when a draft edit flow or issue fix flow must return to the same item on early
   exit, store that return target in pending state rather than encoding a history
   stack in callback data
-- returning home always uses `op:home`
+- returning to Engagements always uses `eng:home`; global Home uses `op:home`
 
 ## Bot Handler Contract
 
@@ -312,7 +313,8 @@ reconstruct workflow meaning from low-level state.
 
 Home-entry handlers:
 
-- `op:home` → `GET /api/engagement/cockpit/home`
+- `eng:home` → `GET /api/engagement/cockpit/home`
+- `op:home` → render the top-level operator cockpit
 - `op:approve` → `GET /api/engagement/cockpit/approvals`
 - `op:issues` → `GET /api/engagement/cockpit/issues`
 - `op:engs` → `GET /api/engagement/cockpit/engagements`

@@ -1822,3 +1822,12 @@ while preserving the staged testing contract.
 - Validation: `python scripts/check_fragmentation.py`, `ruff check .`, and `pytest -q
   --basetemp=.pytest-tmp2` passed with 849 tests. Plain `pytest -q` was blocked by Windows temp-directory
   permissions in this sandbox.
+
+## 2026-04-30 - Cockpit global home routing fix
+
+- Split the shared Home footer from the Engagements entrypoint: `op:home` now renders the top-level
+  operator cockpit, while `eng:home` renders the task-first Engagements cockpit.
+- Updated the operator cockpit Engagement button and engagement-list/sent-message back buttons to
+  use `eng:home` so engagement-local navigation stays inside Engagements.
+- Updated bot navigation tests and the task-first cockpit spec to reflect the `op:home`/`eng:home`
+  split.

@@ -717,7 +717,7 @@ def test_operator_cockpit_markup_exposes_four_top_level_buttons() -> None:
 
     all_callbacks = [button.callback_data for row in rows for button in row]
     assert ACTION_OP_DISCOVERY in all_callbacks
-    assert ACTION_OP_HOME in all_callbacks
+    assert ACTION_ENGAGEMENT_HOME in all_callbacks
     assert ACTION_OP_ACCOUNTS in all_callbacks
     assert ACTION_OP_HELP in all_callbacks
 
@@ -736,6 +736,7 @@ def test_operator_cockpit_markup_button_labels() -> None:
 def test_operator_cockpit_callback_data_stays_under_telegram_limit() -> None:
     for action in (
         ACTION_OP_HOME,
+        ACTION_ENGAGEMENT_HOME,
         ACTION_OP_DISCOVERY,
         ACTION_OP_ACCOUNTS,
         ACTION_OP_ADD_ACCOUNT,

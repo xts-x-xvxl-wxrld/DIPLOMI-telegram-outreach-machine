@@ -447,18 +447,17 @@ async def test_seeds_command_lists_searches() -> None:
 
 
 @pytest.mark.asyncio
-async def test_op_home_callback_renders_engagements_home() -> None:
+async def test_op_home_callback_renders_operator_cockpit() -> None:
     client = _FakeApiClient()
     update = _make_callback_update(ACTION_OP_HOME)
     context = _make_context(client)
 
     await callback_query(update, context)
 
-    # New cockpit home edits the message instead of replying
     edits = update.callback_query.edits
     assert edits, "expected edit_message_text to be called"
     text = edits[0]["text"]
-    assert "Engagements" in text
+    assert "Operator cockpit" in text
     markup = edits[0]["reply_markup"]
     assert markup is not None
     callbacks = [
@@ -466,7 +465,12 @@ async def test_op_home_callback_renders_engagements_home() -> None:
         for row in markup.inline_keyboard
         for button in row
     ]
-    assert any("op:add" in c or "op:engs" in c or "op:approve" in c for c in callbacks)
+    assert ACTION_OP_DISCOVERY in callbacks
+    assert ACTION_ENGAGEMENT_HOME in callbacks
+    assert ACTION_OP_ACCOUNTS in callbacks
+    assert ACTION_OP_HELP in callbacks
+    assert client.accounts_calls == 0
+    assert client.seed_group_calls == 0
 
 
 # ---------------------------------------------------------------------------

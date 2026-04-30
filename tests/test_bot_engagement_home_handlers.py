@@ -3,7 +3,7 @@
 Covers:
 - format_cockpit_home: all four home states and correct copy.
 - cockpit_home_markup: button visibility rules per state, no nav controls on home.
-- callback_query routing: op:home routes to the new cockpit home, not the legacy operator home.
+- callback_query routing: eng:home routes to the new cockpit home.
 - op:approve, op:issues, op:engs, op:sent, op:add thin-router callbacks.
 - Regression: the default engagement entrypoint no longer renders the legacy
   candidate-review home.
@@ -18,6 +18,7 @@ import pytest
 from bot.formatting_engagement_home import format_cockpit_home
 from bot.ui_engagement_home import cockpit_home_markup
 from bot.ui import (
+    ACTION_ENGAGEMENT_HOME,
     ACTION_OP_HOME,
     ACTION_OP_APPROVE,
     ACTION_OP_ISSUES,
@@ -311,7 +312,7 @@ def test_cockpit_home_markup_issues_button_routes_to_iss_list() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Callback routing tests — op:home wires to new cockpit, not legacy
+# Callback routing tests - eng:home wires to the engagement cockpit
 # ---------------------------------------------------------------------------
 
 class _FakeMessage:
@@ -404,12 +405,12 @@ def _callback_update(data: str) -> SimpleNamespace:
 
 
 @pytest.mark.asyncio
-async def test_op_home_routes_to_new_cockpit_home() -> None:
+async def test_engagement_home_routes_to_new_cockpit_home() -> None:
     from bot.callback_handlers import callback_query
 
     payload = _home_payload(state="clear", active_engagement_count=2)
     client = _MinimalApiClient(payload)
-    update = _callback_update(ACTION_OP_HOME)
+    update = _callback_update(ACTION_ENGAGEMENT_HOME)
     context = _context_with(client)
 
     await callback_query(update, context)
@@ -419,17 +420,16 @@ async def test_op_home_routes_to_new_cockpit_home() -> None:
     assert len(edits) == 1
     assert "Engagements" in edits[0]["text"]
     assert "No pending work" in edits[0]["text"]
-    # Should NOT contain legacy operator cockpit copy
     assert "Operator cockpit" not in edits[0]["text"]
 
 
 @pytest.mark.asyncio
-async def test_op_home_first_run_renders_first_run_copy() -> None:
+async def test_engagement_home_first_run_renders_first_run_copy() -> None:
     from bot.callback_handlers import callback_query
 
     payload = _home_payload(state="first_run")
     client = _MinimalApiClient(payload)
-    update = _callback_update(ACTION_OP_HOME)
+    update = _callback_update(ACTION_ENGAGEMENT_HOME)
     context = _context_with(client)
 
     await callback_query(update, context)
@@ -446,7 +446,7 @@ async def test_op_home_first_run_renders_first_run_copy() -> None:
 
 
 @pytest.mark.asyncio
-async def test_op_home_approval_focused_hides_sent_messages() -> None:
+async def test_engagement_home_approval_focused_hides_sent_messages() -> None:
     from bot.callback_handlers import callback_query
 
     payload = _home_payload(
@@ -455,7 +455,7 @@ async def test_op_home_approval_focused_hides_sent_messages() -> None:
         has_sent_messages=True,
     )
     client = _MinimalApiClient(payload)
-    update = _callback_update(ACTION_OP_HOME)
+    update = _callback_update(ACTION_ENGAGEMENT_HOME)
     context = _context_with(client)
 
     await callback_query(update, context)
@@ -466,7 +466,7 @@ async def test_op_home_approval_focused_hides_sent_messages() -> None:
 
 
 @pytest.mark.asyncio
-async def test_op_home_issues_state_shows_sent_messages() -> None:
+async def test_engagement_home_issues_state_shows_sent_messages() -> None:
     from bot.callback_handlers import callback_query
 
     payload = _home_payload(
@@ -475,7 +475,7 @@ async def test_op_home_issues_state_shows_sent_messages() -> None:
         has_sent_messages=True,
     )
     client = _MinimalApiClient(payload)
-    update = _callback_update(ACTION_OP_HOME)
+    update = _callback_update(ACTION_ENGAGEMENT_HOME)
     context = _context_with(client)
 
     await callback_query(update, context)
@@ -486,12 +486,12 @@ async def test_op_home_issues_state_shows_sent_messages() -> None:
 
 
 @pytest.mark.asyncio
-async def test_op_home_no_nav_controls_in_rendered_markup() -> None:
+async def test_engagement_home_no_nav_controls_in_rendered_markup() -> None:
     from bot.callback_handlers import callback_query
 
     payload = _home_payload(state="clear")
     client = _MinimalApiClient(payload)
-    update = _callback_update(ACTION_OP_HOME)
+    update = _callback_update(ACTION_ENGAGEMENT_HOME)
     context = _context_with(client)
 
     await callback_query(update, context)
@@ -566,17 +566,17 @@ async def test_op_sent_routes_to_sent_messages() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Regression: legacy candidate-review home must not render via op:home
+# Regression: legacy candidate-review home must not render via eng:home
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_op_home_does_not_render_legacy_operator_cockpit_copy() -> None:
-    """Regression guard: op:home must not show the old 'Operator cockpit' surface."""
+async def test_engagement_home_does_not_render_operator_cockpit_copy() -> None:
+    """Regression guard: eng:home must not show the operator cockpit surface."""
     from bot.callback_handlers import callback_query
 
     payload = _home_payload(state="clear")
     client = _MinimalApiClient(payload)
-    update = _callback_update(ACTION_OP_HOME)
+    update = _callback_update(ACTION_ENGAGEMENT_HOME)
     context = _context_with(client)
 
     await callback_query(update, context)
@@ -591,13 +591,13 @@ async def test_op_home_does_not_render_legacy_operator_cockpit_copy() -> None:
 
 
 @pytest.mark.asyncio
-async def test_op_home_does_not_render_legacy_engagement_home_copy() -> None:
-    """Regression guard: op:home must not call the old _send_engagement_home."""
+async def test_engagement_home_does_not_render_legacy_engagement_home_copy() -> None:
+    """Regression guard: eng:home must not call the old _send_engagement_home."""
     from bot.callback_handlers import callback_query
 
     payload = _home_payload(state="clear")
     client = _MinimalApiClient(payload)
-    update = _callback_update(ACTION_OP_HOME)
+    update = _callback_update(ACTION_ENGAGEMENT_HOME)
     context = _context_with(client)
 
     await callback_query(update, context)
