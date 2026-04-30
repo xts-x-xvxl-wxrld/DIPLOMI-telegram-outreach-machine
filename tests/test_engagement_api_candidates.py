@@ -20,6 +20,7 @@ from backend.api.routes.engagement import (
     post_engagement_candidate_retry,
     post_engagement_candidate_send_job,
 )
+from backend.api.routes import engagement_candidates_actions
 from backend.api.schemas import (
     EngagementCandidateApproveRequest,
     EngagementCandidateEditRequest,
@@ -36,7 +37,7 @@ from backend.db.enums import (
 from backend.db.models import EngagementAction, EngagementCandidateRevision
 from backend.queue.client import QueuedJob
 from backend.services.community_engagement import EngagementActionListResult, EngagementActionView
-from tests.engagement_api_helpers import FakeDb, _candidate, _community, _now, _topic
+from tests.engagement_api_helpers import FakeDb, _candidate, _community, _membership, _now, _topic
 
 
 @pytest.mark.asyncio
@@ -457,16 +458,27 @@ async def test_engagement_send_job_enqueues_for_approved_candidate(monkeypatch) 
     candidate = _candidate(uuid4(), community, topic)
     candidate.status = EngagementCandidateStatus.APPROVED.value
     candidate.reviewed_by = "telegram:123"
-    db = FakeDb(candidate=candidate)
+    candidate.final_reply = candidate.suggested_reply
+    account_id = uuid4()
+    db = FakeDb(
+        candidate=candidate,
+        membership=_membership(community_id=community.id, account_id=account_id),
+    )
     captured: dict[str, object] = {}
 
-    def fake_enqueue(candidate_id_arg: object, *, approved_by: str) -> QueuedJob:
-        captured.update({"candidate_id": candidate_id_arg, "approved_by": approved_by})
+    def fake_enqueue(candidate_id_arg: object, *, approved_by: str, scheduled_at: datetime) -> QueuedJob:
+        captured.update(
+            {
+                "candidate_id": candidate_id_arg,
+                "approved_by": approved_by,
+                "scheduled_at": scheduled_at,
+            }
+        )
         return QueuedJob(id="send-job", type="engagement.send")
 
-    monkeypatch.setattr("backend.api.routes.engagement.enqueue_engagement_send", fake_enqueue)
+    monkeypatch.setattr(engagement_candidates_actions, "enqueue_engagement_send", fake_enqueue)
 
-    response = await post_engagement_candidate_send_job(
+    response = await engagement_candidates_actions.post_engagement_candidate_send_job(
         candidate.id,
         EngagementSendJobRequest(),
         db,  # type: ignore[arg-type]
@@ -474,7 +486,9 @@ async def test_engagement_send_job_enqueues_for_approved_candidate(monkeypatch) 
 
     assert response.job.id == "send-job"
     assert response.job.type == "engagement.send"
-    assert captured == {"candidate_id": candidate.id, "approved_by": "telegram:123"}
+    assert captured["candidate_id"] == candidate.id
+    assert captured["approved_by"] == "telegram:123"
+    assert isinstance(captured["scheduled_at"], datetime)
 
 
 @pytest.mark.asyncio

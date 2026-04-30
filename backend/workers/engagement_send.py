@@ -16,8 +16,11 @@ from backend.db.enums import (
     EngagementActionType,
     EngagementCandidateStatus,
     EngagementMode,
+    EngagementStatus,
+    EngagementTargetStatus,
 )
 from backend.db.models import CommunityAccountMembership, EngagementAction, EngagementCandidate
+from backend.db.models import Engagement, EngagementSettings, EngagementTarget
 from backend.db.session import AsyncSessionLocal
 from backend.queue.payloads import EngagementSendPayload
 from backend.services.community_engagement import (
@@ -27,11 +30,13 @@ from backend.services.community_engagement import (
     has_engagement_target_permission,
     validate_suggested_reply,
 )
+from backend.services.engagement_account_behavior import post_join_warmup_skip_reason
 from backend.workers.account_manager import (
     AccountLease,
     acquire_account_by_id,
     release_account,
 )
+from backend.workers.engagement_send_cadence import SendLimitDecision, check_opportunity_cadence
 from backend.workers.telegram_engagement import (
     EngagementAccountBanned,
     EngagementAccountRateLimited,
@@ -54,12 +59,6 @@ class AsyncSessionContext(Protocol):
 AcquireAccountByIdFn = Callable[..., Any]
 ReleaseAccountFn = Callable[..., Any]
 EngagementAdapterFactory = Callable[[AccountLease], TelegramEngagementAdapter]
-
-
-@dataclass(frozen=True)
-class SendLimitDecision:
-    allowed: bool
-    reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -116,9 +115,13 @@ async def process_engagement_send(
                 return _skipped("candidate_stale", candidate.id)
 
             settings = await get_engagement_settings(session, candidate.community_id)
-            if settings.mode == EngagementMode.DISABLED.value or not settings.allow_post:
+            task_first_operator_send = await _allows_task_first_operator_send(session, candidate)
+            if (
+                settings.mode == EngagementMode.DISABLED.value
+                or (not settings.allow_post and not task_first_operator_send)
+            ):
                 return _skipped("posting_not_allowed", candidate.id)
-            if not await has_engagement_target_permission(
+            if not task_first_operator_send and not await has_engagement_target_permission(
                 session,
                 community_id=candidate.community_id,
                 permission="post",
@@ -135,6 +138,9 @@ async def process_engagement_send(
             )
             if membership is None:
                 return _skipped("no_joined_membership", candidate.id)
+            warmup_skip_reason = post_join_warmup_skip_reason(joined_at=membership.joined_at, now=now)
+            if warmup_skip_reason is not None:
+                return _skipped(warmup_skip_reason, candidate.id)
 
             final_reply = candidate.final_reply
             try:
@@ -176,6 +182,7 @@ async def process_engagement_send(
 
             limit_decision = await rate_limit_checker(
                 session,
+                candidate=candidate,
                 community_id=candidate.community_id,
                 telegram_account_id=membership.telegram_account_id,
                 max_posts_per_day=settings.max_posts_per_day,
@@ -219,17 +226,8 @@ async def process_engagement_send(
                     EngagementActionStatus.SKIPPED.value,
                 }:
                     return _send_summary(validated_payload, action)
-                await _mark_action_failed(
-                    action,
-                    error_message=(
-                        "Existing queued send action cannot be safely retried without "
-                        "Telegram confirmation"
-                    ),
-                    candidate_status=EngagementCandidateStatus.APPROVED.value,
-                    candidate=candidate,
-                )
-                await session.commit()
-                return _send_summary(validated_payload, action)
+                action.outbound_text = outbound_text
+                action.updated_at = now
 
             lease = await acquire_account_by_id_fn(
                 session,
@@ -242,6 +240,11 @@ async def process_engagement_send(
             adapter = adapter_factory(lease)
             assert candidate.community is not None
             assert candidate.source_tg_message_id is not None
+            await adapter.verify_reply_source(
+                session_file_path=lease.session_file_path,
+                community=candidate.community,
+                reply_to_tg_message_id=candidate.source_tg_message_id,
+            )
             result = await adapter.send_public_reply(
                 session_file_path=lease.session_file_path,
                 community=candidate.community,
@@ -386,6 +389,7 @@ async def process_engagement_send(
 async def check_send_limits(
     session: AsyncSession,
     *,
+    candidate: EngagementCandidate | None = None,
     community_id: uuid.UUID,
     telegram_account_id: uuid.UUID,
     max_posts_per_day: int,
@@ -413,6 +417,16 @@ async def check_send_limits(
     if account_count >= max_posts_per_day:
         return SendLimitDecision(False, "Account daily send limit reached")
 
+    cadence_decision = await check_opportunity_cadence(
+        session,
+        candidate=candidate,
+        community_id=community_id,
+        telegram_account_id=telegram_account_id,
+        now=current_time,
+    )
+    if not cadence_decision.allowed:
+        return cadence_decision
+
     spacing_cutoff = current_time - timedelta(minutes=min_minutes_between_posts)
     latest_community_action = await _latest_sent_reply(session, community_id=community_id)
     if _action_sent_at(latest_community_action) is not None:
@@ -430,6 +444,67 @@ async def check_send_limits(
             return SendLimitDecision(False, "Account spacing limit has not elapsed")
 
     return SendLimitDecision(True)
+
+
+async def _allows_task_first_operator_send(
+    session: AsyncSession,
+    candidate: EngagementCandidate,
+) -> bool:
+    engagement_settings = await session.scalar(
+        select(EngagementSettings)
+        .join(Engagement, EngagementSettings.engagement_id == Engagement.id)
+        .join(EngagementTarget, Engagement.target_id == EngagementTarget.id)
+        .where(
+            Engagement.community_id == candidate.community_id,
+            Engagement.topic_id == candidate.topic_id,
+            Engagement.status == EngagementStatus.ACTIVE.value,
+            EngagementTarget.status == EngagementTargetStatus.APPROVED.value,
+            EngagementTarget.allow_detect.is_(True),
+        )
+        .order_by(Engagement.updated_at.desc(), Engagement.created_at.desc())
+        .limit(1)
+    )
+    if engagement_settings is None:
+        return False
+    return (
+        engagement_settings.require_approval
+        and engagement_settings.reply_only
+        and engagement_settings.mode
+        in {
+            EngagementMode.SUGGEST.value,
+            EngagementMode.REQUIRE_APPROVAL.value,
+            EngagementMode.AUTO_LIMITED.value,
+        }
+    )
+
+
+async def reserve_scheduled_send_action(
+    session: AsyncSession,
+    *,
+    candidate_id: uuid.UUID,
+    scheduled_at: datetime,
+) -> EngagementAction:
+    candidate = await _load_candidate(session, candidate_id)
+    if candidate is None:
+        raise ValueError("candidate_not_found")
+    membership = await get_joined_membership_for_send(session, community_id=candidate.community_id)
+    if membership is None:
+        raise ValueError("no_joined_membership")
+    outbound_text = validate_suggested_reply(candidate.final_reply)
+    if outbound_text is None:
+        raise ValueError("final_reply_required")
+    reservation = await _reserve_action(
+        session,
+        candidate=candidate,
+        membership=membership,
+        idempotency_key=_send_idempotency_key(candidate.id),
+        outbound_text=outbound_text,
+        now=_ensure_aware_utc(scheduled_at),
+    )
+    reservation.action.scheduled_at = _ensure_aware_utc(scheduled_at)
+    reservation.action.updated_at = _utcnow()
+    await session.flush()
+    return reservation.action
 
 
 def run_engagement_send_job(payload: dict[str, Any]) -> dict[str, object]:

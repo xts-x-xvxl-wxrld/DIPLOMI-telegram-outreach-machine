@@ -33,9 +33,7 @@ from backend.workers.engagement_detect import (
     load_recent_detection_samples,
     process_engagement_detect,
 )
-
 _FIXTURE_NOW = datetime.now(timezone.utc).replace(microsecond=0)
-
 
 @pytest.mark.asyncio
 async def test_engagement_detect_skips_model_when_keyword_prefilter_has_no_signal() -> None:
@@ -108,6 +106,7 @@ async def test_engagement_detect_creates_candidate_without_sender_identity() -> 
                     tg_message_id=123,
                     text="We are comparing CRM options. Call me at +1 555 123 4567 if you know one.",
                     message_date=_now() - timedelta(minutes=30),
+                    reply_to_tg_message_id=99,
                     is_replyable=True,
                 )
             ]
@@ -129,6 +128,9 @@ async def test_engagement_detect_creates_candidate_without_sender_identity() -> 
     candidate = session.candidates[0]
     assert candidate.status == EngagementCandidateStatus.NEEDS_REVIEW.value
     assert candidate.source_tg_message_id == 123
+    assert candidate.source_reply_to_tg_message_id == 99
+    assert candidate.opportunity_kind == "root"
+    assert candidate.root_candidate_id is None
     assert "[phone redacted]" in (candidate.source_excerpt or "")
     assert "+1 555" not in (candidate.source_excerpt or "")
     assert candidate.source_message_date == _now() - timedelta(minutes=30)
@@ -142,6 +144,7 @@ async def test_engagement_detect_creates_candidate_without_sender_identity() -> 
     assert candidate.model == "test-model"
     assert "source_post" in captured_inputs[0]
     assert captured_inputs[0]["source_post"]["tg_message_id"] == 123
+    assert captured_inputs[0]["source_post"]["reply_to_tg_message_id"] == 99
     assert captured_inputs[0]["messages"] == [captured_inputs[0]["source_post"]]
     assert "sender" not in str(captured_inputs[0]).casefold()
     assert "user_id" not in str(captured_inputs[0]).casefold()
@@ -230,6 +233,30 @@ async def test_engagement_detect_skips_without_joined_membership() -> None:
 
     assert result["status"] == "skipped"
     assert result["reason"] == "no_joined_engagement_membership"
+
+
+@pytest.mark.asyncio
+async def test_engagement_detect_skips_during_post_join_warmup() -> None:
+    community_id = uuid4()
+    membership = _membership(community_id)
+    membership.joined_at = _now() - timedelta(minutes=30)
+    session = FakeSession(
+        community=_community(community_id),
+        settings=_settings(community_id),
+        membership=membership,
+    )
+
+    async def detector(_model_input: dict[str, object]) -> EngagementDetectionDecision:
+        raise AssertionError("detector should not run during post-join warmup")
+
+    result = await process_engagement_detect(
+        {"community_id": str(community_id), "window_minutes": 60, "requested_by": "op"},
+        session_factory=lambda: session,
+        detector=detector,
+    )
+
+    assert result["status"] == "skipped"
+    assert result["reason"] == "post_join_warmup_active"
 
 
 @pytest.mark.asyncio

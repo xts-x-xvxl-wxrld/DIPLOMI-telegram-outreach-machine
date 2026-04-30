@@ -65,5 +65,7 @@ Minimum tests for the first implementation:
 - operator notification opens only for fresh or aging reply opportunities and records
   `operator_notified_at`
 - send worker idempotency and no duplicate send on retry
+- Telethon send adapter read acknowledgement and typing action behavior, including best-effort
+  fallback when presence calls fail
 - API auth and schema tests
 - bot formatting/callback tests for reply opportunity cards

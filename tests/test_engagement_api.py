@@ -28,7 +28,6 @@ from backend.api.routes.engagement import (
     get_community_engagement_settings,
     patch_engagement_style_rule,
     patch_engagement_topic,
-    post_engagement_cockpit_draft_approve,
     post_engagement_cockpit_draft_edit,
     post_engagement_cockpit_draft_reject,
     post_engagement_cockpit_issue_action,
@@ -47,6 +46,7 @@ from backend.api.routes.engagement import (
     put_engagement_cockpit_quiet_hours,
     put_task_first_settings,
 )
+from backend.api.routes import engagement_cockpit
 from backend.api.schemas import (
     CockpitDraftEditRequest,
     CockpitQuietHoursWriteRequest,
@@ -71,6 +71,7 @@ from backend.db.enums import (
     CommunityStatus,
     EngagementCandidateStatus,
     EngagementMode,
+    EngagementOpportunityKind,
     EngagementStatus,
     EngagementTargetRefType,
     EngagementTargetStatus,
@@ -204,7 +205,6 @@ async def test_get_engagement_settings_returns_disabled_default() -> None:
     assert response.created_at is None
     assert db.added == []
 
-
 @pytest.mark.asyncio
 async def test_get_engagement_settings_prefers_active_task_first_settings() -> None:
     community_id = uuid4()
@@ -226,7 +226,6 @@ async def test_get_engagement_settings_prefers_active_task_first_settings() -> N
 
     assert response.mode == EngagementMode.SUGGEST.value
     assert response.assigned_account_id == account_id
-
 @pytest.mark.asyncio
 async def test_put_engagement_settings_forces_disabled_to_read_only() -> None:
     community_id = uuid4()
@@ -1013,11 +1012,18 @@ async def test_complete_draft_update_request_keeps_placeholder_when_replacement_
 
 
 @pytest.mark.asyncio
-async def test_post_engagement_cockpit_draft_approve_and_reject_return_semantic_results() -> None:
+async def test_post_engagement_cockpit_draft_approve_and_reject_return_semantic_results(monkeypatch) -> None:
     community_id = uuid4()
     topic = _topic(uuid4(), name="CRM replies")
     target = _target(community_id, status=EngagementTargetStatus.APPROVED.value)
     engagement = _engagement(target=target, topic=topic, status=EngagementStatus.ACTIVE.value)
+    account_id = uuid4()
+    engagement_settings = _engagement_settings(
+        engagement.id,
+        account_id=account_id,
+        mode=EngagementMode.AUTO_LIMITED.value,
+    )
+    membership = _membership(community_id=target.community_id, account_id=account_id)
     approve_candidate_row = _candidate(uuid4(), target.community, topic)
     reject_candidate_row = _candidate(uuid4(), target.community, topic)
 
@@ -1025,10 +1031,25 @@ async def test_post_engagement_cockpit_draft_approve_and_reject_return_semantic_
         targets=[target],
         topics=[topic],
         engagements=[engagement],
+        engagement_settings=engagement_settings,
+        memberships=[membership],
         candidates=[approve_candidate_row],
         candidate=approve_candidate_row,
     )
-    approve_response = await post_engagement_cockpit_draft_approve(
+    captured_send: dict[str, object] = {}
+
+    def fake_enqueue_send(candidate_id_arg: object, *, approved_by: str, scheduled_at: datetime) -> QueuedJob:
+        captured_send.update(
+            {
+                "candidate_id": candidate_id_arg,
+                "approved_by": approved_by,
+                "scheduled_at": scheduled_at,
+            }
+        )
+        return QueuedJob(id="send-job", type="engagement.send")
+
+    monkeypatch.setattr(engagement_cockpit, "enqueue_engagement_send", fake_enqueue_send)
+    approve_response = await engagement_cockpit.post_engagement_cockpit_draft_approve(
         approve_candidate_row.id,
         approve_db,  # type: ignore[arg-type]
     )
@@ -1046,7 +1067,13 @@ async def test_post_engagement_cockpit_draft_approve_and_reject_return_semantic_
     )
 
     assert approve_response.result == "approved"
+    assert approve_response.message == "Draft approved and send queued"
+    assert approve_response.job_id == "send-job"
+    assert approve_response.job_type == "engagement.send"
     assert approve_candidate_row.status == EngagementCandidateStatus.APPROVED.value
+    assert captured_send["candidate_id"] == approve_candidate_row.id
+    assert captured_send["approved_by"] == "operator"
+    assert isinstance(captured_send["scheduled_at"], datetime)
     assert approve_db.commits == 1
     assert reject_response.result == "rejected"
     assert reject_candidate_row.status == EngagementCandidateStatus.REJECTED.value
@@ -1876,6 +1903,7 @@ class FakeDb:
         self.added: list[object] = []
         self.commits = 0
         self.flushes = 0
+        self.rollbacks = 0
 
     async def get(self, model: object, item_id: object) -> object | None:
         if model is Community:
@@ -1904,6 +1932,11 @@ class FakeDb:
         if self.scalar_result is not None:
             return self.scalar_result
         model_name = _selected_model_name(statement)
+        if _is_count_query(statement):
+            if model_name == "EngagementCandidate" or self.candidates:
+                return len(self.candidates)
+            if model_name == "EngagementAction" or self.actions:
+                return len(self.actions)
         if model_name == "CommunityEngagementSettings":
             return self.settings
         if model_name == "Engagement":
@@ -1924,6 +1957,8 @@ class FakeDb:
             return self.target if self.target is not None else (self.targets[0] if self.targets else None)
         if model_name == "EngagementCandidate":
             return self.candidate if self.candidate is not None else (self.candidates[0] if self.candidates else None)
+        if model_name == "EngagementAction":
+            return self.actions[0] if self.actions else None
         if model_name == "TelegramAccount":
             return self.account if self.account is not None else (self.accounts[0] if self.accounts else None)
         if self.target is not None:
@@ -1962,12 +1997,17 @@ class FakeDb:
         self.added.append(model)
         if isinstance(model, EngagementDraftUpdateRequest):
             self.draft_update_requests.append(model)
+        if isinstance(model, EngagementAction):
+            self.actions.append(model)
 
     async def flush(self) -> None:
         self.flushes += 1
 
     async def commit(self) -> None:
         self.commits += 1
+
+    async def rollback(self) -> None:
+        self.rollbacks += 1
 
     @staticmethod
     def _lookup(items: list[object], item_id: object, fallback: object | None, *, key: str = "id") -> object | None:
@@ -2118,6 +2158,11 @@ def _selected_model_name(statement: object) -> str | None:
     return None if entity is None else getattr(entity, "__name__", None)
 
 
+def _is_count_query(statement: object) -> bool:
+    descriptions = getattr(statement, "column_descriptions", None) or []
+    return any(description.get("name") == "count" for description in descriptions)
+
+
 def _candidate(
     candidate_id: object,
     community: Community,
@@ -2145,6 +2190,7 @@ def _candidate(
         moment_strength="good",
         timeliness="fresh",
         reply_value="practical_tip",
+        opportunity_kind=EngagementOpportunityKind.ROOT.value,
         suggested_reply=suggested_reply or "Compare data ownership, integrations, and exit paths first.",
         risk_notes=[],
         status=status,
@@ -2184,7 +2230,6 @@ def _target(
     target.community = community
     return target
 
-
 def _action(
     action_id: object,
     *,
@@ -2213,7 +2258,6 @@ def _action(
     )
     action.community = community
     return action
-
 
 def _now() -> datetime:
     return _FIXTURE_NOW

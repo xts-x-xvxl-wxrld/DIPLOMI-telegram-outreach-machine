@@ -106,6 +106,14 @@ class TelegramEngagementCollector(Protocol):
     ) -> TelegramCollectionBatch:
         pass
 
+    async def acknowledge_read(
+        self,
+        community: Community,
+        *,
+        max_tg_message_id: int,
+    ) -> None:
+        pass
+
 
 @dataclass(frozen=True)
 class CollectionJobSummary:
@@ -119,6 +127,7 @@ class CollectionJobSummary:
     snapshot_id: UUID | None
     should_enqueue_detection: bool = False
     error_message: str | None = None
+    latest_tg_message_id: int | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -133,6 +142,7 @@ class CollectionJobSummary:
             "snapshot_id": str(self.snapshot_id) if self.snapshot_id else None,
             "should_enqueue_detection": self.should_enqueue_detection,
             "error_message": self.error_message,
+            "latest_tg_message_id": self.latest_tg_message_id,
         }
 
 
@@ -230,6 +240,7 @@ async def collect_community_engagement_messages(
             quiet_hours_start=engagement_settings.quiet_hours_start,
             quiet_hours_end=engagement_settings.quiet_hours_end,
         ),
+        latest_tg_message_id=max((message.tg_message_id for message in messages), default=None),
     )
 
 
@@ -276,6 +287,7 @@ async def record_collection_failure(
         activity_events=0,
         snapshot_id=None,
         error_message=error_message[:1000],
+        latest_tg_message_id=None,
     )
 
 

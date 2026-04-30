@@ -369,14 +369,24 @@ class EngagementCandidate(Base):
     __table_args__ = (
         Index("ix_engagement_candidates_status_created", "status", "created_at"),
         Index("ix_engagement_candidates_community_topic_status", "community_id", "topic_id", "status"),
+        Index("ix_engagement_candidates_root_kind", "root_candidate_id", "opportunity_kind"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     community_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("communities.id"), nullable=False)
     topic_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("engagement_topics.id"), nullable=False)
     source_tg_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    source_reply_to_tg_message_id: Mapped[int | None] = mapped_column(BigInteger)
     source_excerpt: Mapped[str | None] = mapped_column(Text)
     source_message_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    opportunity_kind: Mapped[str] = mapped_column(
+        Text,
+        default=EngagementOpportunityKind.ROOT.value,
+        server_default=EngagementOpportunityKind.ROOT.value,
+        nullable=False,
+    )
+    root_candidate_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("engagement_candidates.id"))
+    conversation_key: Mapped[str | None] = mapped_column(Text)
     detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     detected_reason: Mapped[str] = mapped_column(Text, nullable=False)
     moment_strength: Mapped[str] = mapped_column(Text, nullable=False)
@@ -414,6 +424,7 @@ class EngagementCandidate(Base):
 
     community: Mapped[Community] = relationship()
     topic: Mapped[EngagementTopic] = relationship()
+    root_candidate: Mapped["EngagementCandidate | None"] = relationship(remote_side=[id])
     prompt_profile: Mapped[EngagementPromptProfile | None] = relationship(foreign_keys=[prompt_profile_id])
     prompt_profile_version: Mapped[EngagementPromptProfileVersion | None] = relationship(
         foreign_keys=[prompt_profile_version_id]

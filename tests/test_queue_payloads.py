@@ -13,7 +13,6 @@ from backend.queue.client import (
     enqueue_community_snapshot,
     enqueue_engagement_detect,
     enqueue_manual_engagement_detect,
-    enqueue_engagement_send,
     enqueue_engagement_target_resolve,
     enqueue_job,
     enqueue_search_plan,
@@ -837,43 +836,6 @@ def test_enqueue_job_raises_queue_unavailable_for_connection_errors(monkeypatch)
     assert logged[0][1]["job_type"] == "engagement_target.resolve"
     assert logged[0][1]["queue_name"] == "engagement"
     assert str(logged[0][1]["job_id"]).startswith("engagement_target_resolve_")
-
-
-def test_enqueue_engagement_send_uses_engagement_queue(monkeypatch) -> None:
-    captured: dict[str, object] = {}
-
-    def fake_enqueue_job(
-        job_type: str,
-        payload: dict[str, object],
-        *,
-        queue_name: str,
-        job_id: str | None = None,
-    ) -> QueuedJob:
-        captured.update(
-            {
-                "job_type": job_type,
-                "payload": payload,
-                "queue_name": queue_name,
-                "job_id": job_id,
-            }
-        )
-        return QueuedJob(id="job-7", type=job_type)
-
-    monkeypatch.setattr("backend.queue.client.enqueue_job", fake_enqueue_job)
-    candidate_id = uuid4()
-
-    job = enqueue_engagement_send(candidate_id, approved_by="operator")
-
-    assert job == QueuedJob(id="job-7", type="engagement.send")
-    assert captured == {
-        "job_type": "engagement.send",
-        "payload": {
-            "candidate_id": str(candidate_id),
-            "approved_by": "operator",
-        },
-        "queue_name": "engagement",
-        "job_id": f"engagement.send:{candidate_id}",
-    }
 
 
 def test_dispatch_recognizes_engagement_job_types(monkeypatch) -> None:

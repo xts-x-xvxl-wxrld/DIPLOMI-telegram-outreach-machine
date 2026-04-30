@@ -123,7 +123,9 @@ def upsert_engagement_settings(
 It should not create a database row just because the operator viewed settings.
 Worker-facing community lookups should prefer the active task-first `engagement_settings`
 row for that community and fall back to legacy `community_engagement_settings`
-only for compatibility while old control surfaces are retired.
+only for compatibility while old control surfaces are retired. For task-first engagements,
+`allow_post=false` in `suggest` mode blocks automatic sends, but it must not block the explicit
+operator-approved send from the draft approval queue.
 
 ## Engagement Topic
 

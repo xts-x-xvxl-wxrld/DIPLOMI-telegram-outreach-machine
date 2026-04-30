@@ -54,6 +54,7 @@ style rules, candidates, actions, and rollout summaries.
 
 - [Lifecycle](engagement/lifecycle.md) - terminology, durable statuses, invariants, ethics, safety.
 - [Settings and Membership](engagement/settings-membership.md) - community settings and account memberships.
+- [Account Behavior](engagement/account-behavior.md) - hardcoded natural account cadence, warmup, health, and replacement rules.
 - [Topics and Drafting](engagement/topics-drafting.md) - topic contracts, trigger selection, prompt rules.
 - [Opportunities and Actions](engagement/opportunities-actions.md) - reply opportunities and outbound actions.
 - [Jobs and Scheduling](engagement/jobs-scheduling.md) - worker jobs, notification, monitoring cadence.

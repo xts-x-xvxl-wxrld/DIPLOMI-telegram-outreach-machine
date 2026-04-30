@@ -52,6 +52,22 @@ class TelethonEngagementCollector:
             _raise_collection_exception(exc)
         return TelegramCollectionBatch(messages=messages, metadata=metadata)
 
+    async def acknowledge_read(
+        self,
+        community: Community,
+        *,
+        max_tg_message_id: int,
+    ) -> None:
+        client = await self._get_client()
+        entity = await self._get_entity(client, community)
+        mark_read = getattr(client, "send_read_acknowledge", None)
+        if not callable(mark_read):
+            return
+        try:
+            await mark_read(entity, max_id=max_tg_message_id)
+        except Exception:
+            return
+
     async def aclose(self) -> None:
         if self._client is not None:
             await self._client.disconnect()

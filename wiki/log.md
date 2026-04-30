@@ -1681,3 +1681,144 @@ while preserving the staged testing contract.
 - Updated the architecture, collection, scheduling specs, and `.env.example` to document
   `ENGAGEMENT_ACTIVE_COLLECTION_INTERVAL_SECONDS=180`.
 - Added scheduler settings coverage for the new default.
+## 2026-04-29 - Cockpit draft approval queues send
+
+- Changed task-first cockpit draft approval to commit approval and enqueue the existing
+  `engagement.send` job so "Confirm approve" actually schedules the public reply.
+- Added queued send job metadata to cockpit draft action responses and approval result formatting.
+- Added a regression assertion that cockpit draft approval enqueues `engagement.send`.
+
+## 2026-04-29 - Task-first draft sends honor operator approval
+
+- Confirmed live logs showed cockpit approvals persisted while no send jobs were enqueued until the
+  app images were rebuilt.
+- Rebuilt and restarted the local Docker app services so cockpit approval now enqueues sends.
+- Fixed `engagement.send` so task-first `suggest`/operator-review mode treats explicit draft
+  approval as send authorization instead of skipping with `posting_not_allowed`.
+- Added send-worker regression coverage for a task-first approved draft with `allow_post=false`.
+
+## 2026-04-30 - Agent code index navigation plan
+
+- Added `wiki/plan/agent-code-index-navigation.md` to lock down a nested `wiki/code-index/`
+  navigation model for Codex, Claude, and future coding agents.
+- Planned the split where `wiki/index.md` becomes wiki-only while code maps live under
+  `wiki/code-index/`.
+- Recorded the combined agent protocol: read the wiki index, code-index entrypoint, narrow code
+  shard, and relevant spec or plan before editing.
+
+## 2026-04-30 - Project context navigation skill
+
+- Added the local Codex skill `project-context-navigation` under `C:\Users\ravil\.codex\skills\`
+  to combine the existing wiki protocol with the planned nested code-index protocol.
+- The skill keeps `wiki/index.md` and `wiki/code-index/` as separate artifacts while giving agents
+  one navigation workflow for specs, plans, code maps, generated indexes, and post-change updates.
+
+## 2026-04-30 - Engagement natural account behavior
+
+- Reviewed `git@github.com:RichardAtCT/claude-code-telegram.git` and mapped its persistent typing
+  pattern to the Telethon engagement adapter.
+- Added a best-effort read acknowledgement and short typing action around approved public replies
+  so engagement accounts behave less like bare send-only bots.
+- Added adapter tests proving read/typing behavior and fallback when presence calls fail.
+
+## 2026-04-30 - Engagement account behavior spec
+
+- Added `wiki/spec/engagement/account-behavior.md` for hardcoded natural account behavior rules.
+- Captured post-join acclimation, jittered per-community collection, jittered read receipts,
+  account consistency with replacement, 8-hour account health refresh, and account reply cadence.
+- Linked the new shard from the engagement spec and wiki index for agent navigation.
+
+## 2026-04-30 - Delete stale implemented wiki plans
+
+- Deleted stale plan files whose open/planned status no longer matched implemented code:
+  `wiki/plan/timely-reply-opportunities.md`, `wiki/plan/bot-operator-cockpit.md`,
+  `wiki/plan/engagement-operator-controls/surface.md`,
+  `wiki/plan/engagement-task-first-cockpit-slices.md`,
+  `wiki/plan/engagement-task-first-cockpit/slices-1-6.md`, and
+  `wiki/plan/engagement-task-first-cockpit/slices-7-12.md`.
+- Removed active wiki-index links to those files and kept a deleted-files note in the index so
+  future agents do not chase obsolete implementation plans.
+- Updated engagement add-wizard references to point at the current task-first cockpit spec instead
+  of the deleted operator-controls surface plan.
+- Removed deleted task-first slice files from the fragmentation guardrail exception list.
+
+## 2026-04-30 - Docker live reload
+
+- Added local Docker Compose bind mounts for Python app services so source edits are visible inside
+  containers immediately.
+- Switched the API to Uvicorn reload and wrapped worker, scheduler, and bot commands with
+  `watchfiles` for process restarts on Python code changes.
+- Documented the local reload workflow and noted that dependency or packaging changes still require
+  an image rebuild.
+- Split the reload setup into `docker-compose.dev.yml` so the base Compose file remains
+  production-like for staging deploys.
+
+## 2026-04-30 - Engagement account behavior plan
+
+- Updated the account-behavior spec to use Redis/RQ delayed send scheduling instead of worker sleep.
+- Clarified that account cadence counts started root opportunities, while direct reply-to-managed
+  message continuations get separate caps.
+- Added `wiki/plan/engagement-account-behavior.md` with rollout slices for jitter helpers,
+  delayed sends, source preflight, continuation handling, warmup, jittered collection/read receipts,
+  and account health refresh.
+
+## 2026-04-30 - Engagement account behavior slice shards
+
+- Split the engagement account behavior plan into eight implementation slice shards under
+  `wiki/plan/engagement-account-behavior/`.
+- Updated the plan overview to link each slice and added the new shard directory to the wiki index.
+
+## 2026-04-30 - Engagement account behavior slice 1
+
+- Added shared account-behavior constants and deterministic stable-jitter helpers for delayed
+  sends, collection due times, read receipts, warmup, cadence, and health refresh.
+- Added tests for deterministic jitter ranges, purpose spreading, bucket stability, invalid ranges,
+  and spec-aligned defaults.
+
+## 2026-04-30 - Engagement account behavior slice 2
+
+- Added delayed `engagement.send` queueing via RQ scheduled jobs using stable 45-120 second jitter.
+- Enabled scheduled-job promotion in the worker runner so delayed sends do not occupy worker slots.
+- Added queue contract tests for delayed enqueue metadata, explicit delays, duplicate-safe job IDs,
+  and worker scheduler promotion.
+- Updated queue specs for delayed engagement send metadata and worker scheduling behavior.
+
+## 2026-04-30 - Cockpit button-only cleanup and cadence hardening
+
+- Added `wiki/plan/cockpit-button-only-policy.md` to restore the active button-only cleanup checklist.
+- Removed legacy top-level reply-keyboard label handlers and the dead persistent `main_menu_markup()`
+  helper so the operator surface is slash commands plus inline cockpit buttons.
+- Extracted engagement send cadence checks into `backend/workers/engagement_send_cadence.py` and
+  candidate timing normalization into `backend/services/engagement_candidate_timing.py` to keep
+  touched modules under fragmentation caps.
+- Updated engagement API/send test fixtures for explicit root opportunity metadata and delayed-send
+  reservation behavior.
+
+## 2026-04-30 - Engagement account behavior slices 3-7
+
+- Added explicit source-message preflight before public reply sends; deleted, inaccessible, or
+  non-replyable source messages now skip with audited outcomes before typing/send work.
+- Added durable root/continuation opportunity fields and migration
+  `20260430_0016_engagement_opportunity_cadence`, propagated source reply-to IDs from collection
+  artifacts into detection candidates, and added conservative direct-continuation classification.
+- Added root and continuation cadence checks over queued/sent send actions, and changed scheduled
+  queued send actions to be resumable by the send worker.
+- Added post-join initial reads plus warmup skips for detection and send.
+- Added Redis due-state for jittered engagement collection and per-account/community read receipts;
+  collection read acknowledgements are best effort and only run when due.
+- Slice 8 account health refresh remains pending; no account health worker/job was added in this
+  slice batch.
+
+## 2026-04-30 - Engagement account behavior slice 8
+
+- Added `account.health_refresh` payload, enqueue path, dispatcher hook, and an 8-hour scheduler
+  enqueue tick.
+- Added `backend/workers/account_health_refresh.py` to refresh managed Telegram accounts without
+  leasing active accounts, skip disabled-pool accounts, and map healthy, FloodWait, banned, and
+  generic error outcomes to deterministic account state.
+- Extended the Telethon engagement adapter with `check_account_health()` using authorization,
+  `get_me()`, and optional joined-community spot checks.
+- Added focused worker, queue, scheduler, and adapter tests for slice 8.
+- Validation: `python scripts/check_fragmentation.py`, `ruff check .`, and `pytest -q
+  --basetemp=.pytest-tmp2` passed with 849 tests. Plain `pytest -q` was blocked by Windows temp-directory
+  permissions in this sandbox.

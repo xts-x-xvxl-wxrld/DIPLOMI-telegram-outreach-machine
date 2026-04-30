@@ -7,6 +7,7 @@ from typing import Any, Protocol
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.settings import Settings, get_settings
+from backend.db.models import Community
 from backend.db.session import AsyncSessionLocal
 from backend.queue.client import enqueue_engagement_detect
 from backend.queue.payloads import CollectionPayload
@@ -21,6 +22,11 @@ from backend.services.community_collection import (
 from backend.services.community_engagement import (
     get_engagement_settings,
     get_joined_membership_for_send,
+)
+from backend.services.engagement_due_state import (
+    DueDecision,
+    EngagementDueStateUnavailable,
+    RedisEngagementDueState,
 )
 from backend.workers.account_manager import (
     AccountLease,
@@ -45,6 +51,14 @@ CollectorFactory = Callable[[AccountLease], TelegramEngagementCollector]
 EnqueueDetectFn = Callable[..., Any]
 
 
+class ReadDueState(Protocol):
+    def read_receipt_due(self, telegram_account_id: Any, community_id: Any, *, now: Any) -> DueDecision:
+        pass
+
+    def mark_read_receipt_checked(self, telegram_account_id: Any, community_id: Any, *, now: Any) -> Any:
+        pass
+
+
 async def process_collection(
     payload: dict[str, Any],
     *,
@@ -54,10 +68,12 @@ async def process_collection(
     release_account_fn: ReleaseAccountFn = release_account,
     collector_factory: CollectorFactory = TelethonEngagementCollector,
     enqueue_detect_fn: EnqueueDetectFn = enqueue_engagement_detect,
+    due_state: ReadDueState | None = None,
     settings: Settings | None = None,
 ) -> dict[str, object]:
     validated_payload = CollectionPayload.model_validate(payload)
     runtime_settings = settings or get_settings()
+    due_state = due_state or RedisEngagementDueState(settings=runtime_settings)
     job_id = _current_job_id() or f"collection:{validated_payload.community_id}"
 
     async with session_factory() as session:
@@ -90,6 +106,13 @@ async def process_collection(
                 collector=collector,
                 reason=validated_payload.reason,
                 window_days=validated_payload.window_days,
+            )
+            await _acknowledge_read_if_due(
+                session,
+                collector=collector,
+                lease=lease,
+                summary=summary,
+                due_state=due_state,
             )
             await session.commit()
         except CollectionAccountRateLimited as exc:
@@ -222,6 +245,46 @@ async def _preferred_collection_account_id(
     if membership is not None:
         return membership.telegram_account_id
     return None
+
+
+async def _acknowledge_read_if_due(
+    session: AsyncSession,
+    *,
+    collector: TelegramEngagementCollector,
+    lease: AccountLease | None,
+    summary: CollectionJobSummary,
+    due_state: ReadDueState,
+) -> None:
+    if lease is None or summary.latest_tg_message_id is None or summary.messages_seen <= 0:
+        return
+    try:
+        due_decision = due_state.read_receipt_due(
+            lease.account_id,
+            summary.community_id,
+            now=_utcnow(),
+        )
+    except EngagementDueStateUnavailable:
+        return
+    if not due_decision.due:
+        return
+    community = await session.get(Community, summary.community_id)
+    if community is None:
+        return
+    await collector.acknowledge_read(community, max_tg_message_id=summary.latest_tg_message_id)
+    try:
+        due_state.mark_read_receipt_checked(
+            lease.account_id,
+            summary.community_id,
+            now=_utcnow(),
+        )
+    except EngagementDueStateUnavailable:
+        return
+
+
+def _utcnow():
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc)
 
 
 __all__ = [

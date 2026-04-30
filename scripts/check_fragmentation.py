@@ -36,8 +36,6 @@ GRANDFATHERED_LIMITS = {
     "wiki/plan/bot-engagement-controls/slices-6-10.md": 209,
     "wiki/plan/engagement-admin-control-plane.md": 202,
     "wiki/plan/engagement-operator-controls/slices.md": 228,
-    "wiki/plan/engagement-task-first-cockpit/slices-1-6.md": 357,
-    "wiki/plan/engagement-task-first-cockpit/slices-7-12.md": 448,
 }
 
 
@@ -148,7 +146,11 @@ def check_file(root: Path, path: str) -> Violation | None:
     if rule is None:
         return None
 
-    lines = line_count(root / path)
+    target = root / path
+    if not target.is_file():
+        return None
+
+    lines = line_count(target)
     if lines <= rule.cap:
         return None
 

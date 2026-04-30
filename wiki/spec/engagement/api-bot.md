@@ -24,6 +24,7 @@ POST /api/engagement/candidates/{candidate_id}/approve
 POST /api/engagement/candidates/{candidate_id}/reject
 POST /api/engagement/candidates/{candidate_id}/send-jobs
 GET  /api/engagement/actions
+POST /api/engagement/cockpit/drafts/{draft_id}/approve
 ```
 
 API rules:
@@ -34,6 +35,9 @@ API rules:
 - Approval may accept the runtime-generated `suggested_reply` as-is or persist an operator-edited
   `final_reply` before send.
 - The send endpoint enqueues a job; it should not call Telethon directly.
+- The task-first cockpit draft approval endpoint is an explicit approve-and-send control: after
+  persisting approval it enqueues `engagement.send` for the approved draft and returns the queued job
+  identity.
 - Join-triggering API flows must not report success when the join job could not be enqueued; they
   should return a blocking error so the operator can retry before assuming the engagement is ready.
 - Task-first engagement confirmation must promote a resolved target community from `candidate` to

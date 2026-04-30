@@ -3,13 +3,14 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
 from backend.core.settings import get_settings
 from backend.queue.payloads import (
     AnalysisPayload,
+    AccountHealthRefreshPayload,
     BriefProcessPayload,
     CommunitySnapshotPayload,
     CollectionPayload,
@@ -26,6 +27,10 @@ from backend.queue.payloads import (
     SeedExpandPayload,
     SeedResolvePayload,
     TelegramEntityResolvePayload,
+)
+from backend.services.engagement_account_behavior import (
+    engagement_send_scheduled_at,
+    ensure_aware_utc,
 )
 
 WORKER_DISPATCH = "backend.workers.jobs.dispatch_job"
@@ -338,13 +343,45 @@ def enqueue_manual_engagement_detect(
     )
 
 
-def enqueue_engagement_send(candidate_id: UUID, *, approved_by: str) -> QueuedJob:
+def enqueue_engagement_send(
+    candidate_id: UUID,
+    *,
+    approved_by: str,
+    scheduled_at: datetime | None = None,
+    delay_seconds: int | None = None,
+    now: datetime | None = None,
+) -> QueuedJob:
     payload = EngagementSendPayload(candidate_id=candidate_id, approved_by=approved_by)
+    send_at = _engagement_send_scheduled_at(
+        candidate_id,
+        scheduled_at=scheduled_at,
+        delay_seconds=delay_seconds,
+        now=now,
+    )
     return enqueue_job(
         "engagement.send",
         payload.model_dump(mode="json"),
         queue_name="engagement",
         job_id=f"engagement.send:{candidate_id}",
+        scheduled_at=send_at,
+    )
+
+
+def enqueue_account_health_refresh(
+    *,
+    account_ids: list[UUID] | None = None,
+    spot_check_limit: int = 2,
+    now: datetime | None = None,
+) -> QueuedJob:
+    payload = AccountHealthRefreshPayload(
+        account_ids=account_ids or [],
+        spot_check_limit=spot_check_limit,
+    )
+    return enqueue_job(
+        "account.health_refresh",
+        payload.model_dump(mode="json"),
+        queue_name="default",
+        job_id=_account_health_refresh_job_id(now=now),
     )
 
 
@@ -354,21 +391,24 @@ def enqueue_job(
     *,
     queue_name: str,
     job_id: str | None = None,
+    scheduled_at: datetime | None = None,
 ) -> QueuedJob:
     Queue, Retry, redis_conn = _queue_dependencies()
     normalized_job_id = _normalize_job_id(job_id)
+    due_at = None if scheduled_at is None else ensure_aware_utc(scheduled_at)
     try:
         queue = Queue(queue_name, connection=redis_conn)
-        job = queue.enqueue(
-            WORKER_DISPATCH,
-            job_type,
-            payload,
+        enqueue_kwargs = _enqueue_kwargs(
+            job_type=job_type,
+            payload=payload,
             job_id=normalized_job_id,
-            retry=_retry_for(job_type, Retry),
-            result_ttl=86400,
-            failure_ttl=604800,
-            meta={"job_type": job_type, "status_message": "queued", **payload},
+            Retry=Retry,
+            scheduled_at=due_at,
         )
+        if due_at is None:
+            job = queue.enqueue(WORKER_DISPATCH, job_type, payload, **enqueue_kwargs)
+        else:
+            job = queue.enqueue_at(due_at, WORKER_DISPATCH, job_type, payload, **enqueue_kwargs)
     except Exception as exc:
         if normalized_job_id is not None and _is_duplicate_job_error(exc):
             return QueuedJob(id=normalized_job_id, type=job_type, status="duplicate")
@@ -377,7 +417,7 @@ def enqueue_job(
             extra={"job_type": job_type, "queue_name": queue_name, "job_id": normalized_job_id},
         )
         raise QueueUnavailable("Queue backend unavailable") from exc
-    return QueuedJob(id=job.id, type=job_type, status="queued")
+    return QueuedJob(id=job.id, type=job_type, status="scheduled" if due_at is not None else "queued")
 
 
 def fetch_job_status(job_id: str, *, redis_url: str | None = None) -> dict[str, Any] | None:
@@ -450,7 +490,58 @@ def _retry_for(job_type: str, Retry):
         return Retry(max=2, interval=[300, 900])
     if job_type == "engagement.send":
         return Retry(max=1, interval=[600])
+    if job_type == "account.health_refresh":
+        return Retry(max=1, interval=[1800])
     return Retry(max=1, interval=[60])
+
+
+def _enqueue_kwargs(
+    *,
+    job_type: str,
+    payload: dict[str, Any],
+    job_id: str | None,
+    Retry,
+    scheduled_at: datetime | None,
+) -> dict[str, Any]:
+    return {
+        "job_id": job_id,
+        "retry": _retry_for(job_type, Retry),
+        "result_ttl": 86400,
+        "failure_ttl": 604800,
+        "meta": _job_meta(job_type=job_type, payload=payload, scheduled_at=scheduled_at),
+    }
+
+
+def _job_meta(
+    *,
+    job_type: str,
+    payload: dict[str, Any],
+    scheduled_at: datetime | None,
+) -> dict[str, Any]:
+    status_message = "scheduled" if scheduled_at is not None else "queued"
+    meta = {"job_type": job_type, "status_message": status_message, **payload}
+    if scheduled_at is not None:
+        meta["scheduled_at"] = scheduled_at.isoformat()
+    return meta
+
+
+def _engagement_send_scheduled_at(
+    candidate_id: UUID,
+    *,
+    scheduled_at: datetime | None,
+    delay_seconds: int | None,
+    now: datetime | None,
+) -> datetime:
+    if scheduled_at is not None and delay_seconds is not None:
+        raise ValueError("scheduled_at and delay_seconds cannot both be provided")
+    current_time = ensure_aware_utc(now or datetime.now(timezone.utc))
+    if scheduled_at is not None:
+        return ensure_aware_utc(scheduled_at)
+    if delay_seconds is not None:
+        if delay_seconds < 0:
+            raise ValueError("delay_seconds must be non-negative")
+        return current_time + timedelta(seconds=delay_seconds)
+    return engagement_send_scheduled_at(candidate_id, now=current_time)
 
 
 def _hourly_job_id(prefix: str, community_id: UUID, *, now: datetime | None = None) -> str:
@@ -467,6 +558,15 @@ def _collection_job_id(community_id: UUID, *, reason: str, now: datetime | None 
     if reason == "engagement":
         return f"collection:engagement:{community_id}:{current_time:%Y%m%d%H%M}"
     return f"collection:{community_id}:{current_time:%Y%m%d%H}"
+
+
+def _account_health_refresh_job_id(*, now: datetime | None = None) -> str:
+    current_time = now or datetime.now(timezone.utc)
+    if current_time.tzinfo is not None:
+        current_time = current_time.astimezone(timezone.utc)
+    bucket_hour = current_time.hour - (current_time.hour % 8)
+    bucketed_time = current_time.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
+    return f"account.health_refresh:{bucketed_time:%Y%m%d%H}"
 
 
 def _is_duplicate_job_error(exc: Exception) -> bool:

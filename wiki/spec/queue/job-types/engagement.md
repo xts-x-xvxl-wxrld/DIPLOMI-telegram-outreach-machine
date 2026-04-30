@@ -112,7 +112,38 @@ Uses:
 Rules:
 
 - Candidate must be approved.
+- Approved sends are queued as delayed jobs by default using a short stable account-behavior jitter.
+- The deterministic job ID is `engagement.send:{candidate_id}` so repeated approvals do not create
+  multiple delayed sends.
 - Community settings must allow posting.
 - MVP sends replies only.
 - Enforce account and community send limits.
+- Repeat all final send preflight checks when the delayed job actually runs.
 - Write an `engagement_actions` audit row for sent, failed, and skipped outcomes.
+
+### `account.health_refresh`
+
+Scheduled account-health job that refreshes managed Telegram session health.
+
+Payload:
+
+```json
+{
+  "account_ids": [],
+  "spot_check_limit": 2
+}
+```
+
+Uses:
+
+- The job does not lease accounts; it skips accounts that are currently leased.
+- Disabled-pool accounts are never automatically re-enabled.
+- The scheduler enqueues this job about every 8 hours with an 8-hour bucketed job ID.
+
+Rules:
+
+- Connect to Telegram, confirm authorization, and call `get_me()`.
+- Optionally spot-check a small number of joined engagement communities.
+- Healthy sessions become `available`.
+- FloodWait updates `rate_limited` and `flood_wait_until`.
+- Banned, deauthorized, deactivated, invalid auth-key, or revoked sessions become `banned`.

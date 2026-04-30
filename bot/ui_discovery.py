@@ -1,10 +1,6 @@
 from __future__ import annotations
 
 from .ui_common import (
-    SEEDS_MENU_LABEL,
-    ENGAGEMENT_MENU_LABEL,
-    ACCOUNTS_MENU_LABEL,
-    HELP_MENU_LABEL,
     ACTION_OP_HOME,
     ACTION_OP_DISCOVERY,
     ACTION_OP_ACCOUNTS,
@@ -30,12 +26,11 @@ from .ui_common import (
     ACTION_COMMUNITY_MEMBERS,
     ACTION_JOB_STATUS,
     ACTION_ENGAGEMENT_SETTINGS_OPEN,
-    _FallbackReplyKeyboardRemove,
     _button,
     _inline_markup,
     _with_navigation,
     _pager_row,
-    _keyboard_types,
+    _FallbackReplyKeyboardRemove,
 )
 
 def operator_cockpit_markup():
@@ -87,21 +82,6 @@ def reply_keyboard_remove():
     except ImportError:
         return _FallbackReplyKeyboardRemove()
     return ReplyKeyboardRemove()
-
-
-def main_menu_markup():
-    KeyboardButton, ReplyKeyboardMarkup = _keyboard_types()
-
-    keyboard = [
-        [KeyboardButton(SEEDS_MENU_LABEL), KeyboardButton(ENGAGEMENT_MENU_LABEL)],
-        [KeyboardButton(ACCOUNTS_MENU_LABEL)],
-        [KeyboardButton(HELP_MENU_LABEL)],
-    ]
-    return ReplyKeyboardMarkup(
-        keyboard=keyboard,
-        resize_keyboard=True,
-        is_persistent=True,
-    )
 
 
 def seed_group_actions_markup(seed_group_id: str):

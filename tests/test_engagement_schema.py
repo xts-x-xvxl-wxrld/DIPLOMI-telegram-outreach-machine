@@ -194,6 +194,11 @@ def test_engagement_candidate_columns_include_timeliness_contract_fields() -> No
     candidate_columns = EngagementCandidate.__table__.c
 
     assert "source_message_date" in candidate_columns
+    assert "source_reply_to_tg_message_id" in candidate_columns
+    assert "opportunity_kind" in candidate_columns
+    assert "root_candidate_id" in candidate_columns
+    assert "conversation_key" in candidate_columns
+    assert candidate_columns.opportunity_kind.default.arg == "root"
     assert "detected_at" in candidate_columns
     assert "moment_strength" in candidate_columns
     assert "timeliness" in candidate_columns

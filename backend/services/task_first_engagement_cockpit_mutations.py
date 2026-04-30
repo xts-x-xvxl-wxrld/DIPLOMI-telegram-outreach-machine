@@ -42,6 +42,8 @@ class CockpitDraftActionResult:
     engagement_id: UUID | None = None
     next_callback: str | None = None
     code: str | None = None
+    job_id: str | None = None
+    job_type: str | None = None
 
 
 @dataclass(frozen=True)

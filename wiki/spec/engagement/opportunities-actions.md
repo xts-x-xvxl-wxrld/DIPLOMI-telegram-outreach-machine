@@ -120,8 +120,9 @@ Approval rules:
 - Reply opportunity must not be past `reply_deadline_at`.
 - `final_reply` defaults to `suggested_reply`.
 - Final text must pass the same safety and length validation as generated text.
-- Approving does not enqueue send automatically unless the API endpoint explicitly combines
-  approve-and-send in a later slice.
+- Generic reply opportunity approval does not enqueue send automatically. The task-first cockpit
+  draft approval endpoint explicitly combines approval and send queueing for the operator-facing
+  approval queue.
 
 ## Outbound Actions
 
@@ -155,6 +156,9 @@ Audit rules:
 - Store failures and skips with clear reasons.
 - Do not delete audit rows as part of normal operation.
 - Operator edits to suggested replies should produce an auditable final outbound text.
+- Before an approved public reply is sent, the engagement account should best-effort acknowledge the
+  source message as read and show a short typing action. Presence failures must not block the
+  already-approved send or change audit semantics.
 
 Idempotency contract:
 

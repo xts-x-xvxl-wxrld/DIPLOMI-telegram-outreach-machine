@@ -11,6 +11,7 @@ from backend.db.enums import (
     EngagementActionStatus,
     EngagementCandidateStatus,
     EngagementMode,
+    EngagementOpportunityKind,
     EngagementTargetStatus,
 )
 from backend.db.models import (
@@ -19,11 +20,12 @@ from backend.db.models import (
     CommunityEngagementSettings,
     EngagementAction,
     EngagementCandidate,
+    EngagementSettings,
     EngagementTarget,
     EngagementTopic,
 )
 from backend.workers.account_manager import AccountLease
-from backend.workers.engagement_send import SendLimitDecision, process_engagement_send
+from backend.workers.engagement_send import SendLimitDecision, check_send_limits, process_engagement_send
 from backend.workers.telegram_engagement import (
     EngagementAccountRateLimited,
     EngagementMessageNotReplyable,
@@ -85,6 +87,39 @@ async def test_engagement_send_skips_when_settings_are_missing_or_disabled() -> 
     assert result["reason"] == "posting_not_allowed"
     assert acquire_called is False
     assert session.action is None
+
+
+@pytest.mark.asyncio
+async def test_engagement_send_allows_task_first_operator_approved_draft() -> None:
+    community = _community()
+    account_id = uuid4()
+    candidate = _candidate(community)
+    membership = _membership(community.id, account_id)
+    session = FakeSession(
+        community=community,
+        settings=None,
+        task_first_settings=_task_first_settings(mode=EngagementMode.SUGGEST.value),
+        candidate=candidate,
+        membership=membership,
+        target=_target(community.id, allow_post=False),
+    )
+    adapter = FakeSendAdapter(result=SendResult(sent_tg_message_id=456, sent_at=_now()))
+
+    result = await process_engagement_send(
+        {"candidate_id": str(candidate.id), "approved_by": "op"},
+        session_factory=lambda: session,
+        acquire_account_by_id_fn=_fake_acquire(account_id),
+        release_account_fn=_capture_release([]),
+        adapter_factory=lambda lease: adapter,
+        rate_limit_checker=_allow_send,
+    )
+
+    assert result["status"] == "processed"
+    assert result["action_status"] == EngagementActionStatus.SENT.value
+    assert candidate.status == EngagementCandidateStatus.SENT.value
+    assert session.action is not None
+    assert session.action.status == EngagementActionStatus.SENT.value
+    assert adapter.calls
 
 
 @pytest.mark.asyncio
@@ -197,6 +232,28 @@ async def test_engagement_send_skips_without_joined_membership() -> None:
 
 
 @pytest.mark.asyncio
+async def test_engagement_send_skips_during_post_join_warmup() -> None:
+    community = _community()
+    account_id = uuid4()
+    membership = _membership(community.id, account_id)
+    membership.joined_at = _now() - timedelta(minutes=30)
+    candidate = _candidate(community)
+    session = _send_session(community=community, candidate=candidate, membership=membership)
+
+    result = await process_engagement_send(
+        {"candidate_id": str(candidate.id), "approved_by": "op"},
+        session_factory=lambda: session,
+        acquire_account_by_id_fn=lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("account acquisition should not run during warmup")
+        ),
+    )
+
+    assert result["status"] == "skipped"
+    assert result["reason"] == "post_join_warmup_active"
+    assert session.action is None
+
+
+@pytest.mark.asyncio
 async def test_engagement_send_records_success_and_releases_account() -> None:
     community = _community()
     account_id = uuid4()
@@ -226,6 +283,13 @@ async def test_engagement_send_records_success_and_releases_account() -> None:
     assert session.action.sent_at == sent_at
     assert adapter.calls == [
         {
+            "method": "verify_reply_source",
+            "session_file_path": "session",
+            "community_id": community.id,
+            "reply_to_tg_message_id": 123,
+        },
+        {
+            "method": "send_public_reply",
             "session_file_path": "session",
             "community_id": community.id,
             "reply_to_tg_message_id": 123,
@@ -305,7 +369,42 @@ async def test_engagement_send_idempotent_retry_marks_candidate_sent_without_dup
 
 
 @pytest.mark.asyncio
-async def test_engagement_send_existing_queued_action_fails_closed() -> None:
+async def test_engagement_send_source_preflight_skip_does_not_send() -> None:
+    community = _community()
+    account_id = uuid4()
+    candidate = _candidate(community)
+    membership = _membership(community.id, account_id)
+    session = _send_session(community=community, candidate=candidate, membership=membership)
+    releases: list[dict[str, object]] = []
+    adapter = FakeSendAdapter(preflight_exc=EngagementMessageNotReplyable("source message was deleted"))
+
+    result = await process_engagement_send(
+        {"candidate_id": str(candidate.id), "approved_by": "op"},
+        session_factory=lambda: session,
+        acquire_account_by_id_fn=_fake_acquire(account_id),
+        release_account_fn=_capture_release(releases),
+        adapter_factory=lambda lease: adapter,
+        rate_limit_checker=_allow_send,
+    )
+
+    assert result["status"] == "skipped"
+    assert result["reason"] == "source message was deleted"
+    assert session.action is not None
+    assert session.action.status == EngagementActionStatus.SKIPPED.value
+    assert candidate.status == EngagementCandidateStatus.EXPIRED.value
+    assert adapter.calls == [
+        {
+            "method": "verify_reply_source",
+            "session_file_path": "session",
+            "community_id": community.id,
+            "reply_to_tg_message_id": 123,
+        }
+    ]
+    assert releases[0]["outcome"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_engagement_send_existing_queued_action_is_resumed() -> None:
     community = _community()
     account_id = uuid4()
     candidate = _candidate(community)
@@ -321,18 +420,15 @@ async def test_engagement_send_existing_queued_action_fails_closed() -> None:
     result = await process_engagement_send(
         {"candidate_id": str(candidate.id), "approved_by": "op"},
         session_factory=lambda: session,
-        acquire_account_by_id_fn=lambda *args, **kwargs: (_ for _ in ()).throw(
-            AssertionError("account acquisition should not run")
-        ),
+        acquire_account_by_id_fn=_fake_acquire(account_id),
         adapter_factory=lambda lease: adapter,
         rate_limit_checker=_allow_send,
     )
 
-    assert result["status"] == "failed"
-    assert existing_action.status == EngagementActionStatus.FAILED.value
-    assert "cannot be safely retried" in (existing_action.error_message or "")
-    assert candidate.status == EngagementCandidateStatus.APPROVED.value
-    assert adapter.calls == []
+    assert result["status"] == "processed"
+    assert existing_action.status == EngagementActionStatus.SENT.value
+    assert candidate.status == EngagementCandidateStatus.SENT.value
+    assert adapter.calls[-1]["method"] == "send_public_reply"
 
 
 @pytest.mark.asyncio
@@ -389,6 +485,65 @@ async def test_engagement_send_message_not_replyable_expires_candidate_without_a
     assert releases[0]["outcome"] == "success"
 
 
+@pytest.mark.asyncio
+async def test_root_opportunity_cadence_counts_queued_starts() -> None:
+    community = _community()
+    account_id = uuid4()
+    candidate = _candidate(community)
+    session = LimitSession(
+        scalar_values=[
+            0,  # community daily sent replies
+            0,  # account daily sent replies
+            3,  # root starts in the last four hours
+        ]
+    )
+
+    decision = await check_send_limits(
+        session,  # type: ignore[arg-type]
+        candidate=candidate,
+        community_id=community.id,
+        telegram_account_id=account_id,
+        max_posts_per_day=10,
+        min_minutes_between_posts=1,
+        now=_now(),
+    )
+
+    assert decision.allowed is False
+    assert decision.reason == "Account 4-hour root opportunity limit reached"
+
+
+@pytest.mark.asyncio
+async def test_continuation_opportunity_bypasses_root_start_caps() -> None:
+    community = _community()
+    account_id = uuid4()
+    root_candidate_id = uuid4()
+    candidate = _candidate(community)
+    candidate.opportunity_kind = EngagementOpportunityKind.CONTINUATION.value
+    candidate.root_candidate_id = root_candidate_id
+    session = LimitSession(
+        scalar_values=[
+            0,  # community daily sent replies
+            0,  # account daily sent replies
+            0,  # continuation replies in the last day
+            None,  # latest continuation
+            None,  # latest community sent reply
+            None,  # latest account sent reply
+        ]
+    )
+
+    decision = await check_send_limits(
+        session,  # type: ignore[arg-type]
+        candidate=candidate,
+        community_id=community.id,
+        telegram_account_id=account_id,
+        max_posts_per_day=10,
+        min_minutes_between_posts=1,
+        now=_now(),
+    )
+
+    assert decision.allowed is True
+
+
 class FakeSession:
     def __init__(
         self,
@@ -396,12 +551,14 @@ class FakeSession:
         community: Community,
         settings: CommunityEngagementSettings | None,
         candidate: EngagementCandidate,
+        task_first_settings: EngagementSettings | None = None,
         target: EngagementTarget | None | bool = True,
         membership: CommunityAccountMembership | None = None,
         action: EngagementAction | None = None,
     ) -> None:
         self.community = community
         self.settings = settings
+        self.task_first_settings = task_first_settings
         self.candidate = candidate
         self.target = _target(community.id) if target is True else target
         self.membership = membership
@@ -428,6 +585,8 @@ class FakeSession:
             return self.candidate
         if entity is EngagementAction:
             return self.action
+        if entity is EngagementSettings:
+            return self.task_first_settings
         if entity is CommunityEngagementSettings:
             return self.settings
         if entity is EngagementTarget:
@@ -451,17 +610,46 @@ class FakeSession:
         self.rollbacks += 1
 
 
+class LimitSession:
+    def __init__(self, *, scalar_values: list[object]) -> None:
+        self.scalar_values = scalar_values
+
+    async def scalar(self, statement: object) -> object | None:
+        del statement
+        return self.scalar_values.pop(0)
+
+
 class FakeSendAdapter:
     def __init__(
         self,
         *,
         result: SendResult | None = None,
         exc: Exception | None = None,
+        preflight_exc: Exception | None = None,
     ) -> None:
         self.result = result
         self.exc = exc
+        self.preflight_exc = preflight_exc
         self.calls: list[dict[str, object]] = []
         self.closed = False
+
+    async def verify_reply_source(
+        self,
+        *,
+        session_file_path: str,
+        community: Community,
+        reply_to_tg_message_id: int,
+    ) -> None:
+        self.calls.append(
+            {
+                "method": "verify_reply_source",
+                "session_file_path": session_file_path,
+                "community_id": community.id,
+                "reply_to_tg_message_id": reply_to_tg_message_id,
+            }
+        )
+        if self.preflight_exc is not None:
+            raise self.preflight_exc
 
     async def send_public_reply(
         self,
@@ -473,6 +661,7 @@ class FakeSendAdapter:
     ) -> SendResult:
         self.calls.append(
             {
+                "method": "send_public_reply",
                 "session_file_path": session_file_path,
                 "community_id": community.id,
                 "reply_to_tg_message_id": reply_to_tg_message_id,
@@ -640,7 +829,7 @@ def _now() -> datetime:
     return _FIXTURE_NOW
 
 
-def _target(community_id: object) -> EngagementTarget:
+def _target(community_id: object, *, allow_post: bool = True) -> EngagementTarget:
     return EngagementTarget(
         id=uuid4(),
         community_id=community_id,
@@ -649,6 +838,23 @@ def _target(community_id: object) -> EngagementTarget:
         status=EngagementTargetStatus.APPROVED.value,
         allow_join=True,
         allow_detect=True,
-        allow_post=True,
+        allow_post=allow_post,
         added_by="op",
+    )
+
+
+def _task_first_settings(*, mode: str) -> EngagementSettings:
+    return EngagementSettings(
+        id=uuid4(),
+        engagement_id=uuid4(),
+        mode=mode,
+        allow_join=True,
+        allow_post=False,
+        reply_only=True,
+        require_approval=True,
+        max_posts_per_day=1,
+        min_minutes_between_posts=240,
+        assigned_account_id=uuid4(),
+        created_at=_now(),
+        updated_at=_now(),
     )

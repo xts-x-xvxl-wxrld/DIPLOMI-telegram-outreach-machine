@@ -16,7 +16,7 @@ def main() -> None:
         Queue(name, connection=connection)
         for name in ("high", "default", "scheduled", "analysis", "engagement")
     ]
-    Worker(queues, connection=connection).work()
+    Worker(queues, connection=connection).work(with_scheduler=True)
 
 
 if __name__ == "__main__":

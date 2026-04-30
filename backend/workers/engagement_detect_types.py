@@ -74,6 +74,7 @@ class DetectionMessage:
     tg_message_id: int | None
     text: str
     message_date: datetime | None
+    reply_to_tg_message_id: int | None = None
     reply_context: str | None = None
     is_replyable: bool = False
 

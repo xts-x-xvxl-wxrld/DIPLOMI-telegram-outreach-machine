@@ -91,7 +91,13 @@ async def test_community_join_records_success_and_releases_account() -> None:
     assert session.action.status == EngagementActionStatus.SENT.value
     assert session.action.action_type == "join"
     assert adapter.calls == [
-        {"session_file_path": "session", "community_id": community_id},
+        {"method": "join_community", "session_file_path": "session", "community_id": community_id},
+        {
+            "method": "read_recent_messages_after_join",
+            "session_file_path": "session",
+            "community_id": community_id,
+            "limit": 5,
+        },
     ]
     assert adapter.closed is True
     assert releases[0]["outcome"] == "success"
@@ -328,11 +334,34 @@ class FakeAdapter:
         self.closed = False
 
     async def join_community(self, *, session_file_path: str, community: Community) -> JoinResult:
-        self.calls.append({"session_file_path": session_file_path, "community_id": community.id})
+        self.calls.append(
+            {
+                "method": "join_community",
+                "session_file_path": session_file_path,
+                "community_id": community.id,
+            }
+        )
         if self.exc is not None:
             raise self.exc
         assert self.result is not None
         return self.result
+
+    async def read_recent_messages_after_join(
+        self,
+        *,
+        session_file_path: str,
+        community: Community,
+        limit: int = 5,
+    ) -> int:
+        self.calls.append(
+            {
+                "method": "read_recent_messages_after_join",
+                "session_file_path": session_file_path,
+                "community_id": community.id,
+                "limit": limit,
+            }
+        )
+        return limit
 
     async def aclose(self) -> None:
         self.closed = True

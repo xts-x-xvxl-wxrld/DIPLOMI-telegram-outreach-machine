@@ -17,11 +17,9 @@ from backend.db.enums import (
 
 class JobRef(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
     id: str
     type: str
     status: str
-
 
 from backend.api.schemas_search import (  # noqa: E402,F401
     SearchCandidateEvidenceSummaryOut,
@@ -645,6 +643,8 @@ class CockpitDraftActionResponse(BaseModel):
     engagement_id: UUID | None = None
     next_callback: str | None = None
     code: str | None = None
+    job_id: str | None = None
+    job_type: str | None = None
 
 
 class CockpitIssueActionResponse(BaseModel):
@@ -971,11 +971,9 @@ class EngagementCandidateExpireRequest(BaseModel):
 class EngagementCandidateRetryRequest(BaseModel):
     retried_by: str | None = Field(default=None, min_length=1, max_length=200)
 
-
 class EngagementDetectJobRequest(BaseModel):
     window_minutes: int = Field(default=60, ge=1, le=1440)
     requested_by: str | None = Field(default=None, min_length=1, max_length=200)
-
 
 class EngagementJoinJobRequest(BaseModel):
     telegram_account_id: UUID | None = None
@@ -994,8 +992,10 @@ class EngagementCandidateOut(BaseModel):
     community_title: str | None = None
     topic_id: UUID
     topic_name: str
-    source_tg_message_id: int | None = None; source_excerpt: str | None = None  # noqa: E702
-    source_message_date: datetime | None = None; detected_at: datetime; detected_reason: str  # noqa: E702
+    source_tg_message_id: int | None = None; source_reply_to_tg_message_id: int | None = None  # noqa: E702
+    source_excerpt: str | None = None; source_message_date: datetime | None = None  # noqa: E702
+    opportunity_kind: str; root_candidate_id: UUID | None = None; conversation_key: str | None = None  # noqa: E702
+    detected_at: datetime; detected_reason: str  # noqa: E702
     moment_strength: str; timeliness: str; reply_value: str  # noqa: E702
     suggested_reply: str | None = None
     final_reply: str | None = None

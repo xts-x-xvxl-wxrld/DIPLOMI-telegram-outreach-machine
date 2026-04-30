@@ -68,8 +68,8 @@ notes for collapsing them in code, are in `wiki/plan/engagement-add-wizard/colla
 ## References
 
 - `wiki/spec/engagement.md` and `wiki/spec/engagement/lifecycle.md` for backend gate semantics.
-- `wiki/plan/engagement-operator-controls/surface.md` for the existing operator command surface and
-  preset table.
+- `wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md` for the current operator
+  cockpit surface.
 - `wiki/plan/topic-create-question-flow.md` for the precedent question-flow UX.
 - `backend/workers/engagement_detect_process.py:19-85` for the canonical worker preconditions.
 - `backend/services/community_engagement_settings.py:288-329` for the MVP-locked flags currently

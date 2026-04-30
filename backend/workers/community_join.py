@@ -174,6 +174,11 @@ async def process_community_join(
                     "join_error": result.error_message,
                 },
             )
+            if result.status in {"joined", "already_joined"}:
+                await adapter.read_recent_messages_after_join(
+                    session_file_path=lease.session_file_path,
+                    community=community,
+                )
             await _record_join_result(
                 session,
                 payload=validated_payload,

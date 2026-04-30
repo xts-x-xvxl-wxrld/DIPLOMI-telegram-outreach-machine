@@ -8,6 +8,7 @@ from backend.db.enums import (
     CommunityStatus,
     EngagementCandidateStatus,
     EngagementMode,
+    EngagementOpportunityKind,
     EngagementStatus,
     EngagementTargetRefType,
     EngagementTargetStatus,
@@ -66,6 +67,7 @@ class FakeDb:
         self.added: list[object] = []
         self.commits = 0
         self.flushes = 0
+        self.rollbacks = 0
 
     async def get(self, model: object, item_id: object) -> object | None:
         del item_id
@@ -93,12 +95,21 @@ class FakeDb:
         if self.scalar_result is not None:
             return self.scalar_result
         model_name = _selected_model_name(statement)
+        if _is_count_query(statement):
+            if model_name == "EngagementCandidate" or self.candidates is not None:
+                return len(self.candidates or [])
+            if model_name == "EngagementAction" or self.actions is not None:
+                return len(self.actions or [])
         if model_name == "Engagement":
             return self.engagement
         if model_name == "EngagementSettings":
             return self.engagement_settings
         if model_name == "CommunityAccountMembership":
             return self.membership
+        if model_name == "EngagementCandidate":
+            return self.candidate
+        if model_name == "EngagementAction":
+            return self.actions[0] if self.actions else None
         if self.target is not None:
             return self.target
         if self.candidates is not None:
@@ -117,12 +128,19 @@ class FakeDb:
 
     def add(self, model: object) -> None:
         self.added.append(model)
+        if isinstance(model, EngagementAction):
+            if self.actions is None:
+                self.actions = []
+            self.actions.append(model)
 
     async def flush(self) -> None:
         self.flushes += 1
 
     async def commit(self) -> None:
         self.commits += 1
+
+    async def rollback(self) -> None:
+        self.rollbacks += 1
 
 
 def _community(community_id: object, *, title: str) -> Community:
@@ -217,6 +235,11 @@ def _selected_model_name(statement: object) -> str | None:
     return None if entity is None else getattr(entity, "__name__", None)
 
 
+def _is_count_query(statement: object) -> bool:
+    descriptions = getattr(statement, "column_descriptions", None) or []
+    return any(description.get("name") == "count" for description in descriptions)
+
+
 def _candidate(
     candidate_id: object,
     community: Community,
@@ -236,6 +259,7 @@ def _candidate(
         moment_strength="good",
         timeliness="fresh",
         reply_value="practical_tip",
+        opportunity_kind=EngagementOpportunityKind.ROOT.value,
         suggested_reply="Compare data ownership, integrations, and exit paths first.",
         risk_notes=[],
         status=EngagementCandidateStatus.NEEDS_REVIEW.value,

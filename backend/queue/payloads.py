@@ -112,3 +112,8 @@ class EngagementDetectPayload(BaseModel):
 class EngagementSendPayload(BaseModel):
     candidate_id: UUID
     approved_by: str
+
+
+class AccountHealthRefreshPayload(BaseModel):
+    account_ids: list[UUID] = Field(default_factory=list)
+    spot_check_limit: int = Field(default=2, ge=0, le=10)

@@ -125,6 +125,7 @@ async def _load_stored_messages(
             tg_message_id=message.tg_message_id,
             text=_truncate_text(message.text or "", MAX_MESSAGE_CHARS),
             message_date=message.message_date,
+            reply_to_tg_message_id=message.reply_to_message_id,
             reply_context=None,
             is_replyable=bool(community.is_group and message.tg_message_id is not None),
         )
@@ -161,6 +162,7 @@ def _messages_from_analysis_input(
             tg_message_id=tg_message_id,
             text=_truncate_text(text, MAX_MESSAGE_CHARS),
             message_date=message_date,
+            reply_to_tg_message_id=_optional_int(raw_message.get("reply_to_tg_message_id")),
             reply_context=_truncate_text(raw_message.get("reply_context"), MAX_MESSAGE_CHARS)
             if isinstance(raw_message.get("reply_context"), str)
             else None,

@@ -77,7 +77,6 @@ from bot.formatting import (
     format_whoami,
 )
 from bot.ui import (
-    ACCOUNTS_MENU_LABEL,
     ACTION_ENGAGEMENT_ACCOUNT_CANCEL,
     ACTION_ENGAGEMENT_ACCOUNT_CONFIRM,
     ACTION_APPROVE_COMMUNITY,
@@ -161,9 +160,6 @@ from bot.ui import (
     ACTION_SEED_CANDIDATES,
     ACTION_SEED_CHANNELS,
     ACTION_SNAPSHOT_COMMUNITY,
-    HELP_MENU_LABEL,
-    ENGAGEMENT_MENU_LABEL,
-    SEEDS_MENU_LABEL,
     candidate_actions_markup,
     community_actions_markup,
     config_edit_confirmation_markup,
@@ -398,14 +394,6 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("reject_reply", reject_reply_command))
     application.add_handler(CommandHandler("send_reply", send_reply_command))
     application.add_handler(CallbackQueryHandler(callback_query))
-    application.add_handler(MessageHandler(filters.Regex(f"^{SEEDS_MENU_LABEL}$"), seeds_command))
-    application.add_handler(
-        MessageHandler(filters.Regex(f"^{ACCOUNTS_MENU_LABEL}$"), accounts_command)
-    )
-    application.add_handler(
-        MessageHandler(filters.Regex(f"^{ENGAGEMENT_MENU_LABEL}$"), engagement_command)
-    )
-    application.add_handler(MessageHandler(filters.Regex(f"^{HELP_MENU_LABEL}$"), help_command))
     application.add_handler(MessageHandler(filters.Document.FileExtension("csv"), seed_csv_document))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, telegram_entity_text))
     return application

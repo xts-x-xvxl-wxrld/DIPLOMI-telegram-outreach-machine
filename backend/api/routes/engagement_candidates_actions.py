@@ -66,6 +66,8 @@ from backend.queue.client import (
     enqueue_engagement_target_resolve,
     enqueue_manual_engagement_detect,
 )
+from backend.services.engagement_account_behavior import engagement_send_scheduled_at
+from backend.workers.engagement_send import reserve_scheduled_send_action
 from backend.services.community_engagement import (
     EngagementConflict,
     EngagementNotFound,
@@ -365,13 +367,28 @@ async def post_engagement_candidate_send_job(
             },
         )
 
+    scheduled_at = engagement_send_scheduled_at(candidate.id)
     try:
+        await reserve_scheduled_send_action(
+            db,
+            candidate_id=candidate.id,
+            scheduled_at=scheduled_at,
+        )
         job = enqueue_engagement_send(
             candidate.id,
             approved_by=payload.approved_by or candidate.reviewed_by or "operator",
+            scheduled_at=scheduled_at,
         )
+        await db.commit()
     except QueueUnavailable as exc:
+        await db.rollback()
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail={"code": str(exc), "message": "Candidate cannot be queued for sending"},
+        ) from exc
     return JobResponse(job=job)
 
 

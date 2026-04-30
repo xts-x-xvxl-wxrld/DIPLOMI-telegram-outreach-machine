@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -9,6 +9,7 @@ import pytest
 from backend.core.settings import Settings
 from backend.db.enums import EngagementMode
 from backend.queue.client import QueuedJob
+from backend.services.engagement_due_state import DueDecision, EngagementDueStateUnavailable
 from backend.workers.engagement_scheduler import (
     EngagementCollectionTarget,
     EngagementDetectionTarget,
@@ -174,6 +175,7 @@ async def test_engagement_collection_scheduler_enqueues_only_due_targets() -> No
         session_factory=lambda: FakeSession(),
         target_loader=target_loader,
         enqueue_collection_fn=enqueue_collection,
+        due_state=AlwaysDueState(),
         settings=SimpleNamespace(engagement_active_collection_interval_seconds=600),  # type: ignore[arg-type]
         now=now,
     )
@@ -217,6 +219,7 @@ async def test_engagement_collection_scheduler_treats_duplicate_jobs_as_safe() -
         session_factory=lambda: FakeSession(),
         target_loader=target_loader,
         enqueue_collection_fn=enqueue_collection,
+        due_state=AlwaysDueState(),
         settings=SimpleNamespace(engagement_active_collection_interval_seconds=600),  # type: ignore[arg-type]
         now=now,
     )
@@ -241,12 +244,58 @@ async def test_engagement_collection_scheduler_records_enqueue_failure() -> None
         session_factory=lambda: FakeSession(),
         target_loader=target_loader,
         enqueue_collection_fn=enqueue_collection,
+        due_state=AlwaysDueState(),
         settings=SimpleNamespace(engagement_active_collection_interval_seconds=600),  # type: ignore[arg-type]
         now=now,
     )
 
     assert result["jobs_enqueued"] == 0
     assert result["enqueue_failures"] == 1
+
+
+@pytest.mark.asyncio
+async def test_engagement_collection_scheduler_initializes_future_due_without_enqueue() -> None:
+    now = datetime(2026, 4, 19, 13, 30, tzinfo=timezone.utc)
+    community_id = uuid4()
+
+    async def target_loader(_session: object) -> list[EngagementCollectionTarget]:
+        return [_collection_target(community_id, latest_collection_completed_at=None)]
+
+    def enqueue_collection(*_args: object, **_kwargs: object) -> QueuedJob:
+        raise AssertionError("not-due communities should not enqueue")
+
+    result = await process_engagement_collection_scheduler_tick(
+        session_factory=lambda: FakeSession(),
+        target_loader=target_loader,
+        enqueue_collection_fn=enqueue_collection,
+        due_state=NeverDueState(due_at=now + timedelta(minutes=5)),
+        settings=SimpleNamespace(engagement_active_collection_interval_seconds=600),  # type: ignore[arg-type]
+        now=now,
+    )
+
+    assert result["jobs_enqueued"] == 0
+    assert result["skipped_not_due"] == 1
+    assert result["skipped_recent_collection"] == 0
+
+
+@pytest.mark.asyncio
+async def test_engagement_collection_scheduler_skips_when_due_state_unavailable() -> None:
+    now = datetime(2026, 4, 19, 13, 30, tzinfo=timezone.utc)
+
+    async def target_loader(_session: object) -> list[EngagementCollectionTarget]:
+        return [_collection_target(uuid4(), latest_collection_completed_at=None)]
+
+    result = await process_engagement_collection_scheduler_tick(
+        session_factory=lambda: FakeSession(),
+        target_loader=target_loader,
+        enqueue_collection_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("no enqueue")),
+        due_state=UnavailableDueState(),
+        settings=SimpleNamespace(engagement_active_collection_interval_seconds=600),  # type: ignore[arg-type]
+        now=now,
+    )
+
+    assert result["jobs_enqueued"] == 0
+    assert result["skipped_due_state_unavailable"] == 1
 
 
 def test_collection_target_skip_reason_uses_interval_boundary() -> None:
@@ -288,6 +337,39 @@ class FakeSession:
 
     async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
         return None
+
+
+class AlwaysDueState:
+    def __init__(self) -> None:
+        self.marked: list[object] = []
+
+    def collection_due(self, community_id: object, *, now: datetime) -> DueDecision:
+        return DueDecision(due=True, due_at=now)
+
+    def mark_collection_enqueued(self, community_id: object, *, now: datetime) -> datetime:
+        self.marked.append(community_id)
+        return now + timedelta(minutes=5)
+
+
+class NeverDueState:
+    def __init__(self, *, due_at: datetime) -> None:
+        self.due_at = due_at
+
+    def collection_due(self, community_id: object, *, now: datetime) -> DueDecision:
+        del community_id, now
+        return DueDecision(due=False, due_at=self.due_at)
+
+    def mark_collection_enqueued(self, community_id: object, *, now: datetime) -> datetime:
+        raise AssertionError("not-due communities should not be marked enqueued")
+
+
+class UnavailableDueState:
+    def collection_due(self, community_id: object, *, now: datetime) -> DueDecision:
+        del community_id, now
+        raise EngagementDueStateUnavailable("redis unavailable")
+
+    def mark_collection_enqueued(self, community_id: object, *, now: datetime) -> datetime:
+        raise AssertionError("unavailable due-state should not be marked enqueued")
 
 
 def _target(

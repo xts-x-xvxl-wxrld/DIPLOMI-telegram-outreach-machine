@@ -29,6 +29,7 @@ from backend.services.community_collection import (
     TelegramCollectionBatch,
     collect_community_engagement_messages,
 )
+from backend.services.engagement_due_state import DueDecision
 from backend.workers.account_manager import AccountLease
 from backend.workers.collection import process_collection
 
@@ -232,10 +233,90 @@ async def test_collection_worker_prefers_assigned_engagement_account() -> None:
     ]
 
 
+@pytest.mark.asyncio
+async def test_collection_worker_acknowledges_read_when_pair_is_due() -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    session = CollectionSession(
+        community=_community(community_id, store_messages=False),
+        settings=_settings(community_id, assigned_account_id=account_id),
+        target=_target(community_id),
+    )
+    collector = FakeCollector([_message(401, "Need CRM advice", sender_id=801)])
+    due_state = ReadDueState(due=True)
+
+    async def acquire_account_by_id(*_args: object, **_kwargs: object) -> AccountLease:
+        return AccountLease(
+            account_id=account_id,
+            phone="+10000000000",
+            session_file_path="session",
+            lease_owner="test",
+            lease_expires_at=datetime.now(timezone.utc),
+        )
+
+    result = await process_collection(
+        {
+            "community_id": str(community_id),
+            "reason": "engagement",
+            "requested_by": "operator",
+            "window_days": 90,
+        },
+        session_factory=lambda: session,
+        acquire_account_by_id_fn=acquire_account_by_id,
+        collector_factory=lambda _lease: collector,
+        due_state=due_state,
+        enqueue_detect_fn=lambda *_args, **_kwargs: SimpleNamespace(id="detect", status="queued"),
+        settings=SimpleNamespace(engagement_detection_window_minutes=10),  # type: ignore[arg-type]
+    )
+
+    assert result["status"] == CollectionRunStatus.COMPLETED.value
+    assert collector.read_acks == [{"community_id": community_id, "max_tg_message_id": 401}]
+    assert due_state.marked == [(account_id, community_id)]
+
+
+@pytest.mark.asyncio
+async def test_collection_worker_skips_read_ack_when_pair_not_due() -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    session = CollectionSession(
+        community=_community(community_id, store_messages=False),
+        settings=_settings(community_id, assigned_account_id=account_id),
+        target=_target(community_id),
+    )
+    collector = FakeCollector([_message(402, "Need CRM advice", sender_id=802)])
+
+    async def acquire_account_by_id(*_args: object, **_kwargs: object) -> AccountLease:
+        return AccountLease(
+            account_id=account_id,
+            phone="+10000000000",
+            session_file_path="session",
+            lease_owner="test",
+            lease_expires_at=datetime.now(timezone.utc),
+        )
+
+    await process_collection(
+        {
+            "community_id": str(community_id),
+            "reason": "engagement",
+            "requested_by": "operator",
+            "window_days": 90,
+        },
+        session_factory=lambda: session,
+        acquire_account_by_id_fn=acquire_account_by_id,
+        collector_factory=lambda _lease: collector,
+        due_state=ReadDueState(due=False),
+        enqueue_detect_fn=lambda *_args, **_kwargs: SimpleNamespace(id="detect", status="queued"),
+        settings=SimpleNamespace(engagement_detection_window_minutes=10),  # type: ignore[arg-type]
+    )
+
+    assert collector.read_acks == []
+
+
 class FakeCollector:
     def __init__(self, messages: list[TelegramCollectedMessage]) -> None:
         self.messages = messages
         self.after_tg_message_id: int | None = None
+        self.read_acks: list[dict[str, object]] = []
 
     async def collect_messages(
         self,
@@ -247,10 +328,32 @@ class FakeCollector:
         self.after_tg_message_id = after_tg_message_id
         return TelegramCollectionBatch(messages=self.messages[:limit])
 
+    async def acknowledge_read(self, community: Community, *, max_tg_message_id: int) -> None:
+        self.read_acks.append({"community_id": community.id, "max_tg_message_id": max_tg_message_id})
+
 
 class FailingCollector:
     async def collect_messages(self, *_args: object, **_kwargs: object) -> TelegramCollectionBatch:
         raise CollectionCommunityInaccessible("community is private")
+
+    async def acknowledge_read(self, *_args: object, **_kwargs: object) -> None:
+        raise AssertionError("failed collections should not acknowledge reads")
+
+
+class ReadDueState:
+    def __init__(self, *, due: bool) -> None:
+        self.due = due
+        self.marked: list[tuple[object, object]] = []
+
+    def read_receipt_due(self, telegram_account_id: object, community_id: object, *, now: object) -> DueDecision:
+        del telegram_account_id, community_id
+        assert now is not None
+        return DueDecision(due=self.due, due_at=datetime.now(timezone.utc))
+
+    def mark_read_receipt_checked(self, telegram_account_id: object, community_id: object, *, now: object) -> object:
+        assert now is not None
+        self.marked.append((telegram_account_id, community_id))
+        return datetime.now(timezone.utc)
 
 
 class CollectionSession:

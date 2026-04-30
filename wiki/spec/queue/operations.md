@@ -185,6 +185,11 @@ jobs for the same community.
 Engagement-enabled communities may use a shorter collection cadence, currently targeted at 10
 minutes. Those collection runs should use `reason = "engagement"` and enqueue detection after commit
 when the batch contains new messages and `allow_detect = true`.
+
+Operator-approved engagement sends may be scheduled for a short future due time through RQ scheduled
+jobs. The worker process must run with scheduled-job promotion enabled so due `engagement.send`
+jobs move from Redis scheduled state into the `engagement` queue without occupying a worker slot
+while waiting.
 ## Duplicate Prevention
 
 Job IDs should be deterministic where useful:
@@ -195,6 +200,7 @@ collection:{community_id}:{yyyyMMddHH}
 collection:engagement:{community_id}:{yyyyMMddHHmm}
 analysis:{collection_run_id}
 engagement.detect:{community_id}:{collection_run_id}
+engagement.send:{candidate_id}
 search.plan:{search_run_id}
 search.retrieve:{search_run_id}:{search_query_id}
 search.rank:{search_run_id}:{ranking_version_or_reason}
@@ -268,6 +274,14 @@ RQ job `meta` should include:
   "started_at": "iso_datetime",
   "last_heartbeat_at": "iso_datetime",
   "status_message": "human readable short status"
+}
+```
+
+Delayed jobs may also include:
+
+```json
+{
+  "scheduled_at": "iso_datetime"
 }
 ```
 

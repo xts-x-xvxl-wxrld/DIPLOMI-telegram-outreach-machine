@@ -55,6 +55,10 @@ class Settings(BaseSettings):
         default=180,
         validation_alias="ENGAGEMENT_ACTIVE_COLLECTION_INTERVAL_SECONDS",
     )
+    engagement_account_health_refresh_interval_seconds: int = Field(
+        default=28800,
+        validation_alias="ENGAGEMENT_ACCOUNT_HEALTH_REFRESH_INTERVAL_SECONDS",
+    )
     engagement_semantic_matching_enabled: bool = Field(
         default=False,
         validation_alias="ENGAGEMENT_SEMANTIC_MATCHING_ENABLED",

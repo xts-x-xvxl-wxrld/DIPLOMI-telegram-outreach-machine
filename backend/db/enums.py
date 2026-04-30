@@ -184,6 +184,11 @@ class EngagementCandidateStatus(StrEnum):
     FAILED = "failed"
 
 
+class EngagementOpportunityKind(StrEnum):
+    ROOT = "root"
+    CONTINUATION = "continuation"
+
+
 class EngagementMomentStrength(StrEnum):
     WEAK = "weak"
     GOOD = "good"

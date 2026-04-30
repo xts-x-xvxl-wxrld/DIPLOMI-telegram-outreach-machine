@@ -8,7 +8,7 @@
 - [Expansion](spec/expansion.md) - Telethon seed-group graph expansion and provenance
 - [Collection](spec/collection.md) - engagement message intake from approved communities
 - [Analysis](spec/analysis.md) - community summarization and relevance scoring via OpenAI
-- [Engagement](spec/engagement.md) - engagement routing contract with lifecycle, settings, jobs, API/bot, and test shards
+- [Engagement](spec/engagement.md) - engagement routing contract with lifecycle, settings, jobs, API/bot, tests, and [account behavior](spec/engagement/account-behavior.md)
 - [Engagement Embedding Matching](spec/engagement-embedding-matching.md) - semantic selector for engagement topic matching before drafting
 - [Engagement Admin Control Plane](spec/engagement-admin-control-plane.md) - separated engagement target intake, prompt profiles, style rules, examples, and editable replies
 - [Bot Engagement Controls](spec/bot-engagement-controls.md) - bot engagement routing contract with navigation, editing, slice, and formatting shards
@@ -37,7 +37,7 @@
 - [Telegram Bot UX Control Surface](plan/tg-bot-ux-control-surface.md) - richer Telegram-native operator controls for seed-group review and snapshots
 - [Member Access + Account Onboarding](plan/member-access-onboarding.md) - API/bot member visibility and local Telethon session setup
 - [TGStat Removal](plan/tgstat-removal.md) - retire TGStat and replace it with seed, web-search, and graph discovery
-- [Docker DNS for Telegram](plan/docker-dns-telegram.md) - local container DNS override for Telegram API access
+- [Docker DNS for Telegram](plan/docker-dns-telegram.md) - local container DNS override for Telegram API access; [Docker Live Reload](plan/docker-live-reload.md) - local Compose bind mounts and Python reload wrappers
 - [Seed CSV Helper](plan/seed-csv-helper.md) - helper for turning Telegram usernames or links into bot-ready seed CSVs
 - [Direct Telegram Entity Intake](plan/direct-telegram-entity-intake.md) - bot text intake for classifying one Telegram handle
 - [Bot Operator Access](plan/bot-operator-access.md) - allowlisted Telegram bot operators and `/whoami` onboarding
@@ -46,17 +46,16 @@
 - [Engagement Embedding Matching](plan/engagement-embedding-matching.md) - cached embedding selector rollout for engagement topic matching
 - [Semantic Matching Observability + Evaluation Fixtures](plan/semantic-matching-observability-evaluation-fixtures.md) - Slice 5a counters, logs, and sanitized eval fixtures for semantic matching
 - [Semantic Matching Rollout Review Surface](plan/semantic-matching-rollout-review-surface.md) - Slice 5b aggregate operator review surface for semantic rollout outcomes
-- [Timely Reply Opportunities](plan/timely-reply-opportunities.md) - freshness SLO, reply opportunity terminology, detection cadence, and operator notification contract
 - [Engagement MVP Testing Readiness](plan/engagement-mvp-testing-readiness.md) - remaining collection, detection, scheduler, operator, and runbook gates before staged Telegram engagement testing
 - [Engagement Operator Controls](plan/engagement-operator-controls.md) - Telegram bot control surface for settings, topics, joins, detection, reply opportunity sends, and audit views
 - [Engagement Admin Control Plane](plan/engagement-admin-control-plane.md) - manual engagement targets, prompt/profile admin, style rules, and editable reply implementation plan
 - [Bot Engagement Controls](plan/bot-engagement-controls.md) - next bot slices for target admin, prompt/style controls, reply opportunity editing, and advanced settings
 - [Bot Engagement Redesign](plan/bot-engagement-redesign.md) - bot-exclusive operator-surface refinement around reply opportunities, blockers, and configuration intent
-- [Bot Operator Cockpit](plan/bot-operator-cockpit.md) - inline top-level bot cockpit, callback namespace, and reply-keyboard removal rollout; [Bot Module Entrypoint](plan/bot-module-entrypoint.md) - Docker bot service module guard
+- [Bot Module Entrypoint](plan/bot-module-entrypoint.md) - Docker bot service module guard; [Cockpit Button-Only Policy](plan/cockpit-button-only-policy.md) - remove legacy reply-keyboard text labels while preserving inline cockpit buttons and slash commands
 - [Bot Copy Readability Refresh](plan/bot-copy-readability-refresh.md) - clearer bot message hierarchy, emoji anchors, and button-label polish; [Bot Account Onboarding](plan/bot-account-onboarding.md) - bot command preparation for search and engagement account onboarding; [Topic Create Question Flow](plan/topic-create-question-flow.md) - replace topic-create payload entry with a one-question-at-a-time bot wizard; [Engagement Add Wizard](plan/engagement-add-wizard/overview.md) - guided community/topic/account/level setup that collapses redundant engagement permissions; [Engagement Wizard API Path Fix](plan/engagement-wizard-api-path-fix.md) - remove duplicated `/api` prefixes from task-first wizard bot client routes so staging create/confirm calls hit the documented engagement endpoints
-- [Engagement Task-First Cockpit Implementation](plan/engagement-task-first-cockpit-implementation.md) - phased delivery sequence for the task-first `Engagements` cockpit; [Engagement Task-First Cockpit Slices](plan/engagement-task-first-cockpit-slices.md) - mergeable implementation slices from schema through legacy retirement; [Task-First Migration Hotfix](plan/task-first-migration-hotfix.md) - fix the task-first engagement backfill query so staging migrations complete on Postgres; [Engagement Target Duplicates](plan/engagement-target-duplicates.md) - allow the same community to back multiple engagement-target rows while keeping worker permission checks safe; [Engagement Join Debug Observability](plan/engagement-join-debug-observability.md) - add join-worker logs and surface task-first join enqueue failures instead of silently succeeding; [Engagement Send And Draft Hotfix](plan/engagement-send-draft-hotfix.md) - filter sent replies from join audits and delay draft detection until permissions and membership are ready
+- [Engagement Task-First Cockpit Implementation](plan/engagement-task-first-cockpit-implementation.md) - phased delivery sequence for the task-first `Engagements` cockpit; [Task-First Migration Hotfix](plan/task-first-migration-hotfix.md) - fix the task-first engagement backfill query so staging migrations complete on Postgres; [Engagement Target Duplicates](plan/engagement-target-duplicates.md) - allow the same community to back multiple engagement-target rows while keeping worker permission checks safe; [Engagement Join Debug Observability](plan/engagement-join-debug-observability.md) - add join-worker logs and surface task-first join enqueue failures instead of silently succeeding; [Engagement Send And Draft Hotfix](plan/engagement-send-draft-hotfix.md) - filter sent replies from join audits and delay draft detection until permissions and membership are ready; [Engagement Natural Account Behavior](plan/engagement-natural-account-behavior.md) - Telethon read acknowledgement and typing envelope for approved public replies; [Engagement Account Behavior](plan/engagement-account-behavior.md) - delayed sends, opportunity cadence, jittered collection/read receipts, warmup, and account health refresh
 - [Telegram Account Pool Separation](plan/telegram-account-pools.md) - schema, account-manager routing, engagement guards, and onboarding plan for dedicated account pools
-- [Context Fragmentation Protocol](plan/context-fragmentation-protocol.md) - agent reading limits, wiki/code size caps, and refactor backlog; [Agent Guidance CI](plan/agent-guidance-ci.md) - local CI parity and generated-file hygiene; [Agent Merge To Main](plan/agent-merge-to-main.md) - require completed agent branches to land in `main` after local parity passes
+- [Context Fragmentation Protocol](plan/context-fragmentation-protocol.md) - agent reading limits, wiki/code size caps, and refactor backlog; [Agent Guidance CI](plan/agent-guidance-ci.md) - local CI parity and generated-file hygiene; [Agent Merge To Main](plan/agent-merge-to-main.md) - require completed agent branches to land in `main` after local parity passes; [Agent Code Index Navigation](plan/agent-code-index-navigation.md) - split wiki-only indexing from layered code-index maps for agents
 ## Shard directories
 - `wiki/spec/api/` - foundation, search, discovery, communities/snapshots, engagement, accounts, and jobs/debug API shards
 - `wiki/spec/database/` - foundation, search/collection, engagement, indexes, and pipeline schema shards
@@ -65,7 +64,8 @@
 - `wiki/spec/bot-engagement-controls/` - engagement cockpit navigation, config editing, slice contracts, controls, formatting, and tests
 - `wiki/spec/queue/` - queue job type and operations shards
 - `wiki/plan/engagement-mvp-testing-readiness/` - engagement MVP readiness slices, including staged-test runbook
-- `wiki/plan/engagement-task-first-cockpit/`, `wiki/plan/bot-engagement-controls/`, `wiki/plan/community-engagement/`, `wiki/plan/engagement-operator-controls/`, `wiki/plan/engagement-add-wizard/`, `wiki/plan/search-rebuild-implementation/` - split plan shards
+- `wiki/plan/engagement-task-first-cockpit/`, `wiki/plan/bot-engagement-controls/`, `wiki/plan/community-engagement/`, `wiki/plan/engagement-operator-controls/`, `wiki/plan/engagement-add-wizard/`, `wiki/plan/search-rebuild-implementation/`, `wiki/plan/engagement-account-behavior/` - split plan shards
+## Deleted wiki files: `plan/timely-reply-opportunities.md`, `plan/bot-operator-cockpit.md`, `plan/engagement-operator-controls/surface.md`, `plan/engagement-task-first-cockpit-slices.md`, `plan/engagement-task-first-cockpit/slices-1-6.md`, `plan/engagement-task-first-cockpit/slices-7-12.md`
 ## Implementation roots
 - `bot/api_client.py`, `bot/api_client_search.py`, `bot/api_client_accounts.py` - bot HTTP client for backend API endpoints plus search/account endpoint mixins
 - `bot/config.py` - bot environment parsing for API token, operator allowlist, and engagement admin allowlist
@@ -99,17 +99,17 @@
 - `backend/api/routes/engagement*.py` - engagement route facade plus target, settings/topic, prompt/style, candidate/action endpoint shards
 - `backend/api/routes/telegram_entities.py` - direct Telegram handle intake API endpoints
 - `backend/db/models*.py` - SQLAlchemy model facade plus core, search, and engagement model shards
-- `backend/services/community_engagement*.py` - engagement service facade plus settings, targets, topics, prompts, style, candidates, actions, and view shards
-- `backend/services/community_collection.py`, `backend/workers/collection.py`, `backend/workers/telegram_collection.py` - engagement collection persistence, orchestration, and Telethon reads
+- `backend/services/community_engagement*.py`, `backend/services/engagement_candidate_timing.py` - engagement service facade plus settings, targets, topics, prompts, style, candidates, actions, view shards, and candidate timing normalization
+- `backend/services/community_collection.py`, `backend/services/engagement_due_state.py`, `backend/workers/collection.py`, `backend/workers/telegram_collection.py` - engagement collection persistence, Redis due-state, orchestration, Telethon reads, and jittered read acknowledgements
 - `backend/services/engagement_embeddings.py` - embedding text normalization, cache lookup/create, cosine scoring, and semantic trigger selection
 - `backend/workers/community_join.py` - `community.join` orchestration with membership and audit updates
 - `backend/workers/community_snapshot.py` - `community.snapshot` orchestration for discovery metadata/member snapshots
 - `backend/workers/telegram_snapshot.py` - Telethon adapter for discovery community snapshots
 - `backend/workers/engagement_detect*.py` - engagement detection facade plus types, OpenAI, process, sample, selection, and prompt shards
 - `backend/workers/engagement_target_resolve.py` - engagement-specific Telegram target resolution for approved outbound surfaces
-- `backend/workers/engagement_scheduler.py` - active engagement collection cadence plus low-frequency fallback detection scheduler target selection and enqueueing
-- `backend/workers/engagement_send.py` - `engagement.send` orchestration, idempotent action audit, rate-limit checks, and public reply sends
-- `backend/workers/telegram_engagement.py` - fakeable Telethon adapter for engagement joins and sends
+- `backend/workers/engagement_scheduler.py` - jittered active engagement collection cadence, low-frequency fallback detection scheduler target selection, and 8-hour account-health refresh enqueueing
+- `backend/workers/engagement_send.py`, `backend/workers/engagement_send_cadence.py` - `engagement.send` orchestration, idempotent action audit, cadence/rate-limit checks, and public reply sends
+- `backend/workers/account_health_refresh.py`, `backend/workers/telegram_engagement.py` - account health refresh worker plus fakeable Telethon adapter for engagement joins, sends, source checks, and health checks
 - `backend/services/seed_import.py` - CSV parsing and seed-group upsert logic
 - `backend/services/community_snapshot.py` - discovery community snapshot persistence for metadata and visible members
 - `backend/services/telegram_entity_intake.py` - direct Telegram handle intake persistence and classification rules
@@ -128,7 +128,7 @@
 - `alembic/versions/20260420_0009_telegram_account_pools.py` - Telegram account pool separation migration
 - `alembic/versions/20260421_0010_engagement_embeddings.py` - topic/message embedding cache migration for semantic engagement matching
 - `alembic/versions/20260421_0011_search_schema.py` - query-driven search runs, queries, candidates, evidence, and review schema
-- `alembic/versions/20260422_0012_engagement_candidate_timeliness.py` - reply-opportunity freshness, deadline, and operator-notification schema fields; `alembic/versions/20260428_0015_engagement_target_duplicates.py` - drops the single-community engagement-target uniqueness rule so the same group can be reused across multiple targets
+- `alembic/versions/20260422_0012_engagement_candidate_timeliness.py` - reply-opportunity freshness, deadline, and operator-notification schema fields; `alembic/versions/20260428_0015_engagement_target_duplicates.py` - drops the single-community engagement-target uniqueness rule so the same group can be reused across multiple targets; `alembic/versions/20260430_0016_engagement_opportunity_cadence.py` - durable root/continuation candidate fields for account cadence
 - `tests/test_search_api.py`, `tests/test_search_seed_conversion.py`, `tests/test_search_expansion.py`, `tests/test_search_expand_queue.py`, `tests/test_search_expand_worker.py` - search run API create/list/detail/query/candidate/rerank/review plus seed conversion and graph expansion contract tests
 - `tests/test_search_schema.py` - search enum, model default, uniqueness, nullable candidate, foreign key, DDL, and schema validation tests
 - `tests/test_search_planner.py`, `tests/test_search_retrieve_worker.py`, `tests/test_search_ranking.py`, `tests/test_search_deferred_surfaces.py` - deterministic search planning, deferred search surface contracts, Telegram entity retrieval, ranking components, penalties, ordering, and worker tests

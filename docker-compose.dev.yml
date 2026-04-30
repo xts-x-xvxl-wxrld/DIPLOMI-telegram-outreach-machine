@@ -1,0 +1,20 @@
+services:
+  api:
+    command: uvicorn backend.api.app:create_app --factory --host 0.0.0.0 --port 8000 --reload --reload-dir /app/backend
+    volumes:
+      - .:/app
+
+  worker:
+    command: watchfiles --filter python "python -m backend.workers.runner" /app/backend
+    volumes:
+      - .:/app
+
+  scheduler:
+    command: watchfiles --filter python "python -m backend.workers.engagement_scheduler" /app/backend
+    volumes:
+      - .:/app
+
+  bot:
+    command: watchfiles --filter python "python -m bot.main" /app/bot /app/backend
+    volumes:
+      - .:/app

@@ -21,7 +21,8 @@ from backend.api.schemas import (
     CockpitRateLimitDetailResponse,
     CockpitSentFeedResponse,
 )
-from backend.queue.client import enqueue_engagement_target_resolve
+from backend.queue.client import QueueUnavailable, enqueue_engagement_send, enqueue_engagement_target_resolve
+from backend.services.engagement_account_behavior import engagement_send_scheduled_at
 from backend.services.task_first_engagement_cockpit import (
     get_cockpit_approvals,
     get_cockpit_engagement_detail,
@@ -39,6 +40,7 @@ from backend.services.task_first_engagement_cockpit_mutations import (
     reject_cockpit_draft,
     update_cockpit_quiet_hours,
 )
+from backend.workers.engagement_send import reserve_scheduled_send_action
 
 router = APIRouter(dependencies=[Depends(require_bot_token)])
 
@@ -153,7 +155,28 @@ async def post_engagement_cockpit_draft_approve(
 ) -> CockpitDraftActionResponse:
     payload = await approve_cockpit_draft(db, draft_id=draft_id, requested_by="operator")
     if payload.result == "approved":
-        await db.commit()
+        scheduled_at = engagement_send_scheduled_at(draft_id)
+        try:
+            await reserve_scheduled_send_action(db, candidate_id=draft_id, scheduled_at=scheduled_at)
+            job = enqueue_engagement_send(draft_id, approved_by="operator", scheduled_at=scheduled_at)
+            await db.commit()
+        except QueueUnavailable as exc:
+            await db.rollback()
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except ValueError as exc:
+            await db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail={"code": str(exc), "message": "Draft cannot be queued for sending"},
+            ) from exc
+        payload = CockpitDraftActionResponse.model_validate(payload).model_copy(
+            update={
+                "message": "Draft approved and send queued",
+                "job_id": job.id,
+                "job_type": job.type,
+            }
+        )
+        return payload
     return CockpitDraftActionResponse.model_validate(payload)
 
 

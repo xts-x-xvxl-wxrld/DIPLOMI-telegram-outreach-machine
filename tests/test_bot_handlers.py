@@ -10,13 +10,16 @@ from bot.main import (
     ACCOUNT_ONBOARDING_STORE_KEY,
     add_account_command,
     callback_query,
+    create_application,
     help_command,
     seeds_command,
     accounts_command,
     start_command,
     telegram_entity_text,
 )
+from bot.config import BotSettings
 from bot.ui import (
+    ACCOUNTS_MENU_LABEL,
     ACTION_DISC_ACTIVITY,
     ACTION_DISC_ALL,
     ACTION_DISC_ATTENTION,
@@ -32,6 +35,9 @@ from bot.ui import (
     ACTION_OP_DISCOVERY,
     ACTION_OP_HELP,
     ACTION_OP_HOME,
+    ENGAGEMENT_MENU_LABEL,
+    HELP_MENU_LABEL,
+    SEEDS_MENU_LABEL,
 )
 
 
@@ -173,6 +179,69 @@ def _make_context(client: _FakeApiClient | None = None) -> Any:
         args=[],
         application=SimpleNamespace(bot_data=app_data),
     )
+
+
+def _bot_settings() -> BotSettings:
+    return BotSettings(
+        telegram_bot_token="123:ABC",
+        api_base_url="http://api:8000/api",
+        api_token="token",
+    )
+
+
+def _registered_handlers(application: Any) -> list[Any]:
+    return [
+        handler
+        for handlers in application.handlers.values()
+        for handler in handlers
+    ]
+
+
+def _callback_names(handlers: list[Any], handler_type: str) -> set[str]:
+    return {
+        handler.callback.__name__
+        for handler in handlers
+        if type(handler).__name__ == handler_type
+    }
+
+
+def _message_filter_text(handlers: list[Any]) -> str:
+    return "\n".join(
+        str(handler.filters)
+        for handler in handlers
+        if type(handler).__name__ == "MessageHandler"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Application registration
+# ---------------------------------------------------------------------------
+
+
+def test_create_application_omits_legacy_reply_keyboard_label_handlers() -> None:
+    application = create_application(_bot_settings())
+    handlers = _registered_handlers(application)
+
+    command_callbacks = _callback_names(handlers, "CommandHandler")
+    message_callbacks = _callback_names(handlers, "MessageHandler")
+
+    assert {"seeds_command", "accounts_command", "engagement_command", "help_command"} <= (
+        command_callbacks
+    )
+    assert "seed_csv_document" in message_callbacks
+    assert "telegram_entity_text" in message_callbacks
+    assert not {
+        "seeds_command",
+        "accounts_command",
+        "engagement_command",
+        "help_command",
+    } & message_callbacks
+
+    message_filters = _message_filter_text(handlers)
+    assert SEEDS_MENU_LABEL not in message_filters
+    assert ACCOUNTS_MENU_LABEL not in message_filters
+    assert ENGAGEMENT_MENU_LABEL not in message_filters
+    assert HELP_MENU_LABEL not in message_filters
 
 
 # ---------------------------------------------------------------------------

@@ -32,6 +32,11 @@ Services that call Telegram from local Docker (`bot` and `worker`) set explicit 
 resolvers so host-level DNS interception does not redirect `api.telegram.org` or Telethon endpoints
 to non-Telegram infrastructure.
 
+Local development can opt into `docker-compose.dev.yml`, which mounts the repository into Python app
+containers and runs app processes with reload watchers. Python source edits are picked up without
+rebuilding, while dependency and packaging changes still require an image rebuild. The base
+`docker-compose.yml` stays production-like for staging.
+
 ---
 
 ## Repository Layout

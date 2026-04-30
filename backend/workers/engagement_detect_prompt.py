@@ -15,6 +15,7 @@ def _build_model_input(
 ) -> dict[str, Any]:
     source_post = {
         "tg_message_id": source_message.tg_message_id,
+        "reply_to_tg_message_id": source_message.reply_to_tg_message_id,
         "text": _truncate_text(source_message.text, MAX_MESSAGE_CHARS),
         "message_date": source_message.message_date.isoformat() if source_message.message_date else None,
         "reply_context": _truncate_text(source_message.reply_context, MAX_MESSAGE_CHARS)

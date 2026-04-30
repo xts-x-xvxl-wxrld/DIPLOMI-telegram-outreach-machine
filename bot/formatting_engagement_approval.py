@@ -54,9 +54,14 @@ def format_draft_card(data: dict[str, Any], *, index: int | None = None) -> str:
 def format_approval_result(result: dict[str, Any], *, draft_id: str, action: str) -> str:
     status = str(result.get("result") or "unknown")
     message = str(result.get("message") or "")
+    job_id = str(result.get("job_id") or "")
+    job_type = str(result.get("job_type") or "")
     lines = [f"Draft {action}: {status}"]
     if message:
         lines.append(message)
+    if job_id:
+        job_label = f"{job_id} ({job_type})" if job_type else job_id
+        lines.append(f"Send job: {job_label}")
     lines.append(f"Draft ID: {draft_id}")
     return "\n".join(lines)
 

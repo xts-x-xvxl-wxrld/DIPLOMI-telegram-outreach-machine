@@ -147,8 +147,12 @@ class EngagementCandidateView:
     topic_id: UUID
     topic_name: str
     source_tg_message_id: int | None
+    source_reply_to_tg_message_id: int | None
     source_excerpt: str | None
     source_message_date: datetime | None
+    opportunity_kind: str
+    root_candidate_id: UUID | None
+    conversation_key: str | None
     detected_at: datetime
     detected_reason: str
     moment_strength: str

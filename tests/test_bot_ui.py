@@ -78,7 +78,6 @@ from bot.ui import (
     ACTION_JOB_STATUS,
     ACTION_OPEN_COMMUNITY,
     ACTION_SEED_CANDIDATES,
-    ENGAGEMENT_MENU_LABEL,
     account_onboarding_prompt_markup,
     candidate_actions_markup,
     accounts_cockpit_markup,
@@ -109,7 +108,6 @@ from bot.ui import (
     engagement_topic_pager_markup,
     encode_callback_data,
     job_actions_markup,
-    main_menu_markup,
     member_pager_markup,
     operator_cockpit_markup,
     parse_callback_data,
@@ -289,13 +287,6 @@ def test_engagement_job_markup_omits_refresh_button_when_job_id_is_too_long() ->
 def test_engagement_account_confirmation_callback_data_stays_under_telegram_limit() -> None:
     assert len(ACTION_ENGAGEMENT_ACCOUNT_CONFIRM) <= 64
     assert len(ACTION_ENGAGEMENT_ACCOUNT_CANCEL) <= 64
-
-
-def test_main_menu_exposes_engagement_entrypoint() -> None:
-    markup = main_menu_markup()
-    labels = [button.text for row in markup.keyboard for button in row]
-
-    assert ENGAGEMENT_MENU_LABEL in labels
 
 
 def test_candidate_actions_markup_exposes_inline_review_controls() -> None:

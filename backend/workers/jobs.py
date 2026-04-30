@@ -24,6 +24,7 @@ def dispatch_job(job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         "engagement_target.resolve": run_engagement_target_resolve,
         "engagement.detect": run_engagement_detect,
         "engagement.send": run_engagement_send,
+        "account.health_refresh": run_account_health_refresh,
     }
     handler = handlers.get(job_type)
     if handler is None:
@@ -127,6 +128,12 @@ def run_engagement_send(payload: dict[str, Any]) -> dict[str, Any]:
     from backend.workers.engagement_send import run_engagement_send_job
 
     return run_engagement_send_job(payload)
+
+
+def run_account_health_refresh(payload: dict[str, Any]) -> dict[str, Any]:
+    from backend.workers.account_health_refresh import run_account_health_refresh_job
+
+    return run_account_health_refresh_job(payload)
 
 
 def set_job_status(job_type: str, status_message: str) -> None:

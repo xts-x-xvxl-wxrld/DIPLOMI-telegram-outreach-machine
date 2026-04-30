@@ -9,8 +9,9 @@ Ship the new `Engagements` home, wizard-first setup, scoped approvals/issues
 flows, and engagement-scoped backend model without exposing a mixed old/new
 operator experience.
 
-Detailed mergeable delivery slices live in
-`wiki/plan/engagement-task-first-cockpit-slices.md`.
+Historical mergeable slice notes were deleted after implementation because they no longer matched
+the shipped cockpit routes and bot callbacks. The durable contract now lives in the phase shards and
+the task-first cockpit specs.
 
 ## Build Principles
 

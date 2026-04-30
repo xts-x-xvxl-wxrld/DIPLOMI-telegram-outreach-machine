@@ -36,6 +36,7 @@ from backend.db.enums import (
     EngagementActionType,
     EngagementCandidateStatus,
     EngagementMode,
+    EngagementOpportunityKind,
     EngagementStatus,
     EngagementStyleRuleScope,
     EngagementTargetRefType,

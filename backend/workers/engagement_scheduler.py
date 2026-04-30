@@ -28,8 +28,19 @@ from backend.db.models import (
     EngagementTarget,
 )
 from backend.db.session import AsyncSessionLocal
-from backend.queue.client import QueuedJob, enqueue_collection, enqueue_engagement_detect
+from backend.queue.client import (
+    QueuedJob,
+    enqueue_account_health_refresh,
+    enqueue_collection,
+    enqueue_engagement_detect,
+)
 from backend.services.community_engagement import get_engagement_settings
+from backend.services.engagement_account_behavior import ACCOUNT_HEALTH_REFRESH_HOURS
+from backend.services.engagement_due_state import (
+    DueDecision,
+    EngagementDueStateUnavailable,
+    RedisEngagementDueState,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -111,6 +122,8 @@ class EngagementCollectionSchedulerSummary:
     skipped_disabled: int = 0
     skipped_missing_target_permission: int = 0
     skipped_recent_collection: int = 0
+    skipped_not_due: int = 0
+    skipped_due_state_unavailable: int = 0
     skipped_active_collection: int = 0
     skipped_quiet_hours: int = 0
     enqueue_failures: int = 0
@@ -127,6 +140,8 @@ class EngagementCollectionSchedulerSummary:
             "skipped_disabled": self.skipped_disabled,
             "skipped_missing_target_permission": self.skipped_missing_target_permission,
             "skipped_recent_collection": self.skipped_recent_collection,
+            "skipped_not_due": self.skipped_not_due,
+            "skipped_due_state_unavailable": self.skipped_due_state_unavailable,
             "skipped_active_collection": self.skipped_active_collection,
             "skipped_quiet_hours": self.skipped_quiet_hours,
             "enqueue_failures": self.enqueue_failures,
@@ -138,6 +153,41 @@ TargetLoader = Callable[[AsyncSession], Awaitable[list[EngagementDetectionTarget
 CollectionTargetLoader = Callable[[AsyncSession], Awaitable[list[EngagementCollectionTarget]]]
 EnqueueDetectFn = Callable[..., QueuedJob]
 EnqueueCollectionFn = Callable[..., QueuedJob]
+EnqueueHealthRefreshFn = Callable[..., QueuedJob]
+
+
+class CollectionDueState(Protocol):
+    def collection_due(self, community_id: UUID, *, now: datetime) -> DueDecision:
+        pass
+
+    def mark_collection_enqueued(self, community_id: UUID, *, now: datetime) -> datetime:
+        pass
+
+
+def process_account_health_refresh_scheduler_tick(
+    *,
+    enqueue_health_refresh_fn: EnqueueHealthRefreshFn = enqueue_account_health_refresh,
+    now: datetime | None = None,
+) -> dict[str, object]:
+    current_time = _ensure_aware_utc(now or datetime.now(timezone.utc))
+    try:
+        job = enqueue_health_refresh_fn(now=current_time)
+    except Exception:
+        LOGGER.exception("Failed to enqueue account health refresh")
+        return {
+            "status": "processed",
+            "job_type": "account.health_refresh_scheduler",
+            "jobs_enqueued": 0,
+            "enqueue_failures": 1,
+            "job_ids": [],
+        }
+    return {
+        "status": "processed",
+        "job_type": "account.health_refresh_scheduler",
+        "jobs_enqueued": 0 if job.status == "duplicate" else 1,
+        "enqueue_failures": 0,
+        "job_ids": [job.id],
+    }
 
 
 async def process_engagement_scheduler_tick(
@@ -191,6 +241,7 @@ async def process_engagement_collection_scheduler_tick(
     session_factory: Callable[[], AsyncSessionContext] = AsyncSessionLocal,
     target_loader: CollectionTargetLoader | None = None,
     enqueue_collection_fn: EnqueueCollectionFn = enqueue_collection,
+    due_state: CollectionDueState | None = None,
     settings: Settings | None = None,
     now: datetime | None = None,
 ) -> dict[str, object]:
@@ -198,6 +249,7 @@ async def process_engagement_collection_scheduler_tick(
     current_time = _ensure_aware_utc(now or datetime.now(timezone.utc))
     interval_seconds = max(runtime_settings.engagement_active_collection_interval_seconds, 60)
     target_loader = target_loader or load_engagement_collection_targets
+    due_state = due_state or RedisEngagementDueState(settings=runtime_settings)
     summary = EngagementCollectionSchedulerSummary(interval_seconds=interval_seconds)
 
     async with session_factory() as session:
@@ -212,6 +264,15 @@ async def process_engagement_collection_scheduler_tick(
         )
         if skip_reason is not None:
             _record_collection_skip(summary, skip_reason)
+            continue
+        try:
+            due_decision = due_state.collection_due(target.community_id, now=current_time)
+        except EngagementDueStateUnavailable:
+            summary.skipped_due_state_unavailable += 1
+            LOGGER.exception("Engagement collection due-state unavailable for community %s", target.community_id)
+            continue
+        if not due_decision.due:
+            summary.skipped_not_due += 1
             continue
 
         try:
@@ -230,6 +291,10 @@ async def process_engagement_collection_scheduler_tick(
             summary.duplicate_jobs += 1
         else:
             summary.jobs_enqueued += 1
+        try:
+            due_state.mark_collection_enqueued(target.community_id, now=current_time)
+        except EngagementDueStateUnavailable:
+            LOGGER.exception("Failed to update engagement collection due-state for community %s", target.community_id)
         summary.job_ids.append(job.id)
 
     return summary.to_dict()
@@ -421,10 +486,23 @@ async def run_scheduler_loop() -> None:
     settings = get_settings()
     detection_interval_seconds = max(settings.engagement_scheduler_interval_seconds, 60)
     collection_interval_seconds = max(settings.engagement_active_collection_interval_seconds, 60)
+    health_refresh_interval_seconds = max(
+        getattr(settings, "engagement_account_health_refresh_interval_seconds", ACCOUNT_HEALTH_REFRESH_HOURS * 3600),
+        3600,
+    )
     next_detection_at: datetime | None = None
     next_collection_at: datetime | None = None
+    next_health_refresh_at: datetime | None = None
     while True:
         now = datetime.now(timezone.utc)
+        if next_health_refresh_at is None or now >= next_health_refresh_at:
+            try:
+                summary = process_account_health_refresh_scheduler_tick(now=now)
+                LOGGER.info("Account health refresh scheduler tick: %s", summary)
+            except Exception:
+                LOGGER.exception("Account health refresh scheduler tick failed")
+            next_health_refresh_at = now + timedelta(seconds=health_refresh_interval_seconds)
+
         if next_collection_at is None or now >= next_collection_at:
             try:
                 summary = await process_engagement_collection_scheduler_tick(settings=settings, now=now)
@@ -441,7 +519,7 @@ async def run_scheduler_loop() -> None:
                 LOGGER.exception("Engagement detection scheduler tick failed")
             next_detection_at = now + timedelta(seconds=detection_interval_seconds)
 
-        sleep_until = min(next_collection_at, next_detection_at)
+        sleep_until = min(next_collection_at, next_detection_at, next_health_refresh_at)
         sleep_seconds = max((sleep_until - datetime.now(timezone.utc)).total_seconds(), 1)
         await asyncio.sleep(min(sleep_seconds, 60))
 

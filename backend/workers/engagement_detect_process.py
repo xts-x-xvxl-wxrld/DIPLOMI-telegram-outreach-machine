@@ -14,6 +14,7 @@ from backend.services.community_engagement_candidates import (
     normalize_moment_strength,
     normalize_reply_value,
 )
+from backend.services.engagement_account_behavior import post_join_warmup_skip_reason
 
 
 async def process_engagement_detect(
@@ -61,8 +62,9 @@ async def process_engagement_detect(
             )
             if membership is None:
                 return _skipped("no_joined_engagement_membership", validated_payload.community_id)
-            if membership.joined_at is None:
-                return _skipped("missing_joined_at", validated_payload.community_id)
+            warmup_skip_reason = post_join_warmup_skip_reason(joined_at=membership.joined_at)
+            if warmup_skip_reason is not None:
+                return _skipped(warmup_skip_reason, validated_payload.community_id)
 
             topics = await active_topics_fn(session)
             if not topics:
@@ -203,6 +205,7 @@ async def process_engagement_detect(
                             community_id=validated_payload.community_id,
                             topic_id=topic.id,
                             source_tg_message_id=source_message.tg_message_id,
+                            source_reply_to_tg_message_id=source_message.reply_to_tg_message_id,
                             source_excerpt=source_message.text,
                             source_message_date=source_message.message_date,
                             detected_reason=decision.reason,
@@ -220,6 +223,7 @@ async def process_engagement_detect(
                             ),
                             detected_at=detected_at,
                             reply_deadline_minutes=reply_deadline_minutes,
+                            selected_telegram_account_id=membership.telegram_account_id,
                         )
                     except EngagementValidationError:
                         summary.skipped_validation += 1
@@ -262,6 +266,7 @@ def _build_model_input(
 ) -> dict[str, Any]:
     source_post = {
         "tg_message_id": source_message.tg_message_id,
+        "reply_to_tg_message_id": source_message.reply_to_tg_message_id,
         "text": _truncate_text(source_message.text, MAX_MESSAGE_CHARS),
         "message_date": source_message.message_date.isoformat() if source_message.message_date else None,
         "reply_context": _truncate_text(source_message.reply_context, MAX_MESSAGE_CHARS)
