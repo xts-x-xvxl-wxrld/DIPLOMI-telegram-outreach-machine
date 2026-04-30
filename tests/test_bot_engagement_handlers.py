@@ -1241,11 +1241,11 @@ async def test_engagement_admin_limit_and_advanced_callbacks_have_destinations()
     await callback_query(advanced_update, _context(client))
 
     assert "Send safety" in limits_update.callback_query.message.replies[0]["text"]
-    assert "Community safety lookup: /engagement_settings <community_id>" in (
+    assert "Community safety lookup: engagement settings <community_id>" in (
         limits_update.callback_query.message.replies[0]["text"]
     )
     assert "Drafting and diagnostics" in advanced_update.callback_query.message.replies[0]["text"]
-    assert "Drafting profiles: /engagement_prompts" in (
+    assert "Drafting profiles: engagement prompts" in (
         advanced_update.callback_query.message.replies[0]["text"]
     )
 
@@ -2299,7 +2299,8 @@ async def test_create_engagement_topic_command_requires_keywords() -> None:
         _context(client, "Open", "CRM", "|", "Be", "useful.", "|"),
     )
 
-    assert "Usage: /create_engagement_topic" in update.message.replies[0]["text"]
+    assert "Usage: create engagement topic" in update.message.replies[0]["text"]
+    assert "/create_engagement_topic" not in update.message.replies[0]["text"]
     assert "at least one trigger keyword" in update.message.replies[0]["text"]
     assert client.create_topic_calls == []
 
@@ -2654,7 +2655,7 @@ async def test_approve_reply_returns_queue_send_button_without_sending() -> None
     await approve_reply_command(update, _context(client, "candidate-review"))
 
     callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
-    assert "Ready to send: /send_reply candidate-review" in update.message.replies[0]["text"]
+    assert "Ready to send: send reply candidate-review" in update.message.replies[0]["text"]
     assert "eng:cand:send:candidate-review" in callbacks
     assert client.approve_calls == [
         {"candidate_id": "candidate-review", "reviewed_by": "telegram:123:@operator"}

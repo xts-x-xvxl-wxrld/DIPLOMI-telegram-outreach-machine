@@ -1,10 +1,12 @@
 # ruff: noqa: F401,F403,F405,E402
 from __future__ import annotations
 
+from .display_policy import hide_slash_commands
 from .runtime_base import *
 
 
 async def _callback_reply(update: Any, text: str, reply_markup: Any | None = None) -> None:
+    text = hide_slash_commands(text)
     query = update.callback_query
     if query is not None and query.message is not None:
         await query.message.reply_text(text, reply_markup=reply_markup)
@@ -13,12 +15,14 @@ async def _callback_reply(update: Any, text: str, reply_markup: Any | None = Non
 
 
 async def _edit_callback_message(update: Any, text: str, reply_markup: Any | None = None) -> None:
+    text = hide_slash_commands(text)
     query = update.callback_query
     if query is not None:
         await query.edit_message_text(text=text, reply_markup=reply_markup)
 
 
 async def _reply(update: Any, text: str, reply_markup: Any | None = None) -> None:
+    text = hide_slash_commands(text)
     if update.message is not None:
         await update.message.reply_text(text, reply_markup=reply_markup)
 

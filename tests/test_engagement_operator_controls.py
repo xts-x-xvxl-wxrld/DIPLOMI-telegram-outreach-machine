@@ -180,8 +180,10 @@ def test_target_card_and_callbacks_expose_collection_controls() -> None:
         }
     )
 
-    assert "/target_collect target-1" in message
-    assert "/target_collection_runs target-1" in message
+    assert "target collect target-1" in message
+    assert "/target_collect" not in message
+    assert "target collection runs target-1" in message
+    assert "/target_collection_runs" not in message
     assert parse_callback_data("eng:admin:tc:target-1") == (
         ACTION_ENGAGEMENT_TARGET_COLLECT,
         ["target-1"],

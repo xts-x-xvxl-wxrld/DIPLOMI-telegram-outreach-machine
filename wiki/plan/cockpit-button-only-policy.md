@@ -17,7 +17,9 @@ The durable UX contract lives in:
 
 - `/start` opens the inline cockpit and clears any old persistent reply keyboard.
 - `/help` shows help with inline cockpit navigation.
-- Slash commands such as `/seeds`, `/engagement`, `/accounts`, and `/engagement_admin` keep working.
+- Slash commands such as `/seeds`, `/engagement`, `/accounts`, and `/engagement_admin` keep working
+  as hidden compatibility entrypoints, but user-facing copy and Telegram's command menu do not
+  advertise them.
 - CSV uploads and direct Telegram handle/link text intake keep working.
 - Old reply-keyboard text labels are not registered as navigation handlers.
 
@@ -35,6 +37,8 @@ The durable UX contract lives in:
   `Seed Groups`, `Engagement`, `Accounts`, or `Help`.
 - No exported markup helper creates the old persistent top-level reply keyboard.
 - Slash commands remain registered for the same destinations.
+- Bot replies, callback edits, and the startup command menu do not expose slash commands as the
+  primary navigation surface.
 - `MessageHandler(filters.Document.FileExtension("csv"))` and free-text entity intake remain
   registered after command/callback routes.
 - `/start` sends `ReplyKeyboardRemove` followed by an inline cockpit message.

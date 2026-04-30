@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from bot.api_client import BotApiClient, BotApiError
+from bot.display_policy import hide_slash_commands
 from bot.formatting_engagement_issue import (
     format_issue_card,
     format_issue_queue,
@@ -117,6 +118,7 @@ def _telegram_user_id(update: Any) -> int | None:
 
 
 async def _edit_or_reply(update: Any, text: str, reply_markup: Any | None = None) -> None:
+    text = hide_slash_commands(text)
     query = getattr(update, "callback_query", None)
     if query is not None:
         try:

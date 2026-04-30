@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from bot.api_client import BotApiClient
+from bot.display_policy import hide_slash_commands
 from bot.formatting_engagement_approval import (
     format_approval_queue_empty,
     format_approval_placeholder_only,
@@ -136,6 +137,7 @@ def _telegram_user_id(update: Any) -> int | None:
 
 
 async def _callback_reply(update: Any, text: str, reply_markup: Any | None = None) -> None:
+    text = hide_slash_commands(text)
     query = getattr(update, "callback_query", None)
     if query is not None and query.message is not None:
         await query.message.reply_text(text, reply_markup=reply_markup)
@@ -146,12 +148,14 @@ async def _callback_reply(update: Any, text: str, reply_markup: Any | None = Non
 
 
 async def _edit_callback_message(update: Any, text: str, reply_markup: Any | None = None) -> None:
+    text = hide_slash_commands(text)
     query = getattr(update, "callback_query", None)
     if query is not None:
         await query.edit_message_text(text=text, reply_markup=reply_markup)
 
 
 async def _reply(update: Any, text: str, reply_markup: Any | None = None) -> None:
+    text = hide_slash_commands(text)
     message = getattr(update, "message", None)
     if message is not None:
         await message.reply_text(text, reply_markup=reply_markup)

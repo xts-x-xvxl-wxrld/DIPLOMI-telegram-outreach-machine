@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from functools import wraps
+
+from .display_policy import hide_slash_commands
 from .formatting_discovery import (
     format_operator_cockpit,
     format_discovery_cockpit,
@@ -163,3 +166,21 @@ __all__ = [
     "format_wizard_level_prompt",
     "format_wizard_launch_card",
 ]
+
+
+def _hide_slash_output(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        output = func(*args, **kwargs)
+        if isinstance(output, str):
+            return hide_slash_commands(output)
+        return output
+
+    return wrapper
+
+
+for _name in tuple(__all__):
+    if _name.startswith("format_"):
+        globals()[_name] = _hide_slash_output(globals()[_name])
+
+del _name

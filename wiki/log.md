@@ -1831,3 +1831,11 @@ while preserving the staged testing contract.
   use `eng:home` so engagement-local navigation stays inside Engagements.
 - Updated bot navigation tests and the task-first cockpit spec to reflect the `op:home`/`eng:home`
   split.
+
+## 2026-04-30 - Hidden slash-command display policy
+
+- Added a bot display policy that strips visible slash-command tokens from outgoing Telegram text
+  while preserving command handlers as hidden compatibility entrypoints.
+- Cleared the published Telegram command menu at startup so users are guided by inline cockpit
+  buttons instead of the slash-command list.
+- Updated formatting and handler tests plus the cockpit policy/spec to cover the hidden-command UX.

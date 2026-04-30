@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from bot.api_client import BotApiClient, BotApiError
+from bot.display_policy import hide_slash_commands
 from bot.formatting_engagement_detail import (
     format_engagement_list,
     format_engagement_row,
@@ -31,6 +32,7 @@ _PAGE_SIZE = 20
 
 
 async def _edit_or_reply(update: Any, text: str, reply_markup: Any | None = None) -> None:
+    text = hide_slash_commands(text)
     query = getattr(update, "callback_query", None)
     if query is not None:
         await query.edit_message_text(text=text, reply_markup=reply_markup)

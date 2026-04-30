@@ -419,7 +419,8 @@ async def test_add_account_command_rejects_invalid_pool() -> None:
     await add_account_command(update, context)
 
     text = update.message.replies[0]["text"]
-    assert "Usage: /add_account" in text
+    assert "Usage: add account" in text
+    assert "/add_account" not in text
     assert "account_pool must be search or engagement" in text
 
 

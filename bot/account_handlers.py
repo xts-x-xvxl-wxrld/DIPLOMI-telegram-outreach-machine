@@ -8,6 +8,7 @@ from bot.account_onboarding import (
     validate_onboarding_account_pool,
 )
 from bot.api_client import BotApiError
+from bot.display_policy import hide_slash_commands
 from bot.formatting import (
     format_account_onboarding_code_sent,
     format_account_onboarding_password_required,
@@ -357,6 +358,7 @@ async def _send_onboarding_reply(
     pending: dict[str, Any],
     allow_skip: bool = False,
 ) -> None:
+    text = hide_slash_commands(text)
     markup = account_onboarding_prompt_markup(allow_skip=allow_skip)
     sent_message = None
     query = getattr(update, "callback_query", None)

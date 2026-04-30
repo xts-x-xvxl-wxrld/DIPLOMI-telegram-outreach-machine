@@ -243,16 +243,7 @@ ENGAGEMENT_SETTING_PRESETS = {"off", "observe", "suggest", "ready"}
 ENGAGEMENT_ADMIN_ONLY_MESSAGE = (
     "This engagement admin control is limited to admin operators."
 )
-STARTUP_BOT_COMMANDS = (
-    ("start", "Open operator cockpit"),
-    ("help", "Show commands and upload help"),
-    ("search", "Start a Telegram community search"),
-    ("searches", "List community searches"),
-    ("seeds", "Review discovery communities"),
-    ("engagement", "Open engagement cockpit"),
-    ("accounts", "Check Telegram account health"),
-    ("whoami", "Show your Telegram operator ID"),
-)
+STARTUP_BOT_COMMANDS: tuple[tuple[str, str], ...] = ()
 
 from .runtime import *
 from .account_handlers import *

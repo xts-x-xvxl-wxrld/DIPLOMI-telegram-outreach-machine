@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from bot.formatting import (
     format_account_onboarding_command,
     format_account_onboarding_usage,
@@ -45,21 +47,26 @@ from bot.formatting import (
 )
 
 
+def _slash_commands(message: str) -> list[str]:
+    return re.findall(r"(?<![\w/:.])/[A-Za-z][A-Za-z0-9_]*", message)
+
+
 def test_format_start_lists_seed_first_controls() -> None:
     message = format_start()
 
-    assert "/seeds" in message
-    assert "/seed <seed_group_id>" in message
-    assert "/candidates <seed_group_id>" in message
-    assert "/community <community_id>" in message
-    assert "/snapshot <community_id>" in message
-    assert "/members <community_id>" in message
-    assert "/exportmembers <community_id>" in message
-    assert "/engagement_candidates" in message
-    assert "/entity <intake_id>" in message
+    assert "seeds" in message
+    assert "seed <seed_group_id>" in message
+    assert "candidates <seed_group_id>" in message
+    assert "community <community_id>" in message
+    assert "snapshot <community_id>" in message
+    assert "members <community_id>" in message
+    assert "exportmembers <community_id>" in message
+    assert "engagement candidates" in message
+    assert "entity <intake_id>" in message
     assert "Send @username" in message
     assert "outreach" not in message.lower()
-    assert "/whoami" in message
+    assert "whoami" in message
+    assert _slash_commands(message) == []
 
 
 def test_format_whoami_returns_operator_allowlist_id() -> None:
@@ -186,7 +193,8 @@ def test_format_account_onboarding_command_keeps_login_local() -> None:
 def test_format_account_onboarding_usage_can_be_pool_specific() -> None:
     message = format_account_onboarding_usage(account_pool="search")
 
-    assert "Usage: /add_account search <phone> [session_name] [notes...]" in message
+    assert "Usage: add account search <phone> [session_name] [notes...]" in message
+    assert _slash_commands(message) == []
 
 
 def test_format_seed_import_summarizes_groups_and_errors() -> None:
@@ -208,7 +216,8 @@ def test_format_seed_import_summarizes_groups_and_errors() -> None:
 
     assert "Imported: 2" in message
     assert "SaaS Hungary" in message
-    assert "Open: /seed group-1" in message
+    assert "Open: seed group-1" in message
+    assert _slash_commands(message) == []
     assert "Row 4" in message
 
 
@@ -247,9 +256,10 @@ def test_format_seed_group_lists_next_actions() -> None:
         }
     )
 
-    assert "Channels: /channels group-1" in message
-    assert "Candidates: /candidates group-1" in message
-    assert "Resolve: /resolveseeds group-1" in message
+    assert "Channels: channels group-1" in message
+    assert "Candidates: candidates group-1" in message
+    assert "Resolve: resolveseeds group-1" in message
+    assert _slash_commands(message) == []
 
 
 def test_format_seed_group_resolution_reports_job() -> None:
@@ -259,7 +269,8 @@ def test_format_seed_group_resolution_reports_job() -> None:
 
     assert "Seed group resolution queued." in message
     assert "resolve-1 (seed.resolve)" in message
-    assert "/job resolve-1" in message
+    assert "job resolve-1" in message
+    assert _slash_commands(message) == []
 
 
 def test_format_telegram_entity_submission_reports_job() -> None:
@@ -280,7 +291,8 @@ def test_format_telegram_entity_submission_reports_job() -> None:
     assert "Telegram entity classification queued." in message
     assert "https://t.me/example" in message
     assert "entity-job-1 (telegram_entity.resolve)" in message
-    assert "/entity intake-1" in message
+    assert "entity intake-1" in message
+    assert _slash_commands(message) == []
 
 
 def test_format_telegram_entity_intake_links_community_result() -> None:
@@ -296,7 +308,8 @@ def test_format_telegram_entity_intake_links_community_result() -> None:
     )
 
     assert "Type: channel" in message
-    assert "Community: /community community-1" in message
+    assert "Community: community community-1" in message
+    assert _slash_commands(message) == []
 
 
 def test_format_snapshot_job_reports_manual_trigger() -> None:
@@ -361,10 +374,11 @@ def test_format_engagement_home_reports_operational_counts() -> None:
 
     assert "Pending approvals: 2" in message
     assert "Ready to send: 1" in message
-    assert "Needs attention: /engagement_candidates failed" in message
+    assert "Needs attention: engagement candidates failed" in message
     assert "Edit or approve, then queue send from each reply opportunity." in message
-    assert "Settings lookup: /engagement_settings <community_id>" in message
-    assert "/engagement_topics" in message
+    assert "Settings lookup: engagement settings <community_id>" in message
+    assert "engagement topics" in message
+    assert _slash_commands(message) == []
     assert "score" not in message.lower()
 
 
@@ -391,14 +405,15 @@ def test_format_engagement_settings_shows_safe_controls() -> None:
     assert "Readiness: Drafting replies" in message
     assert "Joining allowed: no" in message
     assert "Safety floor: reply-only yes, approval required yes" in message
-    assert "/set_engagement community-1" in message
-    assert "/set_engagement_limits community-1" in message
-    assert "/set_engagement_quiet_hours community-1 <HH:MM> <HH:MM>" in message
-    assert "/assign_engagement_account community-1 <telegram_account_id>" in message
+    assert "set engagement community-1" in message
+    assert "set engagement limits community-1" in message
+    assert "set engagement quiet hours community-1 <HH:MM> <HH:MM>" in message
+    assert "assign engagement account community-1 <telegram_account_id>" in message
     assert "Quiet hours: 22:00-07:00" in message
     assert "Engagement account: account-1 | +123*****89" in message
     assert message.index("Readiness: Drafting replies") < message.index("Community ID: community-1")
     assert "phone" not in message.lower()
+    assert _slash_commands(message) == []
 
 
 def test_format_engagement_settings_lookup_points_to_button_led_lookup() -> None:
@@ -409,7 +424,8 @@ def test_format_engagement_settings_lookup_points_to_button_led_lookup() -> None
 
     assert "Send safety lookup (2-2 of 3)" in message
     assert "readiness, posting posture, pacing, quiet hours, and account assignment" in message
-    assert "/engagement_settings <community_id>" in message
+    assert "engagement settings <community_id>" in message
+    assert _slash_commands(message) == []
 
 
 def test_format_engagement_target_card_is_compact_by_default_and_audit_friendly_in_detail() -> None:
@@ -429,11 +445,12 @@ def test_format_engagement_target_card_is_compact_by_default_and_audit_friendly_
     assert "1. Founder Circle" in message
     assert "Readiness: Drafting replies" in message
     assert "Allowed: watch/draft yes, join yes, post reviewed replies no" in message
-    assert "Settings: /engagement_settings community-1" in message
+    assert "Settings: engagement settings community-1" in message
     assert "Target ID: target-1" not in message
     assert "Target ID: target-1" in detail
     assert "Raw permissions: allow_join=yes, allow_detect=yes, allow_post=no" in detail
-    assert "/target_detect target-1" in message
+    assert "target detect target-1" in message
+    assert _slash_commands(message) == []
 
 
 def test_format_engagement_target_mutation_shows_before_after_permissions() -> None:
@@ -558,8 +575,9 @@ def test_format_engagement_topic_card_labels_good_and_bad_examples() -> None:
 
     assert "Good examples: #1 Compare export paths first." in card
     assert "Bad examples (avoid copying): #1 Buy our tool now." in card
-    assert "/topic_remove_example topic-1 good <index>" in card
-    assert "/topic_remove_example topic-1 bad <index>" in card
+    assert "topic remove example topic-1 good <index>" in card
+    assert "topic remove example topic-1 bad <index>" in card
+    assert _slash_commands(card) == []
 
 
 def test_format_engagement_style_rules_and_card_include_scope_priority_and_commands() -> None:
@@ -586,9 +604,10 @@ def test_format_engagement_style_rules_and_card_include_scope_priority_and_comma
     assert message.endswith("Reply style rules (1-1 of 1) | community community-1")
     assert "Scope: community community-1" in card
     assert "priority 50" in card
-    assert "/engagement_style_rule rule-1" in card
-    assert "/edit_style_rule rule-1" in card
-    assert "/toggle_style_rule rule-1 off" in card
+    assert "engagement style rule rule-1" in card
+    assert "edit style rule rule-1" in card
+    assert "toggle style rule rule-1 off" in card
+    assert _slash_commands(card) == []
 
 
 def test_format_default_topic_and_style_cards_keep_ids_for_detail_views() -> None:
@@ -654,9 +673,10 @@ def test_format_engagement_job_response_reports_refresh_command() -> None:
 
     assert "Reply send queued." in message
     assert "send-job (engagement.send)" in message
-    assert "/job send-job" in message
+    assert "job send-job" in message
     assert "Reply opportunity ID: candidate-1" in message
     assert "Candidate ID: candidate-1" in message
+    assert _slash_commands(message) == []
 
 
 def test_format_engagement_actions_and_card_keep_audit_safe() -> None:
@@ -717,8 +737,9 @@ def test_format_engagement_candidate_card_keeps_review_context() -> None:
     assert "Why this reply opportunity exists: The group is discussing alternatives." in message
     assert "Source: The group is comparing CRM tools." in message
     assert "Generated suggestion: Compare ownership" in message
-    assert "/approve_reply candidate-1" in message
-    assert "/send_reply candidate-1" not in message
+    assert "approve reply candidate-1" in message
+    assert "send reply candidate-1" not in message
+    assert _slash_commands(message) == []
     assert "score" not in message.lower()
 
 
@@ -738,8 +759,9 @@ def test_format_engagement_candidate_card_uses_state_relevant_actions() -> None:
     assert "Queue: Ready to send" in message
     assert "Readiness: Approved, ready to send" in message
     assert "What to do next: Queue send while the conversation is still fresh." in message
-    assert "Send: /send_reply candidate-1" in message
-    assert "Approve: /approve_reply candidate-1" not in message
+    assert "Send: send reply candidate-1" in message
+    assert "Approve: approve reply candidate-1" not in message
+    assert _slash_commands(message) == []
 
 
 def test_format_engagement_candidate_card_shows_retry_without_send_for_failed() -> None:
@@ -758,8 +780,9 @@ def test_format_engagement_candidate_card_shows_retry_without_send_for_failed() 
     assert "Queue: Needs attention" in message
     assert "Readiness: Failed, retry may be available" in message
     assert "What to do next: Review the failure, retry if the community is ready, or reject." in message
-    assert "Retry: /retry_candidate candidate-1" in message
-    assert "Send: /send_reply candidate-1" not in message
+    assert "Retry: retry candidate candidate-1" in message
+    assert "Send: send reply candidate-1" not in message
+    assert _slash_commands(message) == []
 
 
 def test_format_engagement_candidate_detail_workspace_separates_generated_and_final_reply() -> None:
@@ -791,7 +814,8 @@ def test_format_engagement_candidate_detail_workspace_separates_generated_and_fi
     assert "Generated by: Default#3" in message
     assert "Audit fields" in message
     assert "Next safe actions" in message
-    assert "Send: /send_reply candidate-1" in message
+    assert "Send: send reply candidate-1" in message
+    assert _slash_commands(message) == []
 
 
 def test_format_engagement_candidate_detail_workspace_surfaces_blocked_fix_path() -> None:
@@ -812,7 +836,8 @@ def test_format_engagement_candidate_detail_workspace_surfaces_blocked_fix_path(
 
     assert "Blocked path" in message
     assert "Fix now: open community settings and turn reviewed posting back on." in message
-    assert "Settings: /engagement_settings community-1" in message
+    assert "Settings: engagement settings community-1" in message
+    assert _slash_commands(message) == []
 
 
 def test_format_engagement_candidate_review_reports_audit_fields() -> None:
@@ -829,7 +854,8 @@ def test_format_engagement_candidate_review_reports_audit_fields() -> None:
     assert "Review decision: approve" in message
     assert "Reply state: approved" in message
     assert "Reviewed by: telegram:123" in message
-    assert "Ready to send: /send_reply candidate-1" in message
+    assert "Ready to send: send reply candidate-1" in message
+    assert _slash_commands(message) == []
 
 
 def test_format_engagement_candidate_revisions_caps_history_and_keeps_editor_metadata() -> None:

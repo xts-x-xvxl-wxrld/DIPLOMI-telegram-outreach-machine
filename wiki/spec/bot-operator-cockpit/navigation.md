@@ -28,7 +28,7 @@ Button meanings:
 | `Discovery` | Seed-group workflow | Replaces the old `Seed Groups` reply-keyboard label. |
 | `Engagement` | Existing `/engagement` cockpit | Opens the engagement daily cockpit. |
 | `Accounts` | Account pool health | Uses the same data and masking as `/accounts`. |
-| `Help` | Command/help card | Shows concise operator commands and upload hints. |
+| `Help` | Help card | Shows concise upload hints and top-level cockpit navigation. |
 
 `Discovery` is preferred over `Seed Groups` because it describes the operator job rather than the
 implementation entity. Seed groups remain visible inside the discovery workflow where they matter.
@@ -43,7 +43,7 @@ top-level cockpit
   -> state-aware inline actions
 ```
 
-Slash commands remain valid:
+Slash commands remain valid as hidden compatibility entrypoints:
 
 ```text
 /seeds
@@ -56,8 +56,9 @@ Slash commands remain valid:
 Rules:
 
 - `/start` should open the cockpit instead of attaching a persistent reply keyboard.
-- `/help` may show the cockpit plus command help, but it should not restore the persistent reply
+- `/help` may show the cockpit plus upload/navigation help, but it should not restore the persistent reply
   keyboard.
+- User-facing bot copy should not display slash-command strings; guide operators to inline buttons.
 - Module screens should provide a `Cockpit` or equivalent back button where it helps navigation.
 - Child screens should include a navigation footer with `Back` and `Home` inline buttons whenever a
   logical parent exists. `Back` routes to the stable parent screen for that card or list; it is not a
@@ -111,10 +112,10 @@ replies cannot usefully clear a message-level reply keyboard in the same way.
 ## Command Compatibility
 
 Commands are the durable API for testing, debugging, and direct links. The cockpit must not remove
-or weaken them.
+or weaken them, but user-facing Telegram copy should steer operators through inline buttons.
 
-At startup, the bot should publish its primary command list to Telegram with `/start` first so a new
-or empty bot conversation exposes the cockpit entrypoint through the client command/start surface.
+At startup, the bot should clear the public command menu instead of publishing the full command list.
+Operators can still type commands manually, and `/start` remains the empty-conversation entrypoint.
 
 Required command behavior after migration:
 
