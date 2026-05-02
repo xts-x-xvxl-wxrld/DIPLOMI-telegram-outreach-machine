@@ -364,7 +364,6 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("join_community", join_community_command))
     application.add_handler(CommandHandler("detect_engagement", detect_engagement_command))
     application.add_handler(CommandHandler("engagement_actions", engagement_actions_command))
-    application.add_handler(CommandHandler("engagement_rollout", engagement_rollout_command))
     application.add_handler(CommandHandler("engagement_topics", engagement_topics_command))
     application.add_handler(CommandHandler("engagement_topic", engagement_topic_command))
     application.add_handler(CommandHandler("create_engagement_topic", create_engagement_topic_command))

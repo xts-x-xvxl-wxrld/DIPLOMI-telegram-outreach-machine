@@ -38,6 +38,5 @@ Completed on 2026-04-21.
 - Backend service: `summarize_semantic_rollout` aggregates semantic metadata stored on engagement
   candidates.
 - API route: `GET /api/engagement/semantic-rollout`.
-- Bot command: `/engagement_rollout [window_days]`.
 - Focused tests cover API aggregation, bot API-client routing, bot handler rendering, and
   aggregate-only formatting.

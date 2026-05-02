@@ -35,8 +35,6 @@ The current main engagement menu exposes:
   15-minute expiry, and entity-specific API save dispatch.
 - `/cancel_edit` for discarding the caller's pending guided edit.
 - `/engagement_actions [community_id]`.
-- `/engagement_rollout [window_days]` aggregate semantic-selector rollout summary by similarity
-  band.
 - `/engagement_settings <community_id>`.
 - Community settings cards with readiness summaries before raw mode, permission, and rate-limit
   fields.

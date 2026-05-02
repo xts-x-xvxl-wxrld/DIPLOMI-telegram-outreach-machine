@@ -893,10 +893,9 @@ records and a sanitized JSONL evaluation fixture with validation tests for thres
 
 Added the Slice 5b aggregate rollout surface for semantic matching. The backend now summarizes
 semantic-created reply opportunity outcomes by similarity band through
-`GET /api/engagement/semantic-rollout`, and the bot exposes `/engagement_rollout [window_days]` for
-operator review. The surface reports aggregate approval, rejection, pending, and expired counts
-without exposing source messages, candidate IDs, sender identity, phone numbers, or person-level
-scores.
+`GET /api/engagement/semantic-rollout` for operator review. The surface reports aggregate approval,
+rejection, pending, and expired counts without exposing source messages, candidate IDs, sender
+identity, phone numbers, or person-level scores.
 
 ## [2026-04-21] code | Added bot candidate detail and revision controls
 

@@ -299,17 +299,6 @@ async def engagement_actions_command(update: Any, context: Any) -> None:
         await _reply(update, format_api_error(exc.message))
 
 
-async def engagement_rollout_command(update: Any, context: Any) -> None:
-    window_days = _positive_int_arg(context, default=14)
-    client = _api_client(context)
-    try:
-        data = await client.get_engagement_semantic_rollout(window_days=window_days)
-    except BotApiError as exc:
-        await _reply(update, format_api_error(exc.message))
-        return
-    await _reply(update, format_engagement_semantic_rollout(data))
-
-
 async def approve_reply_command(update: Any, context: Any) -> None:
     candidate_id = _first_arg(context)
     if candidate_id is None:
@@ -446,7 +435,6 @@ __all__ = [
     "engagement_candidate_command",
     "engagement_command",
     "engagement_actions_command",
-    "engagement_rollout_command",
     "approve_reply_command",
     "reject_reply_command",
     "send_reply_command",

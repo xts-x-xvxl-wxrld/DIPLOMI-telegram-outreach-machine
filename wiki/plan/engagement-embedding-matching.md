@@ -155,8 +155,6 @@ Completed in Slice 5b:
 
 - `GET /api/engagement/semantic-rollout` summarizes semantic-created reply opportunity outcomes by
   similarity band over a bounded review window.
-- `/engagement_rollout [window_days]` renders the same aggregate rollout summary in the Telegram
-  bot.
 - Approved, sent, and failed-after-approval reply opportunities count as approved operator
   outcomes; rejected rows count as rejected outcomes; pending and expired rows remain visible as
   operational context.

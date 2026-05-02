@@ -349,12 +349,3 @@ unapproved candidates.
 
 Calls `GET /api/engagement/actions` and shows recent join/reply audit rows. Community filtering is
 optional in the command and should be passed to the API when provided.
-
-### `/engagement_rollout [window_days]`
-
-Calls `GET /api/engagement/semantic-rollout` and shows aggregate semantic-selector rollout
-outcomes by similarity band for threshold tuning. The command defaults to a 14-day window and
-accepts a positive day count.
-
-The message must remain aggregate-only. It may show counts and approval rates, but it must not show
-candidate IDs, source messages, sender identity, phone numbers, or person-level scores.

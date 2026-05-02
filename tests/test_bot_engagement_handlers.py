@@ -34,7 +34,6 @@ from bot.main import (
     engagement_prompt_command,
     engagement_prompts_command,
     engagement_prompt_versions_command,
-    engagement_rollout_command,
     engagement_settings_command,
     engagement_style_command,
     engagement_style_rule_command,
@@ -2206,22 +2205,6 @@ async def test_engagement_actions_command_filters_by_community_and_renders_audit
 
 
 @pytest.mark.asyncio
-async def test_engagement_rollout_command_renders_aggregate_similarity_bands() -> None:
-    client = _FakeApiClient()
-    update = _message_update()
-
-    await engagement_rollout_command(update, _context(client, "21"))
-
-    assert client.rollout_calls == [{"window_days": 21}]
-    message = update.message.replies[0]["text"]
-    assert "Semantic rollout | 21 days" in message
-    assert "Approval rate: 50%" in message
-    assert "0.80-0.89: 1" in message
-    assert "Candidate ID" not in message
-    assert "Source:" not in message
-
-
-@pytest.mark.asyncio
 async def test_engagement_actions_callback_pages_with_community_filter() -> None:
     client = _FakeApiClient()
     client.actions = [
@@ -2716,5 +2699,4 @@ async def test_edit_reply_command_starts_guided_pending_edit() -> None:
     assert pending is not None
     assert pending.object_id == "candidate-review"
     assert client.edit_candidate_calls == []
-
 
