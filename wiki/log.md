@@ -2152,3 +2152,12 @@ while preserving the staged testing contract.
 - Recorded the follow-up sequencing decision in the same plan: engagement goes
   first, the next artifact should be a code-first unified engagement map, and
   wiki noise removal plus contract rewrites happen after that map exists.
+
+## 2026-05-02 - Engagement code index baseline
+
+- Added `wiki/code-index/index.md` and `wiki/code-index/engagement.md` as the
+  new code-first navigation baseline for engagement cleanup.
+- The engagement map is intentionally split into `active`, `compat`, and
+  `stale or suspect` surfaces so future wiki pruning can be anchored on code
+  structure instead of mixed-era spec language.
+- Updated `wiki/index.md` to point at the new `wiki/code-index/` directory.
