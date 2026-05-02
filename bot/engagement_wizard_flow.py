@@ -701,6 +701,9 @@ async def _handle_wizard_edit_reentry(
     engagement_id: str,
     field: str,
 ) -> None:
+    if field == "sending_mode":
+        field = "mode"
+
     editable = editable_field("wizard", "state")
     if editable is None:
         await _callback_reply(update, "Wizard is not available right now.")
@@ -939,6 +942,5 @@ __all__ = [
     "_wizard_resume_after_topic_create",
     "_wizard_return_pop",
 ]
-
 
 

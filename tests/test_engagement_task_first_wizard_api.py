@@ -220,3 +220,31 @@ async def test_task_first_wizard_confirm_blocks_when_join_enqueue_fails(monkeypa
     assert response.code == "join_enqueue_failed"
     assert response.message == "Could not start the community join right now."
     assert db.commits == 0
+
+
+@pytest.mark.asyncio
+async def test_task_first_wizard_confirm_routes_invalid_mode_back_to_mode_step() -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    target = _target(community_id, status=EngagementTargetStatus.RESOLVED.value)
+    topic = _topic(uuid4(), name="CRM")
+    engagement = _engagement(target=target, topic=topic)
+    settings = _engagement_settings(engagement.id, account_id=account_id, mode=EngagementMode.DISABLED.value)
+    db = FakeDb(
+        community=target.community,
+        target=target,
+        engagement=engagement,
+        topic=topic,
+        engagement_settings=settings,
+    )
+
+    response = await post_task_first_wizard_confirm(
+        engagement.id,
+        TaskFirstWizardActionRequest(requested_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
+
+    assert response.result == "validation_failed"
+    assert response.field == "mode"
+    assert response.next_callback == f"eng:wz:edit:{engagement.id}:mode"
+    assert db.commits == 0

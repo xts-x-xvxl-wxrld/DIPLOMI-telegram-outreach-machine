@@ -316,7 +316,7 @@ Allowed `field` values:
 - `target`
 - `topic`
 - `account`
-- `sending_mode`
+- `mode`
 
 `blocked` shape:
 

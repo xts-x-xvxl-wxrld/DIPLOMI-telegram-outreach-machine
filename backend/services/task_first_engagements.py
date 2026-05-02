@@ -432,8 +432,8 @@ async def confirm_task_first_engagement(
         return TaskFirstWizardConfirmResult(
             result="validation_failed",
             message="Choose a sending mode.",
-            field="sending_mode",
-            next_callback=_wizard_edit_callback(engagement.id, "sending_mode"),
+            field="mode",
+            next_callback=_wizard_edit_callback(engagement.id, "mode"),
         )
 
     membership = await _get_membership(
@@ -505,7 +505,7 @@ async def confirm_task_first_engagement(
                 result="blocked",
                 message="Could not start engagement right now.",
                 code="detect_enqueue_failed",
-                next_callback=_wizard_edit_callback(engagement.id, "sending_mode"),
+                next_callback=_wizard_edit_callback(engagement.id, "mode"),
             )
 
     return TaskFirstWizardConfirmResult(

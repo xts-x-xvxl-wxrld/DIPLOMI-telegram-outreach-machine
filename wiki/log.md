@@ -2138,3 +2138,14 @@ while preserving the staged testing contract.
   so the parent plan returns under the enforced wiki-plan cap.
 - Updated `wiki/index.md` to point at the new draft-instruction-wizard overview and shard
   directory, then reran local CI parity gates to confirm the guardrail violation is cleared.
+
+## 2026-05-02 - Contract surface rationalization and wizard mode normalization
+
+- Added `wiki/plan/contract-surface-rationalization.md` to name the repo's
+  canonical contract set and demote overlapping engagement wiki material that
+  no longer matches active code/tests.
+- Corrected the task-first engagement API spec so wizard validation/reentry uses
+  the external field name `mode`, matching the bot callback grammar.
+- Normalized backend wizard confirm callbacks from `sending_mode` to `mode` and
+  kept a bot-side alias so older inline buttons using `sending_mode` still open
+  step 4 instead of falling through to review.
