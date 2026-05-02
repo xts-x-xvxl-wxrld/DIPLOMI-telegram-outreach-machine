@@ -1,6 +1,7 @@
 # ruff: noqa: F401,F403,F405
 from __future__ import annotations
 
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -68,8 +69,10 @@ async def get_engagement_cockpit_home(
 @router.get("/engagement/cockpit/approvals", response_model=CockpitApprovalQueueResponse)
 async def get_engagement_cockpit_approvals(
     db: DbSession,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    draft_id: UUID | None = None,
 ) -> CockpitApprovalQueueResponse:
-    payload = await get_cockpit_approvals(db)
+    payload = await get_cockpit_approvals(db, offset=offset, draft_id=draft_id)
     return CockpitApprovalQueueResponse.model_validate(payload)
 
 
@@ -80,19 +83,28 @@ async def get_engagement_cockpit_approvals(
 async def get_engagement_cockpit_scoped_approvals(
     engagement_id: UUID,
     db: DbSession,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    draft_id: UUID | None = None,
 ) -> CockpitApprovalQueueResponse:
     detail = await get_cockpit_engagement_detail(db, engagement_id=engagement_id)
     if detail is None:
         raise HTTPException(status_code=404, detail={"code": "engagement_not_found", "message": "Engagement not found"})
-    payload = await get_cockpit_approvals(db, engagement_id=engagement_id)
+    payload = await get_cockpit_approvals(
+        db,
+        engagement_id=engagement_id,
+        offset=offset,
+        draft_id=draft_id,
+    )
     return CockpitApprovalQueueResponse.model_validate(payload)
 
 
 @router.get("/engagement/cockpit/issues", response_model=CockpitIssueQueueResponse)
 async def get_engagement_cockpit_issues(
     db: DbSession,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    issue_id: UUID | None = None,
 ) -> CockpitIssueQueueResponse:
-    payload = await get_cockpit_issues(db)
+    payload = await get_cockpit_issues(db, offset=offset, issue_id=issue_id)
     return CockpitIssueQueueResponse.model_validate(payload)
 
 
@@ -103,19 +115,26 @@ async def get_engagement_cockpit_issues(
 async def get_engagement_cockpit_scoped_issues(
     engagement_id: UUID,
     db: DbSession,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    issue_id: UUID | None = None,
 ) -> CockpitIssueQueueResponse:
     detail = await get_cockpit_engagement_detail(db, engagement_id=engagement_id)
     if detail is None:
         raise HTTPException(status_code=404, detail={"code": "engagement_not_found", "message": "Engagement not found"})
-    payload = await get_cockpit_issues(db, engagement_id=engagement_id)
+    payload = await get_cockpit_issues(
+        db,
+        engagement_id=engagement_id,
+        offset=offset,
+        issue_id=issue_id,
+    )
     return CockpitIssueQueueResponse.model_validate(payload)
 
 
 @router.get("/engagement/cockpit/engagements", response_model=CockpitEngagementListResponse)
 async def get_engagement_cockpit_engagements(
     db: DbSession,
-    limit: int = Query(default=20, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> CockpitEngagementListResponse:
     payload = await list_cockpit_engagements(db, limit=limit, offset=offset)
     return CockpitEngagementListResponse.model_validate(payload)
@@ -138,8 +157,8 @@ async def get_engagement_cockpit_engagement_detail(
 @router.get("/engagement/cockpit/sent", response_model=CockpitSentFeedResponse)
 async def get_engagement_cockpit_sent(
     db: DbSession,
-    limit: int = Query(default=20, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> CockpitSentFeedResponse:
     payload = await list_cockpit_sent(db, limit=limit, offset=offset)
     return CockpitSentFeedResponse.model_validate(payload)

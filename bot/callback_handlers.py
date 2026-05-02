@@ -105,6 +105,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_CANDIDATE_OPEN,
     ACTION_ENGAGEMENT_CANDIDATE_RETRY,
     ACTION_ENGAGEMENT_CANDIDATE_REVISIONS,
+    ACTION_ENGAGEMENT_CANDIDATE_SAVE_GOOD,
     ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_JOIN,
@@ -148,14 +149,17 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TARGET_RESOLVE,
     ACTION_ENGAGEMENT_TARGETS,
     ACTION_ENGAGEMENT_TOPIC_CREATE,
+    ACTION_ENGAGEMENT_TOPIC_BRIEF,
     ACTION_ENGAGEMENT_TOPIC_EDIT,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
     ACTION_ENGAGEMENT_TOPIC_LIST,
     ACTION_ENGAGEMENT_TOPIC_OPEN,
+    ACTION_ENGAGEMENT_TOPIC_PREVIEW,
     ACTION_ENGAGEMENT_TOPIC_TOGGLE,
     ACTION_JOB_STATUS,
     ACTION_OP_ACCOUNTS,
+    ACTION_OP_ACCOUNT_HEALTH,
     ACTION_OP_ADD_ACCOUNT,
     ACTION_OP_ACCOUNT_SKIP,
     ACTION_OP_APPROVE,
@@ -170,6 +174,8 @@ from bot.ui import (
     ACTION_ENGAGEMENT_ISSUE_QUEUE,
     ACTION_ENGAGEMENT_MINE,
     ACTION_ENGAGEMENT_DETAIL,
+    ACTION_ENGAGEMENT_QUIET,
+    ACTION_ENGAGEMENT_RATE,
     ACTION_ENGAGEMENT_SENT,
     ACTION_OPEN_COMMUNITY,
     ACTION_OPEN_SEED_GROUP,
@@ -267,6 +273,7 @@ ENGAGEMENT_ADMIN_ONLY_MESSAGE = (
 )
 
 from .runtime import *
+from .callback_handlers_engagement import _handle_engagement_topic_candidate_callback
 from .discovery_handlers import *
 from .search_handlers import *
 from .engagement_handlers import *
@@ -310,15 +317,25 @@ async def callback_query(update: Any, context: Any) -> None:
 
     await query.answer()
     action, parts = parse_callback_data(query.data)
+    previous_dispatch = getattr(context, "_dispatch_callback", None)
 
-    if _callback_action_requires_engagement_admin(
-        action,
-        parts,
-    ) and not await _is_engagement_admin_async(update, context):
-        await _callback_reply(update, ENGAGEMENT_ADMIN_ONLY_MESSAGE)
-        return
+    async def _dispatch_callback(_update: Any, _context: Any, *, data: str) -> None:
+        original_data = query.data
+        query.data = data
+        try:
+            await callback_query(update, context)
+        finally:
+            query.data = original_data
+
+    context._dispatch_callback = _dispatch_callback
 
     try:
+        if _callback_action_requires_engagement_admin(
+            action,
+            parts,
+        ) and not await _is_engagement_admin_async(update, context):
+            await _callback_reply(update, ENGAGEMENT_ADMIN_ONLY_MESSAGE)
+            return
         if action == ACTION_OPEN_SEED_GROUP and len(parts) == 1:
             await _send_seed_group_detail(update, context, parts[0])
             return
@@ -670,112 +687,10 @@ async def callback_query(update: Any, context: Any) -> None:
                 offset=offset,
             )
             return
-        if action == ACTION_ENGAGEMENT_TOPIC_LIST and parts:
-            await _send_engagement_topics(update, context, offset=_parse_offset(parts[0]))
-            return
         if action == ACTION_ENGAGEMENT_TOPIC_CREATE:
             await _start_topic_create(update, context)
             return
-        if action == ACTION_ENGAGEMENT_TOPIC_OPEN and len(parts) == 1:
-            await _send_engagement_topic(update, context, parts[0])
-            return
-        if action == ACTION_ENGAGEMENT_TOPIC_EDIT and len(parts) == 2:
-            field = expand_topic_edit_field(parts[1])
-            if field not in {"stance_guidance", "trigger_keywords", "negative_keywords"}:
-                await _callback_reply(update, "That topic field is not editable from this button.")
-                return
-            await _start_config_edit(
-                update,
-                context,
-                entity="topic",
-                object_id=parts[0],
-                field=field,
-            )
-            return
-        if action == ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD and len(parts) == 2:
-            example_type = "good" if parts[1] == "g" else "bad" if parts[1] == "b" else None
-            if example_type is None:
-                await _callback_reply(update, "That topic example type is not available.")
-                return
-            await _start_config_edit(
-                update,
-                context,
-                entity="topic_example",
-                object_id=parts[0],
-                field=example_type,
-            )
-            return
-        if action == ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE and len(parts) == 3:
-            example_type = "good" if parts[1] == "g" else "bad"
-            await _remove_topic_example(
-                update,
-                context,
-                parts[0],
-                example_type=example_type,
-                index=_parse_offset(parts[2]),
-                edit_callback=True,
-            )
-            return
-        if action == ACTION_ENGAGEMENT_TOPIC_TOGGLE and len(parts) == 2:
-            await _toggle_engagement_topic(
-                update,
-                context,
-                parts[0],
-                active=parts[1] == "1",
-                edit_callback=True,
-            )
-            return
-        if action == ACTION_ENGAGEMENT_CANDIDATE_OPEN and len(parts) == 1:
-            await _send_engagement_candidate_detail(update, context, parts[0])
-            return
-        if action == ACTION_ENGAGEMENT_CANDIDATE_EDIT and len(parts) == 1:
-            await _start_config_edit(
-                update,
-                context,
-                entity="candidate",
-                object_id=parts[0],
-                field="final_reply",
-            )
-            return
-        if action == ACTION_ENGAGEMENT_CANDIDATE_REVISIONS and len(parts) == 1:
-            await _send_engagement_candidate_revisions(update, context, parts[0])
-            return
-        if action == ACTION_ENGAGEMENT_CANDIDATE_EXPIRE and len(parts) == 1:
-            await _expire_engagement_candidate(
-                update,
-                context,
-                parts[0],
-                edit_callback=True,
-            )
-            return
-        if action == ACTION_ENGAGEMENT_CANDIDATE_RETRY and len(parts) == 1:
-            await _retry_engagement_candidate(
-                update,
-                context,
-                parts[0],
-                edit_callback=True,
-            )
-            return
-        if action == ACTION_ENGAGEMENT_APPROVE and len(parts) == 1:
-            await _review_engagement_candidate(
-                update,
-                context,
-                parts[0],
-                action="approve",
-                edit_callback=True,
-            )
-            return
-        if action == ACTION_ENGAGEMENT_REJECT and len(parts) == 1:
-            await _review_engagement_candidate(
-                update,
-                context,
-                parts[0],
-                action="reject",
-                edit_callback=True,
-            )
-            return
-        if action == ACTION_ENGAGEMENT_SEND and len(parts) == 1:
-            await _send_engagement_reply(update, context, parts[0])
+        if await _handle_engagement_topic_candidate_callback(update, context, action, parts):
             return
         if action in {ACTION_APPROVE_COMMUNITY, ACTION_REJECT_COMMUNITY} and len(parts) == 1:
             decision = "approve" if action == ACTION_APPROVE_COMMUNITY else "reject"
@@ -786,6 +701,9 @@ async def callback_query(update: Any, context: Any) -> None:
             return
         if action == ACTION_OP_ACCOUNTS:
             await _send_accounts(update, context)
+            return
+        if action == ACTION_OP_ACCOUNT_HEALTH:
+            await _start_account_health_refresh(update, context)
             return
         if action == ACTION_OP_ADD_ACCOUNT and len(parts) == 1:
             await begin_account_onboarding_flow(update, context, parts[0])
@@ -869,7 +787,12 @@ async def callback_query(update: Any, context: Any) -> None:
             if sub == "list":
                 await show_global_issue_queue(update, context, offset=_parse_offset(parts[1]) if len(parts) > 1 else 0)
             elif sub == "eng" and len(parts) >= 2:
-                await show_scoped_issue_queue(update, context, engagement_id=parts[1])
+                await show_scoped_issue_queue(
+                    update,
+                    context,
+                    engagement_id=parts[1],
+                    offset=_parse_offset(parts[2]) if len(parts) > 2 else 0,
+                )
             elif sub == "open" and len(parts) >= 2:
                 await show_issue_card(update, context, issue_id=parts[1])
             elif sub == "skip" and len(parts) >= 2:
@@ -893,6 +816,21 @@ async def callback_query(update: Any, context: Any) -> None:
             elif sub == "resume" and len(parts) >= 2:
                 await handle_engagement_resume(update, context, engagement_id=parts[1])
             return
+        if action == ACTION_ENGAGEMENT_RATE and parts:
+            sub = parts[0]
+            if sub == "open" and len(parts) >= 2:
+                await show_rate_limit_detail(update, context, issue_id=parts[1])
+            return
+        if action == ACTION_ENGAGEMENT_QUIET and parts:
+            sub = parts[0]
+            if sub == "open" and len(parts) >= 3:
+                await start_quiet_hours_edit(
+                    update,
+                    context,
+                    issue_id=parts[2],
+                    engagement_id=parts[1],
+                )
+            return
         # --- eng:sent:* sent messages ---
         if action == ACTION_ENGAGEMENT_SENT and parts:
             sub = parts[0]
@@ -902,6 +840,14 @@ async def callback_query(update: Any, context: Any) -> None:
     except BotApiError as exc:
         await _callback_reply(update, format_api_error(exc.message))
         return
+    finally:
+        if previous_dispatch is None:
+            try:
+                delattr(context, "_dispatch_callback")
+            except AttributeError:
+                pass
+        else:
+            context._dispatch_callback = previous_dispatch
 
     await _callback_reply(update, "That action is no longer available. Try /seeds or /community.")
 

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -51,26 +51,22 @@ def format_engagement_home(data: dict[str, Any]) -> str:
             _field("Active topics", active_topic_count, icon="🧩"),
             *_action_block(
                 [
-                    "Pending approvals: /engagement_candidates needs_review",
-                    "Edit or approve, then queue send from each reply opportunity.",
-                    "Ready to send: /engagement_candidates approved",
-                    "Needs attention: /engagement_candidates failed",
+                    "Use the Pending approvals button for draft review work.",
+                    "Use Ready to send for approved replies waiting on send.",
+                    "Use Needs attention when something is blocked or failed.",
+                    "Edit, approve, reject, and send continue from the reply cards.",
                 ],
                 title="Review flow",
             ),
             *_action_block(
                 [
-                    "Communities: /engagement_targets",
-                    "Settings lookup: /engagement_settings <community_id>",
-                    "Topics: /engagement_topics",
-                    "Recent actions: /engagement_actions",
-                    "Admin: /engagement_admin",
+                    "Communities, Topics, Settings lookup, Recent actions, and Setup stay in the inline buttons below.",
+                    "Open a community or reply card first when you need item-specific actions.",
                 ],
                 title="Configuration",
             ),
         ]
     )
-
 
 def format_engagement_admin_home(data: dict[str, Any]) -> str:
     return "\n".join(
@@ -82,17 +78,13 @@ def format_engagement_admin_home(data: dict[str, Any]) -> str:
             _field("Reply style rules", data.get("style_rule_count", 0)),
             *_action_block(
                 [
-                    "Allowed communities: /engagement_targets",
-                    "Detection topics: /engagement_topics",
-                    "Reply style rules: /engagement_style",
-                    "Send safety: /engagement_settings <community_id>",
-                    "Drafting and diagnostics: /engagement_prompts",
+                    "Use Communities to approve and inspect engagement targets.",
+                    "Use Topics, Reply style, Send safety, and Drafting/audit from the buttons below.",
                 ],
                 title="Operator setup",
             ),
         ]
     )
-
 
 def format_engagement_admin_limits_home() -> str:
     return "\n".join(
@@ -104,15 +96,14 @@ def format_engagement_admin_limits_home() -> str:
             ),
             *_action_block(
                 [
-                    "Community safety lookup: /engagement_settings <community_id>",
-                    "Masked account lookup: /accounts",
-                    "Allowed communities: /engagement_targets",
+                    "Use Safety lookup to open approved communities with saved settings.",
+                    "Use Communities when you need to approve or inspect a target first.",
+                    "Use Accounts for masked account health and onboarding.",
                 ],
                 title="Safety controls",
             ),
         ]
     )
-
 
 def format_engagement_settings_lookup(data: dict[str, Any], *, offset: int = 0) -> str:
     items = data.get("items") or []
@@ -121,10 +112,10 @@ def format_engagement_settings_lookup(data: dict[str, Any], *, offset: int = 0) 
         return "\n".join(
             [
                 _headline("Send safety lookup", icon="⚙"),
-                _bullet("No approved engagement communities are ready for settings lookup.", icon="📭"),
+                _bullet("No approved engagement communities are ready for settings lookup.", icon="📝"),
                 "",
-                _section("Open directly", icon="➡"),
-                "/engagement_settings <community_id>",
+                _section("Next step", icon="➡"),
+                "Open Communities below, approve or inspect a target, then return here.",
             ]
         )
     return "\n".join(
@@ -134,11 +125,8 @@ def format_engagement_settings_lookup(data: dict[str, Any], *, offset: int = 0) 
                 "Open a community below to review readiness, posting posture, pacing, quiet hours, and account assignment.",
                 icon="➡",
             ),
-            "",
-            _field("Direct command", "/engagement_settings <community_id>"),
         ]
     )
-
 
 def format_engagement_admin_advanced_home() -> str:
     return "\n".join(
@@ -150,15 +138,14 @@ def format_engagement_admin_advanced_home() -> str:
             ),
             *_action_block(
                 [
-                    "Drafting profiles: /engagement_prompts",
-                    "Semantic rollout: /engagement_rollout",
-                    "Audit and diagnostics: /engagement_actions",
+                    "Use Drafting profiles for prompt-profile review and editing.",
+                    "Use Audit/diagnostics for action history and troubleshooting.",
+                    "Semantic rollout remains a hidden compatibility path until it gets its own button.",
                 ],
                 title="Advanced controls",
             ),
         ]
     )
-
 
 def format_engagement_targets(data: dict[str, Any], *, offset: int = 0) -> str:
     items = data.get("items") or []
@@ -168,12 +155,9 @@ def format_engagement_targets(data: dict[str, Any], *, offset: int = 0) -> str:
     if not items:
         return "\n".join(
             [
-                _headline(f"No allowed communities{status_label} in this view.", icon="📭"),
+                _headline(f"No allowed communities{status_label} in this view.", icon="📝"),
                 "",
-                _bullet(
-                    "Add one with /add_engagement_target <telegram_link_or_username_or_community_id>",
-                    icon="➡",
-                ),
+                _bullet("Use Add target below to submit a new community.", icon="➡"),
             ]
         )
     return "\n".join(
@@ -182,10 +166,9 @@ def format_engagement_targets(data: dict[str, Any], *, offset: int = 0) -> str:
                 f"Allowed communities{status_label} ({offset + 1}-{offset + len(items)} of {total})",
                 icon="🏘",
             ),
-            _bullet("Add: /add_engagement_target <telegram_link_or_username_or_community_id>", icon="➡"),
+            _bullet("Use Add target below to submit another community.", icon="➡"),
         ]
     )
-
 
 def format_engagement_target_card(
     item: dict[str, Any],
@@ -760,3 +743,9 @@ def format_engagement_job_response(
         lines.append(_field("Reply opportunity ID", candidate_id, icon="💬"))
         lines.append(_field("Candidate ID", candidate_id, icon="🆔"))
     return "\n".join(lines)
+
+
+
+
+
+

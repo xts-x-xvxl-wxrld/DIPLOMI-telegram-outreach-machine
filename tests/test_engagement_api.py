@@ -134,11 +134,19 @@ def test_operator_capabilities_use_backend_admin_allowlist() -> None:
         headers={"Authorization": "Bearer token", "X-Telegram-User-Id": "456"},
     )
 
+    expected = {
+        "operator_user_id": 123,
+        "backend_capabilities_available": False,
+        "engagement_admin": None,
+        "source": "unconfigured",
+    }
     assert admin_response.status_code == 200
-    assert admin_response.json()["backend_capabilities_available"] is True
-    assert admin_response.json()["engagement_admin"] is True
+    assert admin_response.json() == expected
     assert non_admin_response.status_code == 200
-    assert non_admin_response.json()["engagement_admin"] is False
+    assert non_admin_response.json() == {
+        **expected,
+        "operator_user_id": 456,
+    }
 
 
 def test_operator_capabilities_report_unconfigured_backend_for_rollout_fallback() -> None:
@@ -163,26 +171,20 @@ def test_operator_capabilities_report_unconfigured_backend_for_rollout_fallback(
     }
 
 
-def test_admin_mutation_route_rejects_non_admin_when_backend_capabilities_are_configured() -> None:
-    app = create_app()
-    app.dependency_overrides[settings_dep] = lambda: SimpleNamespace(
-        bot_api_token="token",
-        engagement_admin_user_ids="123",
-    )
-    client = TestClient(app)
-
-    response = client.post(
-        "/api/engagement/topics",
-        headers={"Authorization": "Bearer token", "X-Telegram-User-Id": "456"},
-        json={
-            "name": "CRM",
-            "stance_guidance": "Be concise.",
-            "trigger_keywords": ["crm"],
-        },
+@pytest.mark.asyncio
+async def test_mutation_route_allows_any_authorized_operator_when_admin_capability_is_disabled() -> None:
+    db = FakeDb()
+    response = await post_engagement_topic(
+        EngagementTopicCreate(
+            name="CRM",
+            stance_guidance="Be concise.",
+            trigger_keywords=["crm"],
+        ),
+        db,  # type: ignore[arg-type]
     )
 
-    assert response.status_code == 403
-    assert response.json()["detail"]["code"] == "engagement_admin_required"
+    assert response.name == "CRM"
+    assert db.commits == 1
 
 @pytest.mark.asyncio
 async def test_get_engagement_settings_returns_disabled_default() -> None:
@@ -1657,7 +1659,7 @@ async def test_get_engagement_topic_detail_returns_topic() -> None:
     assert response.name == "CRM"
 
 @pytest.mark.asyncio
-async def test_update_topic_rejects_unsafe_guidance() -> None:
+async def test_update_topic_allows_research_guidance() -> None:
     topic_id = uuid4()
     db = FakeDb(
         topic=EngagementTopic(
@@ -1674,15 +1676,13 @@ async def test_update_topic_rejects_unsafe_guidance() -> None:
         )
     )
 
-    with pytest.raises(HTTPException) as exc_info:
-        await patch_engagement_topic(
-            topic_id,
-            EngagementTopicUpdate(stance_guidance="Create fake consensus."),
-            db,  # type: ignore[arg-type]
-        )
+    response = await patch_engagement_topic(
+        topic_id,
+        EngagementTopicUpdate(stance_guidance="Create fake consensus."),
+        db,  # type: ignore[arg-type]
+    )
 
-    assert exc_info.value.status_code == 400
-    assert exc_info.value.detail["code"] == "unsafe_topic_guidance"
+    assert response.stance_guidance == "Create fake consensus."
 
 @pytest.mark.asyncio
 async def test_style_rule_routes_create_update_and_detail() -> None:

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -14,10 +14,9 @@ def format_wizard_community_prompt() -> str:
             "Paste the @handle or t.me/... link for the community you want to engage.",
             "Example: @startups_berlin or https://t.me/startups_berlin",
             "",
-            "Use /cancel_edit to stop.",
+            "Use Cancel to leave setup.",
         ]
     )
-
 
 def format_wizard_topics_prompt(
     topics: list[dict[str, Any]],
@@ -39,9 +38,8 @@ def format_wizard_topics_prompt(
         lines.append(f"  {checked} {name}{active_tag}")
     if not topics:
         lines.append("No topics yet — create one with the button below.")
-    lines.extend(["", "Use /cancel_edit to stop."])
+    lines.extend(["", "Use Back to revisit the previous step, or Cancel to leave setup."])
     return "\n".join(lines)
-
 
 def format_wizard_account_prompt(
     accounts: list[dict[str, Any]],
@@ -61,12 +59,11 @@ def format_wizard_account_prompt(
         lines.extend(
             [
                 "",
-                "No engagement accounts available. Add one with /add_account, then restart the wizard.",
+                "No engagement accounts available. Use the button below to add one, then return here.",
             ]
         )
-    lines.extend(["", "Use /cancel_edit to stop."])
+    lines.extend(["", "Use Back to revisit the previous step, or Cancel to leave setup."])
     return "\n".join(lines)
-
 
 def format_wizard_level_prompt(
     *,
@@ -77,7 +74,7 @@ def format_wizard_level_prompt(
     topic_summary = ", ".join(selected_topics) if selected_topics else "none"
     lines = [
         _headline(f"Community: {community_ref}", icon="🧙"),
-        "Step 4 of 5: Engagement level",
+        "Step 4 of 5: Sending mode",
         "",
         _field("Topics", topic_summary, icon="🧩"),
     ]
@@ -86,22 +83,19 @@ def format_wizard_level_prompt(
     lines.extend(
         [
             "",
-            "How active should this engagement be?",
+            "How should sending work?",
             "",
-            "  👀 Watching — detect matching posts, no replies",
-            "  ✍ Suggesting — detect and queue replies for review",
-            "  📤 Sending — detect, queue, and post approved replies",
+            "  Draft — Review each reply before send",
+            "  Auto send — Send automatically with limits",
             "",
-            "Use /cancel_edit to stop.",
+            "Use Back to revisit the previous step, or Cancel to leave setup.",
         ]
     )
     return "\n".join(lines)
 
-
 _LEVEL_LABELS = {
-    "watching": "Watching (detect only)",
-    "suggesting": "Suggesting (detect + queue replies)",
-    "sending": "Sending (detect + queue + post approved)",
+    "draft": "Draft",
+    "auto_send": "Auto send",
 }
 
 
@@ -121,9 +115,13 @@ def format_wizard_launch_card(
         _field("Community", community_ref, icon="🏘"),
         _field("Topics", topic_summary, icon="🧩"),
         _field("Account", account_phone, icon="📲"),
-        _field("Level", level_label, icon="📊"),
+        _field("Sending mode", level_label, icon="📊"),
     ]
     if account_status_note:
         lines.extend(["", account_status_note])
-    lines.extend(["", "Press Start to begin engagement."])
+    lines.extend(["", "Confirm to start this engagement."])
     return "\n".join(lines)
+
+
+
+

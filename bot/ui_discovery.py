@@ -3,6 +3,7 @@ from __future__ import annotations
 from .ui_common import (
     ACTION_OP_DISCOVERY,
     ACTION_OP_ACCOUNTS,
+    ACTION_OP_ACCOUNT_HEALTH,
     ACTION_OP_ADD_ACCOUNT,
     ACTION_OP_ACCOUNT_SKIP,
     ACTION_OP_HELP,
@@ -62,6 +63,7 @@ def discovery_seeds_markup():
 
 def accounts_cockpit_markup():
     rows = [
+        [_button("Run health check", ACTION_OP_ACCOUNT_HEALTH)],
         [
             _button("Add search", ACTION_OP_ADD_ACCOUNT, "search"),
             _button("Add engagement", ACTION_OP_ADD_ACCOUNT, "engagement"),

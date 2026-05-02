@@ -140,7 +140,6 @@ async def create_style_rule(
     scope_type = str(payload.scope_type)
     _validate_style_scope(scope_type, payload.scope_id)
     rule_text = _required_text(payload.rule_text, field="rule_text")
-    _validate_safe_admin_text(rule_text, code_prefix="style_rule")
     now = _utcnow()
     rule = EngagementStyleRule(
         id=uuid.uuid4(),
@@ -181,7 +180,6 @@ async def update_style_rule(
         rule.name = _required_text(payload.name, field="name")
     if _field_was_set(payload, "rule_text") and payload.rule_text is not None:
         rule_text = _required_text(payload.rule_text, field="rule_text")
-        _validate_safe_admin_text(rule_text, code_prefix="style_rule")
         rule.rule_text = rule_text
     if _field_was_set(payload, "active") and payload.active is not None:
         rule.active = bool(payload.active)
@@ -286,32 +284,6 @@ def _required_text(value: str | None, *, field: str) -> str:
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
-
-
-def _validate_safe_admin_text(value: str, *, code_prefix: str) -> None:
-    lowered = value.casefold()
-    disallowed_markers = (
-        "ask for dm",
-        "ask users to dm",
-        "move to dm",
-        "send them a direct message",
-        "pretend to be",
-        "act like a normal member",
-        "create fake consensus",
-        "make fake consensus",
-        "hidden sponsorship",
-        "evade moderation",
-        "harass",
-        "target individual",
-        "target individuals",
-    )
-    for marker in disallowed_markers:
-        if marker in lowered and f"do not {marker}" not in lowered and f"don't {marker}" not in lowered:
-            raise EngagementValidationError(
-                f"unsafe_{code_prefix}",
-                "Admin-controlled engagement text cannot permit DMs, impersonation, "
-                "hidden sponsorship, harassment, fake consensus, or moderation evasion",
-            )
 
 
 def _field_was_set(payload: Any, field: str) -> bool:

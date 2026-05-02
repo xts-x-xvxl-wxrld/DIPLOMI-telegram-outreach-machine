@@ -30,6 +30,7 @@ from bot.ui import (
     ACTION_DISC_WATCHING,
     ACTION_ENGAGEMENT_HOME,
     ACTION_OP_ACCOUNTS,
+    ACTION_OP_ACCOUNT_HEALTH,
     ACTION_OP_ADD_ACCOUNT,
     ACTION_OP_ACCOUNT_SKIP,
     ACTION_OP_DISCOVERY,
@@ -38,6 +39,7 @@ from bot.ui import (
     ENGAGEMENT_MENU_LABEL,
     HELP_MENU_LABEL,
     SEEDS_MENU_LABEL,
+    ACTION_JOB_STATUS,
 )
 
 
@@ -109,6 +111,17 @@ class _FakeApiClient:
     async def get_accounts(self) -> dict[str, Any]:
         self.accounts_calls += 1
         return self.accounts_data
+
+    async def start_account_health_refresh(self, *, spot_check_limit: int = 2) -> dict[str, Any]:
+        self.account_health_refresh_calls = getattr(self, "account_health_refresh_calls", [])
+        self.account_health_refresh_calls.append(spot_check_limit)
+        return {
+            "job": {
+                "id": "account_health_refresh_2026050200",
+                "type": "account.health_refresh",
+                "status": "queued",
+            }
+        }
 
     async def start_account_onboarding(self, **payload: Any) -> dict[str, Any]:
         self.started_onboarding.append(payload)
@@ -419,7 +432,7 @@ async def test_add_account_command_rejects_invalid_pool() -> None:
     await add_account_command(update, context)
 
     text = update.message.replies[0]["text"]
-    assert "Usage: add account" in text
+    assert "Add a Telegram account" in text
     assert "/add_account" not in text
     assert "account_pool must be search or engagement" in text
 
@@ -642,6 +655,26 @@ async def test_op_accounts_callback_renders_account_health_with_masking() -> Non
     assert f"{ACTION_OP_ADD_ACCOUNT}:search" in callbacks
     assert f"{ACTION_OP_ADD_ACCOUNT}:engagement" in callbacks
     assert ACTION_OP_HOME in callbacks
+
+
+@pytest.mark.asyncio
+async def test_op_account_health_callback_queues_refresh_job() -> None:
+    client = _FakeApiClient()
+    update = _make_callback_update(ACTION_OP_ACCOUNT_HEALTH)
+    context = _make_context(client)
+
+    await callback_query(update, context)
+
+    assert client.account_health_refresh_calls == [2]
+    replies = update.callback_query.message.replies
+    assert replies
+    assert "Account health check queued." in replies[0]["text"]
+    callbacks = [
+        button.callback_data
+        for row in replies[0]["reply_markup"].inline_keyboard
+        for button in row
+    ]
+    assert f"{ACTION_JOB_STATUS}:account_health_refresh_2026050200" in callbacks
 
 
 @pytest.mark.asyncio

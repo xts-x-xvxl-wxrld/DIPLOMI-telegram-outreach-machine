@@ -23,15 +23,12 @@ commands as durable shortcuts.
 The bot may be restricted with `TELEGRAM_ALLOWED_USER_IDS`, a comma- or whitespace-separated list of
 numeric Telegram user IDs.
 
-The engagement admin subset may be restricted further with `TELEGRAM_ADMIN_USER_IDS`, also parsed as
-a comma- or whitespace-separated list of numeric Telegram user IDs. When that list is empty, the
-bot preserves the older local behavior and does not distinguish engagement admins from other
-allowlisted operators locally.
+There is currently no separate engagement-admin subset. Any Telegram operator who passes the main
+bot allowlist may use both daily review controls and engagement setup/configuration surfaces.
 
-When the backend exposes `GET /api/operator/capabilities`, the bot sends the Telegram caller's user
-ID as `X-Telegram-User-Id` and treats the returned `engagement_admin` capability as primary. The
-local `TELEGRAM_ADMIN_USER_IDS` list is only a rollout fallback when backend capabilities are
-unconfigured or unavailable.
+The bot may still send `X-Telegram-User-Id` to `GET /api/operator/capabilities` for compatibility,
+but the current product decision does not use a distinct admin capability to hide or reject
+engagement setup features.
 
 If the allowlist is empty, existing local/development behavior is preserved and any Telegram user who
 can reach the bot can use it.
@@ -41,14 +38,9 @@ inline callback actions, CSV uploads, or plain-text Telegram entity submission. 
 senders receive their own Telegram user ID and instructions to ask the operator to add it. Unauthorized
 callback users receive the same information as a Telegram alert.
 
-If `TELEGRAM_ADMIN_USER_IDS` is set, non-admin operators may still use ordinary daily engagement
-review controls, but the bot should hide or reject engagement-admin mutations such as prompt
-profile edits, style-rule edits, target approval/permission changes, topic mutations, and advanced
-community setting changes before calling protected API routes.
-
-Protected backend engagement-admin mutation routes may additionally require backend-owned
-`ENGAGEMENT_ADMIN_USER_IDS` capability checks. Those API checks remain authoritative even if the
-bot-side fallback is misconfigured.
+Prompt-profile edits, style-rule edits, target approval/permission changes, topic mutations, and
+advanced community setting changes are all operator-facing controls and should remain available to
+any Telegram user who is already authorized to use the bot.
 
 Telegram Premium status does not change this flow; Telegram still includes the same `from_user.id`
 for bot messages and callbacks.

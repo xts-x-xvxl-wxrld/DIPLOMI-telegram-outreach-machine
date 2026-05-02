@@ -36,28 +36,15 @@ def _is_authorized_update(update: Any, settings: BotSettings) -> bool:
 
 
 def _is_engagement_admin(update: Any, context: Any) -> bool:
-    cached = _cached_backend_engagement_admin(update, context)
-    if cached is not None:
-        return cached
-    settings = _bot_settings(context)
-    if settings is None or not settings.admin_user_ids:
-        return True
-    user_id = _telegram_user_id(update)
-    return user_id in settings.admin_user_ids if user_id is not None else False
+    return True
 
 
 async def _require_engagement_admin(update: Any, context: Any) -> bool:
-    if await _is_engagement_admin_async(update, context):
-        return True
-    await _callback_reply(update, ENGAGEMENT_ADMIN_ONLY_MESSAGE)
-    return False
+    return True
 
 
 async def _is_engagement_admin_async(update: Any, context: Any) -> bool:
-    backend_capability = await _backend_engagement_admin_capability(update, context)
-    if backend_capability is not None:
-        return backend_capability
-    return _is_engagement_admin(update, context)
+    return True
 
 
 async def _backend_engagement_admin_capability(update: Any, context: Any) -> bool | None:
@@ -104,51 +91,6 @@ def _capability_cache(context: Any) -> dict[int, bool]:
 
 
 def _callback_action_requires_engagement_admin(action: str, parts: list[str]) -> bool:
-    if action in {
-        ACTION_ENGAGEMENT_WIZARD,
-        ACTION_ENGAGEMENT_ADMIN,
-        ACTION_ENGAGEMENT_ADMIN_LIMITS,
-        ACTION_ENGAGEMENT_ADMIN_ADVANCED,
-        ACTION_ENGAGEMENT_ACCOUNT_CONFIRM,
-        ACTION_ENGAGEMENT_ACCOUNT_CANCEL,
-        ACTION_ENGAGEMENT_TARGET_ADD,
-        ACTION_ENGAGEMENT_TARGET_APPROVE,
-        ACTION_ENGAGEMENT_TARGET_APPROVE_CONFIRM,
-        ACTION_ENGAGEMENT_TARGET_RESOLVE,
-        ACTION_ENGAGEMENT_TARGET_REJECT,
-        ACTION_ENGAGEMENT_TARGET_ARCHIVE,
-        ACTION_ENGAGEMENT_TARGET_EDIT,
-        ACTION_ENGAGEMENT_PROMPTS,
-        ACTION_ENGAGEMENT_PROMPT_OPEN,
-        ACTION_ENGAGEMENT_PROMPT_PREVIEW,
-        ACTION_ENGAGEMENT_PROMPT_VERSIONS,
-        ACTION_ENGAGEMENT_PROMPT_EDIT,
-        ACTION_ENGAGEMENT_PROMPT_CREATE,
-        ACTION_ENGAGEMENT_PROMPT_DUPLICATE,
-        ACTION_ENGAGEMENT_PROMPT_ACTIVATE,
-        ACTION_ENGAGEMENT_PROMPT_ACTIVATE_CONFIRM,
-        ACTION_ENGAGEMENT_PROMPT_ROLLBACK,
-        ACTION_ENGAGEMENT_PROMPT_ROLLBACK_CONFIRM,
-        ACTION_ENGAGEMENT_STYLE,
-        ACTION_ENGAGEMENT_STYLE_CREATE,
-        ACTION_ENGAGEMENT_STYLE_OPEN,
-        ACTION_ENGAGEMENT_STYLE_EDIT,
-        ACTION_ENGAGEMENT_STYLE_TOGGLE,
-        ACTION_ENGAGEMENT_SETTINGS_PRESET,
-        ACTION_ENGAGEMENT_SETTINGS_JOIN,
-        ACTION_ENGAGEMENT_SETTINGS_POST,
-        ACTION_ENGAGEMENT_SETTINGS_EDIT,
-        ACTION_ENGAGEMENT_TOPIC_EDIT,
-        ACTION_ENGAGEMENT_TOPIC_CREATE,
-        ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD,
-        ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
-        ACTION_ENGAGEMENT_TOPIC_TOGGLE,
-    }:
-        return True
-    if action in {ACTION_ENGAGEMENT_TARGET_PERMISSION, ACTION_ENGAGEMENT_TARGET_PERMISSION_CONFIRM}:
-        return True
-    if action == ACTION_CONFIG_EDIT_SAVE:
-        return bool(parts)
     return False
 
 

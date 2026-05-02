@@ -21,4 +21,5 @@ Top-level routing contract for manual engagement target, prompt, topic, style, a
 
 - [Targets and Prompts](engagement-admin-control-plane/targets-prompts.md)
 - [Topics, Style, Replies](engagement-admin-control-plane/topics-style-replies.md)
+- [Draft Instruction Wizard](engagement-admin-control-plane/draft-instruction-wizard.md)
 - [Surfaces and Tests](engagement-admin-control-plane/surfaces-tests.md)

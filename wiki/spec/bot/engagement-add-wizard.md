@@ -63,6 +63,8 @@ Step 2 — Topic
   - `Create topic`
   - `Continue`
 - enable `Continue` only after one topic is selected
+- `Create topic` is also the main operator path for drafting and prompt-targeted guidance changes
+  for that new topic
 
 Step 3 — Account
 
@@ -117,8 +119,10 @@ Step 5 — Final review
 - Prompt: `Choose a topic or create a new one.`
 - Pick-or-create behavior:
   - choose an existing topic
-  - create a new topic through the existing topic-create sub-flow, then return
-    here with it preselected
+  - create a new topic through the topic-create sub-flow, which is also the
+    source-of-truth operator path for drafting and prompt-targeted changes
+  - that create-topic sub-flow should collect the drafting guidance that shapes
+    future replies for the new topic, then return here with it preselected
 - Internal effect:
   attach the chosen topic to the engagement. The launch summary shows only that
   topic for the engagement.
@@ -286,8 +290,8 @@ Edit-entry rules:
 
 - cadence settings
 - quiet hours
-- voice/style rules
-- prompt profiles
+- direct voice/style-rule library editing outside the topic-create sub-flow
+- direct prompt-profile library editing outside the topic-create sub-flow
 - raw target status transitions
 - raw per-action permission toggles
 

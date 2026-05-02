@@ -160,6 +160,17 @@ class _FakeApiClient:
         }
 
 
+def _callback_data(markup: Any | None) -> list[str]:
+    if markup is None:
+        return []
+    return [
+        button.callback_data
+        for row in markup.inline_keyboard
+        for button in row
+        if getattr(button, "callback_data", None)
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Formatter tests
 # ---------------------------------------------------------------------------
@@ -364,6 +375,9 @@ class TestEngagementListMarkup:
         markup = engagement_list_markup([], offset=0, total=0)
         # Should still return a markup object with navigation
         assert markup is not None
+        callbacks = _callback_data(markup)
+        assert "eng:home" in callbacks
+        assert "op:home" not in callbacks
 
     def test_items_produce_buttons(self):
         items = [
@@ -460,6 +474,8 @@ class TestEngagementDetailMarkup:
         assert any("topic" in d for d in cb_data)
         assert any("account" in d for d in cb_data)
         assert any("mode" in d for d in cb_data)
+        assert "eng:home" in cb_data
+        assert "op:home" not in cb_data
 
 
 class TestSentMessagesMarkup:
@@ -469,6 +485,9 @@ class TestSentMessagesMarkup:
         all_buttons = [btn for row in keyboard for btn in row]
         labels = [btn.text for btn in all_buttons if hasattr(btn, "text")]
         assert not any("Newer" in lbl or "Older" in lbl for lbl in labels)
+        callbacks = _callback_data(markup)
+        assert "eng:home" in callbacks
+        assert "op:home" not in callbacks
 
     def test_older_shown_when_more(self):
         markup = sent_messages_markup(offset=0, total=40, page_size=20)
@@ -655,10 +674,15 @@ class TestHandleEngagementResume:
         client = _FakeApiClient()
         update = _FakeUpdate()
         context = _FakeContext(client)
+        dispatched: list[str] = []
+
+        async def _dispatch(_update: Any, _context: Any, *, data: str) -> None:
+            dispatched.append(data)
+
+        context._dispatch_callback = _dispatch
         await handle_engagement_resume(update, context, engagement_id="eng-1")
-        # resume_callback should be stored if dispatch fails (importerror fallback)
-        # The handler either dispatches or falls back to detail view
-        assert len(update.callback_query.edits) >= 1
+        assert dispatched == ["eng:appr:list:0"]
+        assert update.callback_query.edits == []
 
     @pytest.mark.asyncio
     async def test_api_error(self):

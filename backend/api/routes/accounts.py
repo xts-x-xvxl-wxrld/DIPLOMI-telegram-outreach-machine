@@ -3,7 +3,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
+from backend.api.schemas import JobResponse
 from backend.api.deps import DbSession, SettingsDep, require_bot_token
+from backend.queue.client import QueueUnavailable, enqueue_account_health_refresh
 from backend.services.telegram_account_onboarding import (
     AccountOnboardingError,
     complete_telegram_account_onboarding,
@@ -45,6 +47,10 @@ class AccountOnboardingCompleteResponse(BaseModel):
     account_pool: str
     phone: str
     session_file_name: str
+
+
+class AccountHealthRefreshJobRequest(BaseModel):
+    spot_check_limit: int = Field(default=2, ge=0, le=10)
 
 
 @router.post(
@@ -93,6 +99,21 @@ async def post_account_onboarding_complete(
         await db.rollback()
         raise _onboarding_http_exception(exc) from exc
     return AccountOnboardingCompleteResponse(**result.__dict__)
+
+
+@router.post(
+    "/telegram-accounts/health-refresh-jobs",
+    response_model=JobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def post_account_health_refresh_job(
+    request: AccountHealthRefreshJobRequest,
+) -> JobResponse:
+    try:
+        job = enqueue_account_health_refresh(spot_check_limit=request.spot_check_limit)
+    except QueueUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return JobResponse(job=job)
 
 
 def _onboarding_http_exception(exc: AccountOnboardingError) -> HTTPException:

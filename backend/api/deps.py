@@ -67,38 +67,19 @@ def resolve_operator_capabilities(
     settings: Annotated[Settings, Depends(settings_dep)],
     telegram_user_id: Annotated[str | None, Header(alias="X-Telegram-User-Id")] = None,
 ) -> OperatorCapabilities:
-    raw_admin_ids = str(getattr(settings, "engagement_admin_user_ids", "") or "")
-    admin_ids = parse_admin_user_ids(raw_admin_ids)
     operator_user_id = _parse_header_user_id(telegram_user_id)
-
-    if not admin_ids:
-        return OperatorCapabilities(
-            operator_user_id=operator_user_id,
-            backend_capabilities_available=False,
-            engagement_admin=None,
-            source="unconfigured",
-        )
-
     return OperatorCapabilities(
         operator_user_id=operator_user_id,
-        backend_capabilities_available=True,
-        engagement_admin=operator_user_id in admin_ids if operator_user_id is not None else False,
-        source="backend_admin_user_ids",
+        backend_capabilities_available=False,
+        engagement_admin=None,
+        source="unconfigured",
     )
 
 
 def require_engagement_admin_capability(
     capabilities: Annotated[OperatorCapabilities, Depends(resolve_operator_capabilities)],
 ) -> OperatorCapabilities:
-    if not capabilities.backend_capabilities_available or capabilities.engagement_admin:
-        return capabilities
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail={
-            "code": "engagement_admin_required",
-            "message": "Engagement admin capability is required",
-        },
-    )
+    return capabilities
 
 
 def _parse_header_user_id(raw_value: str | None) -> int | None:

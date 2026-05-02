@@ -31,17 +31,15 @@ Unauthorized requests return `401`.
 
 The API is intended for internal Docker network access. It should not be publicly exposed without additional authentication.
 
-Bot requests that need operator-specific capability checks may include:
+Bot requests may include operator identity metadata:
 
 ```http
 X-Telegram-User-Id: <numeric Telegram user id>
 ```
 
-When backend-owned engagement admin capabilities are configured through `ENGAGEMENT_ADMIN_USER_IDS`,
-protected engagement-admin mutation routes use this header to authorize prompt, style, topic,
-target, and advanced community-setting changes. If backend capabilities are unconfigured, those
-routes preserve the transitional rollout behavior and the Telegram bot may fall back to its local
-`TELEGRAM_ADMIN_USER_IDS` allowlist.
+The API currently accepts this header for compatibility and observability, but engagement setup and
+control-plane routes are available to any bot-authorized operator. There is no separate backend
+engagement-admin authorization boundary at this time.
 
 ### `GET /api/operator/capabilities`
 
@@ -58,8 +56,8 @@ Response:
 }
 ```
 
-If `ENGAGEMENT_ADMIN_USER_IDS` is not configured, `backend_capabilities_available` is `false` and
-`engagement_admin` is `null`, which tells the bot to use its transitional fallback.
+The current product decision reports the engagement-admin capability as unconfigured so the bot
+does not treat setup/configuration features as role-restricted.
 ## Response Conventions
 
 IDs are UUID strings unless otherwise noted.

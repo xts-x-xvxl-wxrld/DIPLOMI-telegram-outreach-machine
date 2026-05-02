@@ -5,6 +5,7 @@ from typing import Any
 
 from bot.api_client import BotApiClient, BotApiError
 from bot.display_policy import hide_slash_commands
+from bot.formatting_engagement_home import format_cockpit_home
 from bot.formatting_engagement_issue import (
     format_issue_card,
     format_issue_queue,
@@ -13,8 +14,10 @@ from bot.formatting_engagement_issue import (
     format_quiet_hours_saved,
     format_rate_limit_detail,
 )
+from bot.ui_engagement_home import cockpit_home_markup
 from bot.ui_common import (
     ACTION_ENGAGEMENT_DETAIL,
+    ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_ISSUE_QUEUE,
     _button,
     _inline_markup,
@@ -139,6 +142,16 @@ async def _answer_callback(update: Any, text: str | None = None) -> None:
         await query.answer(text)
 
 
+async def _send_cockpit_home(update: Any, context: Any) -> None:
+    client = _api_client(context)
+    payload = await client.get_engagement_cockpit_home()
+    await _edit_or_reply(
+        update,
+        format_cockpit_home(payload),
+        reply_markup=cockpit_home_markup(payload),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Markup builders
 # ---------------------------------------------------------------------------
@@ -183,7 +196,9 @@ def _issue_queue_markup(
     # Pagination: previous issue
     if offset > 0:
         if scoped_engagement_id:
-            prev_cb = f"{ACTION_ENGAGEMENT_ISSUE_QUEUE}:eng:{scoped_engagement_id}"
+            prev_cb = (
+                f"{ACTION_ENGAGEMENT_ISSUE_QUEUE}:eng:{scoped_engagement_id}:{offset - 1}"
+            )
         else:
             prev_cb = f"{ACTION_ENGAGEMENT_ISSUE_QUEUE}:list:{max(0, offset - 1)}"
         rows.append([_button("← Prev", *_split_cb(prev_cb))])
@@ -192,8 +207,9 @@ def _issue_queue_markup(
     next_offset = offset + 1
     if next_offset < queue_count:
         if scoped_engagement_id:
-            # scoped queues navigate by re-opening the engagement queue
-            next_cb = f"{ACTION_ENGAGEMENT_ISSUE_QUEUE}:eng:{scoped_engagement_id}"
+            next_cb = (
+                f"{ACTION_ENGAGEMENT_ISSUE_QUEUE}:eng:{scoped_engagement_id}:{next_offset}"
+            )
         else:
             next_cb = f"{ACTION_ENGAGEMENT_ISSUE_QUEUE}:list:{next_offset}"
         rows.append([_button("Next →", *_split_cb(next_cb))])
@@ -202,9 +218,19 @@ def _issue_queue_markup(
     if scoped_engagement_id:
         back_action = ACTION_ENGAGEMENT_DETAIL
         back_parts_tuple = ("open", scoped_engagement_id)
-        nav = _with_navigation(rows, back_action=back_action, back_parts=back_parts_tuple)
+        nav = _with_navigation(
+            rows,
+            back_action=back_action,
+            back_parts=back_parts_tuple,
+            home_action=ACTION_ENGAGEMENT_HOME,
+            home_label="<< Engagements",
+        )
     else:
-        nav = _with_navigation(rows)
+        nav = _with_navigation(
+            rows,
+            home_action=ACTION_ENGAGEMENT_HOME,
+            home_label="<< Engagements",
+        )
 
     return _inline_markup(nav)
 
@@ -235,24 +261,37 @@ def _issue_card_markup(
     )
 
 
-def _rate_limit_detail_markup(issue_id: str, *, back_engagement_id: str | None) -> Any:
-    rows: list[list[Any]] = []
-    if back_engagement_id:
-        back_cb = f"{ACTION_ENGAGEMENT_ISSUE_QUEUE}:open:{issue_id}"
-        rows.append([_button("← Back to issue", *_split_cb(back_cb))])
-    return _inline_markup(_with_navigation(rows))
+def _rate_limit_detail_markup(issue_id: str) -> Any:
+    rows = [[_button("Back to issue", ACTION_ENGAGEMENT_ISSUE_QUEUE, "open", issue_id)]]
+    return _inline_markup(
+        _with_navigation(
+            rows,
+            home_action=ACTION_ENGAGEMENT_HOME,
+            home_label="<< Engagements",
+        )
+    )
 
 
-def _quiet_hours_edit_markup() -> Any:
-    cancel_cb = f"{ACTION_ENGAGEMENT_ISSUE_QUEUE}:qh:cancel"
-    rows = [[_button("✖ Cancel", *_split_cb(cancel_cb))]]
-    return _inline_markup(_with_navigation(rows))
+def _quiet_hours_edit_markup(issue_id: str) -> Any:
+    rows = [[_button("Cancel", ACTION_ENGAGEMENT_ISSUE_QUEUE, "open", issue_id)]]
+    return _inline_markup(
+        _with_navigation(
+            rows,
+            home_action=ACTION_ENGAGEMENT_HOME,
+            home_label="<< Engagements",
+        )
+    )
 
 
 def _quiet_hours_saved_markup(issue_id: str) -> Any:
-    back_cb = f"{ACTION_ENGAGEMENT_ISSUE_QUEUE}:open:{issue_id}"
-    rows = [[_button("← Back to issue", *_split_cb(back_cb))]]
-    return _inline_markup(_with_navigation(rows))
+    rows = [[_button("Back to issue", ACTION_ENGAGEMENT_ISSUE_QUEUE, "open", issue_id)]]
+    return _inline_markup(
+        _with_navigation(
+            rows,
+            home_action=ACTION_ENGAGEMENT_HOME,
+            home_label="<< Engagements",
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -265,17 +304,25 @@ async def show_global_issue_queue(
     context: Any,
     *,
     offset: int = 0,
+    return_home_on_empty: bool = False,
 ) -> None:
     client = _api_client(context)
     operator_id = _telegram_user_id(update)
     try:
-        data = await client.get_engagement_cockpit_issues()
+        if offset:
+            data = await client.get_engagement_cockpit_issues(offset=offset)
+        else:
+            data = await client.get_engagement_cockpit_issues()
     except BotApiError as exc:
         await _edit_or_reply(update, f"Could not load issues: {exc.message}")
         return
 
     queue_count = data.get("queue_count", 0)
     current = data.get("current")
+
+    if return_home_on_empty and (queue_count == 0 or current is None):
+        await _send_cockpit_home(update, context)
+        return
 
     text = format_issue_queue(data, offset=offset, scoped=False)
     markup = _issue_queue_markup(
@@ -304,7 +351,13 @@ async def show_scoped_issue_queue(
     client = _api_client(context)
     operator_id = _telegram_user_id(update)
     try:
-        data = await client.get_engagement_cockpit_issues_for_engagement(engagement_id)
+        if offset:
+            data = await client.get_engagement_cockpit_issues_for_engagement(
+                engagement_id,
+                offset=offset,
+            )
+        else:
+            data = await client.get_engagement_cockpit_issues_for_engagement(engagement_id)
     except BotApiError as exc:
         await _edit_or_reply(update, f"Could not load issues: {exc.message}")
         return
@@ -320,6 +373,8 @@ async def show_scoped_issue_queue(
                 [],
                 back_action=ACTION_ENGAGEMENT_DETAIL,
                 back_parts=("open", engagement_id),
+                home_action=ACTION_ENGAGEMENT_HOME,
+                home_label="<< Engagements",
             )
         )
         await _edit_or_reply(update, text, reply_markup=markup)
@@ -349,7 +404,7 @@ async def show_issue_card(
     client = _api_client(context)
     operator_id = _telegram_user_id(update)
     try:
-        data = await client.get_engagement_cockpit_issues()
+        data = await client.get_engagement_cockpit_issues(issue_id=issue_id)
     except BotApiError as exc:
         await _edit_or_reply(update, f"Could not load issues: {exc.message}")
         return
@@ -357,19 +412,12 @@ async def show_issue_card(
     queue_count = data.get("queue_count", 0)
     current = data.get("current")
 
-    # Try to find the requested issue in the queue
-    item: dict[str, Any] | None = None
-    offset = 0
-    if current is not None and str(current.get("issue_id") or "") == issue_id:
-        item = current
-    else:
-        # Issue might not be current; show it from current anyway
-        item = current
-
-    if item is None:
+    if current is None or str(current.get("issue_id") or "") != issue_id:
         await _edit_or_reply(update, "Issue not found or already resolved.")
         return
 
+    item = current
+    offset = int(data.get("offset") or 0)
     skipped = operator_id is not None and _is_skipped(context, operator_id, issue_id)
     card = format_issue_card(item, skipped=skipped)
     markup = _issue_card_markup(
@@ -392,7 +440,7 @@ async def handle_issue_skip(
         _mark_skipped(context, operator_id, issue_id)
     await _answer_callback(update, "Skipped.")
     # Reload the global queue
-    await show_global_issue_queue(update, context, offset=0)
+    await show_global_issue_queue(update, context, offset=0, return_home_on_empty=True)
 
 
 async def handle_issue_action(
@@ -424,12 +472,13 @@ async def handle_issue_action(
     if status in {"resolved", "stale"}:
         await _answer_callback(update)
         # Reload global queue to reflect the resolved issue
-        await show_global_issue_queue(update, context, offset=0)
+        await show_global_issue_queue(update, context, offset=0, return_home_on_empty=True)
         return
 
     if status == "next_step" and next_callback:
         await _answer_callback(update)
-        # Emit a synthetic callback by navigating to next_callback
+        if await _dispatch_callback(update, context, next_callback):
+            return
         await _navigate_to_callback(update, context, next_callback)
         return
 
@@ -452,8 +501,7 @@ async def show_rate_limit_detail(
         return
 
     text = format_rate_limit_detail(data)
-    engagement_id = str(data.get("engagement_id") or "")
-    markup = _rate_limit_detail_markup(issue_id, back_engagement_id=engagement_id or None)
+    markup = _rate_limit_detail_markup(issue_id)
     await _edit_or_reply(update, text, reply_markup=markup)
 
 
@@ -462,27 +510,33 @@ async def start_quiet_hours_edit(
     context: Any,
     *,
     issue_id: str,
+    engagement_id: str | None = None,
 ) -> None:
     client = _api_client(context)
     operator_id = _telegram_user_id(update)
 
     # We need the engagement_id for the issue — fetch from current queue
-    try:
-        data = await client.get_engagement_cockpit_issues()
-    except BotApiError as exc:
-        await _edit_or_reply(update, f"Could not load issue: {exc.message}")
-        return
+    resolved_engagement_id = engagement_id or ""
+    if not resolved_engagement_id:
+        try:
+            data = await client.get_engagement_cockpit_issues(issue_id=issue_id)
+        except BotApiError as exc:
+            await _edit_or_reply(update, f"Could not load issue: {exc.message}")
+            return
 
-    current = data.get("current")
-    engagement_id = str(current.get("engagement_id") or "") if current else ""
+        current = data.get("current")
+        if current is None or str(current.get("issue_id") or "") != issue_id:
+            await _edit_or_reply(update, "Could not find engagement for this issue.")
+            return
+        resolved_engagement_id = str(current.get("engagement_id") or "")
 
-    if not engagement_id:
+    if not resolved_engagement_id:
         await _edit_or_reply(update, "Could not find engagement for this issue.")
         return
 
     # Fetch current quiet-hours state
     try:
-        qh_data = await client.get_engagement_cockpit_quiet_hours(engagement_id)
+        qh_data = await client.get_engagement_cockpit_quiet_hours(resolved_engagement_id)
     except BotApiError as exc:
         await _edit_or_reply(update, f"Could not load quiet hours: {exc.message}")
         return
@@ -493,11 +547,11 @@ async def start_quiet_hours_edit(
             context,
             operator_id,
             issue_id=issue_id,
-            engagement_id=engagement_id,
+            engagement_id=resolved_engagement_id,
         )
 
     text = format_quiet_hours_state(qh_data)
-    markup = _quiet_hours_edit_markup()
+    markup = _quiet_hours_edit_markup(issue_id)
     await _edit_or_reply(update, text, reply_markup=markup)
 
 
@@ -534,7 +588,7 @@ async def save_quiet_hours(
             await _edit_or_reply(
                 update,
                 "Invalid format. Send HH:MM-HH:MM (e.g. 22:00-08:00) or 'off' to disable.",
-                reply_markup=_quiet_hours_edit_markup(),
+                reply_markup=_quiet_hours_edit_markup(stored_issue_id),
             )
             return
         start_str, end_str = parsed
@@ -584,6 +638,14 @@ async def _navigate_to_callback(update: Any, context: Any, callback_str: str) ->
         update,
         f"Next step: tap the button or use the linked action.\nCallback: {callback_str}",
     )
+
+
+async def _dispatch_callback(update: Any, context: Any, callback_str: str) -> bool:
+    dispatch = getattr(context, "_dispatch_callback", None)
+    if dispatch is None:
+        return False
+    await dispatch(update, context, data=callback_str)
+    return True
 
 
 __all__ = [

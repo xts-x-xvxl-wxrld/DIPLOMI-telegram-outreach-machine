@@ -85,6 +85,7 @@ class CockpitApprovalItemView:
 class CockpitApprovalQueueView:
     queue_count: int
     updating_count: int
+    offset: int
     empty_state: str
     placeholders: list[CockpitApprovalPlaceholderView]
     current: CockpitApprovalItemView | None
@@ -117,6 +118,7 @@ class CockpitIssueItemView:
 @dataclass(frozen=True)
 class CockpitIssueQueueView:
     queue_count: int
+    offset: int
     empty_state: str
     current: CockpitIssueItemView | None
 
@@ -251,6 +253,8 @@ async def get_cockpit_approvals(
     db: AsyncSession,
     *,
     engagement_id: UUID | None = None,
+    offset: int = 0,
+    draft_id: UUID | None = None,
 ) -> CockpitApprovalQueueView:
     data = await _load_cockpit_data(db)
     approvals = _approval_records(data, engagement_id=engagement_id)
@@ -258,8 +262,15 @@ async def get_cockpit_approvals(
 
     empty_state = "none"
     current = None
+    current_offset = 0
     if approvals:
-        first = approvals[0]
+        current_offset = _selected_offset(
+            items=approvals,
+            offset=offset,
+            selected_id=draft_id,
+            id_getter=lambda record: record.candidate.id,
+        )
+        first = approvals[current_offset]
         current = CockpitApprovalItemView(
             draft_id=first.candidate.id,
             engagement_id=first.engagement.id,
@@ -276,6 +287,7 @@ async def get_cockpit_approvals(
     return CockpitApprovalQueueView(
         queue_count=len(approvals),
         updating_count=len(placeholders),
+        offset=current_offset,
         empty_state=empty_state,
         placeholders=placeholders,
         current=current,
@@ -286,11 +298,20 @@ async def get_cockpit_issues(
     db: AsyncSession,
     *,
     engagement_id: UUID | None = None,
+    offset: int = 0,
+    issue_id: UUID | None = None,
 ) -> CockpitIssueQueueView:
     issues = await list_task_first_issues(db, engagement_id=engagement_id)
     current = None
+    current_offset = 0
     if issues:
-        issue = issues[0]
+        current_offset = _selected_offset(
+            items=issues,
+            offset=offset,
+            selected_id=issue_id,
+            id_getter=lambda record: record.issue_id,
+        )
+        issue = issues[current_offset]
         current = CockpitIssueItemView(
             issue_id=issue.issue_id,
             engagement_id=issue.engagement_id,
@@ -316,6 +337,7 @@ async def get_cockpit_issues(
 
     return CockpitIssueQueueView(
         queue_count=len(issues),
+        offset=current_offset,
         empty_state="none" if current is not None else "no_issues",
         current=current,
     )
@@ -661,6 +683,22 @@ def _page_window(*, total: int, limit: int, offset: int) -> tuple[int, int]:
     if safe_offset >= total:
         safe_offset = ((total - 1) // safe_limit) * safe_limit
     return safe_limit, safe_offset
+
+
+def _selected_offset(
+    *,
+    items: list[object],
+    offset: int,
+    selected_id: UUID | None,
+    id_getter,
+) -> int:
+    if not items:
+        return 0
+    if selected_id is not None:
+        for index, item in enumerate(items):
+            if id_getter(item) == selected_id:
+                return index
+    return max(0, min(int(offset), len(items) - 1))
 
 
 def _sent_action_community(action: EngagementAction, data: _CockpitData) -> Community | None:

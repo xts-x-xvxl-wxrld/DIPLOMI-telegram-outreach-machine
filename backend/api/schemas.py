@@ -529,6 +529,7 @@ class CockpitApprovalQueueResponse(BaseModel):
 
     queue_count: int
     updating_count: int
+    offset: int = 0
     empty_state: str
     placeholders: list[CockpitApprovalPlaceholderOut] = Field(default_factory=list)
     current: CockpitApprovalItemOut | None = None
@@ -564,6 +565,7 @@ class CockpitIssueQueueResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     queue_count: int
+    offset: int = 0
     empty_state: str
     current: CockpitIssueItemOut | None = None
 
@@ -971,13 +973,9 @@ class EngagementCandidateExpireRequest(BaseModel):
 class EngagementCandidateRetryRequest(BaseModel):
     retried_by: str | None = Field(default=None, min_length=1, max_length=200)
 
-class EngagementDetectJobRequest(BaseModel):
-    window_minutes: int = Field(default=60, ge=1, le=1440)
-    requested_by: str | None = Field(default=None, min_length=1, max_length=200)
+class EngagementDetectJobRequest(BaseModel): window_minutes: int = Field(default=60, ge=1, le=1440); requested_by: str | None = Field(default=None, min_length=1, max_length=200)  # noqa: E701,E702
 
-class EngagementJoinJobRequest(BaseModel):
-    telegram_account_id: UUID | None = None
-    requested_by: str | None = Field(default=None, min_length=1, max_length=200)
+class EngagementJoinJobRequest(BaseModel): telegram_account_id: UUID | None = None; requested_by: str | None = Field(default=None, min_length=1, max_length=200)  # noqa: E701,E702
 
 
 class EngagementSendJobRequest(BaseModel):

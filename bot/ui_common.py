@@ -21,6 +21,7 @@ ACTION_OP_SENT = "op:sent"
 ACTION_OP_ADD = "op:add"
 ACTION_OP_DISCOVERY = "op:discovery"
 ACTION_OP_ACCOUNTS = "op:accounts"
+ACTION_OP_ACCOUNT_HEALTH = "op:accthealth"
 ACTION_OP_ADD_ACCOUNT = "op:addacct"
 ACTION_OP_ACCOUNT_SKIP = "op:acctskip"
 ACTION_OP_HELP = "op:help"
@@ -66,6 +67,8 @@ ACTION_ENGAGEMENT_CANDIDATE_EDIT = "eng:cand:edit"
 ACTION_ENGAGEMENT_CANDIDATE_REVISIONS = "eng:cand:rev"
 ACTION_ENGAGEMENT_CANDIDATE_EXPIRE = "eng:cand:exp"
 ACTION_ENGAGEMENT_CANDIDATE_RETRY = "eng:cand:retry"
+ACTION_ENGAGEMENT_CANDIDATE_SAVE_GOOD = "eng:cand:savegood"
+ACTION_ENGAGEMENT_CANDIDATE_STYLE = "eng:cand:style"
 ACTION_ENGAGEMENT_TOPIC_LIST = "eng:topic:list"
 ACTION_ENGAGEMENT_TOPIC_CREATE = "eng:topic:create"
 ACTION_ENGAGEMENT_TOPIC_OPEN = "eng:topic:open"
@@ -73,6 +76,8 @@ ACTION_ENGAGEMENT_TOPIC_TOGGLE = "eng:topic:toggle"
 ACTION_ENGAGEMENT_TOPIC_EDIT = "eng:topic:edit"
 ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD = "eng:topic:addx"
 ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE = "eng:topic:rmx"
+ACTION_ENGAGEMENT_TOPIC_BRIEF = "eng:topic:brief"
+ACTION_ENGAGEMENT_TOPIC_PREVIEW = "eng:topic:preview"
 ACTION_ENGAGEMENT_SETTINGS_OPEN = "eng:set:open"
 ACTION_ENGAGEMENT_SETTINGS_LOOKUP = "eng:set:lookup"
 ACTION_ENGAGEMENT_SETTINGS_PRESET = "eng:set:preset"
@@ -226,6 +231,8 @@ def _button_label(label: str, action: str, parts: Sequence[str]) -> str:
     if label.endswith("Engagement"):
         return label
     key = (action, tuple(parts))
+    if key == (ACTION_ENGAGEMENT_ADMIN, ()):
+        return _ButtonLabel(label, equals_alias="Setup")
     overrides = {
         (ACTION_ENGAGEMENT_CANDIDATES, ("needs_review", "0")): _ButtonLabel(
             "⚠ Pending approvals",
@@ -320,13 +327,17 @@ def _with_navigation(
     back_action: str | None = None,
     back_parts: Sequence[str] = (),
     include_home: bool = True,
+    back_label: str = "Back",
+    home_action: str = ACTION_OP_HOME,
+    home_parts: Sequence[str] = (),
+    home_label: str = "Home",
 ) -> list[list[object]]:
     output = [list(row) for row in rows]
     nav_row = []
     if back_action is not None:
-        nav_row.append(_button("← Back", back_action, *back_parts))
+        nav_row.append(_button(back_label, back_action, *back_parts))
     if include_home:
-        nav_row.append(_button("⌂ Home", ACTION_OP_HOME))
+        nav_row.append(_button(home_label, home_action, *home_parts))
     if nav_row:
         output.append(nav_row)
     return output

@@ -33,6 +33,7 @@ from .formatting_discovery import (
     format_access_denied,
 )
 from .formatting_accounts import (
+    format_account_health_refresh_job,
     format_account_onboarding_command,
     format_account_onboarding_code_sent,
     format_account_onboarding_password_required,
@@ -116,6 +117,7 @@ __all__ = [
     "format_api_error",
     "format_whoami",
     "format_access_denied",
+    "format_account_health_refresh_job",
     "format_account_onboarding_command",
     "format_account_onboarding_code_sent",
     "format_account_onboarding_password_required",

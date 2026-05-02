@@ -38,11 +38,12 @@ menu-tree thinking in the main operator path.
 
 ## Home Visibility Rules
 
-- `Approve draft` appears only when drafts are waiting.
-- `Top issues` appears only when issues exist.
-- `Sent messages` appears only when at least one sent message exists.
-- `My engagements` appears whenever any finished engagement exists.
-- `Add engagement` appears in every non-first-run state.
+- `Approve draft`, `Top issues`, `My engagements`, `Add engagement`, and
+  `Sent messages` stay visible on every home state so button-only navigation
+  never hides a destination behind an empty queue.
+- `Approve draft` and `Top issues` append counts when the corresponding queue
+  is non-empty.
+- Home state changes button order, not destination visibility.
 
 ## Home States
 
@@ -63,12 +64,18 @@ Actions:
 
 ```text
 [Add engagement]
+[My engagements]
+[Top issues]
+[Approve draft]
+[Sent messages]
 ```
 
 Rules:
 
 - Do not show `Continue setup`.
 - Canceled or incomplete setup should not surface here.
+- Keep the full button set visible so hidden slash commands do not strand the
+  operator on a one-button home screen.
 
 ### Approval-Focused State
 
@@ -91,10 +98,11 @@ Action order:
 2. `Top issues`
 3. `My engagements`
 4. `Add engagement`
+5. `Sent messages`
 
 Rules:
 
-- Hide `Sent messages` in this state.
+- Keep the remaining destinations visible after the approval-first rows.
 
 ### Issues Present, No Approvals
 
@@ -115,7 +123,8 @@ Action order:
 1. `Top issues`
 2. `Add engagement`
 3. `My engagements`
-4. `Sent messages`
+4. `Approve draft`
+5. `Sent messages`
 
 ### No Pending Work
 
@@ -133,9 +142,11 @@ Action order:
 1. `Add engagement`
 2. `My engagements`
 3. `Top issues`
-4. `Sent messages`
+4. `Approve draft`
+5. `Sent messages`
 
-Only show actions that pass the visibility rules above.
+Show every destination in the order above, even when the destination will open
+an empty-state screen.
 
 ## Naming
 
@@ -340,8 +351,10 @@ Approval handlers:
 
 Approval result handling:
 
-- approve or reject success → refresh the same approvals controller
-- completed draft edit → refresh the same approvals controller
+- approve or reject success → refresh the same approvals controller; if no
+  drafts remain, return home
+- completed draft edit → refresh the same approvals controller; if no drafts
+  remain, return home
 - early-exit draft edit → return to `eng:appr:open:<draft_id>`
 - scoped approvals finishing from engagement detail → return to
   `eng:det:open:<engagement_id>`
@@ -365,10 +378,12 @@ Issue handlers:
 
 Issue result handling:
 
-- `resolved` → refresh the same issue controller
+- `resolved` → refresh the same issue controller; if no issues remain in the
+  global queue, return home
 - `next_step` → route to `next_callback`
 - `noop` → stay on the same issue card with short copy
-- `stale` → refresh the same issue controller
+- `stale` → refresh the same issue controller; if no issues remain in the
+  global queue, return home
 - `blocked` → stay on the same issue card with short copy
 - early-exit fix subflow → return to `eng:iss:open:<issue_id>`
 - rate-limit detail `ready` → render the read-only detail screen
@@ -1084,6 +1099,9 @@ Step 2 — Topic
   - `Choose topic` and `Create topic` are equal-weight actions
   - the chosen topic shows a selected state
   - `Continue` is enabled only when one topic is selected
+  - `Create topic` is the main operator path for drafting and prompt-targeted
+    setup for that new topic; it should collect reply-guidance inputs there
+    rather than sending the operator to a separate prompt-editing surface
 
 Step 3 — Account
 
@@ -1389,8 +1407,8 @@ Scoped issue queues launched from engagement detail:
 Global approval and issue queues:
 
 - if a direct action or refresh removes the final remaining draft or issue,
-  keep the operator on the same screen and render the empty queue state there
-- do not force an automatic jump home when the global queue becomes empty
+  return to the `Engagements` home state instead of leaving an empty global
+  queue controller on screen
 
 Stale queue items:
 

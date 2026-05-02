@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Sequence
 
@@ -15,6 +15,8 @@ from .ui_common import (
     ACTION_ENGAGEMENT_CANDIDATE_REVISIONS,
     ACTION_ENGAGEMENT_CANDIDATE_EXPIRE,
     ACTION_ENGAGEMENT_CANDIDATE_RETRY,
+    ACTION_ENGAGEMENT_CANDIDATE_SAVE_GOOD,
+    ACTION_ENGAGEMENT_CANDIDATE_STYLE,
     ACTION_ENGAGEMENT_TOPIC_LIST,
     ACTION_ENGAGEMENT_TOPIC_CREATE,
     ACTION_ENGAGEMENT_SETTINGS_OPEN,
@@ -110,9 +112,15 @@ def engagement_candidate_detail_markup(
     status: str,
     community_id: str | None = None,
     blocked: bool = False,
+    allow_save_good_example: bool = False,
+    allow_create_style_rule: bool = False,
 ):
     has_fix_row = bool(community_id and (blocked or status == "failed"))
     rows = [[_button("🗂 Revisions", ACTION_ENGAGEMENT_CANDIDATE_REVISIONS, candidate_id)]]
+    if allow_save_good_example:
+        rows.append([_button("Save as good example", ACTION_ENGAGEMENT_CANDIDATE_SAVE_GOOD, candidate_id)])
+    if allow_create_style_rule:
+        rows.append([_button("Create style rule", ACTION_ENGAGEMENT_CANDIDATE_STYLE, candidate_id)])
     if has_fix_row:
         rows.insert(
             0,
@@ -166,6 +174,32 @@ def engagement_candidate_detail_markup(
     )
 
 
+def engagement_candidate_style_scope_markup(
+    candidate_id: str,
+    *,
+    allow_global: bool = True,
+    allow_community: bool = False,
+    allow_topic: bool = False,
+):
+    rows = []
+    scope_row = []
+    if allow_global:
+        scope_row.append(_button("Global", ACTION_ENGAGEMENT_CANDIDATE_STYLE, candidate_id, "global"))
+    if allow_community:
+        scope_row.append(_button("Community", ACTION_ENGAGEMENT_CANDIDATE_STYLE, candidate_id, "community"))
+    if scope_row:
+        rows.append(scope_row)
+    if allow_topic:
+        rows.append([_button("Topic", ACTION_ENGAGEMENT_CANDIDATE_STYLE, candidate_id, "topic")])
+    return _inline_markup(
+        _with_navigation(
+            rows,
+            back_action=ACTION_ENGAGEMENT_CANDIDATE_OPEN,
+            back_parts=[candidate_id],
+        )
+    )
+
+
 def engagement_candidate_revisions_markup(candidate_id: str):
     rows = [[_button("👀 Open", ACTION_ENGAGEMENT_CANDIDATE_OPEN, candidate_id)]]
     return _inline_markup(
@@ -214,7 +248,7 @@ def engagement_home_markup(*, show_admin: bool = True):
         ],
     ]
     if show_admin:
-        rows.append([_button("🛠 Admin", ACTION_ENGAGEMENT_ADMIN)])
+        rows.append([_button("🛠 Setup", ACTION_ENGAGEMENT_ADMIN)])
     return _inline_markup(_with_navigation(rows))
 
 
@@ -253,6 +287,8 @@ def engagement_settings_lookup_markup(
     page_size: int,
 ):
     rows = []
+    if not items:
+        rows.append([_button("Communities", ACTION_ENGAGEMENT_TARGETS, "0")])
     for item in items:
         community_id = item.get("community_id")
         if not community_id:
@@ -772,3 +808,4 @@ def config_edit_confirmation_markup():
             ]
         ]
     )
+

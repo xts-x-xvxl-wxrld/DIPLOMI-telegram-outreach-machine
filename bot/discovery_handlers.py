@@ -21,6 +21,7 @@ from bot.config_editing import (
 )
 from bot.formatting import (
     format_access_denied,
+    format_account_health_refresh_job,
     format_accounts,
     format_api_error,
     format_briefs_unavailable,
@@ -152,6 +153,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TOPIC_TOGGLE,
     ACTION_JOB_STATUS,
     ACTION_OP_ACCOUNTS,
+    ACTION_OP_ACCOUNT_HEALTH,
     ACTION_OP_DISCOVERY,
     ACTION_OP_HELP,
     ACTION_OP_HOME,
@@ -654,6 +656,17 @@ async def _send_accounts(update: Any, context: Any) -> None:
     await _callback_reply(update, format_accounts(data), reply_markup=accounts_cockpit_markup())
 
 
+async def _start_account_health_refresh(update: Any, context: Any) -> None:
+    client = _api_client(context)
+    data = await client.start_account_health_refresh()
+    job_id = str((data.get("job") or {}).get("id") or "unknown")
+    await _callback_reply(
+        update,
+        format_account_health_refresh_job(data),
+        reply_markup=job_actions_markup(job_id),
+    )
+
+
 async def _send_seed_groups(update: Any, context: Any) -> None:
     client = _api_client(context)
     data = await client.list_seed_groups()
@@ -741,6 +754,7 @@ __all__ = [
     "_send_operator_cockpit",
     "_send_discovery_cockpit",
     "_send_accounts",
+    "_start_account_health_refresh",
     "_send_seed_groups",
     "_send_help",
     "_start_seed_group_resolution",

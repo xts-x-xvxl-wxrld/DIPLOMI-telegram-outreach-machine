@@ -163,8 +163,11 @@ def test_cockpit_home_markup_first_run_only_add_engagement() -> None:
     labels = _labels(markup)
 
     assert ACTION_OP_ADD in cb
-    assert len(cb) == 1
     assert "Add engagement" in labels
+    assert "My engagements" in labels
+    assert "Top issues" in labels
+    assert "Approve draft" in labels
+    assert "Sent messages" in labels
 
 
 def test_cockpit_home_markup_first_run_has_no_nav_controls() -> None:
@@ -195,9 +198,9 @@ def test_cockpit_home_markup_approval_focused_hides_sent_messages() -> None:
     )
     cb = _callbacks(markup)
 
-    assert ACTION_OP_SENT not in cb
+    assert ACTION_OP_SENT in cb
     labels = _labels(markup)
-    assert "Sent messages" not in labels
+    assert "Sent messages" in labels
 
 
 def test_cockpit_home_markup_approval_focused_hides_top_issues_when_none() -> None:
@@ -207,7 +210,7 @@ def test_cockpit_home_markup_approval_focused_hides_top_issues_when_none() -> No
     cb = _callbacks(markup)
     labels = _labels(markup)
 
-    assert "Top issues" not in labels
+    assert "Top issues" in labels
     # Approval queue should be present
     approve_cbs = [c for c in cb if "appr" in c]
     assert len(approve_cbs) >= 1
@@ -229,9 +232,10 @@ def test_cockpit_home_markup_issues_action_order() -> None:
     issues_idx = next(i for i, lbl in enumerate(labels) if "Top issues" in lbl)
     add_idx = next(i for i, lbl in enumerate(labels) if lbl == "Add engagement")
     engs_idx = next(i for i, lbl in enumerate(labels) if lbl == "My engagements")
+    approve_idx = next(i for i, lbl in enumerate(labels) if "Approve draft" in lbl)
     sent_idx = next(i for i, lbl in enumerate(labels) if lbl == "Sent messages")
 
-    assert issues_idx < add_idx < engs_idx < sent_idx
+    assert issues_idx < add_idx < engs_idx < approve_idx < sent_idx
 
 
 def test_cockpit_home_markup_issues_shows_sent_messages() -> None:
@@ -249,7 +253,7 @@ def test_cockpit_home_markup_issues_hides_sent_messages_when_none() -> None:
     )
     labels = _labels(markup)
 
-    assert "Sent messages" not in labels
+    assert "Sent messages" in labels
 
 
 def test_cockpit_home_markup_clear_action_order() -> None:
@@ -261,16 +265,17 @@ def test_cockpit_home_markup_clear_action_order() -> None:
     add_idx = next(i for i, lbl in enumerate(labels) if lbl == "Add engagement")
     engs_idx = next(i for i, lbl in enumerate(labels) if lbl == "My engagements")
     issues_idx = next(i for i, lbl in enumerate(labels) if "Top issues" in lbl)
+    approve_idx = next(i for i, lbl in enumerate(labels) if "Approve draft" in lbl)
     sent_idx = next(i for i, lbl in enumerate(labels) if lbl == "Sent messages")
 
-    assert add_idx < engs_idx < issues_idx < sent_idx
+    assert add_idx < engs_idx < issues_idx < approve_idx < sent_idx
 
 
 def test_cockpit_home_markup_clear_hides_top_issues_when_none() -> None:
     markup = cockpit_home_markup(_home_payload(state="clear", issue_count=0))
     labels = _labels(markup)
 
-    assert "Top issues" not in labels
+    assert "Top issues" in labels
 
 
 def test_cockpit_home_markup_clear_shows_sent_messages_when_present() -> None:
@@ -300,15 +305,16 @@ def test_cockpit_home_markup_approval_queue_button_routes_to_appr_list() -> None
     markup = cockpit_home_markup(_home_payload(state="approvals", draft_count=1))
     cb = _callbacks(markup)
 
-    # Should route to eng:appr:list:0
-    assert any("appr" in c and "list" in c for c in cb)
+    assert ACTION_OP_APPROVE in cb
+    assert not any(c.startswith("eng:appr:") for c in cb)
 
 
 def test_cockpit_home_markup_issues_button_routes_to_iss_list() -> None:
     markup = cockpit_home_markup(_home_payload(state="issues", issue_count=1))
     cb = _callbacks(markup)
 
-    assert any("iss" in c and "list" in c for c in cb)
+    assert ACTION_OP_ISSUES in cb
+    assert not any(c.startswith("eng:iss:") for c in cb)
 
 
 # ---------------------------------------------------------------------------
@@ -442,11 +448,17 @@ async def test_engagement_home_first_run_renders_first_run_copy() -> None:
     markup = edits[0]["reply_markup"]
     labels = _labels(markup)
     assert "Add engagement" in labels
-    assert len(labels) == 1
+    assert labels == [
+        "Add engagement",
+        "My engagements",
+        "Top issues",
+        "Approve draft",
+        "Sent messages",
+    ]
 
 
 @pytest.mark.asyncio
-async def test_engagement_home_approval_focused_hides_sent_messages() -> None:
+async def test_engagement_home_approval_focused_keeps_sent_messages_visible() -> None:
     from bot.callback_handlers import callback_query
 
     payload = _home_payload(
@@ -462,7 +474,7 @@ async def test_engagement_home_approval_focused_hides_sent_messages() -> None:
 
     markup = update.callback_query.edits[0]["reply_markup"]
     labels = _labels(markup)
-    assert "Sent messages" not in labels
+    assert "Sent messages" in labels
 
 
 @pytest.mark.asyncio

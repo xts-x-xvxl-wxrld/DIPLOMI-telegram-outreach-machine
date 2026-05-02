@@ -8,14 +8,13 @@ from .runtime_markup import *
 from .runtime_io import *
 from .runtime_access import *
 from .runtime_parsing import *
+from .runtime_topic_brief import *
 
-_TOPIC_CREATE_STEP_ORDER = (
-    "name",
-    "stance_guidance",
-    "trigger_keywords",
-    "description",
-    "negative_keywords",
-)
+
+class _TopicCreateStyleRuleSaveError(BotApiError):
+    def __init__(self, message: str, *, topic_data: dict[str, Any]) -> None:
+        super().__init__(message)
+        self.topic_data = topic_data
 
 
 async def _start_config_edit(
@@ -67,40 +66,6 @@ async def _start_style_rule_create(update: Any, context: Any) -> None:
     )
 
 
-async def _start_topic_create(update: Any, context: Any) -> None:
-    await _start_topic_create_with_reply(update, context, reply_func=_callback_reply)
-
-
-async def _start_topic_create_message(update: Any, context: Any) -> None:
-    await _start_topic_create_with_reply(update, context, reply_func=_reply)
-
-
-async def _start_topic_create_with_reply(
-    update: Any,
-    context: Any,
-    *,
-    reply_func: Any,
-) -> None:
-    operator_id = _telegram_user_id(update)
-    if operator_id is None:
-        await reply_func(update, "Telegram did not include a user ID on this update.")
-        return
-    editable = editable_field("topic_create", "payload")
-    if editable is None:
-        await reply_func(update, "Topic creation is not available from the bot right now.")
-        return
-    if editable.admin_only and not await _require_engagement_admin(update, context):
-        return
-    pending = _config_edit_store(context).start(
-        operator_id=operator_id,
-        field=editable,
-        object_id="new",
-        flow_step=_TOPIC_CREATE_STEP_ORDER[0],
-        flow_state={},
-    )
-    await reply_func(update, render_edit_request(pending))
-
-
 async def _start_target_create(update: Any, context: Any) -> None:
     await _start_config_edit(
         update,
@@ -109,7 +74,6 @@ async def _start_target_create(update: Any, context: Any) -> None:
         object_id="new",
         field="payload",
     )
-
 
 async def _handle_config_edit_text(update: Any, context: Any, raw_text: str) -> bool:
     operator_id = _telegram_user_id(update)
@@ -168,7 +132,11 @@ async def _handle_config_edit_text(update: Any, context: Any, raw_text: str) -> 
     await _reply(
         update,
         render_edit_preview(updated),
-        reply_markup=config_edit_confirmation_markup(),
+        reply_markup=(
+            engagement_topic_brief_confirmation_markup()
+            if pending.entity == "topic_create"
+            else config_edit_confirmation_markup()
+        ),
     )
     return True
 
@@ -197,7 +165,36 @@ async def _save_config_edit_callback(update: Any, context: Any) -> None:
     if pending.raw_value is None:
         await _callback_reply(update, "Send the replacement value before saving.")
         return
-    data = await _save_config_edit(update, context, pending)
+    try:
+        data = await _save_config_edit(update, context, pending)
+    except _TopicCreateStyleRuleSaveError as exc:
+        refreshed = _refresh_topic_create_pending_after_partial_save(
+            context,
+            operator_id=operator_id,
+            pending=pending,
+            topic_data=exc.topic_data,
+        )
+        await _edit_callback_message(
+            update,
+            "Draft brief saved the topic details, but the wizard-owned style guidance still needs attention.\n\n"
+            + format_api_error(exc.message)
+            + "\n\n"
+            + render_edit_preview(refreshed),
+            reply_markup=await _topic_create_confirmation_markup(context, refreshed),
+        )
+        return
+    except BotApiError as exc:
+        if pending.entity == "topic_create":
+            await _edit_callback_message(
+                update,
+                "Draft brief not saved yet.\n\n"
+                + format_api_error(exc.message)
+                + "\n\n"
+                + render_edit_preview(pending),
+                reply_markup=await _topic_create_confirmation_markup(context, pending),
+            )
+            return
+        raise
     store.cancel(operator_id)
     if pending.entity == "topic_create":
         from bot.engagement_wizard_flow import _wizard_return_pop, _wizard_resume_after_topic_create
@@ -207,150 +204,6 @@ async def _save_config_edit_callback(update: Any, context: Any) -> None:
             return
     message, markup = _saved_config_edit_response(pending, data)
     await _edit_callback_message(update, message, reply_markup=markup)
-
-
-async def _handle_topic_create_text(
-    update: Any,
-    context: Any,
-    pending: PendingEdit,
-    raw_text: str,
-) -> bool:
-    operator_id = _telegram_user_id(update)
-    if operator_id is None:
-        return False
-
-    step = pending.flow_step or _TOPIC_CREATE_STEP_ORDER[0]
-    state = dict(pending.flow_state or {})
-    text = raw_text.strip()
-
-    if step == "name":
-        if not text:
-            await _reply(update, "Topic name cannot be blank.\n\n" + render_edit_request(pending))
-            return True
-        state["name"] = text
-        return await _advance_topic_create_step(
-            update,
-            context,
-            operator_id=operator_id,
-            pending=pending,
-            raw_value=raw_text,
-            next_step="stance_guidance",
-            flow_state=state,
-        )
-
-    if step == "stance_guidance":
-        if not text:
-            await _reply(update, "Reply guidance cannot be blank.\n\n" + render_edit_request(pending))
-            return True
-        state["stance_guidance"] = text
-        return await _advance_topic_create_step(
-            update,
-            context,
-            operator_id=operator_id,
-            pending=pending,
-            raw_value=raw_text,
-            next_step="trigger_keywords",
-            flow_state=state,
-        )
-
-    if step == "trigger_keywords":
-        keywords = [part.strip() for part in text.split(",") if part.strip()]
-        if not keywords:
-            await _reply(
-                update,
-                "Include at least one trigger keyword.\n\n" + render_edit_request(pending),
-            )
-            return True
-        state["trigger_keywords"] = keywords
-        return await _advance_topic_create_step(
-            update,
-            context,
-            operator_id=operator_id,
-            pending=pending,
-            raw_value=raw_text,
-            next_step="description",
-            flow_state=state,
-        )
-
-    if step == "description":
-        state["description"] = None if text == "-" else text
-        return await _advance_topic_create_step(
-            update,
-            context,
-            operator_id=operator_id,
-            pending=pending,
-            raw_value=raw_text,
-            next_step="negative_keywords",
-            flow_state=state,
-        )
-
-    if step == "negative_keywords":
-        if text == "-":
-            state["negative_keywords"] = []
-        else:
-            negative_keywords = [part.strip() for part in text.split(",") if part.strip()]
-            if not negative_keywords:
-                await _reply(
-                    update,
-                    "Send comma-separated negative keywords or - to skip.\n\n"
-                    + render_edit_request(pending),
-                )
-                return True
-            state["negative_keywords"] = negative_keywords
-
-        payload = {
-            "name": str(state.get("name") or ""),
-            "description": state.get("description"),
-            "stance_guidance": str(state.get("stance_guidance") or ""),
-            "trigger_keywords": list(state.get("trigger_keywords") or []),
-            "negative_keywords": list(state.get("negative_keywords") or []),
-            "active": True,
-        }
-        updated = _config_edit_store(context).set_value(
-            operator_id,
-            raw_value=raw_text,
-            parsed_value=payload,
-            flow_step="confirm",
-            flow_state=state,
-        )
-        if updated is None:
-            await _reply(update, "That edit expired. Start again when you are ready.")
-            return True
-        await _reply(
-            update,
-            render_edit_preview(updated),
-            reply_markup=config_edit_confirmation_markup(),
-        )
-        return True
-
-    await _reply(update, "That topic draft is out of sync. Start again when you are ready.")
-    _config_edit_store(context).cancel(operator_id)
-    return True
-
-
-async def _advance_topic_create_step(
-    update: Any,
-    context: Any,
-    *,
-    operator_id: int,
-    pending: PendingEdit,
-    raw_value: str,
-    next_step: str,
-    flow_state: dict[str, Any],
-) -> bool:
-    updated = _config_edit_store(context).set_value(
-        operator_id,
-        raw_value=raw_value,
-        parsed_value=None,
-        flow_step=next_step,
-        flow_state=flow_state,
-    )
-    if updated is None:
-        await _reply(update, "That edit expired. Start again when you are ready.")
-        return True
-    await _reply(update, render_edit_request(updated))
-    return True
-
 
 async def _cancel_config_edit_callback(update: Any, context: Any) -> None:
     operator_id = _telegram_user_id(update)
@@ -366,7 +219,6 @@ async def _cancel_config_edit_callback(update: Any, context: Any) -> None:
             await _wizard_resume_after_topic_create(update, context, wizard_state, {})
             return
     await _edit_callback_message(update, render_edit_cancelled(pending))
-
 
 async def _save_config_edit(update: Any, context: Any, pending: PendingEdit) -> dict[str, Any]:
     client = _api_client(context)
@@ -423,10 +275,43 @@ async def _save_config_edit(update: Any, context: Any, pending: PendingEdit) -> 
     if pending.entity == "topic_create":
         if not isinstance(value, dict):
             raise BotApiError("Topic creation details are incomplete.")
-        return await client.create_engagement_topic(
-            operator_user_id=operator_user_id,
-            **value,
-        )
+        topic_payload = {
+            "name": value["name"],
+            "description": value["description"],
+            "stance_guidance": value["stance_guidance"],
+            "trigger_keywords": value.get("trigger_keywords") or [],
+            "negative_keywords": value.get("negative_keywords") or [],
+            "example_good_replies": value.get("example_good_replies") or [],
+            "example_bad_replies": value.get("example_bad_replies") or [],
+            "active": True,
+        }
+        if pending.object_id == "new":
+            topic_data = await client.create_engagement_topic(
+                operator_user_id=operator_user_id,
+                **topic_payload,
+            )
+        else:
+            topic_data = await client.update_engagement_topic(
+                pending.object_id,
+                operator_user_id=operator_user_id,
+                **topic_payload,
+            )
+        try:
+            await _upsert_topic_brief_style_rule(
+                client,
+                topic_id=str(topic_data.get("id") or pending.object_id),
+                style_guidance=str(value.get("style_guidance") or ""),
+                avoid_rules=str(value.get("avoid_rules") or ""),
+                reviewer=reviewer,
+                operator_user_id=operator_user_id,
+                target_mode=str(value.get("style_rule_target_mode") or "wizard"),
+                scope_type=str(value.get("style_rule_scope_type") or "topic"),
+                scope_id=str(value.get("style_rule_scope_id") or "") or None,
+                style_rule_id=str(value.get("style_rule_id") or "") or None,
+            )
+        except BotApiError as exc:
+            raise _TopicCreateStyleRuleSaveError(exc.message, topic_data=topic_data) from exc
+        return topic_data
 
     if pending.entity == "topic_example":
         return await client.add_engagement_topic_example(
@@ -465,6 +350,74 @@ async def _save_config_edit(update: Any, context: Any, pending: PendingEdit) -> 
         raise BotApiError("Wizard state cannot be saved directly.")
 
     raise BotApiError("That edit type is not available yet.")
+
+
+def _refresh_topic_create_pending_after_partial_save(
+    context: Any,
+    *,
+    operator_id: int,
+    pending: PendingEdit,
+    topic_data: dict[str, Any],
+) -> PendingEdit:
+    editable = editable_field("topic_create", "payload")
+    if editable is None:
+        return pending
+    topic_id = str(topic_data.get("id") or pending.object_id)
+    flow_state = dict(pending.flow_state or {})
+    parsed_value = dict(pending.parsed_value or {}) if isinstance(pending.parsed_value, dict) else {}
+    for key in (
+        "name",
+        "description",
+        "stance_guidance",
+        "trigger_keywords",
+        "negative_keywords",
+        "example_good_replies",
+        "example_bad_replies",
+        "style_guidance",
+        "avoid_rules",
+        "style_rule_id",
+        "style_rule_name",
+        "style_rule_target_mode",
+        "style_rule_scope_type",
+        "style_rule_scope_id",
+        "community_id",
+        "active",
+    ):
+        if key in topic_data:
+            parsed_value[key] = topic_data.get(key)
+    flow_state.update(
+        {
+            "name": str(topic_data.get("name") or parsed_value.get("name") or ""),
+            "description": str(topic_data.get("description") or parsed_value.get("description") or ""),
+            "stance_guidance": str(topic_data.get("stance_guidance") or parsed_value.get("stance_guidance") or ""),
+            "example_good_replies": list(
+                topic_data.get("example_good_replies") or parsed_value.get("example_good_replies") or []
+            ),
+            "example_bad_replies": list(
+                topic_data.get("example_bad_replies") or parsed_value.get("example_bad_replies") or []
+            ),
+        }
+    )
+    if parsed_value.get("style_rule_scope_type") == "topic":
+        parsed_value["style_rule_scope_id"] = topic_id
+        flow_state["style_rule_scope_id"] = topic_id
+    restarted = _config_edit_store(context).start(
+        operator_id=operator_id,
+        field=editable,
+        object_id=topic_id,
+        flow_step="confirm",
+        flow_state=flow_state,
+    )
+    return (
+        _config_edit_store(context).set_value(
+            operator_id,
+            raw_value=pending.raw_value or "",
+            parsed_value=parsed_value,
+            flow_step="confirm",
+            flow_state=flow_state,
+        )
+        or restarted
+    )
 
 
 def _saved_config_edit_response(pending: PendingEdit, data: dict[str, Any]) -> tuple[str, Any | None]:
@@ -508,8 +461,9 @@ def _saved_config_edit_response(pending: PendingEdit, data: dict[str, Any]) -> t
         )
     if pending.entity == "topic_create":
         topic_id = str(data.get("id", "unknown"))
+        heading = "Draft brief updated." if pending.object_id != "new" else "Engagement topic created."
         return (
-            "Engagement topic created.\n\n" + format_engagement_topic_card(data, detail=True),
+            heading + "\n\n" + format_engagement_topic_card(data, detail=True),
             engagement_topic_actions_markup(
                 topic_id,
                 active=bool(data.get("active")),
@@ -563,6 +517,8 @@ __all__ = [
     "_handle_config_edit_text",
     "_save_config_edit_callback",
     "_cancel_config_edit_callback",
+    "_handle_topic_brief_callback",
+    "_preview_topic_create_sample",
     "_save_config_edit",
     "_saved_config_edit_response",
 ]

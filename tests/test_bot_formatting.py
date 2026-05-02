@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 
@@ -11,6 +11,7 @@ from bot.formatting import (
     format_candidates,
     format_community_detail,
     format_created_brief,
+    format_discovery_help,
     format_engagement_candidate_card,
     format_engagement_candidate_review,
     format_engagement_candidate_revisions,
@@ -31,6 +32,7 @@ from bot.formatting import (
     format_engagement_target_permission_confirmation,
     format_engagement_topic_card,
     format_engagement_topics,
+    format_help,
     format_job_status,
     format_member_export,
     format_members,
@@ -54,21 +56,32 @@ def _slash_commands(message: str) -> list[str]:
 def test_format_start_lists_seed_first_controls() -> None:
     message = format_start()
 
-    assert "seeds" in message
-    assert "seed <seed_group_id>" in message
-    assert "candidates <seed_group_id>" in message
-    assert "community <community_id>" in message
-    assert "snapshot <community_id>" in message
-    assert "members <community_id>" in message
-    assert "exportmembers <community_id>" in message
-    assert "engagement candidates" in message
-    assert "entity <intake_id>" in message
+    assert "Open Discovery" in message
+    assert "Start search or review queued communities" in message
+    assert "community cards" in message
+    assert "Accounts covers health plus add search/add engagement onboarding." in message
     assert "Send @username" in message
     assert "outreach" not in message.lower()
-    assert "whoami" in message
     assert _slash_commands(message) == []
 
 
+
+def test_format_help_points_to_buttons_instead_of_command_list() -> None:
+    message = format_help()
+
+    assert "Discovery opens search, review, and community follow-up work." in message
+    assert "Accounts opens account health plus add-account actions." in message
+    assert "Hidden compatibility commands still work" in message
+    assert _slash_commands(message) == []
+
+
+def test_format_discovery_help_points_to_button_led_navigation() -> None:
+    message = format_discovery_help()
+
+    assert "Start search launches a new discovery run." in message
+    assert "Review communities opens the candidate-review queue." in message
+    assert "Seed groups, channels, candidates, communities, snapshots, members, and jobs continue through the inline cards they open." in message
+    assert _slash_commands(message) == []
 def test_format_whoami_returns_operator_allowlist_id() -> None:
     message = format_whoami(12345, username="researcher")
 
@@ -193,7 +206,8 @@ def test_format_account_onboarding_command_keeps_login_local() -> None:
 def test_format_account_onboarding_usage_can_be_pool_specific() -> None:
     message = format_account_onboarding_usage(account_pool="search")
 
-    assert "Usage: add account search <phone> [session_name] [notes...]" in message
+    assert "Pool: search" in message
+    assert "Choose Add search or Add engagement below." in message
     assert _slash_commands(message) == []
 
 
@@ -374,10 +388,12 @@ def test_format_engagement_home_reports_operational_counts() -> None:
 
     assert "Pending approvals: 2" in message
     assert "Ready to send: 1" in message
-    assert "Needs attention: engagement candidates failed" in message
-    assert "Edit or approve, then queue send from each reply opportunity." in message
-    assert "Settings lookup: engagement settings <community_id>" in message
-    assert "engagement topics" in message
+    assert "Use the Pending approvals button for draft review work." in message
+    assert "Use Ready to send for approved replies waiting on send." in message
+    assert (
+        "Communities, Topics, Settings lookup, Recent actions, and Setup stay in the inline buttons below."
+        in message
+    )
     assert _slash_commands(message) == []
     assert "score" not in message.lower()
 
@@ -424,7 +440,6 @@ def test_format_engagement_settings_lookup_points_to_button_led_lookup() -> None
 
     assert "Send safety lookup (2-2 of 3)" in message
     assert "readiness, posting posture, pacing, quiet hours, and account assignment" in message
-    assert "engagement settings <community_id>" in message
     assert _slash_commands(message) == []
 
 
@@ -970,3 +985,4 @@ def test_format_community_detail_includes_snapshot_run_and_analysis() -> None:
     assert "Latest snapshot" in message
     assert "Latest snapshot run" in message
     assert "Latest analysis" in message
+

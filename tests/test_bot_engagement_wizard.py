@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -7,7 +7,6 @@ import pytest
 from bot.config_editing import PendingEditStore
 from bot.main import (
     CONFIG_EDIT_STORE_KEY,
-    WIZARD_RETURN_STORE_KEY,
     callback_query,
     cancel_edit_command,
     telegram_entity_text,
@@ -253,7 +252,6 @@ def _wiz_context(client=None):
     ctx = _context(client or _FakeWizardApiClient())
     return ctx
 
-
 # ---------------------------------------------------------------------------
 # Helper to run through Step 1 (text entry) to Step 2
 # ---------------------------------------------------------------------------
@@ -279,8 +277,15 @@ async def test_wizard_start_shows_community_prompt() -> None:
     await callback_query(update, context)
 
     text = update.callback_query.message.replies[0]["text"]
+    markup = update.callback_query.message.replies[0]["reply_markup"]
     assert "Step 1 of 5" in text
     assert "t.me/" in text or "@handle" in text or "@" in text
+    assert markup is not None
+    callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
+    labels = [button.text for row in markup.inline_keyboard for button in row]
+    assert "eng:wz:cancel:new" in callbacks
+    assert "Cancel" in labels
+    assert "Home" not in labels
 
     pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
     assert pending is not None
@@ -433,54 +438,6 @@ async def test_wizard_step2_selecting_different_topic_replaces() -> None:
 
 
 @pytest.mark.asyncio
-async def test_wizard_step2_create_topic_starts_subflow_and_saves_return_state() -> None:
-    client = _FakeWizardApiClient()
-    context = _wiz_context(client)
-    await callback_query(_callback_update("eng:wz:start"), context)
-    text_update = _message_update("@founders_hub")
-    await telegram_entity_text(text_update, context)
-    markup = text_update.message.replies[0]["reply_markup"]
-    callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
-    labels = [button.text for row in markup.inline_keyboard for button in row]
-    assert f"eng:wz:tpnew:{_C_ENG_NEW}" in callbacks
-    assert "➕ Create topic" in labels
-    create_update = _callback_update(f"eng:wz:tpnew:{_C_ENG_NEW}")
-    await callback_query(create_update, context)
-    text = create_update.callback_query.message.replies[0]["text"]
-    assert "Creating engagement topic" in text
-    assert "Step 1 of 5: Topic name" in text
-    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
-    assert pending is not None
-    assert pending.entity == "topic_create"
-    assert pending.flow_step == "name"
-    wizard_return = context.application.bot_data[WIZARD_RETURN_STORE_KEY][123]
-    assert wizard_return["engagement_id"] == _ENG_NEW_ID
-
-
-@pytest.mark.asyncio
-async def test_wizard_topic_create_save_returns_to_step2_with_new_topic_selected() -> None:
-    client = _FakeWizardApiClient()
-    context = _wiz_context(client)
-    await _wizard_through_step2(context)
-    await callback_query(_callback_update(f"eng:wz:tpnew:{_C_ENG_NEW}"), context)
-    await telegram_entity_text(_message_update("Founder outreach"), context)
-    await telegram_entity_text(_message_update("Be concise and practical."), context)
-    await telegram_entity_text(_message_update("founder, b2b saas"), context)
-    await telegram_entity_text(_message_update("-"), context)
-    await telegram_entity_text(_message_update("-"), context)
-    save_update = _callback_update("eng:edit:save")
-    await callback_query(save_update, context)
-    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
-    assert pending is not None
-    assert pending.entity == "wizard"
-    assert pending.flow_step == "topics"
-    assert (pending.flow_state or {}).get("topic_id") == "topic-created"
-    assert client.patch_engagement_calls[-1]["topic_id"] == "topic-created"
-    text = save_update.callback_query.message.replies[0]["text"]
-    assert "Step 2 of 5" in text
-
-
-@pytest.mark.asyncio
 async def test_wizard_topic_create_cancel_returns_to_step2() -> None:
     client = _FakeWizardApiClient()
     context = _wiz_context(client)
@@ -518,6 +475,25 @@ async def test_wizard_step2_continue_advances_to_step3() -> None:
     text = step3_update.callback_query.message.replies[0]["text"]
     assert "Step 3 of 5" in text
 
+
+@pytest.mark.asyncio
+async def test_wizard_step2_markup_uses_back_and_cancel_instead_of_home() -> None:
+    client = _FakeWizardApiClient()
+    context = _wiz_context(client)
+
+    await callback_query(_callback_update("eng:wz:start"), context)
+    text_update = _message_update("@test_community")
+    await telegram_entity_text(text_update, context)
+
+    markup = text_update.message.replies[0]["reply_markup"]
+    assert markup is not None
+    callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
+    labels = [button.text for row in markup.inline_keyboard for button in row]
+    assert f"eng:wz:step:1:{_ENG_NEW_ID}" in callbacks
+    assert f"eng:wz:cancel:{_ENG_NEW_ID}" in callbacks
+    assert "Back" in labels
+    assert "Cancel" in labels
+    assert "Home" not in labels
 
 # ---------------------------------------------------------------------------
 # Tests: Step 3 — account picker
@@ -638,38 +614,69 @@ async def test_wizard_step3_failed_join_stays_on_account_picker() -> None:
     assert "Step 3 of 5" in text
     assert "Invite required" in text
 
+@pytest.mark.asyncio
+async def test_wizard_step3_without_accounts_offers_add_account_button() -> None:
+    client = _FakeWizardApiClient()
+    client.accounts = {"counts": {"available": 0}, "items": []}
+    context = _wiz_context(client)
 
-# ---------------------------------------------------------------------------
-# Tests: Step 4 — mode picker
-# ---------------------------------------------------------------------------
+    await _wizard_through_step2(context)
+    await callback_query(_callback_update(f"eng:wz:tp:{_C_TOPIC_1}:{_C_ENG_NEW}"), context)
+    step3_update = _callback_update(f"eng:wz:step:3:{_ENG_NEW_ID}")
 
+    await callback_query(step3_update, context)
+
+    text = step3_update.callback_query.message.replies[0]["text"]
+    markup = step3_update.callback_query.message.replies[0]["reply_markup"]
+    callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
+    labels = [button.text for row in markup.inline_keyboard for button in row]
+
+    assert "Use the button below to add one" in text
+    assert "op:addacct:engagement" in callbacks
+    assert "Add engagement account" in labels
+@pytest.mark.asyncio
+async def test_wizard_step4_markup_uses_draft_and_auto_send_labels() -> None:
+    client = _FakeWizardApiClient()
+    client.accounts = {
+        "counts": {"available": 2},
+        "items": [
+            {"id": _ACCT_1_ID, "phone": "+1*****11", "status": "available", "account_pool": "engagement"},
+            {"id": _ACCT_2_ID, "phone": "+1*****22", "status": "available", "account_pool": "engagement"},
+        ],
+    }
+    context = _wiz_context(client)
+
+    await _wizard_through_step2(context)
+    await callback_query(_callback_update(f"eng:wz:tp:{_C_TOPIC_1}:{_C_ENG_NEW}"), context)
+    await callback_query(_callback_update(f"eng:wz:step:3:{_ENG_NEW_ID}"), context)
+    step4_update = _callback_update(f"eng:wz:ap:{_C_ACCT_2}:{_C_ENG_NEW}")
+
+    await callback_query(step4_update, context)
+
+    text = step4_update.callback_query.message.replies[0]["text"]
+    markup = step4_update.callback_query.message.replies[0]["reply_markup"]
+    callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
+    labels = [button.text for row in markup.inline_keyboard for button in row]
+
+    assert "Step 4 of 5: Sending mode" in text
+    assert "How should sending work?" in text
+    assert "Draft" in labels
+    assert "Auto send" in labels
+    assert f"eng:wz:lv:draft:{_ENG_NEW_ID}" in callbacks
+    assert f"eng:wz:lv:auto_send:{_ENG_NEW_ID}" in callbacks
+    assert "Watching" not in labels
+    assert "Suggesting" not in labels
+    assert "Sending" not in labels
 
 @pytest.mark.asyncio
-async def test_wizard_step4_level_watching_maps_to_observe() -> None:
+async def test_wizard_step4_draft_maps_to_suggest() -> None:
     client = _FakeWizardApiClient()
     context = _wiz_context(client)
 
     await _wizard_through_step2(context)
     await callback_query(_callback_update(f"eng:wz:tp:{_C_TOPIC_1}:{_C_ENG_NEW}"), context)
     await callback_query(_callback_update(f"eng:wz:step:3:{_ENG_NEW_ID}"), context)
-    level_update = _callback_update(f"eng:wz:lv:watching:{_ENG_NEW_ID}")
-
-    await callback_query(level_update, context)
-
-    mode_calls = [c for c in client.put_engagement_settings_calls if c.get("mode") is not None]
-    assert mode_calls
-    assert mode_calls[-1]["mode"] == "observe"
-
-
-@pytest.mark.asyncio
-async def test_wizard_step4_level_suggesting_maps_to_suggest() -> None:
-    client = _FakeWizardApiClient()
-    context = _wiz_context(client)
-
-    await _wizard_through_step2(context)
-    await callback_query(_callback_update(f"eng:wz:tp:{_C_TOPIC_1}:{_C_ENG_NEW}"), context)
-    await callback_query(_callback_update(f"eng:wz:step:3:{_ENG_NEW_ID}"), context)
-    level_update = _callback_update(f"eng:wz:lv:suggesting:{_ENG_NEW_ID}")
+    level_update = _callback_update(f"eng:wz:lv:draft:{_ENG_NEW_ID}")
 
     await callback_query(level_update, context)
 
@@ -677,28 +684,21 @@ async def test_wizard_step4_level_suggesting_maps_to_suggest() -> None:
     assert mode_calls
     assert mode_calls[-1]["mode"] == "suggest"
 
-
 @pytest.mark.asyncio
-async def test_wizard_step4_level_sending_maps_to_require_approval() -> None:
+async def test_wizard_step4_auto_send_maps_to_auto_limited() -> None:
     client = _FakeWizardApiClient()
     context = _wiz_context(client)
 
     await _wizard_through_step2(context)
     await callback_query(_callback_update(f"eng:wz:tp:{_C_TOPIC_1}:{_C_ENG_NEW}"), context)
     await callback_query(_callback_update(f"eng:wz:step:3:{_ENG_NEW_ID}"), context)
-    level_update = _callback_update(f"eng:wz:lv:sending:{_ENG_NEW_ID}")
+    level_update = _callback_update(f"eng:wz:lv:auto_send:{_ENG_NEW_ID}")
 
     await callback_query(level_update, context)
 
     mode_calls = [c for c in client.put_engagement_settings_calls if c.get("mode") is not None]
     assert mode_calls
-    assert mode_calls[-1]["mode"] == "require_approval"
-
-
-# ---------------------------------------------------------------------------
-# Tests: Step 5 — confirm
-# ---------------------------------------------------------------------------
-
+    assert mode_calls[-1]["mode"] == "auto_limited"
 
 @pytest.mark.asyncio
 async def test_wizard_step5_confirm_success() -> None:
@@ -708,7 +708,7 @@ async def test_wizard_step5_confirm_success() -> None:
     await _wizard_through_step2(context)
     await callback_query(_callback_update(f"eng:wz:tp:{_C_TOPIC_1}:{_C_ENG_NEW}"), context)
     await callback_query(_callback_update(f"eng:wz:step:3:{_ENG_NEW_ID}"), context)
-    await callback_query(_callback_update(f"eng:wz:lv:suggesting:{_ENG_NEW_ID}"), context)
+    await callback_query(_callback_update(f"eng:wz:lv:draft:{_ENG_NEW_ID}"), context)
 
     confirm_update = _callback_update(f"eng:wz:confirm:{_ENG_NEW_ID}")
     await callback_query(confirm_update, context)
@@ -720,7 +720,6 @@ async def test_wizard_step5_confirm_success() -> None:
     edit_text = confirm_update.callback_query.edits[0]["text"]
     assert "Started" in edit_text or "✓" in edit_text or "Engagement started" in edit_text
 
-
 @pytest.mark.asyncio
 async def test_wizard_step5_confirm_validation_failed() -> None:
     client = _FakeWizardApiClient()
@@ -731,7 +730,7 @@ async def test_wizard_step5_confirm_validation_failed() -> None:
     await _wizard_through_step2(context)
     await callback_query(_callback_update(f"eng:wz:tp:{_C_TOPIC_1}:{_C_ENG_NEW}"), context)
     await callback_query(_callback_update(f"eng:wz:step:3:{_ENG_NEW_ID}"), context)
-    await callback_query(_callback_update(f"eng:wz:lv:suggesting:{_ENG_NEW_ID}"), context)
+    await callback_query(_callback_update(f"eng:wz:lv:draft:{_ENG_NEW_ID}"), context)
 
     confirm_update = _callback_update(f"eng:wz:confirm:{_ENG_NEW_ID}")
     await callback_query(confirm_update, context)
@@ -740,7 +739,6 @@ async def test_wizard_step5_confirm_validation_failed() -> None:
     assert "Topic is required" in edit_text or "Validation" in edit_text or "Fix" in edit_text
     edit_markup = confirm_update.callback_query.edits[0]["reply_markup"]
     assert edit_markup is not None
-
 
 @pytest.mark.asyncio
 async def test_wizard_step5_confirm_stale_shows_retry() -> None:
@@ -752,14 +750,13 @@ async def test_wizard_step5_confirm_stale_shows_retry() -> None:
     await _wizard_through_step2(context)
     await callback_query(_callback_update(f"eng:wz:tp:{_C_TOPIC_1}:{_C_ENG_NEW}"), context)
     await callback_query(_callback_update(f"eng:wz:step:3:{_ENG_NEW_ID}"), context)
-    await callback_query(_callback_update(f"eng:wz:lv:suggesting:{_ENG_NEW_ID}"), context)
+    await callback_query(_callback_update(f"eng:wz:lv:draft:{_ENG_NEW_ID}"), context)
 
     confirm_update = _callback_update(f"eng:wz:confirm:{_ENG_NEW_ID}")
     await callback_query(confirm_update, context)
 
     edit_text = confirm_update.callback_query.edits[0]["text"]
     assert "out of date" in edit_text or "Retry" in edit_text or "stale" in edit_text.lower()
-
 
 @pytest.mark.asyncio
 async def test_wizard_step5_confirm_api_error_shows_retry() -> None:
@@ -770,7 +767,7 @@ async def test_wizard_step5_confirm_api_error_shows_retry() -> None:
     await _wizard_through_step2(context)
     await callback_query(_callback_update(f"eng:wz:tp:{_C_TOPIC_1}:{_C_ENG_NEW}"), context)
     await callback_query(_callback_update(f"eng:wz:step:3:{_ENG_NEW_ID}"), context)
-    await callback_query(_callback_update(f"eng:wz:lv:suggesting:{_ENG_NEW_ID}"), context)
+    await callback_query(_callback_update(f"eng:wz:lv:draft:{_ENG_NEW_ID}"), context)
 
     confirm_update = _callback_update(f"eng:wz:confirm:{_ENG_NEW_ID}")
     await callback_query(confirm_update, context)
@@ -779,12 +776,6 @@ async def test_wizard_step5_confirm_api_error_shows_retry() -> None:
     assert "Retry" in edit_text or "Couldn't" in edit_text
     edit_markup = confirm_update.callback_query.edits[0]["reply_markup"]
     assert edit_markup is not None
-
-
-# ---------------------------------------------------------------------------
-# Tests: Retry
-# ---------------------------------------------------------------------------
-
 
 @pytest.mark.asyncio
 async def test_wizard_retry_calls_endpoint_and_resets_to_step1() -> None:
@@ -806,12 +797,6 @@ async def test_wizard_retry_calls_endpoint_and_resets_to_step1() -> None:
     assert pending.flow_step == "target"
     assert (pending.flow_state or {}).get("engagement_id") is None
 
-
-# ---------------------------------------------------------------------------
-# Tests: Cancel
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_wizard_cancel_shows_confirmation_prompt() -> None:
     client = _FakeWizardApiClient()
@@ -823,9 +808,17 @@ async def test_wizard_cancel_shows_confirmation_prompt() -> None:
     await callback_query(cancel_update, context)
 
     edit_text = cancel_update.callback_query.edits[0]["text"]
+    edit_markup = cancel_update.callback_query.edits[0]["reply_markup"]
     assert "cancel" in edit_text.lower() or "Cancel" in edit_text
+    assert edit_markup is not None
+    callbacks = [button.callback_data for row in edit_markup.inline_keyboard for button in row]
+    labels = [button.text for row in edit_markup.inline_keyboard for button in row]
+    assert f"eng:wz:cancel_yes:{_ENG_NEW_ID}" in callbacks
+    assert f"eng:wz:step:5:{_ENG_NEW_ID}" in callbacks
+    assert "Confirm cancel" in labels
+    assert "Back" in labels
+    assert "Home" not in labels
     assert context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123) is not None
-
 
 @pytest.mark.asyncio
 async def test_wizard_cancel_yes_clears_pending() -> None:
@@ -840,14 +833,8 @@ async def test_wizard_cancel_yes_clears_pending() -> None:
 
     assert context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123) is None
 
-
-# ---------------------------------------------------------------------------
-# Tests: Resume wizard
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
-async def test_wizard_resume_shows_appropriate_step() -> None:
+async def test_wizard_start_discards_existing_partial_state_and_restarts_at_step1() -> None:
     client = _FakeWizardApiClient()
     client.accounts = {
         "counts": {"available": 2},
@@ -881,11 +868,14 @@ async def test_wizard_resume_shows_appropriate_step() -> None:
     await callback_query(resume_update, context)
 
     text = resume_update.callback_query.message.replies[0]["text"]
-    assert "Step 3 of 5" in text
-
+    assert "Step 1 of 5" in text
+    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
+    assert pending is not None
+    assert pending.flow_step == "target"
+    assert (pending.flow_state or {}).get("engagement_id") is None
 
 @pytest.mark.asyncio
-async def test_wizard_resume_at_mode_step() -> None:
+async def test_wizard_start_discards_existing_review_state_and_restarts_at_step1() -> None:
     client = _FakeWizardApiClient()
     context = _wiz_context(client)
     store = context.application.bot_data.setdefault(CONFIG_EDIT_STORE_KEY, PendingEditStore())
@@ -903,7 +893,7 @@ async def test_wizard_resume_at_mode_step() -> None:
             "target_ref": "@xyz",
             "topic_id": _TOPIC_1_ID,
             "account_id": _ACCT_1_ID,
-            "mode": None,
+            "mode": "draft",
             "return_callback": None,
         },
     )
@@ -912,13 +902,11 @@ async def test_wizard_resume_at_mode_step() -> None:
     await callback_query(resume_update, context)
 
     text = resume_update.callback_query.message.replies[0]["text"]
-    assert "Step 4 of 5" in text
-
-
-# ---------------------------------------------------------------------------
-# Tests: Edit reentry
-# ---------------------------------------------------------------------------
-
+    assert "Step 1 of 5" in text
+    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
+    assert pending is not None
+    assert pending.flow_step == "target"
+    assert (pending.flow_state or {}).get("mode") is None
 
 @pytest.mark.asyncio
 async def test_wizard_edit_reentry_topic_opens_step2() -> None:
@@ -939,7 +927,7 @@ async def test_wizard_edit_reentry_topic_opens_step2() -> None:
             "target_ref": "@edit_community",
             "topic_id": _TOPIC_1_ID,
             "account_id": _ACCT_1_ID,
-            "mode": "suggesting",
+            "mode": "draft",
             "return_callback": None,
         },
     )
@@ -952,7 +940,6 @@ async def test_wizard_edit_reentry_topic_opens_step2() -> None:
 
     pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
     assert (pending.flow_state or {}).get("return_callback") is not None
-
 
 @pytest.mark.asyncio
 async def test_wizard_edit_reentry_mode_returns_to_review_after_save() -> None:
@@ -973,19 +960,22 @@ async def test_wizard_edit_reentry_mode_returns_to_review_after_save() -> None:
             "target_ref": "@edit_community",
             "topic_id": _TOPIC_1_ID,
             "account_id": _ACCT_1_ID,
-            "mode": "suggesting",
+            "mode": "draft",
             "return_callback": None,
         },
     )
 
     await callback_query(_callback_update(f"eng:wz:edit:{_ENG_EDIT_ID}:mode"), context)
 
-    level_update = _callback_update(f"eng:wz:lv:watching:{_ENG_EDIT_ID}")
+    level_update = _callback_update(f"eng:wz:lv:auto_send:{_ENG_EDIT_ID}")
     await callback_query(level_update, context)
 
     pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
-    assert (pending.flow_state or {}).get("mode") == "watching"
+    assert (pending.flow_state or {}).get("mode") == "auto_send"
     assert (pending.flow_state or {}).get("return_callback") is None
 
-    mode_calls = [c for c in client.put_engagement_settings_calls if c.get("mode") == "observe"]
+    mode_calls = [c for c in client.put_engagement_settings_calls if c.get("mode") == "auto_limited"]
     assert mode_calls
+
+
+

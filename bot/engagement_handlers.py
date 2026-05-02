@@ -8,6 +8,7 @@ from .engagement_commands_config import *
 from .engagement_targets_flow import *
 from .engagement_prompts_flow import *
 from .engagement_review_flow import *
+from .engagement_review_learning import *
 from .engagement_topics_flow import *
 from .engagement_wizard_flow import *
 
@@ -103,6 +104,9 @@ __all__ = [
     "_send_engagement_candidates",
     "_send_engagement_candidate_detail",
     "_send_engagement_candidate_revisions",
+    "_save_candidate_reply_as_good_example",
+    "_prompt_candidate_style_rule_scope",
+    "_create_candidate_style_rule",
     "_expire_engagement_candidate",
     "_retry_engagement_candidate",
     "_send_engagement_settings",

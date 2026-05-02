@@ -285,6 +285,11 @@ def format_engagement_candidate_card(
                 f"Final reply: {_final_reply_text(suggested, final)}",
             ]
         )
+        if not str(final or "").strip():
+            lines.append(
+                "Learning shortcuts unlock after you edit Final reply, so saved examples and style "
+                "rules reflect a deliberate operator revision."
+            )
         fix_lines = _blocked_fix_lines(item, status, readiness)
         if fix_lines:
             lines.extend(["", "Blocked path", *fix_lines])

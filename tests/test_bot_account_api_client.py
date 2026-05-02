@@ -87,3 +87,46 @@ async def test_account_onboarding_methods_use_account_routes() -> None:
             },
         ),
     ]
+
+
+@pytest.mark.asyncio
+async def test_account_health_refresh_method_uses_account_route() -> None:
+    seen: list[tuple[str, str, dict[str, Any]]] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        seen.append((request.method, request.url.path, payload))
+        return httpx.Response(
+            202,
+            json={
+                "job": {
+                    "id": "account_health_refresh_2026050200",
+                    "type": "account.health_refresh",
+                    "status": "queued",
+                }
+            },
+        )
+
+    client = BotApiClient(
+        base_url="http://api.test/api",
+        api_token="api-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    response = await client.start_account_health_refresh(spot_check_limit=3)
+    await client.aclose()
+
+    assert response == {
+        "job": {
+            "id": "account_health_refresh_2026050200",
+            "type": "account.health_refresh",
+            "status": "queued",
+        }
+    }
+    assert seen == [
+        (
+            "POST",
+            "/api/telegram-accounts/health-refresh-jobs",
+            {"spot_check_limit": 3},
+        )
+    ]

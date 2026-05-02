@@ -21,10 +21,9 @@ def format_account_onboarding_command(
             _section("Safety", icon="[safe]"),
             _bullet("Enter Telegram login codes and 2FA only in the local shell."),
             _bullet("Use dedicated accounts; search stays read-only, engagement is public-facing."),
-            *_action_block(["Check the result with /accounts"]),
+            *_action_block(["Return to Accounts to verify the result."]),
         ]
     )
-
 
 def format_account_onboarding_code_sent(
     *,
@@ -56,22 +55,41 @@ def format_account_onboarding_usage(
     *,
     account_pool: str | None = None,
 ) -> str:
-    usage_pool = account_pool if account_pool in {"search", "engagement"} else "<search|engagement>"
     lines = [
         _headline("Add a Telegram account", icon="[account]"),
-        _field("Usage", f"/add_account {usage_pool} <phone> [session_name] [notes...]"),
+        _bullet("Choose Add search or Add engagement below."),
+        _bullet("Then send the phone number, optional account name, and optional notes when prompted."),
         "",
-        _section("Examples", icon="[shell]"),
-        "/add_account search +10000000000 research-1 warm spare",
-        "/add_account engagement +10000000001 engagement-1 public replies",
+        _section("Flow", icon="[shell]"),
+        "1. Pick the pool",
+        "2. Send the phone number",
+        "3. Optionally name the account",
+        "4. Optionally add notes",
     ]
+    if account_pool in {"search", "engagement"}:
+        lines.insert(1, _field("Pool", account_pool))
     if error:
         lines.extend(["", _field("Error", error, icon="[!]")])
     return "\n".join(lines)
 
+
+def format_account_health_refresh_job(data: dict[str, object]) -> str:
+    job = data.get("job") or {}
+    job_id = str(job.get("id") or "unknown")
+    job_type = str(job.get("type") or "account.health_refresh")
+    return "\n".join(
+        [
+            "Account health check queued.",
+            "",
+            f"Job: {job_id} ({job_type})",
+            "Use Refresh job below to watch progress, then return to Accounts for the updated view.",
+        ]
+    )
 
 def _mask_phone(phone: str) -> str:
     digits = [character for character in phone if character.isdigit()]
     if len(digits) <= 4:
         return "***"
     return f"+***{''.join(digits[-4:])}"
+
+

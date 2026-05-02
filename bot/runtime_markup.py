@@ -41,11 +41,14 @@ def _engagement_candidate_detail_markup(candidate_id: str, data: dict[str, Any])
         or data.get("blocked_reason")
         or data.get("block_reason")
     )
+    has_final_reply = bool(str(data.get("final_reply") or "").strip())
     return engagement_candidate_detail_markup(
         candidate_id,
         status=str(data.get("status") or "needs_review"),
         community_id=str(data["community_id"]) if data.get("community_id") else None,
         blocked=bool(blocked_reason) or str(data.get("status") or "") == "failed",
+        allow_save_good_example=bool(data.get("topic_id") and has_final_reply),
+        allow_create_style_rule=has_final_reply,
     )
 
 

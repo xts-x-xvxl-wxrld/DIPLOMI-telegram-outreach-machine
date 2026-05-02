@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from .ui_common import (
+    ACTION_CONFIG_EDIT_CANCEL,
+    ACTION_CONFIG_EDIT_SAVE,
     ACTION_ENGAGEMENT_HOME,
+    ACTION_ENGAGEMENT_TOPIC_BRIEF,
     ACTION_ENGAGEMENT_TOPIC_CREATE,
     ACTION_ENGAGEMENT_TOPIC_EDIT,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
     ACTION_ENGAGEMENT_TOPIC_LIST,
     ACTION_ENGAGEMENT_TOPIC_OPEN,
+    ACTION_ENGAGEMENT_TOPIC_PREVIEW,
     ACTION_ENGAGEMENT_TOPIC_TOGGLE,
     _button,
     compact_topic_edit_field,
@@ -26,7 +30,7 @@ def engagement_topic_pager_markup(
 ):
     rows = []
     if can_manage:
-        rows.append([_button("➕ Create topic", ACTION_ENGAGEMENT_TOPIC_CREATE)])
+        rows.append([_button("Create topic brief", ACTION_ENGAGEMENT_TOPIC_CREATE)])
     pager_row = _offset_pager_row(
         action=ACTION_ENGAGEMENT_TOPIC_LIST,
         offset=offset,
@@ -51,26 +55,29 @@ def engagement_topic_actions_markup(
         rows.extend(
             [
                 [
+                    _button("Draft brief", ACTION_ENGAGEMENT_TOPIC_BRIEF, topic_id),
                     _button(
                         "Edit guidance",
                         ACTION_ENGAGEMENT_TOPIC_EDIT,
                         topic_id,
                         compact_topic_edit_field("stance_guidance"),
                     ),
+                ],
+                [
                     _button(
                         "Edit triggers",
                         ACTION_ENGAGEMENT_TOPIC_EDIT,
                         topic_id,
                         compact_topic_edit_field("trigger_keywords"),
                     ),
-                ],
-                [
                     _button(
                         "Edit negatives",
                         ACTION_ENGAGEMENT_TOPIC_EDIT,
                         topic_id,
                         compact_topic_edit_field("negative_keywords"),
                     ),
+                ],
+                [
                     _button(
                         "Deactivate" if active else "Activate",
                         ACTION_ENGAGEMENT_TOPIC_TOGGLE,
@@ -112,4 +119,80 @@ def engagement_topic_actions_markup(
     )
 
 
-__all__ = ["engagement_topic_actions_markup", "engagement_topic_pager_markup"]
+def engagement_topic_brief_step_markup(
+    *,
+    allow_back: bool,
+    allow_skip: bool,
+    advance_label: str | None = None,
+):
+    rows = []
+    nav_row = []
+    if allow_back:
+        nav_row.append(_button("Back", ACTION_ENGAGEMENT_TOPIC_BRIEF, "nav", "back"))
+    if allow_skip:
+        nav_row.append(_button("Skip", ACTION_ENGAGEMENT_TOPIC_BRIEF, "nav", "skip"))
+    elif advance_label:
+        nav_row.append(_button(advance_label, ACTION_ENGAGEMENT_TOPIC_BRIEF, "nav", "continue"))
+    if nav_row:
+        rows.append(nav_row)
+    rows.append(
+        [
+            _button("Save later", ACTION_ENGAGEMENT_TOPIC_BRIEF, "nav", "later"),
+            _button("Cancel", ACTION_CONFIG_EDIT_CANCEL),
+        ]
+    )
+    return _inline_markup(rows)
+
+
+def engagement_topic_brief_example_markup(
+    *,
+    allow_back: bool,
+    advance_label: str,
+):
+    rows = []
+    if allow_back:
+        rows.append([_button("Back", ACTION_ENGAGEMENT_TOPIC_BRIEF, "nav", "back")])
+    rows.append(
+        [
+            _button("Add another", ACTION_ENGAGEMENT_TOPIC_BRIEF, "nav", "add"),
+            _button(advance_label, ACTION_ENGAGEMENT_TOPIC_BRIEF, "nav", "continue"),
+        ]
+    )
+    rows.append(
+        [
+            _button("Save later", ACTION_ENGAGEMENT_TOPIC_BRIEF, "nav", "later"),
+            _button("Cancel", ACTION_CONFIG_EDIT_CANCEL),
+        ]
+    )
+    return _inline_markup(rows)
+
+
+def engagement_topic_brief_confirmation_markup(
+    *,
+    allow_back: bool = True,
+    allow_save_later: bool = True,
+):
+    rows = [
+        [_button("Save brief", ACTION_CONFIG_EDIT_SAVE)],
+        [
+            _button("Test sample", ACTION_ENGAGEMENT_TOPIC_PREVIEW),
+            _button("Test real post", ACTION_ENGAGEMENT_TOPIC_PREVIEW, "real"),
+        ],
+    ]
+    nav_row = []
+    if allow_back:
+        nav_row.append(_button("Back", ACTION_ENGAGEMENT_TOPIC_BRIEF, "nav", "back"))
+    if allow_save_later:
+        nav_row.append(_button("Save later", ACTION_ENGAGEMENT_TOPIC_BRIEF, "nav", "later"))
+    nav_row.append(_button("Cancel", ACTION_CONFIG_EDIT_CANCEL))
+    rows.append(nav_row)
+    return _inline_markup(rows)
+
+
+__all__ = [
+    "engagement_topic_actions_markup",
+    "engagement_topic_pager_markup",
+    "engagement_topic_brief_step_markup",
+    "engagement_topic_brief_example_markup",
+    "engagement_topic_brief_confirmation_markup",
+]

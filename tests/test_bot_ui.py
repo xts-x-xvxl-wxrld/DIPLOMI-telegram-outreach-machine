@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import pytest
 
@@ -29,6 +29,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_CANDIDATE_OPEN,
     ACTION_ENGAGEMENT_CANDIDATE_RETRY,
     ACTION_ENGAGEMENT_CANDIDATE_REVISIONS,
+    ACTION_ENGAGEMENT_CANDIDATE_STYLE,
     ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_DETAIL,
     ACTION_ENGAGEMENT_HOME,
@@ -65,6 +66,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_TOPIC_LIST,
     ACTION_ENGAGEMENT_TOPIC_OPEN,
     ACTION_OP_ACCOUNTS,
+    ACTION_OP_ACCOUNT_HEALTH,
     ACTION_OP_ADD_ACCOUNT,
     ACTION_OP_ACCOUNT_SKIP,
     ACTION_OP_ADD,
@@ -88,6 +90,7 @@ from bot.ui import (
     engagement_account_confirm_markup,
     engagement_candidate_actions_markup,
     engagement_candidate_detail_markup,
+    engagement_candidate_style_scope_markup,
     engagement_candidate_filter_markup,
     engagement_candidate_pager_markup,
     engagement_candidate_revisions_markup,
@@ -363,6 +366,35 @@ def test_engagement_candidate_detail_markup_is_state_aware() -> None:
     assert "eng:cand:send:candidate-3" not in _callbacks(sent)
 
 
+def test_engagement_candidate_detail_markup_exposes_learning_shortcuts_when_enabled() -> None:
+    markup = engagement_candidate_detail_markup(
+        "candidate-1",
+        status="needs_review",
+        allow_save_good_example=True,
+        allow_create_style_rule=True,
+    )
+
+    callbacks = _callbacks(markup)
+
+    assert f"{ACTION_ENGAGEMENT_CANDIDATE_STYLE}:candidate-1" in callbacks
+    assert "eng:cand:savegood:candidate-1" in callbacks
+
+
+def test_engagement_candidate_style_scope_markup_offers_available_scopes() -> None:
+    markup = engagement_candidate_style_scope_markup(
+        "candidate-1",
+        allow_global=True,
+        allow_community=True,
+        allow_topic=True,
+    )
+
+    callbacks = _callbacks(markup)
+
+    assert f"{ACTION_ENGAGEMENT_CANDIDATE_STYLE}:candidate-1:global" in callbacks
+    assert f"{ACTION_ENGAGEMENT_CANDIDATE_STYLE}:candidate-1:community" in callbacks
+    assert f"{ACTION_ENGAGEMENT_CANDIDATE_STYLE}:candidate-1:topic" in callbacks
+
+
 def test_engagement_candidate_revisions_markup_only_reopens_candidate_detail() -> None:
     markup = engagement_candidate_revisions_markup("candidate-1")
 
@@ -403,7 +435,7 @@ def test_engagement_home_markup_links_core_surfaces() -> None:
     assert rows[3][1].text.startswith("📜 ")
     assert rows[3][1].text.endswith("Actions")
     assert rows[3][1].callback_data == f"{ACTION_ENGAGEMENT_ACTIONS}:0"
-    assert rows[4][0].text.startswith("🛠 ")
+    assert rows[4][0].text == "🛠 Setup"
     assert rows[4][0].callback_data == ACTION_ENGAGEMENT_ADMIN
 
 
@@ -478,6 +510,15 @@ def test_engagement_settings_lookup_markup_lists_approved_communities() -> None:
     assert ACTION_OP_HOME in callbacks
 
 
+
+def test_engagement_settings_lookup_markup_offers_communities_button_when_empty() -> None:
+    markup = engagement_settings_lookup_markup([], offset=0, total=0, page_size=5)
+
+    callbacks = _callbacks(markup)
+    labels = _labels(markup)
+
+    assert f"{ACTION_ENGAGEMENT_TARGETS}:0" in callbacks
+    assert any(label.endswith("Communities") for label in labels)
 def test_engagement_target_list_markup_filters_and_pages() -> None:
     markup = engagement_target_list_markup(status="approved", offset=5, total=12, page_size=5)
     rows = markup.inline_keyboard
@@ -750,10 +791,12 @@ def test_accounts_cockpit_markup_exposes_add_account_buttons() -> None:
     callbacks = _callbacks(markup)
     labels = _labels(markup)
 
+    assert ACTION_OP_ACCOUNT_HEALTH in callbacks
     assert f"{ACTION_OP_ADD_ACCOUNT}:search" in callbacks
     assert f"{ACTION_OP_ADD_ACCOUNT}:engagement" in callbacks
     assert ACTION_OP_ACCOUNTS in callbacks
     assert ACTION_OP_HOME in callbacks
+    assert any(label.endswith("Run health check") for label in labels)
     assert any(label.endswith("Add search") for label in labels)
     assert any(label.endswith("Add engagement") for label in labels)
 
@@ -833,6 +876,7 @@ def test_parse_op_callbacks() -> None:
         "op:add": (ACTION_OP_ADD, []),
         "op:discovery": (ACTION_OP_DISCOVERY, []),
         "op:accounts": (ACTION_OP_ACCOUNTS, []),
+        "op:accthealth": (ACTION_OP_ACCOUNT_HEALTH, []),
         "op:addacct:search": (ACTION_OP_ADD_ACCOUNT, ["search"]),
         "op:acctskip": (ACTION_OP_ACCOUNT_SKIP, []),
         "op:help": (ACTION_OP_HELP, []),
@@ -879,3 +923,5 @@ def test_parse_task_first_engagement_callback_families() -> None:
     }
     for raw_data, expected in cases.items():
         assert parse_callback_data(raw_data) == expected
+
+

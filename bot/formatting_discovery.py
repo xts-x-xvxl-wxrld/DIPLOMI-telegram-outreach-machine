@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -76,21 +76,16 @@ def format_discovery_help() -> str:
             _bullet("Direct handle intake: send @username or a public t.me link."),
             _bullet("No people search and no person-level scores.", icon="🛡"),
             "",
-            _section("Commands", icon="⌨"),
-            "/search <plain language query>",
-            "/searches",
-            "/search_run <search_run_id>",
-            "/search_candidates <search_run_id>",
-            "/seeds",
-            "/seed <seed_group_id>",
-            "/channels <seed_group_id>",
-            "/candidates <seed_group_id>",
-            "/community <community_id>",
-            "/snapshot <community_id>",
-            "/job <job_id>",
+            _section("Buttons", icon="🔘"),
+            _bullet("Start search launches a new discovery run."),
+            _bullet("Needs attention collects blocked or stalled work."),
+            _bullet("Review communities opens the candidate-review queue."),
+            _bullet("Watching and Recent activity open live discovery follow-up views."),
+            _bullet(
+                "Seed groups, channels, candidates, communities, snapshots, members, and jobs continue through the inline cards they open."
+            ),
         ]
     )
-
 
 def format_help() -> str:
     return "\n".join(
@@ -101,23 +96,17 @@ def format_help() -> str:
             _bullet("CSV upload: group_name,channel"),
             _bullet("Direct add: send @username or a public t.me link."),
             "",
-            _section("Commands", icon="⌨"),
-            "/search <query> - start a community search",
-            "/searches - recent community searches",
-            "/seeds - browse searches",
-            "/seed <id> - open a search",
-            "/engagement - engagement cockpit",
-            "/engagement_admin - admin controls",
-            "/accounts - account pool health",
-            "/add_account <search|engagement> <phone> [session_name] [notes...]",
-            "/whoami - show your Telegram ID for allowlist onboarding",
-            "/job <id> - check a background job",
+            _section("Buttons", icon="🔘"),
+            _bullet("Discovery opens search, review, and community follow-up work."),
+            _bullet("Engagement opens reply review, issues, sent messages, and setup."),
+            _bullet("Accounts opens account health plus add-account actions."),
+            _bullet("Help returns to this card."),
             "",
-            _section("Optional", icon="🧪"),
-            "/brief <description>",
+            _section("Notes", icon="📌"),
+            _bullet("Hidden compatibility commands still work if you type them manually."),
+            _bullet("Use the inline cards for normal navigation."),
         ]
     )
-
 
 def format_start() -> str:
     return "\n".join(
@@ -126,54 +115,23 @@ def format_start() -> str:
             "",
             _section("Primary flow", icon="🧭"),
             "1. Upload a CSV with group_name,channel columns",
-            "2. Open seed groups with /seeds",
-            "3. Resolve one group",
-            "4. Review candidates inline",
+            "2. Open Discovery",
+            "3. Start search or review queued communities",
+            "4. Open community cards for snapshots, members, and engagement setup",
             "",
             _section("Quick add", icon="➕"),
             "Send @username or a public t.me link to classify and save it.",
             "",
-            _section("Core commands", icon="⌨"),
-            "/search <plain language query>",
-            "/searches",
-            "/search_run <search_run_id>",
-            "/search_candidates <search_run_id>",
-            "/seeds",
-            "/seed <seed_group_id>",
-            "/channels <seed_group_id>",
-            "/candidates <seed_group_id>",
-            "/community <community_id>",
-            "/snapshot <community_id>",
-            "/members <community_id>",
-            "/exportmembers <community_id>",
-            "/engagement",
-            "/engagement_admin",
-            "/engagement_candidates",
-            "/engagement_targets",
-            "/engagement_target <target_id>",
-            "/engagement_prompts",
-            "/create_engagement_prompt <name> | <description_or_dash> | <model> | <temperature> | <max_output_tokens> | <system_prompt> | <user_prompt_template>",
-            "/engagement_style",
-            "/engagement_rollout",
-            "/engagement_candidate <candidate_id>",
-            "/approve_reply <candidate_id>",
-            "/edit_reply <candidate_id> | <final_reply>",
-            "/candidate_revisions <candidate_id>",
-            "/expire_candidate <candidate_id>",
-            "/retry_candidate <candidate_id>",
-            "/reject_reply <candidate_id>",
-            "/send_reply <candidate_id>",
-            "/entity <intake_id>",
-            "/job <job_id>",
-            "/accounts",
-            "/add_account <search|engagement> <phone> [session_name] [notes...]",
-            "/whoami",
+            _section("Cockpit", icon="🔘"),
+            _bullet("Discovery covers search intake, review queues, and recent activity."),
+            _bullet("Engagement covers reply work, issues, sent messages, and setup."),
+            _bullet("Accounts covers health plus add search/add engagement onboarding."),
+            _bullet("Use the inline cards inside each area for deeper actions."),
             "",
-            _section("Optional/future", icon="🧪"),
-            "/brief <audience description>",
+            _section("Optional", icon="🧪"),
+            _bullet("Brief intake remains a hidden compatibility path."),
         ]
     )
-
 
 def format_briefs_unavailable() -> str:
     return (
@@ -663,3 +621,6 @@ def format_access_denied(user_id: int | None, username: str | None = None) -> st
     if user_id is not None:
         lines.append(_bullet("Ask the operator to add this ID to TELEGRAM_ALLOWED_USER_IDS.", icon="➡"))
     return "\n".join(lines)
+
+
+

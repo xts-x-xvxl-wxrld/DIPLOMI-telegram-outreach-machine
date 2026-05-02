@@ -1,4 +1,4 @@
-# ruff: noqa: F401,F403,F405,E402
+﻿# ruff: noqa: F401,F403,F405,E402
 from __future__ import annotations
 
 from typing import Any
@@ -10,13 +10,22 @@ from .ui_common import expand_uuid
 
 
 # ---------------------------------------------------------------------------
-# Mode mapping: wizard "level" labels → API mode values
+# Mode mapping: wizard sending-mode labels -> API mode values
 # ---------------------------------------------------------------------------
 
 _WIZARD_LEVEL_MODE = {
-    "watching": "observe",
-    "suggesting": "suggest",
-    "sending": "require_approval",
+    "draft": "suggest",
+    "auto_send": "auto_limited",
+}
+
+_LEGACY_WIZARD_LEVEL_ALIASES = {
+    "watching": "draft",
+    "suggesting": "draft",
+    "sending": "auto_send",
+    "observe": "draft",
+    "suggest": "draft",
+    "require_approval": "auto_send",
+    "auto_limited": "auto_send",
 }
 
 
@@ -45,7 +54,11 @@ def _wizard_state_account_id(state: dict[str, Any]) -> str | None:
 
 
 def _wizard_state_mode(state: dict[str, Any]) -> str | None:
-    return state.get("mode") or None
+    mode = state.get("mode") or None
+    if mode is None:
+        return None
+    mode_value = str(mode)
+    return _LEGACY_WIZARD_LEVEL_ALIASES.get(mode_value, mode_value)
 
 
 # ---------------------------------------------------------------------------
@@ -84,14 +97,6 @@ async def _start_engagement_wizard(
         await _wizard_resolve_target(update, context, operator_id, target_ref)
         return
 
-    # Check for resumable state
-    existing = _config_edit_store(context).get(operator_id)
-    if existing and existing.entity == "wizard":
-        state = _wizard_state(existing)
-        if state.get("engagement_id"):
-            await _wizard_show_appropriate_step(update, context, operator_id, state)
-            return
-
     # Start fresh
     _config_edit_store(context).start(
         operator_id=operator_id,
@@ -125,7 +130,11 @@ def _fresh_wizard_state() -> dict[str, Any]:
 
 
 async def _show_wizard_step1(update: Any, context: Any) -> None:
-    await _callback_reply(update, format_wizard_community_prompt())
+    await _callback_reply(
+        update,
+        format_wizard_community_prompt(),
+        reply_markup=engagement_wizard_step1_markup(),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +282,7 @@ async def _show_wizard_step5(update: Any, context: Any, state: dict[str, Any]) -
     engagement_id = _wizard_state_engagement_id(state)
     topic_id = _wizard_state_topic_id(state)
     account_id = _wizard_state_account_id(state)
-    mode = _wizard_state_mode(state) or "suggesting"
+    mode = _wizard_state_mode(state) or "draft"
     client = _api_client(context)
     # Resolve topic name
     topic_names: list[str] = [topic_id] if topic_id else []
@@ -315,7 +324,6 @@ async def _show_wizard_step5(update: Any, context: Any, state: dict[str, Any]) -
 async def _wizard_show_appropriate_step(
     update: Any,
     context: Any,
-    operator_id: int,
     state: dict[str, Any],
 ) -> None:
     engagement_id = _wizard_state_engagement_id(state)
@@ -338,11 +346,6 @@ async def _wizard_show_appropriate_step(
     await _show_wizard_step5(update, context, state)
 
 
-# ---------------------------------------------------------------------------
-# Text handler (Step 1: user types target URL/handle)
-# ---------------------------------------------------------------------------
-
-
 async def _handle_wizard_text(
     update: Any,
     context: Any,
@@ -355,7 +358,7 @@ async def _handle_wizard_text(
 
     step = pending.flow_step or "target"
     if step != "target":
-        await _reply(update, "Use the buttons to continue the wizard, or /cancel_edit to stop.")
+        await _reply(update, "Use the wizard buttons to continue, go back, or cancel setup.")
         return True
 
     text = raw_text.strip()
@@ -443,7 +446,7 @@ async def _handle_wizard_callback(update: Any, context: Any, parts: list[str]) -
     # eng:wz:cancel_yes:<engagement_id>
     if sub == "cancel_yes" and len(parts) >= 2:
         _config_edit_store(context).cancel(operator_id)
-        await _edit_callback_message(update, "Wizard cancelled. Use /add_engagement_target to start again.")
+        await _edit_callback_message(update, "Wizard cancelled. Return to Engagements when you want to start again.")
         return
 
     await _callback_reply(update, "Unknown wizard action.")
@@ -457,7 +460,7 @@ async def _handle_wizard_navigate_step(
 ) -> None:
     pending = _config_edit_store(context).get(operator_id)
     if pending is None or pending.entity != "wizard":
-        await _callback_reply(update, "Wizard session expired. Use /add_engagement_target to start again.")
+        await _callback_reply(update, "Wizard session expired. Return to Engagements and start again.")
         return
     state = _wizard_state(pending)
     n = step_num
@@ -485,7 +488,7 @@ async def _handle_wizard_pick_topic(
 ) -> None:
     pending = _config_edit_store(context).get(operator_id)
     if pending is None or pending.entity != "wizard":
-        await _callback_reply(update, "Wizard session expired. Use /add_engagement_target to start again.")
+        await _callback_reply(update, "Wizard session expired. Return to Engagements and start again.")
         return
     state = _wizard_state(pending)
 
@@ -549,12 +552,12 @@ async def _handle_wizard_create_topic(
 ) -> None:
     pending = _config_edit_store(context).get(operator_id)
     if pending is None or pending.entity != "wizard":
-        await _callback_reply(update, "Wizard session expired. Use /add_engagement_target to start again.")
+        await _callback_reply(update, "Wizard session expired. Return to Engagements and start again.")
         return
 
     state = _wizard_state(pending)
     if _wizard_state_engagement_id(state) != engagement_id:
-        await _callback_reply(update, "Wizard session is out of sync. Use /add_engagement_target to start again.")
+        await _callback_reply(update, "Wizard session is out of sync. Return to Engagements and start again.")
         return
 
     _wizard_return_save(context, operator_id, state)
@@ -570,7 +573,7 @@ async def _handle_wizard_account_pick(
 ) -> None:
     pending = _config_edit_store(context).get(operator_id)
     if pending is None or pending.entity != "wizard":
-        await _callback_reply(update, "Wizard session expired. Use /add_engagement_target to start again.")
+        await _callback_reply(update, "Wizard session expired. Return to Engagements and start again.")
         return
     state = _wizard_state(pending)
     state["account_id"] = account_id
@@ -649,11 +652,13 @@ async def _handle_wizard_level(
     engagement_id: str,
 ) -> None:
     if level not in _WIZARD_LEVEL_MODE:
-        await _callback_reply(update, f"Unknown level: {level}.")
-        return
+        level = _LEGACY_WIZARD_LEVEL_ALIASES.get(level, level)
+        if level not in _WIZARD_LEVEL_MODE:
+            await _callback_reply(update, f"Unknown level: {level}.")
+            return
     pending = _config_edit_store(context).get(operator_id)
     if pending is None or pending.entity != "wizard":
-        await _callback_reply(update, "Wizard session expired. Use /add_engagement_target to start again.")
+        await _callback_reply(update, "Wizard session expired. Return to Engagements and start again.")
         return
     state = _wizard_state(pending)
     state["mode"] = level
@@ -769,7 +774,7 @@ async def _handle_wizard_confirm(
 ) -> None:
     pending = _config_edit_store(context).get(operator_id)
     if pending is None or pending.entity != "wizard":
-        await _callback_reply(update, "Wizard session expired. Use /add_engagement_target to start again.")
+        await _callback_reply(update, "Wizard session expired. Return to Engagements and start again.")
         return
 
     client = _api_client(context)
@@ -794,7 +799,7 @@ async def _handle_wizard_confirm(
         message = str(result.get("message") or "Engagement started")
         await _edit_callback_message(
             update,
-            f"🎉 {message} ✓ — first results will appear in the cockpit shortly. Use /engagement to view.",
+            f"🎉 {message} ✓ — first results will appear in the cockpit shortly. Return to Engagements to view them.",
         )
         return
 
@@ -934,3 +939,6 @@ __all__ = [
     "_wizard_resume_after_topic_create",
     "_wizard_return_pop",
 ]
+
+
+

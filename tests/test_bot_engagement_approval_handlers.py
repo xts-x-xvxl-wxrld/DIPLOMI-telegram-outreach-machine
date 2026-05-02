@@ -75,11 +75,12 @@ class _FakeUpdate:
 
 class _FakeApiClient:
     def __init__(self) -> None:
-        self.approval_calls: list[str] = []
-        self.scoped_approval_calls: list[str] = []
+        self.approval_calls: list[dict[str, Any]] = []
+        self.scoped_approval_calls: list[dict[str, Any]] = []
         self.approve_calls: list[str] = []
         self.reject_calls: list[str] = []
         self.edit_calls: list[dict[str, Any]] = []
+        self.home_calls: int = 0
 
         self._global_approvals: dict[str, Any] = {
             "queue_count": 1,
@@ -95,6 +96,17 @@ class _FakeApiClient:
                 "badge": None,
             },
         }
+        self._approval_items: list[dict[str, Any]] = [
+            dict(self._global_approvals["current"]),
+            {
+                "draft_id": "draft-xyz",
+                "engagement_id": "eng-2",
+                "target_label": "Dev Circle",
+                "text": "Keep the rollout narrower and more specific.",
+                "why": "Follow up on the target's last thread.",
+                "badge": None,
+            },
+        ]
 
         self._scoped_approvals: dict[str, Any] = {
             "queue_count": 1,
@@ -131,14 +143,125 @@ class _FakeApiClient:
             "draft_id": "draft-abc",
             "engagement_id": "eng-1",
         }
+        self._home_payload: dict[str, Any] = {
+            "state": "clear",
+            "draft_count": 0,
+            "issue_count": 0,
+            "active_engagement_count": 2,
+            "has_sent_messages": True,
+        }
 
-    async def get_engagement_cockpit_approvals(self) -> dict[str, Any]:
-        self.approval_calls.append("global")
-        return dict(self._global_approvals)
+    def _approval_payload(
+        self,
+        *,
+        engagement_id: str | None = None,
+        draft_id: str | None = None,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        if self._global_approvals.get("current") is None:
+            return dict(self._global_approvals)
+        items = self._approval_items
+        if engagement_id is not None:
+            items = [item for item in items if item.get("engagement_id") == engagement_id]
+        if not items:
+            return {
+                "queue_count": 0,
+                "updating_count": 0,
+                "offset": 0,
+                "empty_state": self._global_approvals.get("empty_state", ""),
+                "placeholders": [],
+                "current": None,
+            }
+        selected_index = max(0, min(offset, len(items) - 1))
+        if draft_id is not None:
+            for index, item in enumerate(items):
+                if item.get("draft_id") == draft_id:
+                    selected_index = index
+                    break
+            else:
+                return {
+                    "queue_count": len(items),
+                    "updating_count": 0,
+                    "offset": 0,
+                    "empty_state": self._global_approvals.get("empty_state", ""),
+                    "placeholders": [],
+                    "current": None,
+                }
+        return {
+            "queue_count": len(items),
+            "updating_count": 0,
+            "offset": selected_index,
+            "empty_state": self._global_approvals.get("empty_state", ""),
+            "placeholders": [],
+            "current": dict(items[selected_index]),
+        }
 
-    async def get_engagement_cockpit_approvals_for_engagement(self, engagement_id: str) -> dict[str, Any]:
-        self.scoped_approval_calls.append(engagement_id)
-        return dict(self._scoped_approvals)
+    async def get_engagement_cockpit_approvals(
+        self,
+        *,
+        offset: int = 0,
+        draft_id: str | None = None,
+    ) -> dict[str, Any]:
+        self.approval_calls.append({"offset": offset, "draft_id": draft_id})
+        return self._approval_payload(offset=offset, draft_id=draft_id)
+
+    async def get_engagement_cockpit_approvals_for_engagement(
+        self,
+        engagement_id: str,
+        *,
+        offset: int = 0,
+        draft_id: str | None = None,
+    ) -> dict[str, Any]:
+        self.scoped_approval_calls.append(
+            {"engagement_id": engagement_id, "offset": offset, "draft_id": draft_id}
+        )
+        scoped = dict(self._scoped_approvals)
+        current = scoped.get("current")
+        if current is None:
+            return {
+                "queue_count": int(scoped.get("queue_count", 0)),
+                "updating_count": int(scoped.get("updating_count", 0)),
+                "offset": 0,
+                "empty_state": scoped.get("empty_state", ""),
+                "placeholders": list(scoped.get("placeholders", [])),
+                "current": None,
+            }
+
+        items = [item for item in self._approval_items if item.get("engagement_id") == engagement_id]
+        if not items:
+            return {
+                "queue_count": 0,
+                "updating_count": int(scoped.get("updating_count", 0)),
+                "offset": 0,
+                "empty_state": scoped.get("empty_state", ""),
+                "placeholders": list(scoped.get("placeholders", [])),
+                "current": None,
+            }
+
+        selected_index = max(0, min(offset, len(items) - 1))
+        if draft_id is not None:
+            for index, item in enumerate(items):
+                if item.get("draft_id") == draft_id:
+                    selected_index = index
+                    break
+            else:
+                return {
+                    "queue_count": len(items),
+                    "updating_count": int(scoped.get("updating_count", 0)),
+                    "offset": 0,
+                    "empty_state": scoped.get("empty_state", ""),
+                    "placeholders": list(scoped.get("placeholders", [])),
+                    "current": None,
+                }
+
+        return {
+            "queue_count": len(items),
+            "updating_count": int(scoped.get("updating_count", 0)),
+            "offset": selected_index,
+            "empty_state": scoped.get("empty_state", ""),
+            "placeholders": list(scoped.get("placeholders", [])),
+            "current": dict(items[selected_index]),
+        }
 
     async def approve_engagement_cockpit_draft(self, draft_id: str) -> dict[str, Any]:
         self.approve_calls.append(draft_id)
@@ -157,6 +280,10 @@ class _FakeApiClient:
     ) -> dict[str, Any]:
         self.edit_calls.append({"draft_id": draft_id, "edit_request": edit_request})
         return dict(self._edit_result)
+
+    async def get_engagement_cockpit_home(self) -> dict[str, Any]:
+        self.home_calls += 1
+        return dict(self._home_payload)
 
 
 def _context(client: _FakeApiClient) -> Any:
@@ -184,6 +311,19 @@ def _callback_data_values(markup: Any) -> list[str]:
             if cd:
                 result.append(cd)
     return result
+
+
+def _rendered_text(update: _FakeUpdate) -> str:
+    edits = getattr(update.callback_query, "edits", []) if update.callback_query else []
+    if edits:
+        return edits[-1]["text"]
+    replies = getattr(update.callback_query.message, "replies", []) if update.callback_query else []
+    if replies:
+        return replies[-1]["text"]
+    replies = getattr(update.message, "replies", []) if update.message else []
+    if replies:
+        return replies[-1]["text"]
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -305,7 +445,7 @@ async def test_global_queue_shows_header_and_draft_card() -> None:
     replies = update.callback_query.message.replies
     assert len(replies) >= 2
     assert "draft-abc" in replies[1]["text"] or "Founder Circle" in replies[1]["text"]
-    assert client.approval_calls == ["global"]
+    assert client.approval_calls == [{"offset": 0, "draft_id": None}]
 
 
 @pytest.mark.asyncio
@@ -380,7 +520,9 @@ async def test_scoped_queue_shows_drafts_for_engagement() -> None:
 
     await show_scoped_approval_queue(update, ctx, engagement_id="eng-1")
 
-    assert client.scoped_approval_calls == ["eng-1"]
+    assert client.scoped_approval_calls == [
+        {"engagement_id": "eng-1", "offset": 0, "draft_id": None}
+    ]
     replies = update.callback_query.message.replies
     assert len(replies) >= 2
 
@@ -456,23 +598,24 @@ async def test_show_draft_card_renders_card_with_actions() -> None:
     assert any("appr:ok:draft-abc" in cb for cb in callbacks)
     assert any("appr:no:draft-abc" in cb for cb in callbacks)
     assert any("appr:edit:draft-abc" in cb for cb in callbacks)
+    assert "eng:home" in callbacks
+    assert "op:home" not in callbacks
 
 
 @pytest.mark.asyncio
 async def test_show_draft_card_for_non_current_draft_still_renders() -> None:
     client = _FakeApiClient()
-    # Make the global queue return a different draft
-    client._global_approvals["current"]["draft_id"] = "draft-xyz"
-    update = _callback_update("eng:appr:open:draft-abc")
+    update = _callback_update("eng:appr:open:draft-xyz")
     ctx = _context(client)
 
-    await show_draft_card(update, ctx, draft_id="draft-abc")
+    await show_draft_card(update, ctx, draft_id="draft-xyz")
 
     replies = update.callback_query.message.replies
     assert len(replies) == 1
-    # Should still render with the draft_id we requested
     text = replies[0]["text"]
-    assert "draft-abc" in text
+    assert "draft-xyz" in text
+    assert "Dev Circle" in text
+    assert client.approval_calls[-1] == {"offset": 0, "draft_id": "draft-xyz"}
 
 
 # ---------------------------------------------------------------------------
@@ -505,17 +648,22 @@ async def test_approve_confirm_shows_confirmation_without_backend_call() -> None
 @pytest.mark.asyncio
 async def test_approve_confirmed_calls_backend_and_shows_result() -> None:
     client = _FakeApiClient()
+    client._global_approvals = {
+        "queue_count": 0,
+        "updating_count": 0,
+        "empty_state": "",
+        "placeholders": [],
+        "current": None,
+    }
     update = _callback_update("eng:appr:okc:draft-abc")
     ctx = _context(client)
 
     await handle_approve_confirmed(update, ctx, draft_id="draft-abc")
 
     assert client.approve_calls == ["draft-abc"]
-    replies = update.callback_query.message.replies
-    assert len(replies) == 1
-    text = replies[0]["text"]
-    assert "approved" in text.lower()
-    assert "draft-abc" in text
+    assert client.home_calls == 1
+    text = _rendered_text(update)
+    assert "Engagements" in text
 
 
 @pytest.mark.asyncio
@@ -531,9 +679,9 @@ async def test_approve_confirmed_shows_stale_result() -> None:
 
     await handle_approve_confirmed(update, ctx, draft_id="draft-abc")
 
-    replies = update.callback_query.message.replies
-    text = replies[0]["text"]
-    assert "stale" in text
+    assert client.approval_calls == [{"offset": 0, "draft_id": None}]
+    text = _rendered_text(update)
+    assert "Founder Circle" in text or "draft-abc" in text
 
 
 # ---------------------------------------------------------------------------
@@ -565,17 +713,22 @@ async def test_reject_confirm_shows_confirmation_without_backend_call() -> None:
 @pytest.mark.asyncio
 async def test_reject_confirmed_calls_backend_and_shows_result() -> None:
     client = _FakeApiClient()
+    client._global_approvals = {
+        "queue_count": 0,
+        "updating_count": 0,
+        "empty_state": "",
+        "placeholders": [],
+        "current": None,
+    }
     update = _callback_update("eng:appr:noc:draft-abc")
     ctx = _context(client)
 
     await handle_reject_confirmed(update, ctx, draft_id="draft-abc")
 
     assert client.reject_calls == ["draft-abc"]
-    replies = update.callback_query.message.replies
-    assert len(replies) == 1
-    text = replies[0]["text"]
-    assert "rejected" in text.lower()
-    assert "draft-abc" in text
+    assert client.home_calls == 1
+    text = _rendered_text(update)
+    assert "Engagements" in text
 
 
 # ---------------------------------------------------------------------------
@@ -629,6 +782,13 @@ async def test_edit_request_text_calls_backend_and_shows_confirmation() -> None:
     client = _FakeApiClient()
     update = _message_update("Please make it shorter.", user_id=42)
     ctx = _context(client)
+    client._global_approvals = {
+        "queue_count": 0,
+        "updating_count": 0,
+        "empty_state": "",
+        "placeholders": [],
+        "current": None,
+    }
 
     # Pre-store a pending edit
     store = ctx.application.bot_data.setdefault(APPROVAL_EDIT_STORE_KEY, {})
@@ -637,11 +797,9 @@ async def test_edit_request_text_calls_backend_and_shows_confirmation() -> None:
     await handle_edit_request_text(update, ctx, text="Please make it shorter.", draft_id="draft-abc")
 
     assert client.edit_calls == [{"draft_id": "draft-abc", "edit_request": "Please make it shorter."}]
-    replies = update.message.replies
-    assert len(replies) == 1
-    text = replies[0]["text"]
-    assert "draft-abc" in text
-    assert "queued" in text.lower() or "queued_update" in text
+    assert client.home_calls == 1
+    text = _rendered_text(update)
+    assert "Engagements" in text
 
 
 @pytest.mark.asyncio
@@ -725,9 +883,9 @@ async def test_reject_confirmed_stale_result() -> None:
 
     await handle_reject_confirmed(update, ctx, draft_id="draft-abc")
 
-    replies = update.callback_query.message.replies
-    text = replies[0]["text"]
-    assert "stale" in text
+    assert client.approval_calls == [{"offset": 0, "draft_id": None}]
+    text = _rendered_text(update)
+    assert "Founder Circle" in text or "draft-abc" in text
 
 
 # ---------------------------------------------------------------------------

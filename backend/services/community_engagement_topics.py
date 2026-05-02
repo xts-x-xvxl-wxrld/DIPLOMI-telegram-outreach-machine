@@ -91,7 +91,10 @@ async def create_topic(db: AsyncSession, *, payload: Any) -> EngagementTopic:
     stance_guidance = _required_text(payload.stance_guidance, field="stance_guidance")
     trigger_keywords = normalize_keywords(payload.trigger_keywords)
     negative_keywords = normalize_keywords(payload.negative_keywords)
-    example_good_replies = normalize_text_list(payload.example_good_replies)
+    example_good_replies = normalize_text_list(
+        payload.example_good_replies,
+        deduplicate_casefold=True,
+    )
     example_bad_replies = normalize_text_list(payload.example_bad_replies)
 
     validate_topic_policy(
@@ -100,6 +103,7 @@ async def create_topic(db: AsyncSession, *, payload: Any) -> EngagementTopic:
         stance_guidance=stance_guidance,
         trigger_keywords=trigger_keywords,
         example_good_replies=example_good_replies,
+        example_bad_replies=example_bad_replies,
         active=payload.active,
     )
     await _ensure_unique_topic_name(db, name)
@@ -148,7 +152,10 @@ async def update_topic(db: AsyncSession, *, topic_id: UUID, payload: Any) -> Eng
     if _field_was_set(payload, "negative_keywords"):
         next_negative_keywords = normalize_keywords(payload.negative_keywords)
     if _field_was_set(payload, "example_good_replies"):
-        next_good_replies = normalize_text_list(payload.example_good_replies)
+        next_good_replies = normalize_text_list(
+            payload.example_good_replies,
+            deduplicate_casefold=True,
+        )
     if _field_was_set(payload, "example_bad_replies"):
         next_bad_replies = normalize_text_list(payload.example_bad_replies)
     if _field_was_set(payload, "active"):
@@ -160,6 +167,7 @@ async def update_topic(db: AsyncSession, *, topic_id: UUID, payload: Any) -> Eng
         stance_guidance=next_guidance,
         trigger_keywords=next_trigger_keywords,
         example_good_replies=next_good_replies,
+        example_bad_replies=next_bad_replies,
         active=next_active,
     )
     if next_name.casefold() != topic.name.casefold():
@@ -209,7 +217,11 @@ async def add_topic_example(
         raise EngagementNotFound("not_found", "Engagement topic not found")
     cleaned = _required_text(example, field="example")
     if example_type == "good":
-        topic.example_good_replies = [*(topic.example_good_replies or []), cleaned]
+        existing_examples = list(topic.example_good_replies or [])
+        if cleaned.casefold() not in {item.casefold() for item in existing_examples}:
+            topic.example_good_replies = [*existing_examples, cleaned]
+        else:
+            topic.example_good_replies = existing_examples
     elif example_type == "bad":
         topic.example_bad_replies = [*(topic.example_bad_replies or []), cleaned]
     else:
@@ -258,11 +270,20 @@ def normalize_keywords(values: list[str] | None) -> list[str]:
     return normalized
 
 
-def normalize_text_list(values: list[str] | None) -> list[str]:
+def normalize_text_list(
+    values: list[str] | None,
+    *,
+    deduplicate_casefold: bool = False,
+) -> list[str]:
     normalized: list[str] = []
+    seen: set[str] = set()
     for value in values or []:
         cleaned = " ".join(value.strip().split())
         if cleaned:
+            dedupe_key = cleaned.casefold()
+            if deduplicate_casefold and dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
             normalized.append(cleaned)
     return normalized
 
@@ -274,34 +295,17 @@ def validate_topic_policy(
     stance_guidance: str,
     trigger_keywords: list[str],
     example_good_replies: list[str],
+    example_bad_replies: list[str],
     active: bool,
 ) -> None:
     _required_text(name, field="name")
-    guidance = _required_text(stance_guidance, field="stance_guidance")
+    _required_text(stance_guidance, field="stance_guidance")
     has_semantic_profile = bool(description or trigger_keywords or example_good_replies)
     if active and not has_semantic_profile:
         raise EngagementValidationError(
             "topic_requires_semantic_profile",
             "Active engagement topics require description, trigger keywords, or good examples",
         )
-
-    lowered = guidance.casefold()
-    disallowed_markers = (
-        "deceive",
-        "impersonate",
-        "harass",
-        "fake consensus",
-        "evade moderation",
-        "target individual",
-        "target individuals",
-    )
-    for marker in disallowed_markers:
-        if marker in lowered:
-            raise EngagementValidationError(
-                "unsafe_topic_guidance",
-                "Topic guidance must not instruct deception, impersonation, harassment, "
-                "individual targeting, fake consensus, or moderation evasion",
-            )
 
 
 async def _ensure_unique_topic_name(

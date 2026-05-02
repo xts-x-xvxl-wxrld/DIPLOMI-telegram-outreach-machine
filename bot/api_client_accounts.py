@@ -4,6 +4,17 @@ from typing import Any
 
 
 class AccountApiClientMixin:
+    async def start_account_health_refresh(
+        self,
+        *,
+        spot_check_limit: int = 2,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "POST",
+            "/telegram-accounts/health-refresh-jobs",
+            json={"spot_check_limit": spot_check_limit},
+        )
+
     async def start_account_onboarding(
         self,
         *,

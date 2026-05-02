@@ -16,11 +16,13 @@ from bot.formatting_engagement_approval import (
     format_reject_confirm,
     format_approval_queue_header,
 )
+from bot.formatting_engagement_home import format_cockpit_home
+from bot.ui_engagement_home import cockpit_home_markup
 from bot.ui_common import (
+    ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_APPROVAL_QUEUE,
     _button,
     _inline_markup,
-    _with_navigation,
 )
 
 # Store key for pending approval edits (separate from config edit store)
@@ -41,6 +43,19 @@ _EDIT = "edit"
 # Markup helpers
 # ---------------------------------------------------------------------------
 
+def _engagement_markup(
+    rows: list[list[Any]],
+    *,
+    back_action: str | None = None,
+    back_parts: tuple[str, ...] = (),
+) -> Any:
+    footer: list[Any] = []
+    if back_action is not None:
+        footer.append(_button("Back", back_action, *back_parts))
+    footer.append(_button("<< Engagements", ACTION_ENGAGEMENT_HOME))
+    return _inline_markup([*rows, footer])
+
+
 def _draft_card_markup(draft_id: str) -> Any:
     rows = [
         [
@@ -51,7 +66,11 @@ def _draft_card_markup(draft_id: str) -> Any:
             _button("✏ Request edit", ACTION_ENGAGEMENT_APPROVAL_QUEUE, _EDIT, draft_id),
         ],
     ]
-    return _inline_markup(_with_navigation(rows, back_action=ACTION_ENGAGEMENT_APPROVAL_QUEUE, back_parts=(_LIST, "0")))
+    return _engagement_markup(
+        rows,
+        back_action=ACTION_ENGAGEMENT_APPROVAL_QUEUE,
+        back_parts=(_LIST, "0"),
+    )
 
 
 def _approve_confirm_markup(draft_id: str) -> Any:
@@ -80,11 +99,11 @@ def _queue_list_markup(*, has_current: bool, draft_id: str | None = None) -> Any
         rows.append([
             _button("Open next draft", ACTION_ENGAGEMENT_APPROVAL_QUEUE, _OPEN, draft_id),
         ])
-    return _inline_markup(_with_navigation(rows))
+    return _engagement_markup(rows)
 
 
 def _empty_queue_markup() -> Any:
-    return _inline_markup(_with_navigation([]))
+    return _engagement_markup([])
 
 
 # ---------------------------------------------------------------------------
@@ -161,6 +180,24 @@ async def _reply(update: Any, text: str, reply_markup: Any | None = None) -> Non
         await message.reply_text(text, reply_markup=reply_markup)
 
 
+async def _send_cockpit_home(update: Any, context: Any) -> None:
+    client = _api_client(context)
+    payload = await client.get_engagement_cockpit_home()
+    query = getattr(update, "callback_query", None)
+    if query is not None:
+        await _edit_callback_message(
+            update,
+            format_cockpit_home(payload),
+            reply_markup=cockpit_home_markup(payload),
+        )
+        return
+    await _reply(
+        update,
+        format_cockpit_home(payload),
+        reply_markup=cockpit_home_markup(payload),
+    )
+
+
 def _is_all_placeholder(data: dict[str, Any]) -> bool:
     """Return True if queue has items but they are ALL placeholder/updating drafts."""
     queue_count = int(data.get("queue_count") or 0)
@@ -177,9 +214,18 @@ def _is_all_placeholder(data: dict[str, Any]) -> bool:
 # Public handlers
 # ---------------------------------------------------------------------------
 
-async def show_global_approval_queue(update: Any, context: Any, *, offset: int = 0) -> None:
+async def show_global_approval_queue(
+    update: Any,
+    context: Any,
+    *,
+    offset: int = 0,
+    return_home_on_empty: bool = False,
+) -> None:
     client = _api_client(context)
-    data = await client.get_engagement_cockpit_approvals()
+    if offset:
+        data = await client.get_engagement_cockpit_approvals(offset=offset)
+    else:
+        data = await client.get_engagement_cockpit_approvals()
 
     queue_count = int(data.get("queue_count") or 0)
     updating_count = int(data.get("updating_count") or 0)
@@ -195,6 +241,9 @@ async def show_global_approval_queue(update: Any, context: Any, *, offset: int =
         return
 
     if queue_count == 0 and updating_count == 0:
+        if return_home_on_empty:
+            await _send_cockpit_home(update, context)
+            return
         await _callback_reply(
             update,
             format_approval_queue_empty(scoped=False),
@@ -203,21 +252,28 @@ async def show_global_approval_queue(update: Any, context: Any, *, offset: int =
         return
 
     draft_id = str(current["draft_id"]) if current else None
-    header = format_approval_queue_header(data, scoped=False, offset=offset)
+    queue_offset = int(data.get("offset") or offset)
+    header = format_approval_queue_header(data, scoped=False, offset=queue_offset)
     markup = _queue_list_markup(has_current=current is not None, draft_id=draft_id)
     await _callback_reply(update, header, reply_markup=markup)
 
     if current and draft_id:
         await _callback_reply(
             update,
-            format_draft_card(current, index=1),
+            format_draft_card(current, index=queue_offset + 1),
             reply_markup=_draft_card_markup(draft_id),
         )
 
 
 async def show_scoped_approval_queue(update: Any, context: Any, *, engagement_id: str, offset: int = 0) -> None:
     client = _api_client(context)
-    data = await client.get_engagement_cockpit_approvals_for_engagement(engagement_id)
+    if offset:
+        data = await client.get_engagement_cockpit_approvals_for_engagement(
+            engagement_id,
+            offset=offset,
+        )
+    else:
+        data = await client.get_engagement_cockpit_approvals_for_engagement(engagement_id)
 
     queue_count = int(data.get("queue_count") or 0)
     updating_count = int(data.get("updating_count") or 0)
@@ -244,14 +300,15 @@ async def show_scoped_approval_queue(update: Any, context: Any, *, engagement_id
         return
 
     draft_id = str(current["draft_id"]) if current else None
-    header = format_approval_queue_header(data, scoped=True, offset=offset)
+    queue_offset = int(data.get("offset") or offset)
+    header = format_approval_queue_header(data, scoped=True, offset=queue_offset)
     markup = _queue_list_markup(has_current=current is not None, draft_id=draft_id)
     await _callback_reply(update, header, reply_markup=markup)
 
     if current and draft_id:
         await _callback_reply(
             update,
-            format_draft_card(current, index=1),
+            format_draft_card(current, index=queue_offset + 1),
             reply_markup=_draft_card_markup(draft_id),
         )
 
@@ -272,7 +329,7 @@ async def show_draft_card(update: Any, context: Any, *, draft_id: str) -> None:
     """Open a specific draft card by finding it in the global approvals queue."""
     client = _api_client(context)
     # Load the global queue to find the current draft
-    data = await client.get_engagement_cockpit_approvals()
+    data = await client.get_engagement_cockpit_approvals(draft_id=draft_id)
     current = data.get("current")
 
     if current and str(current.get("draft_id", "")) == draft_id:
@@ -310,6 +367,13 @@ async def handle_approve_confirmed(update: Any, context: Any, *, draft_id: str) 
     """Confirmed approve — call the backend."""
     client = _api_client(context)
     result = await client.approve_engagement_cockpit_draft(draft_id)
+    status = str(result.get("result") or "")
+    if status == "approved":
+        await show_global_approval_queue(update, context, offset=0, return_home_on_empty=True)
+        return
+    if status == "stale":
+        await show_global_approval_queue(update, context, offset=0, return_home_on_empty=True)
+        return
     await _callback_reply(
         update,
         format_approval_result(result, draft_id=draft_id, action="approved"),
@@ -339,6 +403,13 @@ async def handle_reject_confirmed(update: Any, context: Any, *, draft_id: str) -
     """Confirmed reject — call the backend."""
     client = _api_client(context)
     result = await client.reject_engagement_cockpit_draft(draft_id)
+    status = str(result.get("result") or "")
+    if status == "rejected":
+        await show_global_approval_queue(update, context, offset=0, return_home_on_empty=True)
+        return
+    if status == "stale":
+        await show_global_approval_queue(update, context, offset=0, return_home_on_empty=True)
+        return
     await _callback_reply(
         update,
         format_approval_result(result, draft_id=draft_id, action="rejected"),
@@ -384,11 +455,12 @@ async def handle_edit_request_text(update: Any, context: Any, *, text: str, draf
         store = _approval_edit_store(context)
         store.pop(operator_id, None)
 
-    await _reply(
-        update,
-        format_edit_submitted(draft_id, result),
-        reply_markup=_empty_queue_markup(),
-    )
+    status = str(result.get("result") or "")
+    if status in {"queued_update", "approved", "rejected", "stale"}:
+        await show_global_approval_queue(update, context, offset=0, return_home_on_empty=True)
+        return
+
+    await _reply(update, format_edit_submitted(draft_id, result), reply_markup=_empty_queue_markup())
 
 
 def get_pending_approval_edit(context: Any, operator_id: int) -> dict[str, Any] | None:

@@ -92,11 +92,10 @@ Operator-facing safety rules:
 - if migration cannot produce a valid engagement record, fail closed with a
   short operator-facing error and no silent fallback to raw legacy settings
 
-Admin-only engagement mutations are authorized by backend capabilities when
-`ENGAGEMENT_ADMIN_USER_IDS` is configured. The bot sends `X-Telegram-User-Id`; protected target,
-prompt-profile, style-rule, topic, and community engagement-settings mutation routes return
-`403 engagement_admin_required` for non-admin operators. Read-only daily review routes and ordinary
-candidate review/send routes remain available to allowed operators when the backend permits them.
+Engagement target, prompt-profile, style-rule, topic, and community engagement-settings mutation
+routes are operator-facing setup controls. They should be available to any Telegram user who is
+already authorized to use the bot; there is no separate engagement-admin mutation boundary at this
+time.
 
 ### `GET /api/engagement/targets`
 

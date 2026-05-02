@@ -1,4 +1,4 @@
-# ruff: noqa: F401,F403,F405,E402
+﻿# ruff: noqa: F401,F403,F405,E402
 from __future__ import annotations
 
 import asyncio
@@ -68,7 +68,7 @@ async def prepare_wizard_target_state(
             operator_user_id=operator_id,
         )
     except BotApiError as exc:
-        return None, f"Couldn't add that community: {exc.message}\n\nTry again or /cancel_edit."
+        return None, f"Couldn't add that community: {exc.message}\n\nTry again or cancel setup."
 
     target_id = str(target_data.get("id") or "")
     target_status = str(target_data.get("status") or "pending")
@@ -77,7 +77,7 @@ async def prepare_wizard_target_state(
     if target_status == "approved":
         return (
             None,
-            f"✅ {target_ref_saved} is already active in the engagement system. Use /engagement to open the cockpit.",
+            f"✅ {target_ref_saved} is already active in the engagement system. Return to Engagements to open it.",
         )
 
     if not _target_is_ready_for_engagement(target_data):
@@ -91,14 +91,14 @@ async def prepare_wizard_target_state(
         except BotApiError as exc:
             return (
                 None,
-                f"Couldn't resolve that community: {exc.message}\n\nTry again or /cancel_edit.",
+                f"Couldn't resolve that community: {exc.message}\n\nTry again or cancel setup.",
             )
         if not _target_is_ready_for_engagement(target_data):
             return (
                 None,
                 "Couldn't resolve that community: "
                 + _target_resolution_error(target_data)
-                + "\n\nTry again or /cancel_edit.",
+                + "\n\nTry again or cancel setup.",
             )
 
     try:
@@ -107,7 +107,7 @@ async def prepare_wizard_target_state(
             created_by=reviewer,
         )
     except BotApiError as exc:
-        return None, f"Couldn't create engagement: {exc.message}\n\nTry again or /cancel_edit."
+        return None, f"Couldn't create engagement: {exc.message}\n\nTry again or cancel setup."
 
     engagement = eng_data.get("engagement") or eng_data
     engagement_id = str(engagement.get("id") or "")
@@ -130,3 +130,4 @@ async def prepare_wizard_target_state(
 
 
 __all__ = ["prepare_wizard_target_state"]
+

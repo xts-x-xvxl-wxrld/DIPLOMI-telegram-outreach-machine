@@ -6,6 +6,8 @@ import re
 from typing import Any, Literal
 from uuid import UUID
 
+from .runtime_topic_brief_style import _topic_brief_style_target_summary
+
 
 ConfigEditValueType = Literal[
     "text",
@@ -524,51 +526,104 @@ def _shorten(value: str, limit: int) -> str:
 
 _TOPIC_CREATE_STEP_DETAILS: dict[str, tuple[str, str, str | None, bool]] = {
     "name": (
-        "Step 1 of 5: Topic name",
+        "Step 1 of 7: Topic name",
         "Send the topic name as your next message.",
         "Founder outreach",
         False,
     ),
-    "stance_guidance": (
-        "Step 2 of 5: Reply guidance",
-        "How should replies sound for this topic?",
-        "Be concise and practical.",
-        False,
-    ),
-    "trigger_keywords": (
-        "Step 3 of 5: Trigger keywords",
-        "Send comma-separated keywords that should trigger this topic.",
-        "founder, b2b saas",
-        False,
-    ),
     "description": (
-        "Step 4 of 5: Topic description",
-        "Send a short description for operators.",
-        "Startup operators asking about outbound outreach",
+        "Step 2 of 7: Conversation target",
+        "What kind of discussion should we notice?",
+        "People comparing CRM tools or asking about migration tradeoffs.",
+        False,
+    ),
+    "stance_guidance": (
+        "Step 3 of 7: Reply position",
+        "What should our reply contribute?",
+        "Be practical, factual, and non-salesy.",
+        False,
+    ),
+    "style_guidance": (
+        "Step 4 of 7: Voice and style",
+        "How should this account sound here?\n\nUse this for tone, brevity, disclosure, and link posture. Hard safety rules still apply.",
+        "Brief, transparent, helpful, no links unless asked.",
         True,
     ),
-    "negative_keywords": (
-        "Step 5 of 5: Negative keywords",
-        "Send comma-separated keywords to avoid matching.",
-        "jobs, recruiting",
+    "example_good_replies": (
+        "Step 5 of 7: Good reply examples",
+        "Paste one or more replies you would be happy for the model to write. Separate multiple examples with a blank line.\n\nGood examples teach the shape of a helpful reply. The model should not copy examples word for word.",
+        "Compare data ownership and export access first.",
         True,
+    ),
+    "example_bad_replies": (
+        "Step 6 of 7: Bad reply examples",
+        "Paste one or more replies that are too salesy, risky, fake, or off-tone. Separate multiple examples with a blank line.\n\nBad examples teach what to avoid. They stay negative examples only, and the model should not copy them word for word either.",
+        "Buy our tool now.",
+        True,
+    ),
+    "avoid_rules": (
+        "Step 7 of 7: Avoid rules",
+        "Anything the reply must never do?\n\nUse this to tighten behavior, not to weaken the hard safety rules.",
+        "No DMs, no fake customer claims, no urgency.",
+        True,
+    ),
+}
+_TOPIC_CREATE_REVIEW_STEP_DETAILS: dict[str, tuple[str, str, str]] = {
+    "example_good_replies_review": (
+        "example_good_replies",
+        "Current good examples:",
+        "Add another to keep building this set, or continue when you're ready for bad examples.",
+    ),
+    "example_bad_replies_review": (
+        "example_bad_replies",
+        "Current bad examples:",
+        "Add another to keep building this set, or use Done reviewing examples when you're ready for avoid rules.",
     ),
 }
 
 
 def _render_topic_create_request(pending: PendingEdit) -> str:
     step = pending.flow_step or "name"
+    normalized_step = _topic_create_normalized_step(step)
     title, prompt, example, optional = _TOPIC_CREATE_STEP_DETAILS.get(
-        step,
+        normalized_step,
         _TOPIC_CREATE_STEP_DETAILS["name"],
     )
+    if step in _TOPIC_CREATE_REVIEW_STEP_DETAILS:
+        field_name, example_title, helper_text = _TOPIC_CREATE_REVIEW_STEP_DETAILS[step]
+        examples = list((pending.flow_state or {}).get(field_name) or [])
+        lines = [
+            "Draft instruction wizard" if pending.object_id != "new" else "Creating draft brief",
+            f"Topic ID: {pending.object_id}" if pending.object_id != "new" else "Topic Create ID: new",
+            "",
+            title,
+            example_title,
+            *_topic_example_lines(examples),
+            "",
+            helper_text,
+            "",
+            "Use /cancel_edit to discard this draft.",
+        ]
+        return "\n".join(lines)
     lines = [
-        "Creating engagement topic",
-        f"Topic Create ID: {pending.object_id}",
+        "Draft instruction wizard" if pending.object_id != "new" else "Creating draft brief",
+        f"Topic ID: {pending.object_id}" if pending.object_id != "new" else "Topic Create ID: new",
         "",
         title,
         prompt,
     ]
+    if normalized_step in {"example_good_replies", "example_bad_replies"}:
+        existing_examples = list((pending.flow_state or {}).get(normalized_step) or [])
+        if existing_examples:
+            lines.extend(
+                [
+                    "",
+                    "Already added:",
+                    *_topic_example_lines(existing_examples),
+                    "",
+                    "Send another example to add it, or use the button below when the list is ready.",
+                ]
+            )
     if example:
         lines.append(f"Example: {example}")
     if optional:
@@ -583,11 +638,15 @@ def _render_topic_create_request(pending: PendingEdit) -> str:
 def _render_topic_create_preview(pending: PendingEdit) -> str:
     payload = pending.parsed_value if isinstance(pending.parsed_value, dict) else {}
     lines = [
-        "Review Topic creation details",
-        f"Topic Create ID: {pending.object_id}",
+        "Review Draft brief",
+        f"Topic ID: {pending.object_id}" if pending.object_id != "new" else "Topic Create ID: new",
         "Confirmation required before saving.",
         "",
         *_topic_create_summary_lines(payload, include_optional=True),
+        "",
+        "Good examples teach shape, not literal templates.",
+        "Bad examples stay in avoid-only guidance and are never copied into replies.",
+        "Preview and save still run through the normal safety checks.",
     ]
     return "\n".join(lines)
 
@@ -599,28 +658,43 @@ def _topic_create_summary_lines(
 ) -> list[str]:
     lines: list[str] = []
     name = str(payload.get("name") or "").strip()
+    description = str(payload.get("description") or "").strip()
     guidance = str(payload.get("stance_guidance") or "").strip()
-    trigger_keywords = payload.get("trigger_keywords") or []
-    description = payload.get("description")
-    negative_keywords = payload.get("negative_keywords") or []
+    style_guidance = str(payload.get("style_guidance") or "").strip()
+    good_examples = payload.get("example_good_replies") or []
+    bad_examples = payload.get("example_bad_replies") or []
+    avoid_rules = str(payload.get("avoid_rules") or "").strip()
 
     if name:
         lines.append(f"Name: {_shorten(name, 240)}")
+    if description:
+        lines.append(f"We will look for: {_shorten(description, 240)}")
     if guidance:
-        lines.append(f"Guidance: {_shorten(guidance, 240)}")
-    if trigger_keywords:
-        lines.append("Triggers: " + ", ".join(str(keyword) for keyword in trigger_keywords))
+        lines.append(f"We will contribute: {_shorten(guidance, 240)}")
     if include_optional:
+        lines.append("Voice: " + (_shorten(style_guidance, 240) if style_guidance else "-"))
         lines.append(
-            "Description: "
-            + (_shorten(str(description), 240) if isinstance(description, str) and description else "-")
+            "Good examples: "
+            + (" | ".join(_shorten(str(example), 120) for example in good_examples) if good_examples else "-")
         )
         lines.append(
-            "Avoid: "
-            + (
-                ", ".join(str(keyword) for keyword in negative_keywords)
-                if negative_keywords
-                else "-"
-            )
+            "Bad examples: "
+            + (" | ".join(_shorten(str(example), 120) for example in bad_examples) if bad_examples else "-")
         )
+        lines.append("Avoid: " + (_shorten(avoid_rules, 240) if avoid_rules else "-"))
+        style_target = _topic_brief_style_target_summary(payload)
+        if style_target:
+            lines.append("Guidance saves to: " + _shorten(style_target, 240))
     return lines
+
+
+def _topic_create_normalized_step(step: str) -> str:
+    if step in _TOPIC_CREATE_REVIEW_STEP_DETAILS:
+        return _TOPIC_CREATE_REVIEW_STEP_DETAILS[step][0]
+    return step
+
+
+def _topic_example_lines(examples: list[str]) -> list[str]:
+    if not examples:
+        return ["- None yet"]
+    return [f"{index}. {_shorten(str(example), 240)}" for index, example in enumerate(examples, start=1)]

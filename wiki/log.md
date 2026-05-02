@@ -1839,3 +1839,293 @@ while preserving the staged testing contract.
 - Cleared the published Telegram command menu at startup so users are guided by inline cockpit
   buttons instead of the slash-command list.
 - Updated formatting and handler tests plus the cockpit policy/spec to cover the hidden-command UX.
+
+## 2026-04-30 - Draft instruction wizard spec and plan
+
+- Added `wiki/spec/engagement-admin-control-plane/draft-instruction-wizard.md` to define a guided
+  admin wizard for teaching draft quality through conversation-target guidance, stance guidance,
+  style constraints, and good/bad reply examples.
+- Added `wiki/plan/draft-instruction-wizard.md` to stage the bot flow, preview/save path,
+  review-to-learning shortcuts, and safety/testing rollout without requiring new storage in the
+  first slice.
+- Updated the engagement admin control-plane shard list and wiki index so the new drafting-design
+  docs are discoverable from the main wiki map.
+
+## 2026-04-30 - Engagement cockpit always-visible home buttons
+
+- Kept the task-first Engagements home destinations visible in every state so the hidden
+  slash-command policy does not remove access to approval, issues, sent-message, or engagement-list
+  empty states.
+- Updated the task-first cockpit spec and home-markup tests to match the always-visible button
+  contract while preserving state-specific button order.
+
+## 2026-04-30 - Button-led bot copy follow-up
+
+- Rewrote operator help, discovery help, start, engagement admin, and account-onboarding copy so those screens describe the inline buttons instead of surfacing hidden slash-command routes.
+- Added a real Communities button to empty send-safety lookup and a real Add engagement account button to the wizard's empty account step so the button-only path does not dead-end.
+- Updated wizard recovery and success text to send operators back to Engagements instead of telling them to type hidden commands.
+
+## 2026-04-30 - Draft brief wizard slices
+
+- Built the draft-instruction wizard flow on top of the existing topic-create surface so operators now fill in conversation target, reply position, voice, good examples, bad examples, and avoid rules one step at a time instead of sending a compact payload.
+- Added sample-preview and learn-from-review controls: topic briefs can now run a prompt-profile test preview before save, and candidate detail cards can save the current reply back into the topic's good examples.
+- Split the new topic-brief runtime and callback/test surfaces into `bot/runtime_topic_brief.py`, `bot/callback_handlers_engagement.py`, `tests/test_bot_engagement_candidate_examples.py`, and `tests/test_bot_engagement_wizard_topic_brief.py` to keep fragmentation guardrails green while the new slices land.
+- Local parity passed with `python scripts/check_fragmentation.py`, `ruff check .`, and `pytest -q --basetemp=.pytest-tmp2` (`856 passed`).
+
+## 2026-04-30 - Wizard navigation root-cause fix
+
+- Traced the missing wizard navigation to a split implementation: Step 1 rendered the prompt without any markup, while the wizard markup itself was still using the older generic `Back/Home` footer model instead of task-first wizard navigation.
+- Reworked `bot/ui_engagement_wizard.py` to use explicit wizard-local navigation rows (`Back` plus `Cancel`, no `Home`), updated wizard copy so it no longer promises missing buttons, and wired Step 1 through `engagement_wizard_step1_markup()`.
+- Added handler-level coverage in `tests/test_bot_engagement_wizard.py` so the emitted wizard screens now assert real navigation callbacks instead of only testing standalone markup helpers.
+- Local parity passed with `python scripts/check_fragmentation.py`, `ruff check .`, and `pytest -q` (`857 passed`).
+
+## 2026-04-30 - Completed queue returns to Engagements home
+
+- Updated the task-first cockpit spec so global approval and issue queues now return to `Engagements` when the last remaining item is cleared, instead of lingering on an empty queue controller.
+- Changed the approval and issue bot flows to treat empty global queues after a completed action as a routing event to the cockpit home, while leaving scoped return-to-detail behavior intact.
+- Added regression coverage for approval and issue completion flows so home rendering is asserted when a finished action empties the global queue.
+- Local parity passed with `python scripts/check_fragmentation.py`, `ruff check .`, and `pytest -q` (`858 passed`).
+
+## 2026-05-01 - Candidate edit to style-rule shortcut
+
+- Added the remaining draft-instruction review shortcut so candidate detail cards can turn the current edited reply into a visible engagement style rule after the operator chooses `global`, `community`, or `topic` scope.
+- Saved rules now preserve the reply as a style reference with explicit "do not copy word for word" guidance instead of silently auto-learning or introducing a new persistence path.
+- Added callback and UI regression coverage for the new scope picker and style-rule creation flow.
+
+## 2026-05-01 - Engagement cockpit verification plan
+
+- Added a dedicated plan for auditing the task-first engagement cockpit against the active UX spec before making behavior changes.
+- Defined the verification flow as `spec -> code mapping -> test coverage review -> regression hardening -> fixes`.
+- Registered the new plan in `wiki/index.md` so the audit has a stable wiki entrypoint.
+
+## 2026-05-01 - Engagement cockpit verification phase 1 baseline
+
+- Extracted the active task-first engagement cockpit contract into `wiki/plan/engagement-cockpit-verification/phase-1-spec-baseline.md` as the verification matrix for later code and test auditing.
+- Captured the expected callback, destination, and return behavior for home, approvals, issues, detail/resume, sent-feed, wizard entry/edit, and shared navigation surfaces.
+- Recorded the authority boundary that keeps `eng:wz:*`, `Top issues`, and the `Back` plus `<< Engagements` footer model as the active contract when older shards diverge.
+
+## 2026-05-01 - Engagement cockpit verification phase 2 code mapping
+
+- Mapped each task-first cockpit surface to the live bot router, UI builders, API-client methods, backend routes, and task-first services in `wiki/plan/engagement-cockpit-verification/phase-2-code-mapping.md`.
+- Recorded the main implementation drifts to verify next: home buttons bypassing part of the `op:*` contract, shared non-wizard footers still using top-level `Home`, weak reopen-by-ID behavior for drafts and issues, and backend `eng:rate:*` / `eng:quiet:*` callbacks without matching direct bot-family dispatch.
+- Flagged two larger wizard mismatches for the test review step: `eng:wz:start` can resume prior state instead of always starting fresh, and the current step-4 mode mapping/tests still use legacy `watching/suggesting/sending` semantics instead of the active `Draft` / `Auto send` contract.
+
+## 2026-05-01 - Engagement cockpit verification phase 3 coverage review
+
+- Added `wiki/plan/engagement-cockpit-verification/phase-3-test-coverage-review.md` to map each task-first cockpit surface to the existing bot and API tests, then separate strong contract coverage from permissive assertions.
+- Recorded the highest-signal missing assertions for Phase 4: exact `next_callback` dispatch, exact reopen-by-ID behavior for drafts and issues, issue-scoped quiet-hours routing, non-wizard footer targets, and real `resume_callback` dispatch from engagement detail.
+- Called out the current tests that actively bless known drift, including home callbacks that bypass part of the `op:*` contract and wizard tests that preserve resumable start plus legacy `watching/suggesting/sending` mode semantics.
+
+## 2026-05-01 - Draft brief wizard navigation and resume
+
+- Finished the next draft-instruction wizard slice on top of the existing topic-brief flow by adding explicit `Back`, `Skip`, `Save later`, and `Cancel` controls for each guided topic-brief step.
+- Made saved-later drafts resumable through the same topic-create and topic-brief entry points instead of silently overwriting pending operator state.
+- Kept the preview screen inside the same flow by preserving `Back`, `Save later`, and `Test sample` actions before any topic/style mutations are saved.
+- Added focused bot regression coverage for the new navigation, skip, save-later, and preview-control behaviors.
+- Local parity passed with `python scripts/check_fragmentation.py`, `ruff check .`, and `pytest -q --basetemp=.pytest-tmp2` (`866 passed`). The plain `pytest -q` run hit Windows temp-directory permission errors under `C:\Users\ravil\AppData\Local\Temp\pytest-of-ravil`, so the repo-local base temp was used for the final green run.
+
+## 2026-05-01 - Draft brief wizard safety and recovery guardrails
+
+- Tightened the draft-instruction wizard copy so voice guidance, good examples, and bad examples all explain the intended safety posture and reinforce that examples teach shape rather than literal reply templates.
+- Labeled sample-post output as preview-only, kept preview failures inside the same confirmation screen, and added regression coverage proving the preview path never touches approval or send actions.
+- Hardened topic-brief save recovery so a topic that saves before the wizard-owned style rule fails is rebound to the created topic ID instead of staying on `new`, preventing duplicate topic creation on retry.
+- Local parity passed with `python scripts/check_fragmentation.py`, `ruff check .`, and `pytest -q` (`868 passed`).
+
+## 2026-05-01 - Draft brief plan status reconciliation
+
+- Updated `wiki/plan/draft-instruction-wizard.md` so slices 1 through 5 match the already-landed implementation instead of still reading as planned.
+- Added a `Remaining Follow-Ups` section to separate true post-slice refinements from unfinished numbered slices.
+- Recorded the current follow-up set explicitly: no add-another example loop yet, sample preview is synthetic-only, wizard-owned style guidance is still topic-scoped and auto-created, and review-learning shortcuts can currently use suggested replies as well as edited finals.
+
+## 2026-05-01 - Draft brief follow-ups promoted to planned slices
+
+- Replaced the free-form `Remaining Follow-Ups` section in `wiki/plan/draft-instruction-wizard.md` with explicit planned slices 8 through 11.
+- Defined acceptance criteria for the four open pieces: example add-another loops, real-post preview, wizard-time style-rule scope choice, and edited-reply-only learning alignment.
+- Extended the suggested build order so future sessions can treat the remaining wizard work as concrete plan slices instead of loose implementation notes.
+
+## 2026-05-01 - Engagement cockpit phase 4 contract hardening slice 1
+
+- Completed the next follow-through from `wiki/plan/engagement-cockpit-verification/phase-3-test-coverage-review.md` by replacing the most obvious drift-blessing home and wizard assertions with task-first contract checks.
+- Updated the `Engagements` home markup to emit `op:approve` and `op:issues` instead of jumping straight to `eng:appr:list:0` and `eng:iss:list:0`, matching the active task-first cockpit spec.
+- Changed the add-engagement wizard to start fresh on `eng:wz:start`, switched step 4 to the operator-facing `Draft` / `Auto send` labels, and mapped them to `suggest` / `auto_limited` while still tolerating legacy callback/state values during transition.
+- Added and updated bot tests so the suite now rejects legacy home callbacks, rejects wizard resume-on-start behavior, and verifies the new sending-mode labels and mappings directly.
+- Local parity passed with `python scripts/check_fragmentation.py`, `ruff check .`, and `pytest -q` (`868 passed`).
+
+## 2026-05-01 - Draft brief example loop refinement
+
+- Completed Slice 8 from `wiki/plan/draft-instruction-wizard.md` by teaching the topic-brief wizard to accumulate good and bad examples across repeated Telegram turns instead of forcing one paste-only message per example step.
+- Added loop-aware controls so good examples expose `Add another` and `Continue`, while bad examples expose `Add another` and `Done reviewing examples`, without dropping the existing `Back`, `Save later`, and `Cancel` flow controls.
+- Kept fast blank-line multi-example pastes working and made repeated in-flight entries deduplicate case-insensitively before preview/save so the `Draft brief` summary reflects the full accumulated example set cleanly.
+- Added focused regression coverage for the new example-loop states in both the standalone topic-brief flow and the wizard-return path.
+- Local parity passed with `python scripts/check_fragmentation.py`, `ruff check .`, and `pytest -q --basetemp=.pytest-tmp2` (`869 passed`). The plain `pytest -q` run hit the existing Windows temp-directory permission issue under `C:\Users\ravil\AppData\Local\Temp\pytest-of-ravil`, so the repo-local base temp was used for the final green run.
+
+## 2026-05-01 - Engagement cockpit phase 4 callback hardening slice 2
+
+- Finished the interrupted Phase 4 cockpit work so issue `next_step` actions now redispatch the backend `next_callback`, detail resume can redispatch through the main callback router, and the router now accepts direct `eng:rate:*` and `eng:quiet:*` callback families.
+- Hardened issue reopening and scoped issue pagination by preserving explicit `issue_id` and scoped offsets, and fixed quiet-hours entry to load the requested issue's real engagement instead of whichever queue item is currently first.
+- Completed the non-wizard footer migration for the touched engagement issue/detail surfaces by honoring `<< Engagements` through the shared navigation helper and the engagement-specific markups.
+- Fixed the approval regression-test scaffold that was left mid-migration so scoped approval empty/waiting states now exercise the scoped payload instead of silently falling back to the global queue fixture.
+- Focused verification passed with `python -m pytest -q tests/test_bot_engagement_issue_handlers.py tests/test_bot_engagement_approval_handlers.py tests/test_bot_engagement_detail_handlers.py` (`144 passed`) and follow-up regressions passed for the task-first read routes and home entrypoints.
+- `ruff check .` passed after the callback/footer cleanup. `python scripts/check_fragmentation.py` still fails in the dirty workspace because oversized existing files remain above the repo caps: `backend/api/schemas.py`, `bot/api_client.py`, `tests/test_bot_engagement_issue_handlers.py`, and `tests/test_engagement_api.py`.
+- `pytest -q` still fails outside this cockpit slice because the workspace already has broader unrelated regressions in engagement admin/home formatting and other full-suite areas; this slice did not attempt to reconcile those separate in-flight changes.
+
+## 2026-05-01 - Open engagement setup to all authorized operators
+
+- Finished the engagement-access change so the separate engagement-admin gate is effectively removed on both sides: `bot/runtime_access.py` now treats setup/config access as open for any bot-authorized operator, and `backend/api/deps.py` reports the capability surface as unconfigured while leaving `require_engagement_admin_capability()` as a no-op.
+- Kept the bot UX aligned with that decision by preserving the main bot allowlist, renaming the old `Admin` home affordance to `Setup`, and updating the shared button-label override and copy/tests so setup screens, prompt controls, target mutations, topic/style edits, and settings mutations no longer hide or reject based on the legacy admin subset.
+- Fixed the unrelated-but-real task-first cockpit wrapper regression uncovered during verification by changing the FastAPI `Query(...)` defaults in `backend/api/routes/engagement_cockpit.py` to plain-call-safe defaults, so direct route-function tests no longer pass `Query` sentinel objects into cockpit services.
+- Verification: focused access/UI/API tests passed (`200 passed`), `ruff check .` passed, and full pytest parity passed with `pytest -q --basetemp=.pytest-tmp2` (`872 passed`).
+- `python scripts/check_fragmentation.py` still fails in the dirty workspace because pre-existing oversized files remain above the enforced ceilings: `backend/api/schemas.py`, `bot/api_client.py`, and `tests/test_bot_engagement_issue_handlers.py`.
+
+## 2026-05-01 - Make Add engagement topic creation the drafting source of truth
+
+- Updated the drafting spec to say prompt-targeted operator changes belong inside `Add engagement`
+  Step 2 `Create topic`, not as a separate top-level setup destination.
+- Updated the add-engagement wizard specs so the topic-create branch explicitly owns conversation
+  target, reply position, voice/style guidance, and example capture for new topics.
+- Updated the drafting plan so its goal and entry-point language now match the embedded
+  topic-creation flow.
+
+## 2026-05-01 - Lock draft instruction wizard default assumptions
+
+- Locked the default product assumptions for the draft-instruction wizard in the spec and dedicated
+  plan so the first-slice behavior is explicit instead of inferred from open questions.
+- Recorded that the primary entry point remains `Add engagement` -> Step 2 -> `Create topic`, that
+  candidate review does not launch the full wizard in the first slice, and that synthetic sample
+  preview is the default shipped preview path.
+- Recorded that voice and avoid guidance auto-save into one topic-scoped `Draft instruction wizard`
+  style rule, zero-example setup stays allowed in the first slice, and example deduplication is
+  expected without adding a separate hard Telegram count cap yet.
+- Ran `python scripts/check_fragmentation.py`; it still fails in the dirty workspace because of
+  pre-existing oversized files: `backend/api/schemas.py`, `bot/api_client.py`, and
+  `tests/test_bot_engagement_issue_handlers.py`.
+
+## 2026-05-01 - Draft brief wizard real-post preview
+
+- Completed Slice 9 from `wiki/plan/draft-instruction-wizard.md` by adding a `Test real post`
+  path alongside the existing synthetic sample preview in the draft-instruction wizard.
+- Reused existing engagement candidate context for real-post previews so the bot can render the
+  current draft brief against a collected community post without introducing new persistence or
+  touching approval/send endpoints.
+- Kept the recovery path explicit when no collected post exists yet: the draft stays on the
+  confirmation screen and operators can fall back to `Test sample` or return after collection data
+  exists.
+- Updated the draft-instruction wizard spec and plan so the shipped preview assumptions match the
+  current bot behavior.
+- Validation: `ruff check .` passed, focused wizard tests passed, and full pytest passed with
+  `pytest -q --basetemp=.pytest-tmp2` after the default temp directory path hit a Windows
+  permission error. `python scripts/check_fragmentation.py` still fails because pre-existing
+  oversized files remain above the enforced caps: `backend/api/schemas.py`, `bot/api_client.py`,
+  `tests/test_bot_engagement_handlers.py`, and `tests/test_bot_engagement_issue_handlers.py`.
+
+## 2026-05-01 - Draft brief wizard style-rule scope choice
+
+- Completed Slice 10 from `wiki/plan/draft-instruction-wizard.md` by making the draft-brief
+  confirmation screen show and change the guidance save target instead of silently defaulting to a
+  topic-scoped rule.
+- Added explicit topic/community save-target choices plus existing-rule attachment choices when the
+  wizard has relevant engagement context, while still persisting through the normal style-rule
+  create/update APIs.
+- Split the topic-brief style-target selection and upsert logic into
+  `bot/runtime_topic_brief_style.py` so the over-cap topic-brief runtime file does not absorb the
+  whole new Slice 10 behavior.
+- Updated the draft-instruction wizard spec/plan and wiki index so the shipped save-target behavior
+  is documented.
+- Validation: `ruff check .` passed. `python -m pytest -q` passed. `python scripts/check_fragmentation.py`
+  still fails because unrelated pre-existing files remain over the enforced ceilings:
+  `backend/api/schemas.py`, `bot/api_client.py`, `tests/test_bot_engagement_handlers.py`, and
+  `tests/test_bot_engagement_issue_handlers.py`.
+
+## 2026-05-01 - Draft brief wizard audit guidance
+
+- Audited the shipped `Add engagement` -> Step 2 -> `Create topic` draft-brief path against the
+  draft-instruction wizard spec and focused wizard tests.
+- Added an `Audit Guidance` section to
+  `wiki/spec/engagement-admin-control-plane/draft-instruction-wizard.md` so the spec now spells out
+  the primary readiness path, final-review checkpoints, and the two important current behavior
+  boundaries: topic-only edits do not guarantee round-tripping prior community/existing-rule
+  attachment choices, and candidate-review learning still falls back to `suggested_reply` when no
+  edited `final_reply` exists yet.
+- Validation: focused wizard tests passed with `python -m pytest -q
+  tests/test_bot_engagement_setup_flows.py tests/test_bot_engagement_wizard_topic_brief.py
+  tests/test_bot_engagement_candidate_examples.py tests/test_bot_engagement_wizard.py
+  tests/test_bot_task_first_api_client.py tests/test_engagement_task_first_wizard_api.py`; `ruff
+  check .` passed; `python scripts/check_fragmentation.py` still fails because unrelated
+  pre-existing files remain over the enforced ceilings: `backend/api/schemas.py`,
+  `bot/api_client.py`, `tests/test_bot_engagement_handlers.py`, and
+  `tests/test_bot_engagement_issue_handlers.py`.
+
+## 2026-05-01 - Draft brief wizard release checklist
+
+- Added a short yes/no `Release Checklist` rubric to
+  `wiki/spec/engagement-admin-control-plane/draft-instruction-wizard.md` so final launch review can
+  be run as a compact gate instead of a narrative audit.
+- The checklist focuses on the primary embedded flow only: `Add engagement` -> Step 2 ->
+  `Create topic` -> preview -> save -> return with topic selected.
+- The rubric explicitly treats two currently known limitations as non-blocking unless product
+  decides otherwise before launch: topic-only re-entry does not guarantee round-tripping prior
+  community/existing-rule save targets, and candidate-review learning still falls back to
+  `suggested_reply` when no edited `final_reply` exists yet.
+
+## 2026-05-01 - Draft brief wizard launch rubric run
+
+- Ran the yes/no launch rubric in
+  `wiki/spec/engagement-admin-control-plane/draft-instruction-wizard.md` against the shipped
+  primary path instead of leaving the checklist unanswered.
+- Recorded an all-`Yes` primary-path result in the spec and marked the embedded
+  `Add engagement` -> Step 2 -> `Create topic` flow as recommended to launch.
+- Kept the two previously documented limitations unchanged as non-blocking follow-ups: topic-only
+  re-entry does not guarantee round-tripping prior non-topic save targets, and candidate-review
+  learning still falls back to `suggested_reply` when no edited `final_reply` exists yet.
+
+## 2026-05-01 - Draft brief wizard edited-reply-only learning
+
+- Completed Slice 11 from `wiki/plan/draft-instruction-wizard.md` by requiring a deliberate edited
+  `final_reply` before candidate-review shortcuts can save a good example or derive a style rule.
+- Hid the review-learning shortcut buttons when only `suggested_reply` exists, and added candidate
+  detail copy that tells operators to edit `Final reply` first.
+- Updated the draft-instruction wizard plan/spec so edited-reply-only learning now matches the
+  shipped behavior instead of remaining a planned tightening.
+
+## 2026-05-02 - Draft brief wizard unsafe personal-experience guardrails
+
+- Tightened the bot-side draft brief wizard so `Reply position`, `Voice and style`, `Good reply
+  examples`, `Bad reply examples`, and `Avoid rules` reject first-person testimonial or fake
+  personal-experience phrasing before the operator reaches save.
+- Expanded backend topic and style-rule safety validation with the same personal-experience markers
+  so unsafe wording is blocked even outside the wizard flow.
+- Added regression coverage for unsafe guidance/example rejection in the bot flow plus a new
+  `tests/test_engagement_admin_safety.py` shard for topic/style API validation without growing the
+  oversized engagement API test file further.
+
+## 2026-05-02 - Draft brief wizard research input rollback
+
+- Removed the bot-side draft brief input blocking so topic guidance, style guidance, good examples,
+  bad examples, and avoid rules once again accept operator text as-authored during topic creation.
+- Removed backend topic and style-rule authoring validation that was rejecting specific operator
+  wording, including direct topic-example additions, so research-oriented setup can capture any
+  input text for later analysis.
+- Updated the draft-instruction wizard spec to document the intended boundary: authoring input is
+  permissive, while downstream reply-generation and approval constraints remain authoritative.
+
+## 2026-05-02 - Bot-triggered account health refresh
+
+- Added a bot-authenticated API endpoint for `account.health_refresh` job enqueueing so operators can
+  request an account health check without waiting for the scheduler cadence.
+- Added an Accounts cockpit `Run health check` button that queues the refresh job and returns a
+  refreshable job card while keeping the existing masked account-health screen unchanged.
+- Added focused API, bot client, UI, formatting, and handler tests covering the new account health
+  refresh request path.
+
+## 2026-05-02 - Fragmentation parity cleanup
+
+- Split engagement topic/prompt/style and task-first engagement bot API wrappers into
+  `bot/api_client_engagement_admin.py` so the main bot API client stops growing past the
+  grandfathered file-size ceiling.
+- Split engagement issue formatter/parser coverage and guided reply-edit handler coverage into
+  dedicated test shards so `tests/test_bot_engagement_issue_handlers.py` and
+  `tests/test_bot_engagement_handlers.py` both fall back under the enforced fragmentation caps.
+- Kept runtime behavior unchanged while trimming the remaining schema overage in
+  `backend/api/schemas.py`, then reran `python scripts/check_fragmentation.py`, `ruff check .`, and
+  `pytest -q` to restore local CI parity before publishing.
+

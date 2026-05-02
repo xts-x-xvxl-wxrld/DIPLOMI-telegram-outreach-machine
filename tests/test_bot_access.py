@@ -80,14 +80,14 @@ async def test_access_gate_clears_pending_edit_for_new_command() -> None:
     assert store.get(456) is None
 
 
-def test_engagement_admin_defaults_open_when_no_admin_allowlist_is_configured() -> None:
+def test_engagement_admin_is_open_without_separate_role_check() -> None:
     update = SimpleNamespace(effective_user=SimpleNamespace(id=456))
     context = SimpleNamespace(application=SimpleNamespace(bot_data={"settings": _settings(123, 456)}))
 
     assert _is_engagement_admin(update, context)
 
 
-def test_engagement_admin_requires_admin_allowlist_membership_when_configured() -> None:
+def test_engagement_admin_ignores_legacy_local_admin_allowlist() -> None:
     update = SimpleNamespace(effective_user=SimpleNamespace(id=456))
     context = SimpleNamespace(
         application=SimpleNamespace(
@@ -95,7 +95,7 @@ def test_engagement_admin_requires_admin_allowlist_membership_when_configured() 
         )
     )
 
-    assert not _is_engagement_admin(update, context)
+    assert _is_engagement_admin(update, context)
 
 
 class _CapabilityClient:
@@ -109,7 +109,7 @@ class _CapabilityClient:
 
 
 @pytest.mark.asyncio
-async def test_backend_admin_capability_is_primary_when_available() -> None:
+async def test_backend_admin_capability_no_longer_blocks_operator_access() -> None:
     update = SimpleNamespace(effective_user=SimpleNamespace(id=456))
     client = _CapabilityClient(
         {
@@ -128,13 +128,13 @@ async def test_backend_admin_capability_is_primary_when_available() -> None:
         )
     )
 
-    assert not await _is_engagement_admin_async(update, context)
-    assert not _is_engagement_admin(update, context)
-    assert client.calls == [456]
+    assert await _is_engagement_admin_async(update, context)
+    assert _is_engagement_admin(update, context)
+    assert client.calls == []
 
 
 @pytest.mark.asyncio
-async def test_backend_capability_unconfigured_falls_back_to_local_allowlist() -> None:
+async def test_backend_capability_lookup_is_no_longer_needed_for_operator_access() -> None:
     update = SimpleNamespace(effective_user=SimpleNamespace(id=456))
     client = _CapabilityClient(
         {
@@ -154,4 +154,4 @@ async def test_backend_capability_unconfigured_falls_back_to_local_allowlist() -
     )
 
     assert await _is_engagement_admin_async(update, context)
-    assert client.calls == [456]
+    assert client.calls == []

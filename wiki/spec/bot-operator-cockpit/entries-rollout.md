@@ -72,6 +72,8 @@ Rules:
 - Phone numbers must remain masked by the API before reaching the bot.
 - The bot should not show secrets, session paths, or raw local account files.
 - Account pool labels may be shown when available because pool separation is operator-relevant.
+- The Accounts screen may expose an explicit `Run health check` action that enqueues the existing
+  account-health refresh job and returns a refreshable job card to the operator.
 ## Help Entry
 
 The `Help` button should render the same command help as `/help`, but with inline cockpit navigation.

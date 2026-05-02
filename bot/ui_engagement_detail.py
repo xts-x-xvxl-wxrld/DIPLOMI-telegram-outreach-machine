@@ -10,11 +10,25 @@ from .ui_common import (
     ACTION_ENGAGEMENT_HOME,
     _button,
     _inline_markup,
-    _with_navigation,
     _offset_pager_row,
 )
 
 _PAGE_SIZE = 20
+
+
+def _engagement_markup(
+    rows: Sequence[Sequence[object]],
+    *,
+    back_action: str | None = None,
+    back_parts: Sequence[str] = (),
+):
+    output = [list(row) for row in rows]
+    footer = []
+    if back_action is not None:
+        footer.append(_button("Back", back_action, *back_parts))
+    footer.append(_button("<< Engagements", ACTION_ENGAGEMENT_HOME))
+    output.append(footer)
+    return _inline_markup(output)
 
 
 def engagement_list_markup(
@@ -64,17 +78,17 @@ def engagement_list_markup(
         if newer_older_row:
             rows.append(newer_older_row)
 
-    return _inline_markup(
-        _with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME, include_home=False)
-    )
+    return _engagement_markup(rows, back_action=ACTION_ENGAGEMENT_HOME)
 
 
 def engagement_preview_markup(engagement_id: str):
     rows = [
         [_button("View details", ACTION_ENGAGEMENT_DETAIL, "open", engagement_id)],
     ]
-    return _inline_markup(
-        _with_navigation(rows, back_action=ACTION_ENGAGEMENT_MINE, back_parts=["list", "0"], include_home=False)
+    return _engagement_markup(
+        rows,
+        back_action=ACTION_ENGAGEMENT_MINE,
+        back_parts=["list", "0"],
     )
 
 
@@ -107,13 +121,10 @@ def engagement_detail_markup(
         ],
     ])
 
-    return _inline_markup(
-        _with_navigation(
-            rows,
-            back_action=ACTION_ENGAGEMENT_MINE,
-            back_parts=["list", "0"],
-            include_home=False,
-        )
+    return _engagement_markup(
+        rows,
+        back_action=ACTION_ENGAGEMENT_MINE,
+        back_parts=["list", "0"],
     )
 
 
@@ -134,6 +145,4 @@ def sent_messages_markup(
     if pager_row:
         rows.append(pager_row)
 
-    return _inline_markup(
-        _with_navigation(rows, back_action=ACTION_ENGAGEMENT_HOME, include_home=False)
-    )
+    return _engagement_markup(rows, back_action=ACTION_ENGAGEMENT_HOME)

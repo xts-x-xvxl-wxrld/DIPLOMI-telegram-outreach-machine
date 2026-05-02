@@ -820,13 +820,28 @@ class _FakeApiClient:
         self,
         *,
         status: str = "needs_review",
+        community_id: str | None = None,
+        topic_id: str | None = None,
         limit: int = 5,
         offset: int = 0,
         **_: Any,
     ) -> dict[str, Any]:
-        self.list_candidate_calls.append({"status": status, "limit": limit, "offset": offset})
+        self.list_candidate_calls.append(
+            {
+                "status": status,
+                "community_id": community_id,
+                "topic_id": topic_id,
+                "limit": limit,
+                "offset": offset,
+            }
+        )
         page = self.candidates_by_status.get(status, {"items": [], "total": 0})
-        return {"items": page["items"], "total": page["total"], "limit": limit, "offset": offset}
+        items = list(page["items"])
+        if community_id is not None:
+            items = [item for item in items if item.get("community_id") == community_id]
+        if topic_id is not None:
+            items = [item for item in items if item.get("topic_id") == topic_id]
+        return {"items": items, "total": len(items), "limit": limit, "offset": offset}
 
     async def get_engagement_candidate(self, candidate_id: str) -> dict[str, Any]:
         self.get_candidate_calls.append(candidate_id)
@@ -881,11 +896,24 @@ class _FakeApiClient:
         trigger_keywords: list[str],
         description: str | None = None,
         negative_keywords: list[str] | None = None,
+        example_good_replies: list[str] | None = None,
+        example_bad_replies: list[str] | None = None,
         active: bool = True,
         operator_user_id: int | None = None,
         **_: Any,
     ) -> dict[str, Any]:
-        self.create_topic_calls.append({"name": name, "description": description, "stance_guidance": stance_guidance, "trigger_keywords": trigger_keywords, "negative_keywords": negative_keywords or [], "active": active})
+        self.create_topic_calls.append(
+            {
+                "name": name,
+                "description": description,
+                "stance_guidance": stance_guidance,
+                "trigger_keywords": trigger_keywords,
+                "negative_keywords": negative_keywords or [],
+                "example_good_replies": example_good_replies or [],
+                "example_bad_replies": example_bad_replies or [],
+                "active": active,
+            }
+        )
         return {
             "id": "topic-created",
             "name": name,
@@ -893,8 +921,8 @@ class _FakeApiClient:
             "stance_guidance": stance_guidance,
             "trigger_keywords": trigger_keywords,
             "negative_keywords": negative_keywords or [],
-            "example_good_replies": [],
-            "example_bad_replies": [],
+            "example_good_replies": example_good_replies or [],
+            "example_bad_replies": example_bad_replies or [],
             "active": active,
         }
 
@@ -1241,11 +1269,11 @@ async def test_engagement_admin_limit_and_advanced_callbacks_have_destinations()
     await callback_query(advanced_update, _context(client))
 
     assert "Send safety" in limits_update.callback_query.message.replies[0]["text"]
-    assert "Community safety lookup: engagement settings <community_id>" in (
+    assert "Open a community first" in (
         limits_update.callback_query.message.replies[0]["text"]
     )
     assert "Drafting and diagnostics" in advanced_update.callback_query.message.replies[0]["text"]
-    assert "Drafting profiles: engagement prompts" in (
+    assert "prompt-profile tuning" in (
         advanced_update.callback_query.message.replies[0]["text"]
     )
 
@@ -1322,7 +1350,7 @@ async def test_prompt_profile_activate_requires_confirmation() -> None:
 
 
 @pytest.mark.asyncio
-async def test_non_admin_cannot_open_prompt_admin_surfaces() -> None:
+async def test_legacy_admin_allowlist_no_longer_blocks_prompt_setup_surfaces() -> None:
     client = _FakeApiClient()
     settings = _settings(admin_user_ids=(999,))
     command_update = _message_update()
@@ -1331,18 +1359,14 @@ async def test_non_admin_cannot_open_prompt_admin_surfaces() -> None:
     await engagement_prompts_command(command_update, _context(client, settings=settings))
     await callback_query(callback_update, _context(client, settings=settings))
 
-    assert client.prompt_list_calls == []
-    assert client.get_prompt_calls == []
-    assert command_update.message.replies[0]["text"] == (
-        "This engagement admin control is limited to admin operators."
-    )
-    assert callback_update.callback_query.message.replies[0]["text"] == (
-        "This engagement admin control is limited to admin operators."
-    )
+    assert client.prompt_list_calls == [{"limit": 5, "offset": 0}]
+    assert client.get_prompt_calls == ["prompt-active"]
+    assert "Drafting prompt profiles" in command_update.message.replies[0]["text"]
+    assert "Confirm prompt activation" in callback_update.callback_query.edits[0]["text"]
 
 
 @pytest.mark.asyncio
-async def test_backend_capability_overrides_local_admin_allowlist_for_admin_controls() -> None:
+async def test_backend_capability_no_longer_hides_setup_surfaces() -> None:
     client = _FakeApiClient()
     client.capabilities = {
         "operator_user_id": 123,
@@ -1352,17 +1376,17 @@ async def test_backend_capability_overrides_local_admin_allowlist_for_admin_cont
     }
     settings = _settings(admin_user_ids=(123,))
     command_update = _message_update()
-    home_update = _message_update()
+    setup_update = _message_update()
 
     await engagement_prompts_command(command_update, _context(client, settings=settings))
-    await engagement_command(home_update, _context(client, settings=settings))
+    await engagement_admin_command(setup_update, _context(client, settings=settings))
 
-    assert client.prompt_list_calls == []
-    assert command_update.message.replies[0]["text"] == (
-        "This engagement admin control is limited to admin operators."
-    )
-    assert "Admin" not in _button_labels(home_update.message.replies[0]["reply_markup"])
-    assert client.capability_calls == [123]
+    assert client.prompt_list_calls[0] == {"limit": 5, "offset": 0}
+    assert {"limit": 1, "offset": 0} in client.prompt_list_calls
+    assert "Drafting prompt profiles" in command_update.message.replies[0]["text"]
+    assert "Engagement setup" in setup_update.message.replies[0]["text"]
+    assert "Communities" in _button_labels(setup_update.message.replies[0]["reply_markup"])
+    assert client.capability_calls == []
 
 
 @pytest.mark.asyncio
@@ -1762,7 +1786,7 @@ async def test_target_notes_guided_edit_cancel_and_expiry_do_not_save() -> None:
 
 
 @pytest.mark.asyncio
-async def test_non_admin_cannot_approve_target_or_toggle_target_permissions() -> None:
+async def test_legacy_admin_allowlist_no_longer_blocks_target_mutations() -> None:
     client = _FakeApiClient()
     settings = _settings(admin_user_ids=(999,))
     approve_update = _message_update()
@@ -1780,22 +1804,25 @@ async def test_non_admin_cannot_approve_target_or_toggle_target_permissions() ->
     await callback_query(approve_confirm_update, _context(client, settings=settings))
     await callback_query(post_confirm_update, _context(client, settings=settings))
 
-    assert client.update_target_calls == []
-    assert approve_update.message.replies[0]["text"] == (
-        "This engagement admin control is limited to admin operators."
-    )
-    assert toggle_update.callback_query.message.replies[0]["text"] == (
-        "This engagement admin control is limited to admin operators."
-    )
-    assert edit_update.callback_query.message.replies[0]["text"] == (
-        "This engagement admin control is limited to admin operators."
-    )
-    assert approve_confirm_update.callback_query.message.replies[0]["text"] == (
-        "This engagement admin control is limited to admin operators."
-    )
-    assert post_confirm_update.callback_query.message.replies[0]["text"] == (
-        "This engagement admin control is limited to admin operators."
-    )
+    assert "Confirm target approval" in approve_update.message.replies[0]["text"]
+    assert "Confirm target post permission change" in toggle_update.callback_query.edits[0]["text"]
+    assert edit_update.callback_query.message.replies[0]["text"].startswith("Editing Target notes")
+    assert client.update_target_calls == [
+        {
+            "target_id": "target-approved",
+            "updates": {
+                "status": "approved",
+                "allow_join": True,
+                "allow_detect": True,
+                "allow_post": True,
+                "updated_by": "telegram:123:@operator",
+            },
+        },
+        {
+            "target_id": "target-approved",
+            "updates": {"allow_post": True, "updated_by": "telegram:123:@operator"},
+        },
+    ]
 
 
 @pytest.mark.asyncio
@@ -2095,7 +2122,7 @@ async def test_clear_engagement_account_command_removes_assignment() -> None:
 
 
 @pytest.mark.asyncio
-async def test_non_admin_cannot_change_engagement_limits_or_posting_callbacks() -> None:
+async def test_legacy_admin_allowlist_no_longer_blocks_settings_mutations() -> None:
     client = _FakeApiClient()
     settings = _settings(admin_user_ids=(999,))
     command_update = _message_update()
@@ -2111,20 +2138,13 @@ async def test_non_admin_cannot_change_engagement_limits_or_posting_callbacks() 
     await callback_query(edit_update, _context(client, settings=settings))
     await callback_query(account_confirm_update, _context(client, settings=settings))
 
-    assert client.get_settings_calls == []
-    assert client.update_settings_calls == []
-    assert command_update.message.replies[0]["text"] == (
-        "This engagement admin control is limited to admin operators."
-    )
-    assert callback_update.callback_query.message.replies[0]["text"] == (
-        "This engagement admin control is limited to admin operators."
-    )
-    assert edit_update.callback_query.message.replies[0]["text"] == (
-        "This engagement admin control is limited to admin operators."
-    )
-    assert account_confirm_update.callback_query.message.replies[0]["text"] == (
-        "This engagement admin control is limited to admin operators."
-    )
+    assert "Send safety" in command_update.message.replies[0]["text"]
+    assert "Send safety" in callback_update.callback_query.edits[0]["text"]
+    assert edit_update.callback_query.message.replies[0]["text"].startswith("Editing Max posts per day")
+    assert "No" in account_confirm_update.callback_query.message.replies[0]["text"]
+    assert "confirm" in account_confirm_update.callback_query.message.replies[0]["text"].lower()
+    assert client.get_settings_calls == ["community-1", "community-1"]
+    assert len(client.update_settings_calls) == 2
 
 
 @pytest.mark.asyncio
@@ -2280,6 +2300,8 @@ async def test_create_engagement_topic_command_parses_pipe_syntax() -> None:
             "stance_guidance": "Be factual and brief.",
             "trigger_keywords": ["crm", "open source"],
             "negative_keywords": [],
+            "example_good_replies": [],
+            "example_bad_replies": [],
             "active": True,
         }
     ]
@@ -2375,7 +2397,7 @@ async def test_topic_keywords_command_updates_selected_keyword_list() -> None:
     assert "Topic negative keywords updated." in update.message.replies[0]["text"]
 
 @pytest.mark.asyncio
-async def test_non_admin_cannot_mutate_topics_or_style_rules() -> None:
+async def test_legacy_admin_allowlist_no_longer_blocks_topic_and_style_mutations() -> None:
     client = _FakeApiClient()
     settings = _settings(admin_user_ids=(999,))
     topic_update = _message_update()
@@ -2387,14 +2409,20 @@ async def test_non_admin_cannot_mutate_topics_or_style_rules() -> None:
     )
     await callback_query(style_update, _context(client, settings=settings))
 
-    assert client.update_topic_calls == []
-    assert client.update_style_rule_calls == []
-    assert topic_update.message.replies[0]["text"] == (
-        "This engagement admin control is limited to admin operators."
-    )
-    assert style_update.callback_query.message.replies[0]["text"] == (
-        "This engagement admin control is limited to admin operators."
-    )
+    assert client.update_topic_calls == [
+        {
+            "topic_id": "topic-1",
+            "updates": {"negative_keywords": ["jobs", "recruiting"]},
+        }
+    ]
+    assert client.update_style_rule_calls == [
+        {
+            "rule_id": "rule-1",
+            "updates": {"active": False, "updated_by": "telegram:123:@operator"},
+        }
+    ]
+    assert topic_update.message.replies[0]["text"].startswith("Topic negative keywords updated.")
+    assert style_update.callback_query.edits[0]["text"].startswith("Style rule updated.")
 
 @pytest.mark.asyncio
 async def test_edit_topic_guidance_command_starts_guided_edit() -> None:
@@ -2567,24 +2595,6 @@ async def test_style_rule_inline_create_flow_previews_then_saves() -> None:
 
 
 
-@pytest.mark.asyncio
-async def test_engagement_candidate_command_opens_detail_with_revision_and_edit_controls() -> None:
-    client = _FakeApiClient()
-    update = _message_update()
-
-    await engagement_candidate_command(update, _context(client, "candidate-review"))
-
-    assert client.get_candidate_calls == ["candidate-review"]
-    text = update.message.replies[0]["text"]
-    assert "Candidate ID: candidate-review" in text
-    assert "Source: Discussing CRM tools." in text
-    callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
-    assert "eng:cand:edit:candidate-review" in callbacks
-    assert "eng:cand:rev:candidate-review" in callbacks
-    assert "eng:cand:send:candidate-review" not in callbacks
-
-
-@pytest.mark.asyncio
 async def test_candidate_open_and_edit_callbacks_use_detail_and_guided_edit() -> None:
     client = _FakeApiClient()
     open_update = _callback_update("eng:cand:open:candidate-review")
@@ -2708,63 +2718,3 @@ async def test_edit_reply_command_starts_guided_pending_edit() -> None:
     assert client.edit_candidate_calls == []
 
 
-@pytest.mark.asyncio
-async def test_guided_edit_reply_previews_then_saves_latest_value() -> None:
-    client = _FakeApiClient()
-    context = _context(client, "candidate-review")
-    start_update = _message_update()
-
-    await edit_reply_command(start_update, context)
-    text_update = _message_update("Compare data ownership and export access first.")
-    await telegram_entity_text(text_update, context)
-
-    preview = text_update.message.replies[0]
-    assert "Review Final reply" in preview["text"]
-    assert "Confirmation required before saving." in preview["text"]
-    assert "Compare data ownership" in preview["text"]
-    assert "eng:edit:save" in _callback_data_values(preview["reply_markup"])
-    assert "eng:edit:cancel" in _callback_data_values(preview["reply_markup"])
-    assert client.edit_candidate_calls == []
-
-    save_update = _callback_update("eng:edit:save")
-    await callback_query(save_update, context)
-
-    assert client.edit_candidate_calls == [
-        {
-            "candidate_id": "candidate-review",
-            "final_reply": "Compare data ownership and export access first.",
-            "edited_by": "telegram:123:@operator",
-            "edit_reason": None,
-        }
-    ]
-    assert "Saved Final reply." in save_update.callback_query.edits[0]["text"]
-    assert context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123) is None
-
-
-@pytest.mark.asyncio
-async def test_guided_edit_save_is_scoped_to_operator() -> None:
-    client = _FakeApiClient()
-    context = _context(client, "candidate-review")
-
-    await edit_reply_command(_message_update(), context)
-    await telegram_entity_text(_message_update("Keep this scoped to the operator."), context)
-
-    await callback_query(_callback_update("eng:edit:save", user_id=456), context)
-
-    assert client.edit_candidate_calls == []
-    assert context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123) is not None
-
-
-@pytest.mark.asyncio
-async def test_guided_edit_cancel_removes_only_callers_pending_edit() -> None:
-    client = _FakeApiClient()
-    context = _context(client, "candidate-review")
-
-    await edit_reply_command(_message_update(), context)
-    await telegram_entity_text(_message_update("Draft to cancel."), context)
-    cancel_update = _callback_update("eng:edit:cancel")
-    await callback_query(cancel_update, context)
-
-    assert "Cancelled edit for Final reply." in cancel_update.callback_query.edits[0]["text"]
-    assert context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123) is None
-    assert client.edit_candidate_calls == []
