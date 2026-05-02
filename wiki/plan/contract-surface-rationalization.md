@@ -5,6 +5,34 @@
 Reduce the engagement/search contract surface to a small maintained set whose
 truth comes from active code and tests instead of overlapping wiki history.
 
+## Working Decision
+
+The agreed sequence is:
+
+1. engagement first
+2. code-first mapping before wiki rewrite
+3. one unified picture across active, compatibility, and stale engagement
+   surfaces
+4. remove or demote noise only after the code map is written
+5. rewrite the remaining contract docs last
+
+This avoids doing a parallel "code audit vs doc audit" up front. The code map
+becomes the reference used to classify existing wiki material.
+
+## Engagement-First Scope
+
+The first pass should cover the full engagement picture, not just the newest
+task-first path. Each engagement surface should be placed into one of these
+states:
+
+- `active` — current operator-facing or worker-facing behavior
+- `compat` — still used for migration, backfill, or compatibility
+- `stale` — no longer a real contract and should be removed or marked
+  historical
+
+The point is to produce one unified engagement map from code while still making
+currency explicit instead of blending old and new behavior together.
+
 ## Authority Order
 
 When written contracts disagree, resolve them in this order:
@@ -70,19 +98,23 @@ with the task-first contract set.
 
 ## Immediate Cleanup Order
 
-1. Normalize externally visible engagement callback and field vocabulary.
+1. Write one code-first engagement map that covers API, bot, queue, DB, and
+   service seams across `active`, `compat`, and `stale` paths.
+2. Normalize externally visible engagement callback and field vocabulary.
    Current example: `mode` should be the wizard field name, not
    `sending_mode`.
-2. Correct the canonical docs to match shipped task-first behavior.
-3. Mark drift-heavy verification docs as historical or rewrite them as short
+3. Use the code-first engagement map to classify the existing engagement wiki
+   into keep, rewrite, demote, or historical.
+4. Mark drift-heavy verification docs as historical or rewrite them as short
    audit notes.
-4. Collapse duplicate engagement documentation so bot, API, queue, and DB
+5. Collapse duplicate engagement documentation so bot, API, queue, and DB
    contracts each have one maintained home.
-5. Repeat the same reduction for search after engagement is stable.
+6. Repeat the same reduction for search after engagement is stable.
 
 ## Acceptance Criteria
 
 - The repo has one explicit plan that names the canonical contract set.
+- The plan records the engagement-first, code-first sequencing decision.
 - The task-first engagement surface uses one external field vocabulary for
   wizard reentry.
 - `wiki/index.md` points at this plan.

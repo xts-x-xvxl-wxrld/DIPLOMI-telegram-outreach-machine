@@ -2149,3 +2149,6 @@ while preserving the staged testing contract.
 - Normalized backend wizard confirm callbacks from `sending_mode` to `mode` and
   kept a bot-side alias so older inline buttons using `sending_mode` still open
   step 4 instead of falling through to review.
+- Recorded the follow-up sequencing decision in the same plan: engagement goes
+  first, the next artifact should be a code-first unified engagement map, and
+  wiki noise removal plus contract rewrites happen after that map exists.
