@@ -2129,3 +2129,13 @@ while preserving the staged testing contract.
   `backend/api/schemas.py`, then reran `python scripts/check_fragmentation.py`, `ruff check .`, and
   `pytest -q` to restore local CI parity before publishing.
 
+## [2026-05-02] refactor | Restore CI fragmentation parity for draft brief wizard
+
+- Split `bot/runtime_topic_brief.py` into a smaller orchestration module plus the new
+  `bot/runtime_topic_brief_flow.py` helper so the draft-brief runtime stays under the enforced
+  production-file cap without changing behavior.
+- Split `wiki/plan/draft-instruction-wizard.md` into a short overview plus
+  `wiki/plan/draft-instruction-wizard/slices-1-6.md` and `wiki/plan/draft-instruction-wizard/slices-7-11.md`
+  so the parent plan returns under the enforced wiki-plan cap.
+- Updated `wiki/index.md` to point at the new draft-instruction-wizard overview and shard
+  directory, then reran local CI parity gates to confirm the guardrail violation is cleared.
