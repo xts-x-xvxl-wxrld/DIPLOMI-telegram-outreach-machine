@@ -2139,3 +2139,12 @@ while preserving the staged testing contract.
   so the parent plan returns under the enforced wiki-plan cap.
 - Updated `wiki/index.md` to point at the new draft-instruction-wizard overview and shard
   directory, then reran local CI parity gates to confirm the guardrail violation is cleared.
+
+## 2026-05-02 - Engagement rollout surfaced in bot admin
+
+- Added an operator-facing `Semantic rollout` button under the engagement `Drafting/audit` surface
+  so aggregate rollout stats are no longer hidden behind `/engagement_rollout` alone.
+- Added inline 7d, 14d, and 30d rollout window shortcuts with `Back` and `Home` navigation while
+  keeping the existing slash command as a manual fallback.
+- Updated the relevant bot spec shards and added focused rollout-surface tests for the new button
+  and callback flow.

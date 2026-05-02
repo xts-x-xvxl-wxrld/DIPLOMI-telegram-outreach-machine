@@ -98,6 +98,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_ADMIN,
     ACTION_ENGAGEMENT_ADMIN_ADVANCED,
     ACTION_ENGAGEMENT_ADMIN_LIMITS,
+    ACTION_ENGAGEMENT_ROLLOUT,
     ACTION_ENGAGEMENT_APPROVE,
     ACTION_ENGAGEMENT_CANDIDATES,
     ACTION_ENGAGEMENT_CANDIDATE_EDIT,
@@ -391,6 +392,10 @@ async def callback_query(update: Any, context: Any) -> None:
             return
         if action == ACTION_ENGAGEMENT_ADMIN_ADVANCED:
             await _send_engagement_admin_advanced(update)
+            return
+        if action == ACTION_ENGAGEMENT_ROLLOUT:
+            window_days = _positive_int_arg_from_parts(parts, default=14)
+            await _send_engagement_rollout(update, context, window_days=window_days)
             return
         if action == ACTION_CONFIG_EDIT_SAVE:
             await _save_config_edit_callback(update, context)
@@ -860,6 +865,16 @@ async def _send_cockpit_home(update: Any, context: Any) -> None:
         format_cockpit_home(payload),
         reply_markup=cockpit_home_markup(payload),
     )
+
+
+def _positive_int_arg_from_parts(parts: list[str], *, default: int) -> int:
+    if not parts:
+        return default
+    try:
+        value = int(parts[0])
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
 
 
 __all__ = ["callback_query"]

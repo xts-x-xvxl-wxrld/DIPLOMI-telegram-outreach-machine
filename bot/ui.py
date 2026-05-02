@@ -79,6 +79,7 @@ from .ui_common import (
     ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_ACTIONS,
     ACTION_ENGAGEMENT_ADMIN,
+    ACTION_ENGAGEMENT_ROLLOUT,
     ACTION_ENGAGEMENT_TARGETS,
     ACTION_ENGAGEMENT_TARGET_ADD,
     ACTION_ENGAGEMENT_TARGET_OPEN,
@@ -164,7 +165,6 @@ from .ui_engagement import (
     engagement_admin_home_markup,
     engagement_admin_limits_markup,
     engagement_settings_lookup_markup,
-    engagement_admin_advanced_markup,
     engagement_target_list_markup,
     engagement_target_actions_markup,
     engagement_target_approval_confirm_markup,
@@ -183,6 +183,10 @@ from .ui_engagement import (
     engagement_action_pager_markup,
     engagement_job_markup,
     config_edit_confirmation_markup,
+)
+from .ui_engagement_rollout import (
+    engagement_admin_advanced_markup,
+    engagement_rollout_markup,
 )
 from .ui_engagement_wizard import (
     engagement_wizard_step1_markup,
@@ -280,6 +284,7 @@ __all__ = [
     "ACTION_ENGAGEMENT_DETECT",
     "ACTION_ENGAGEMENT_ACTIONS",
     "ACTION_ENGAGEMENT_ADMIN",
+    "ACTION_ENGAGEMENT_ROLLOUT",
     "ACTION_ENGAGEMENT_TARGETS",
     "ACTION_ENGAGEMENT_TARGET_ADD",
     "ACTION_ENGAGEMENT_TARGET_OPEN",
@@ -360,6 +365,7 @@ __all__ = [
     "engagement_admin_limits_markup",
     "engagement_settings_lookup_markup",
     "engagement_admin_advanced_markup",
+    "engagement_rollout_markup",
     "engagement_target_list_markup",
     "engagement_target_actions_markup",
     "engagement_target_approval_confirm_markup",

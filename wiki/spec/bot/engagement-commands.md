@@ -356,5 +356,9 @@ Calls `GET /api/engagement/semantic-rollout` and shows aggregate semantic-select
 outcomes by similarity band for threshold tuning. The command defaults to a 14-day window and
 accepts a positive day count.
 
+The same summary should also be reachable from the engagement `Drafting/audit` surface through a
+`Semantic rollout` button with preset window shortcuts. The slash command remains the manual
+fallback.
+
 The message must remain aggregate-only. It may show counts and approval rates, but it must not show
 candidate IDs, source messages, sender identity, phone numbers, or person-level scores.

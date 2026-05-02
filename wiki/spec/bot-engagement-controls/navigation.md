@@ -116,7 +116,7 @@ The cockpit should hide backend complexity until it helps the operator make a de
 | Decide what to notice | Topics, Detection topics | engagement topics, trigger keywords, negative keywords, topic examples |
 | Tune how replies sound | Reply style | style rules, topic guidance, prompt fragments |
 | Understand whether posting is safe | Send safety, Blocked path | target permissions, settings mode, joined account, rate limits, expiry |
-| Investigate or tune internals | Drafting/audit | prompt profiles, prompt versions, audit/action rows, diagnostics |
+| Investigate or tune internals | Drafting/audit | prompt profiles, semantic rollout summaries, audit/action rows, diagnostics |
 
 Rules:
 
