@@ -250,7 +250,6 @@ ENGAGEMENT_ADMIN_ONLY_MESSAGE = (
 
 from .runtime import *
 
-from .engagement_rollout_flow import _send_engagement_rollout
 from .engagement_targets_flow import *
 from .engagement_prompts_flow import *
 from .engagement_review_flow import *
@@ -302,7 +301,13 @@ async def engagement_actions_command(update: Any, context: Any) -> None:
 
 async def engagement_rollout_command(update: Any, context: Any) -> None:
     window_days = _positive_int_arg(context, default=14)
-    await _send_engagement_rollout(update, context, window_days=window_days)
+    client = _api_client(context)
+    try:
+        data = await client.get_engagement_semantic_rollout(window_days=window_days)
+    except BotApiError as exc:
+        await _reply(update, format_api_error(exc.message))
+        return
+    await _reply(update, format_engagement_semantic_rollout(data))
 
 
 async def approve_reply_command(update: Any, context: Any) -> None:

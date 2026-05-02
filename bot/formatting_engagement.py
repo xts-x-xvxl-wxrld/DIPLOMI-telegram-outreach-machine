@@ -139,9 +139,7 @@ def format_engagement_admin_advanced_home() -> str:
             *_action_block(
                 [
                     "Use Drafting profiles for prompt-profile review and editing.",
-                    "Use Semantic rollout for aggregate threshold checks.",
                     "Use Audit/diagnostics for action history and troubleshooting.",
-                    "Manual fallback: /engagement_rollout [window_days].",
                 ],
                 title="Advanced controls",
             ),
@@ -744,7 +742,6 @@ def format_engagement_job_response(
         lines.append(_field("Reply opportunity ID", candidate_id, icon="💬"))
         lines.append(_field("Candidate ID", candidate_id, icon="🆔"))
     return "\n".join(lines)
-
 
 
 
