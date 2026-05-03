@@ -1,7 +1,7 @@
 # Wiki Index
 ## Spec files
 - [Architecture](spec/architecture.md) - Docker Compose layout, seed-first data flow, job types, key design rules
-- [Database](spec/database.md) - schema routing contract with discovery/search/engagement shards
+- [Database](spec/database.md) - schema routing contract with discovery/search/engagement shards; [Database Engagement](spec/database/engagement.md) - active engagement tables, invariants, and migration guarantees for the task-first/cockpit path
 - [Audience Brief](spec/audience-brief.md) - optional/future keyword extraction and search context
 - [Discovery](spec/discovery.md) - seed-first discovery model, candidate normalization, ordering, safety rules
 - [Search Rebuild](spec/search-rebuild.md) - clean-sheet multi-surface Telegram community search design
@@ -11,13 +11,13 @@
 - [Engagement](spec/engagement.md) - engagement routing contract with lifecycle, settings, jobs, API/bot, tests, and [account behavior](spec/engagement/account-behavior.md)
 - [Engagement Embedding Matching](spec/engagement-embedding-matching.md) - semantic selector for engagement topic matching before drafting
 - [Engagement Admin Control Plane](spec/engagement-admin-control-plane.md) - separated engagement target intake, prompt profiles, style rules, examples, editable replies, and the draft-instruction wizard
-- [Bot Engagement Controls](spec/bot-engagement-controls.md) - bot engagement routing contract with navigation, editing, slice, and formatting shards
-- [Bot Operator Cockpit](spec/bot-operator-cockpit.md) - top-level inline Telegram bot cockpit replacing the old persistent reply-keyboard menu
+- [Bot Engagement Controls](spec/bot-engagement-controls.md) - legacy/compat overview for older engagement admin and config surfaces that remain in code
+- [Bot Operator Cockpit](spec/bot-operator-cockpit.md) - top-level inline operator shell context for discovery, engagement, accounts, and help entrypoints
 - [Account Manager](spec/account-manager.md) - Telegram account pool, session management, health tracking
 - [Telegram Account Pool Separation](spec/telegram-account-pools.md) - dedicated search vs. engagement account pools and purpose routing rules
-- [API](spec/api.md) - backend REST API routing contract with resource-specific shards
-- [Bot](spec/bot.md) - Telegram bot routing contract with discovery, engagement, and access/UX shards
-- [Queue](spec/queue.md) - RQ + Redis routing contract with job type and operations shards
+- [API](spec/api.md) - backend REST API routing contract with resource-specific shards; [API Engagement](spec/api/engagement.md) - active task-first engagement write path plus cockpit read/mutation endpoints
+- [Bot](spec/bot.md) - Telegram bot routing contract with discovery, engagement, and access/UX shards; [Task-First Engagement Cockpit](spec/bot-cockpit-experience/engagement-task-first-cockpit.md) - active engagement callbacks, wizard, approvals, issues, detail, and sent-feed UX
+- [Queue](spec/queue.md) - RQ + Redis routing contract with job type and operations shards; [Queue Engagement Jobs](spec/queue/job-types/engagement.md) - active engagement collection/join/detect/send payloads, job IDs, and scheduler seams
 - [Deployment](spec/deployment.md) - GitHub CI, VPS deploy, secrets, and server-agent branch safety
 ## Plan files
 - [Git CI Convenience](plan/git-ci.md) - repo-local command for staging and committing changes
@@ -48,7 +48,7 @@
 - [Semantic Matching Rollout Review Surface](plan/semantic-matching-rollout-review-surface.md) - Slice 5b aggregate operator review surface for semantic rollout outcomes
 - [Engagement MVP Testing Readiness](plan/engagement-mvp-testing-readiness.md) - remaining collection, detection, scheduler, operator, and runbook gates before staged Telegram engagement testing
 - [Engagement Operator Controls](plan/engagement-operator-controls.md) - Telegram bot control surface for settings, topics, joins, detection, reply opportunity sends, and audit views
-- [Engagement Cockpit Verification](plan/engagement-cockpit-verification.md) - audit and hardening plan for task-first engagement UX, code paths, and regression tests
+- [Engagement Cockpit Verification Audit Note](plan/engagement-cockpit-verification/phase-1-spec-baseline.md) - retained audit baseline for task-first engagement UX, code paths, and regression-test hardening
 - [Engagement Admin Control Plane](plan/engagement-admin-control-plane.md) - manual engagement targets, prompt/profile admin, style rules, editable reply implementation, and related draft-instruction wizard context
 - [Bot Engagement Controls](plan/bot-engagement-controls.md) - next bot slices for target admin, prompt/style controls, reply opportunity editing, and advanced settings
 - [Bot Engagement Redesign](plan/bot-engagement-redesign.md) - bot-exclusive operator-surface refinement around reply opportunities, blockers, and configuration intent
@@ -57,15 +57,15 @@
 - [Engagement Task-First Cockpit Implementation](plan/engagement-task-first-cockpit-implementation.md) - phased delivery sequence for the task-first `Engagements` cockpit; [Task-First Migration Hotfix](plan/task-first-migration-hotfix.md) - fix the task-first engagement backfill query so staging migrations complete on Postgres; [Engagement Target Duplicates](plan/engagement-target-duplicates.md) - allow the same community to back multiple engagement-target rows while keeping worker permission checks safe; [Engagement Join Debug Observability](plan/engagement-join-debug-observability.md) - add join-worker logs and surface task-first join enqueue failures instead of silently succeeding; [Engagement Send And Draft Hotfix](plan/engagement-send-draft-hotfix.md) - filter sent replies from join audits and delay draft detection until permissions and membership are ready; [Engagement Natural Account Behavior](plan/engagement-natural-account-behavior.md) - Telethon read acknowledgement and typing envelope for approved public replies; [Engagement Account Behavior](plan/engagement-account-behavior.md) - delayed sends, opportunity cadence, jittered collection/read receipts, warmup, and account health refresh
 - [Telegram Account Pool Separation](plan/telegram-account-pools.md) - schema, account-manager routing, engagement guards, and onboarding plan for dedicated account pools
 - [Context Fragmentation Protocol](plan/context-fragmentation-protocol.md) - agent reading limits, wiki/code size caps, and refactor backlog; [Agent Guidance CI](plan/agent-guidance-ci.md) - local CI parity and generated-file hygiene; [Agent Merge To Main](plan/agent-merge-to-main.md) - require completed agent branches to land in `main` after local parity passes; [Agent Code Index Navigation](plan/agent-code-index-navigation.md) - split wiki-only indexing from layered code-index maps for agents; [Contract Surface Rationalization](plan/contract-surface-rationalization.md) - code-first keep/rewrite/demote map for the repo's active API, bot, queue, and DB contracts
+- [Engagement](code-index/engagement.md) - top-level engagement code map with shard links for backend, bot, workers, data model, and tests
 ## Shard directories
 - `wiki/spec/api/` - foundation, search, discovery, communities/snapshots, engagement, accounts, and jobs/debug API shards
 - `wiki/spec/database/` - foundation, search/collection, engagement, indexes, and pipeline schema shards
 - `wiki/spec/engagement/` - engagement lifecycle, settings, topics, opportunities, jobs, API/bot, observability, and tests
-- `wiki/spec/engagement-admin-control-plane/`, `wiki/spec/bot/`, and `wiki/spec/bot-cockpit-experience/` - target/prompt admin, draft-instruction wizard behavior, and bot command/access/task-first cockpit UX shards
-- `wiki/spec/bot-engagement-controls/` - engagement cockpit navigation, config editing, slice contracts, controls, formatting, and tests
+- `wiki/spec/engagement-admin-control-plane/`, `wiki/spec/bot/`, `wiki/spec/bot-cockpit-experience/`, and `wiki/spec/bot-engagement-controls/` - target/prompt admin, draft-instruction wizard behavior, task-first cockpit UX, and remaining legacy/compat engagement-control shards
 - `wiki/spec/queue/` - queue job type and operations shards
-- `wiki/plan/engagement-mvp-testing-readiness/`, `wiki/plan/engagement-cockpit-verification/` - engagement MVP readiness slices plus cockpit verification artifacts
-- `wiki/plan/engagement-task-first-cockpit/`, `wiki/plan/bot-engagement-controls/`, `wiki/plan/community-engagement/`, `wiki/plan/engagement-operator-controls/`, `wiki/plan/engagement-add-wizard/`, `wiki/plan/draft-instruction-wizard/`, `wiki/plan/search-rebuild-implementation/`, `wiki/plan/engagement-account-behavior/` - split plan shards; `wiki/code-index/` - human-written code navigation maps, starting with the unified engagement code map
+- `wiki/plan/engagement-mvp-testing-readiness/`, `wiki/plan/engagement-cockpit-verification/`, `wiki/plan/engagement-task-first-cockpit/`, `wiki/plan/bot-engagement-controls/`, `wiki/plan/community-engagement/`, `wiki/plan/engagement-operator-controls/`, `wiki/plan/engagement-add-wizard/`, `wiki/plan/draft-instruction-wizard/`, `wiki/plan/search-rebuild-implementation/`, `wiki/plan/engagement-account-behavior/` - split engagement plan shards
+- `wiki/code-index/`, `wiki/code-index/engagement/` - human-written code navigation maps plus detailed engagement module shards
 ## Implementation roots
 - `bot/api_client.py`, `bot/api_client_search.py`, `bot/api_client_accounts.py`, `bot/api_client_engagement_admin.py` - bot HTTP client for backend API endpoints plus search/account and engagement-admin endpoint mixins
 - `bot/config.py` - bot environment parsing for API token and operator allowlist

@@ -2161,3 +2161,192 @@ while preserving the staged testing contract.
   `stale or suspect` surfaces so future wiki pruning can be anchored on code
   structure instead of mixed-era spec language.
 - Updated `wiki/index.md` to point at the new `wiki/code-index/` directory.
+
+## 2026-05-02 - Extracted active engagement contract set
+
+- Rewrote the four canonical engagement contract docs as the active extracted
+  set from code/tests: `wiki/spec/api/engagement.md`,
+  `wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md`,
+  `wiki/spec/queue/job-types/engagement.md`, and
+  `wiki/spec/database/engagement.md`.
+- Kept the scope limited to the live task-first write path, cockpit
+  read/mutation path, bot callback/UI path, DB invariants/migrations, and
+  queue/worker seams, with only brief compat notes where needed to keep the
+  active set clean.
+- Updated `wiki/index.md` to point directly at those extracted contract docs,
+  then reran `python scripts/check_fragmentation.py` plus targeted engagement
+  API/bot/schema/queue tests to verify the rewritten doc set still matches the
+  asserted active surfaces.
+
+## 2026-05-02 - Classify overlapping engagement wiki surfaces
+
+- Expanded `wiki/plan/contract-surface-rationalization.md` with an explicit
+  Step 3 classification baseline for engagement wiki surfaces.
+- Marked which engagement docs stay canonical, which remain as distinct
+  subsystem/admin material, and which should be rewritten, demoted, or treated
+  as historical during noise cleanup.
+- Kept the classification focused on docs that compete with the active
+  task-first engagement contract set so follow-up deletions or demotions can be
+  done from one recorded matrix instead of ad hoc decisions.
+- Simplified the follow-up plan so Step 4 now explicitly marks deprecated docs
+  for removal and Step 5 removes them after canonical replacements and links
+  are in place.
+- Added a conservative first removal batch: the superseded v2 cockpit stub, the
+  Phase 2 and Phase 3 cockpit verification notes, and the legacy
+  `bot-engagement-controls` slice-contract family.
+- Corrected the deferred `menu-gaps` reference in the plan so it points at the
+  actual `slice-contracts/menu-gaps.md` file.
+- Follow-up code/test audit confirmed that
+  `wiki/spec/bot-engagement-controls/navigation.md` and
+  `wiki/spec/bot-engagement-controls/slice-contracts/menu-gaps.md` both drift
+  from the shipped task-first cockpit enough to mark them deprecated for
+  removal as well.
+
+## 2026-05-02 - Remove first deprecated engagement wiki batch
+
+- Deleted the superseded `wiki/spec/bot-operator-cockpit-v2.md` stub.
+- Deleted the deprecated task-first cockpit verification shards
+  `phase-2-code-mapping.md` and `phase-3-test-coverage-review.md`.
+- Deleted the deprecated `wiki/spec/bot-engagement-controls` navigation and
+  slice-contract family, including the command-surface, menu-gaps, and
+  implementation-slices docs.
+- Updated the remaining parent docs so they no longer link to those removed
+  files and instead point readers at the active task-first cockpit contract.
+
+## 2026-05-03 - Consolidate cockpit verification into one audit note
+
+- Folded the useful goal, scope, workflow, exit-criteria, and source-of-truth
+  guidance from the old verification wrapper into
+  `wiki/plan/engagement-cockpit-verification/phase-1-spec-baseline.md`.
+- Reframed `phase-1-spec-baseline.md` as the single retained audit note for the
+  cockpit verification thread, with added legacy/compat guidance and compact
+  code anchors.
+- Deleted the redundant wrapper `wiki/plan/engagement-cockpit-verification.md`
+  and repointed `wiki/index.md` plus the rationalization plan at the retained
+  audit note instead.
+
+## 2026-05-03 - Demote remaining bot engagement overview docs
+
+- Reduced `wiki/spec/bot-engagement-controls.md` to a thin legacy/compat
+  overview that points active behavior to the task-first cockpit plus canonical
+  API/DB/queue contracts.
+- Reduced `wiki/spec/bot-operator-cockpit.md` to a top-level shell/context note
+  so it no longer carries engagement-contract authority in parallel.
+- Updated `wiki/index.md` and shard descriptions to reflect those narrower roles
+  and the removal of the older engagement-control navigation/slice shards.
+
+## 2026-05-03 - Trim task-first API/bot duplication from engagement shards
+
+- Updated `wiki/spec/engagement.md` so it no longer presents itself as a
+  task-first API/bot contract source and instead routes active behavior to the
+  canonical engagement API and cockpit specs.
+- Rewrote `wiki/spec/engagement/api-bot.md` into a short compat note for older
+  community-scoped routes and legacy command/callback vocabulary that still
+  remain in code.
+- Trimmed `wiki/spec/engagement/settings-membership.md` to remove direct
+  operator-surface wording that duplicated the canonical task-first
+  list/detail/issue behavior.
+
+## 2026-05-03 - Selective engagement shard cleanup
+
+- Trimmed `wiki/spec/engagement/opportunities-actions.md` so it no longer
+  documents the operator-facing combined approval/send endpoint and instead
+  defers that behavior to the canonical task-first API contract.
+- Tightened `wiki/spec/engagement/settings-membership.md` again so it refers to
+  the canonical explicit approval-and-send path instead of the removed
+  task-first queue wording.
+
+## [2026-05-03] refactor | Remove first legacy candidate-review bot entrypoints
+
+- Removed the old candidate-review slash commands from `bot/app.py` and
+  `bot/engagement_commands_daily.py`: `/engagement_candidates`,
+  `/engagement_candidate`, `/approve_reply`, `/reject_reply`, `/send_reply`,
+  `/candidate_revisions`, `/expire_candidate`, `/retry_candidate`, and
+  `/edit_reply`.
+- Removed the matching `eng:cand:*` callback handling branch from the live
+  callback dispatch path and dropped the dead `_send_engagement_home` export
+  from the legacy target flow.
+- Deleted the dedicated candidate-review command/callback test files and
+  trimmed the shared handler test module so it no longer treats those legacy
+  entrypoints as supported behavior.
+
+## [2026-05-03] refactor | Remove remaining legacy candidate review and edit layer
+
+- Removed the leftover `/edit_reply` compatibility command plus the candidate
+  edit/save plumbing that only existed to support the old review surface.
+- Deleted the dead review-only modules `bot/engagement_review_flow.py` and
+  `bot/engagement_review_learning.py`, and removed their exports from the
+  shared engagement handler surface.
+- Removed the old candidate/home markup family from `bot/ui_engagement.py` and
+  the old `format_engagement_home` contract from `bot/formatting_engagement.py`,
+  then collapsed the shared `bot/ui.py`, `bot/formatting.py`, and runtime
+  import facades so they no longer re-export those review-only symbols.
+- Trimmed the remaining candidate/home UI and formatting tests, deleted
+  `tests/test_bot_engagement_reply_edit_handlers.py`, and removed the legacy
+  candidate-id copy check from `tests/test_engagement_operator_controls.py`.
+
+## [2026-05-03] refactor | Drop redundant compat slash commands for settings/join/detect/actions
+
+- Removed the parallel slash-command entrypoints for the remaining compat
+  send-safety/admin layer from `bot/app.py`, `bot/engagement_commands_config.py`,
+  `bot/engagement_commands_daily.py`, and `bot/engagement_handlers.py`:
+  `/engagement_settings`, `/set_engagement`, `/set_engagement_limits`,
+  `/set_engagement_quiet_hours`, `/assign_engagement_account`,
+  `/join_community`, `/detect_engagement`, and `/engagement_actions`.
+- Kept the intentional callback-driven manual/admin controls
+  `eng:set:*`, `eng:join:*`, `eng:detect:*`, and `eng:actions:*`, plus the two
+  retained clear commands `/clear_engagement_quiet_hours` and
+  `/clear_engagement_account`.
+- Trimmed `bot/formatting_engagement.py` and the shared handler/formatting tests
+  so the compat layer no longer advertises or asserts the removed slash-command
+  duplicates.
+
+## [2026-05-03] refactor | Extract callback-first manual controls into a dedicated module
+
+- Added `bot/engagement_manual_controls.py` and moved the still-live
+  callback/admin helpers for send safety, join, detect, account assignment, and
+  action-history review out of `bot/engagement_commands_config.py`.
+- Left `bot/engagement_commands_config.py` as a thin command-wrapper module for
+  topic/config command entrypoints only.
+- Updated `bot/engagement_handlers.py` and `wiki/code-index/engagement.md` so
+  the new module is the explicit home for the kept compat/manual control layer.
+
+## [2026-05-03] refactor | Remove the last engagement slash-command controls
+
+- Replaced `/clear_engagement_quiet_hours` and `/clear_engagement_account` with
+  callback-first settings controls in `bot/ui_engagement.py` and
+  `bot/callback_handlers.py`.
+- Removed the final engagement slash-command registrations and handlers from
+  `bot/app.py`, `bot/engagement_commands_config.py`, and
+  `bot/engagement_handlers.py`, leaving the compat/manual layer fully
+  callback-driven.
+- Updated the compat notes and formatting/tests so the repo no longer documents
+  any engagement control as slash-command-driven.
+
+## [2026-05-03] docs | Trim remaining engagement compat docs to the callback-first surface
+
+- Rewrote the stale command-era inventory in
+  `wiki/spec/bot/engagement-commands.md` as a historical note that keeps
+  settings, join, detect, and action-history controls callback-first and stops
+  documenting removed candidate-review commands as live behavior.
+- Trimmed `wiki/spec/engagement-admin-control-plane/targets-prompts.md` so its
+  recommended entrypoints no longer advertise removed settings or
+  candidate-review slash commands.
+- Replaced the stale candidate command block in
+  `wiki/spec/engagement-admin-control-plane/topics-style-replies.md` with a
+  note pointing review behavior back to task-first or callback-first surfaces.
+
+## [2026-05-03] docs | Expand engagement code index into functional module shards
+
+- Reworked `wiki/code-index/engagement.md` into a parent engagement map that
+  keeps the active/compat/stale split but now points readers to deeper module
+  shards instead of forcing one flat file to carry the full inventory.
+- Added `wiki/code-index/engagement/backend.md`,
+  `wiki/code-index/engagement/bot.md`,
+  `wiki/code-index/engagement/workers.md`,
+  `wiki/code-index/engagement/data-model.md`, and
+  `wiki/code-index/engagement/tests.md` to document the engagement module by
+  functionality across backend routes/services, bot flows, workers, schema, and
+  test anchors.
+- Updated `wiki/code-index/index.md` and `wiki/index.md` so the new engagement
+  shard set is discoverable from the repo’s normal documentation entrypoints.

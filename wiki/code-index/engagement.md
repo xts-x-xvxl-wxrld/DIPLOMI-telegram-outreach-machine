@@ -32,6 +32,19 @@ Every area should be read as one of:
 - `bot/engagement_issue_flow.py`
 - `bot/engagement_detail_flow.py`
 
+## Shards
+
+- [Backend](engagement/backend.md) - API routers, service layers, queue seams,
+  and active vs compat backend ownership
+- [Bot](engagement/bot.md) - callback ingress, task-first cockpit flows,
+  wizard flows, shared formatting/UI, and compat/manual controls
+- [Workers](engagement/workers.md) - scheduler, join/detect/send pipelines,
+  Telethon adapter seams, and timing helpers
+- [Data Model](engagement/data-model.md) - engagement tables, embeddings,
+  candidate/action records, and migration anchors
+- [Tests](engagement/tests.md) - route, worker, bot, schema, and compat test
+  coverage grouped by function
+
 ## Unified Picture
 
 ### Active
@@ -119,6 +132,8 @@ not be treated as the primary contract source for the engagement-first cleanup.
 - `backend/api/routes/engagement.py`
   - umbrella router that still exposes both task-first and older engagement
     surfaces side by side
+- `backend/services/community_engagement.py`
+  - export-only facade that keeps older community-scoped service imports stable
 
 #### Community-scoped settings and topic/admin paths
 
@@ -134,6 +149,21 @@ not be treated as the primary contract source for the engagement-first cleanup.
 - `backend/services/community_engagement_candidates.py`
 - `backend/services/community_engagement_actions.py`
 - `backend/services/community_engagement_views.py`
+- `bot/engagement_handlers.py`
+  - compat export surface that re-assembles older engagement command/flow
+    modules
+- `bot/engagement_manual_controls.py`
+  - callback-first compat/manual controls for send safety, join/detect, and
+    action-history review that intentionally remain beside the task-first
+    cockpit
+- `bot/engagement_commands_admin.py`
+- `bot/engagement_commands_config.py`
+- `bot/engagement_targets_flow.py`
+- `bot/engagement_topics_flow.py`
+- `bot/engagement_prompts_flow.py`
+- `bot/runtime_topic_brief.py`
+- `bot/runtime_topic_brief_flow.py`
+- `bot/runtime_topic_brief_style.py`
 
 These still matter because active task-first behavior can adapt to or coexist
 with older engagement data and admin flows.
@@ -142,7 +172,8 @@ with older engagement data and admin flows.
 
 These should not be used as contract sources without fresh code verification.
 
-- broad engagement verification plans under `wiki/plan/engagement-cockpit-verification/`
+- broad engagement verification plans under
+  `wiki/plan/engagement-cockpit-verification/`
 - older engagement control specs under `wiki/spec/bot-engagement-controls/`
 - older cockpit direction docs such as `wiki/spec/bot-operator-cockpit*.md`
 - semantic rollout surfaces referenced from older engagement candidate/action
@@ -163,6 +194,6 @@ Use this split while cleaning up:
 
 Use this map to drive the next pass:
 
-1. classify engagement wiki files against these code surfaces
-2. mark each doc as keep, rewrite, compat-only, or historical
-3. remove noise only after every doc has a place in the code map
+1. read the shard that matches the area you are changing
+2. verify ownership in code before trusting older wiki/spec text
+3. update the shard when an engagement boundary, facade, or test anchor moves
