@@ -35,11 +35,6 @@ from bot.formatting import (
     format_engagement_admin_home,
     format_engagement_admin_limits_home,
     format_engagement_account_assignment_confirmation,
-    format_engagement_candidate_card,
-    format_engagement_candidate_review,
-    format_engagement_candidate_revisions,
-    format_engagement_candidates,
-    format_engagement_home,
     format_engagement_job_response,
     format_engagement_prompt_activation_confirmation,
     format_engagement_prompt_preview,
@@ -97,13 +92,6 @@ from bot.ui import (
     ACTION_ENGAGEMENT_ADMIN,
     ACTION_ENGAGEMENT_ADMIN_ADVANCED,
     ACTION_ENGAGEMENT_ADMIN_LIMITS,
-    ACTION_ENGAGEMENT_APPROVE,
-    ACTION_ENGAGEMENT_CANDIDATES,
-    ACTION_ENGAGEMENT_CANDIDATE_EDIT,
-    ACTION_ENGAGEMENT_CANDIDATE_EXPIRE,
-    ACTION_ENGAGEMENT_CANDIDATE_OPEN,
-    ACTION_ENGAGEMENT_CANDIDATE_RETRY,
-    ACTION_ENGAGEMENT_CANDIDATE_REVISIONS,
     ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_JOIN,
@@ -118,8 +106,6 @@ from bot.ui import (
     ACTION_ENGAGEMENT_PROMPT_ROLLBACK_CONFIRM,
     ACTION_ENGAGEMENT_PROMPT_VERSIONS,
     ACTION_ENGAGEMENT_PROMPTS,
-    ACTION_ENGAGEMENT_REJECT,
-    ACTION_ENGAGEMENT_SEND,
     ACTION_ENGAGEMENT_SETTINGS_JOIN,
     ACTION_ENGAGEMENT_SETTINGS_EDIT,
     ACTION_ENGAGEMENT_SETTINGS_LOOKUP,
@@ -175,13 +161,6 @@ from bot.ui import (
     engagement_admin_advanced_markup,
     engagement_admin_home_markup,
     engagement_admin_limits_markup,
-    engagement_candidate_actions_markup,
-    engagement_candidate_detail_markup,
-    engagement_candidate_filter_markup,
-    engagement_candidate_pager_markup,
-    engagement_candidate_revisions_markup,
-    engagement_candidate_send_markup,
-    engagement_home_markup,
     engagement_prompt_actions_markup,
     engagement_prompt_activation_confirm_markup,
     engagement_prompt_list_markup,
@@ -250,40 +229,6 @@ ENGAGEMENT_ADMIN_ONLY_MESSAGE = (
 )
 
 from .runtime import *
-
-
-async def _send_engagement_home(update: Any, context: Any) -> None:
-    client = _api_client(context)
-    pending = await client.list_engagement_candidates(
-        status="needs_review",
-        limit=1,
-        offset=0,
-    )
-    approved = await client.list_engagement_candidates(
-        status="approved",
-        limit=1,
-        offset=0,
-    )
-    failed = await client.list_engagement_candidates(
-        status="failed",
-        limit=1,
-        offset=0,
-    )
-    topics = await client.list_engagement_topics()
-    active_topic_count = sum(1 for topic in topics.get("items") or [] if topic.get("active"))
-    data = {
-        "pending_reply_count": pending.get("total", 0),
-        "approved_reply_count": approved.get("total", 0),
-        "failed_candidate_count": failed.get("total", 0),
-        "active_topic_count": active_topic_count,
-    }
-    await _callback_reply(
-        update,
-        format_engagement_home(data),
-        reply_markup=engagement_home_markup(
-            show_admin=await _is_engagement_admin_async(update, context),
-        ),
-    )
 
 
 async def _send_engagement_admin(update: Any, context: Any) -> None:
@@ -606,7 +551,6 @@ async def _start_engagement_target_detection(
 
 
 __all__ = [
-    "_send_engagement_home",
     "_send_engagement_admin",
     "_send_engagement_admin_limits",
     "_send_engagement_settings_lookup",

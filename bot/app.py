@@ -35,11 +35,6 @@ from bot.formatting import (
     format_engagement_admin_home,
     format_engagement_admin_limits_home,
     format_engagement_account_assignment_confirmation,
-    format_engagement_candidate_card,
-    format_engagement_candidate_review,
-    format_engagement_candidate_revisions,
-    format_engagement_candidates,
-    format_engagement_home,
     format_engagement_job_response,
     format_engagement_prompt_activation_confirmation,
     format_engagement_prompt_preview,
@@ -95,13 +90,6 @@ from bot.ui import (
     ACTION_ENGAGEMENT_ADMIN,
     ACTION_ENGAGEMENT_ADMIN_ADVANCED,
     ACTION_ENGAGEMENT_ADMIN_LIMITS,
-    ACTION_ENGAGEMENT_APPROVE,
-    ACTION_ENGAGEMENT_CANDIDATES,
-    ACTION_ENGAGEMENT_CANDIDATE_EDIT,
-    ACTION_ENGAGEMENT_CANDIDATE_EXPIRE,
-    ACTION_ENGAGEMENT_CANDIDATE_OPEN,
-    ACTION_ENGAGEMENT_CANDIDATE_RETRY,
-    ACTION_ENGAGEMENT_CANDIDATE_REVISIONS,
     ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_JOIN,
@@ -116,8 +104,6 @@ from bot.ui import (
     ACTION_ENGAGEMENT_PROMPT_ROLLBACK_CONFIRM,
     ACTION_ENGAGEMENT_PROMPT_VERSIONS,
     ACTION_ENGAGEMENT_PROMPTS,
-    ACTION_ENGAGEMENT_REJECT,
-    ACTION_ENGAGEMENT_SEND,
     ACTION_ENGAGEMENT_SETTINGS_JOIN,
     ACTION_ENGAGEMENT_SETTINGS_EDIT,
     ACTION_ENGAGEMENT_SETTINGS_LOOKUP,
@@ -170,13 +156,6 @@ from bot.ui import (
     engagement_admin_advanced_markup,
     engagement_admin_home_markup,
     engagement_admin_limits_markup,
-    engagement_candidate_actions_markup,
-    engagement_candidate_detail_markup,
-    engagement_candidate_filter_markup,
-    engagement_candidate_pager_markup,
-    engagement_candidate_revisions_markup,
-    engagement_candidate_send_markup,
-    engagement_home_markup,
     engagement_prompt_actions_markup,
     engagement_prompt_activation_confirm_markup,
     engagement_prompt_list_markup,
@@ -354,16 +333,6 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("create_style_rule", create_style_rule_command))
     application.add_handler(CommandHandler("edit_style_rule", edit_style_rule_command))
     application.add_handler(CommandHandler("toggle_style_rule", toggle_style_rule_command))
-    application.add_handler(CommandHandler("engagement_settings", engagement_settings_command))
-    application.add_handler(CommandHandler("set_engagement", set_engagement_command))
-    application.add_handler(CommandHandler("set_engagement_limits", set_engagement_limits_command))
-    application.add_handler(CommandHandler("set_engagement_quiet_hours", set_engagement_quiet_hours_command))
-    application.add_handler(CommandHandler("clear_engagement_quiet_hours", clear_engagement_quiet_hours_command))
-    application.add_handler(CommandHandler("assign_engagement_account", assign_engagement_account_command))
-    application.add_handler(CommandHandler("clear_engagement_account", clear_engagement_account_command))
-    application.add_handler(CommandHandler("join_community", join_community_command))
-    application.add_handler(CommandHandler("detect_engagement", detect_engagement_command))
-    application.add_handler(CommandHandler("engagement_actions", engagement_actions_command))
     application.add_handler(CommandHandler("engagement_topics", engagement_topics_command))
     application.add_handler(CommandHandler("engagement_topic", engagement_topic_command))
     application.add_handler(CommandHandler("create_engagement_topic", create_engagement_topic_command))
@@ -373,16 +342,7 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("topic_remove_example", topic_remove_example_command))
     application.add_handler(CommandHandler("topic_keywords", topic_keywords_command))
     application.add_handler(CommandHandler("edit_topic_guidance", edit_topic_guidance_command))
-    application.add_handler(CommandHandler("engagement_candidates", engagement_candidates_command))
-    application.add_handler(CommandHandler("engagement_candidate", engagement_candidate_command))
-    application.add_handler(CommandHandler("approve_reply", approve_reply_command))
-    application.add_handler(CommandHandler("edit_reply", edit_reply_command))
-    application.add_handler(CommandHandler("candidate_revisions", candidate_revisions_command))
-    application.add_handler(CommandHandler("expire_candidate", expire_candidate_command))
-    application.add_handler(CommandHandler("retry_candidate", retry_candidate_command))
     application.add_handler(CommandHandler("cancel_edit", cancel_edit_command))
-    application.add_handler(CommandHandler("reject_reply", reject_reply_command))
-    application.add_handler(CommandHandler("send_reply", send_reply_command))
     application.add_handler(CallbackQueryHandler(callback_query))
     application.add_handler(MessageHandler(filters.Document.FileExtension("csv"), seed_csv_document))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, telegram_entity_text))

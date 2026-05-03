@@ -3,16 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .engagement_handlers import (
-    _create_candidate_style_rule,
-    _expire_engagement_candidate,
-    _prompt_candidate_style_rule_scope,
     _remove_topic_example,
-    _retry_engagement_candidate,
-    _review_engagement_candidate,
-    _save_candidate_reply_as_good_example,
-    _send_engagement_candidate_detail,
-    _send_engagement_candidate_revisions,
-    _send_engagement_reply,
     _send_engagement_topic,
     _send_engagement_topics,
     _toggle_engagement_topic,
@@ -25,16 +16,6 @@ from .runtime import (
     _start_config_edit,
 )
 from .ui import (
-    ACTION_ENGAGEMENT_APPROVE,
-    ACTION_ENGAGEMENT_CANDIDATE_EDIT,
-    ACTION_ENGAGEMENT_CANDIDATE_EXPIRE,
-    ACTION_ENGAGEMENT_CANDIDATE_OPEN,
-    ACTION_ENGAGEMENT_CANDIDATE_RETRY,
-    ACTION_ENGAGEMENT_CANDIDATE_REVISIONS,
-    ACTION_ENGAGEMENT_CANDIDATE_SAVE_GOOD,
-    ACTION_ENGAGEMENT_CANDIDATE_STYLE,
-    ACTION_ENGAGEMENT_REJECT,
-    ACTION_ENGAGEMENT_SEND,
     ACTION_ENGAGEMENT_TOPIC_BRIEF,
     ACTION_ENGAGEMENT_TOPIC_EDIT,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD,
@@ -110,78 +91,6 @@ async def _handle_engagement_topic_candidate_callback(
             active=parts[1] == "1",
             edit_callback=True,
         )
-        return True
-    if action == ACTION_ENGAGEMENT_CANDIDATE_OPEN and len(parts) == 1:
-        await _send_engagement_candidate_detail(update, context, parts[0])
-        return True
-    if action == ACTION_ENGAGEMENT_CANDIDATE_EDIT and len(parts) == 1:
-        await _start_config_edit(
-            update,
-            context,
-            entity="candidate",
-            object_id=parts[0],
-            field="final_reply",
-        )
-        return True
-    if action == ACTION_ENGAGEMENT_CANDIDATE_SAVE_GOOD and len(parts) == 1:
-        await _save_candidate_reply_as_good_example(
-            update,
-            context,
-            parts[0],
-            edit_callback=True,
-        )
-        return True
-    if action == ACTION_ENGAGEMENT_CANDIDATE_STYLE:
-        if len(parts) == 1:
-            await _prompt_candidate_style_rule_scope(update, context, parts[0])
-            return True
-        if len(parts) == 2:
-            await _create_candidate_style_rule(
-                update,
-                context,
-                parts[0],
-                scope_type=parts[1],
-            )
-            return True
-    if action == ACTION_ENGAGEMENT_CANDIDATE_REVISIONS and len(parts) == 1:
-        await _send_engagement_candidate_revisions(update, context, parts[0])
-        return True
-    if action == ACTION_ENGAGEMENT_CANDIDATE_EXPIRE and len(parts) == 1:
-        await _expire_engagement_candidate(
-            update,
-            context,
-            parts[0],
-            edit_callback=True,
-        )
-        return True
-    if action == ACTION_ENGAGEMENT_CANDIDATE_RETRY and len(parts) == 1:
-        await _retry_engagement_candidate(
-            update,
-            context,
-            parts[0],
-            edit_callback=True,
-        )
-        return True
-    if action == ACTION_ENGAGEMENT_APPROVE and len(parts) == 1:
-        await _review_engagement_candidate(
-            update,
-            context,
-            parts[0],
-            action="approve",
-            edit_callback=True,
-        )
-        return True
-    if action == ACTION_ENGAGEMENT_REJECT and len(parts) == 1:
-        await _review_engagement_candidate(
-            update,
-            context,
-            parts[0],
-            action="reject",
-            edit_callback=True,
-        )
-        return True
-    if action == ACTION_ENGAGEMENT_SEND and len(parts) == 1:
-        await _send_engagement_reply(update, context, parts[0])
         return True
     return False
 

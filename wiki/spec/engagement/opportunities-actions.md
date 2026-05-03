@@ -120,9 +120,9 @@ Approval rules:
 - Reply opportunity must not be past `reply_deadline_at`.
 - `final_reply` defaults to `suggested_reply`.
 - Final text must pass the same safety and length validation as generated text.
-- Generic reply opportunity approval does not enqueue send automatically. The task-first cockpit
-  draft approval endpoint explicitly combines approval and send queueing for the operator-facing
-  approval queue.
+- Generic reply opportunity approval does not enqueue send automatically. The
+  canonical task-first API doc owns any operator-surface endpoint that combines
+  approval with send queueing.
 
 ## Outbound Actions
 

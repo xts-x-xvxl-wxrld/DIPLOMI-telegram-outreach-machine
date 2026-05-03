@@ -14,56 +14,38 @@ from bot.main import (
     approve_engagement_target_command,
     archive_engagement_target_command,
     activate_engagement_prompt_command,
-    assign_engagement_account_command,
     callback_query,
-    clear_engagement_account_command,
-    clear_engagement_quiet_hours_command,
     create_engagement_prompt_command,
     create_style_rule_command,
     create_engagement_topic_command,
-    detect_engagement_command,
     duplicate_engagement_prompt_command,
     edit_style_rule_command,
     edit_topic_guidance_command,
     edit_engagement_prompt_command,
     engagement_admin_command,
-    engagement_actions_command,
-    engagement_candidate_command,
-    engagement_candidates_command,
     engagement_command,
     engagement_prompt_command,
     engagement_prompts_command,
     engagement_prompt_versions_command,
-    engagement_settings_command,
     engagement_style_command,
     engagement_style_rule_command,
     engagement_topic_command,
     engagement_target_command,
     engagement_targets_command,
     engagement_topics_command,
-    edit_reply_command,
-    expire_candidate_command,
-    join_community_command,
     reject_engagement_target_command,
-    retry_candidate_command,
     resolve_engagement_target_command,
     rollback_engagement_prompt_command,
-    send_reply_command,
-    candidate_revisions_command,
-    approve_reply_command,
-    set_engagement_limits_command,
-    set_engagement_quiet_hours_command,
+    toggle_engagement_topic_command,
     toggle_style_rule_command,
     target_detect_command,
     target_join_command,
     target_permission_command,
+    telegram_entity_text,
+    topic_bad_reply_command,
+    topic_good_reply_command,
     topic_keywords_command,
     topic_remove_example_command,
-    topic_good_reply_command,
-    topic_bad_reply_command,
-    set_engagement_command,
-    toggle_engagement_topic_command,
-    telegram_entity_text,
 )
 
 __all__ = [
@@ -73,8 +55,6 @@ __all__ = [
     "_context",
     "_message_update",
     "callback_query",
-    "engagement_candidate_command",
-    "engagement_candidates_command",
 ]
 
 
@@ -1825,47 +1805,6 @@ async def test_legacy_admin_allowlist_no_longer_blocks_target_mutations() -> Non
 
 
 @pytest.mark.asyncio
-async def test_engagement_settings_command_shows_disabled_synthetic_settings() -> None:
-    client = _FakeApiClient()
-    update = _message_update()
-
-    await engagement_settings_command(update, _context(client, "community-1"))
-
-    assert client.get_settings_calls == ["community-1"]
-    assert "Posting posture: paused" in update.message.replies[0]["text"]
-    assert "Joining allowed: no" in update.message.replies[0]["text"]
-    callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
-    assert "eng:set:preset:community-1:ready" in callbacks
-    assert "eng:join:community-1" in callbacks
-    assert "eng:detect:community-1:60" in callbacks
-
-
-@pytest.mark.asyncio
-async def test_set_engagement_ready_preset_preserves_safe_fields() -> None:
-    client = _FakeApiClient()
-    update = _message_update()
-
-    await set_engagement_command(update, _context(client, "community-1", "ready"))
-
-    assert client.update_settings_calls == [
-        {
-            "community_id": "community-1",
-            "updates": {
-                "mode": "require_approval",
-                "allow_join": True,
-                "allow_post": True,
-                "reply_only": True,
-                "require_approval": True,
-                "max_posts_per_day": 1,
-                "min_minutes_between_posts": 240,
-            },
-        }
-    ]
-    assert "Posting posture: ready with review" in update.message.replies[0]["text"]
-    assert "Joining allowed: yes" in update.message.replies[0]["text"]
-
-
-@pytest.mark.asyncio
 async def test_settings_preset_callback_edits_settings_card() -> None:
     client = _FakeApiClient()
     update = _callback_update("eng:set:preset:community-1:observe")
@@ -1959,62 +1898,16 @@ async def test_settings_guided_edit_buttons_preserve_safe_fields(
 
 
 @pytest.mark.asyncio
-async def test_set_engagement_limits_command_preserves_safe_fields() -> None:
-    client = _FakeApiClient()
-    client.settings = {
-        **client.settings,
-        "mode": "require_approval",
-        "allow_join": True,
-        "allow_post": True,
-    }
-    update = _message_update()
-
-    await set_engagement_limits_command(update, _context(client, "community-1", "2", "180"))
-
-    assert client.get_settings_calls == ["community-1"]
-    assert client.update_settings_calls == [
-        {
-            "community_id": "community-1",
-            "updates": {
-                "mode": "require_approval",
-                "allow_join": True,
-                "allow_post": True,
-                "reply_only": True,
-                "require_approval": True,
-                "max_posts_per_day": 2,
-                "min_minutes_between_posts": 180,
-                "quiet_hours_start": None,
-                "quiet_hours_end": None,
-                "assigned_account_id": None,
-            },
-        }
-    ]
-    assert "Pacing: 2 per day, 180 minutes apart" in update.message.replies[0]["text"]
-
-
-@pytest.mark.asyncio
-async def test_set_engagement_quiet_hours_command_validates_time_before_api_call() -> None:
-    client = _FakeApiClient()
-    update = _message_update()
-
-    await set_engagement_quiet_hours_command(update, _context(client, "community-1", "25:00", "07:00"))
-
-    assert client.get_settings_calls == []
-    assert client.update_settings_calls == []
-    assert update.message.replies[0]["text"] == "Quiet hours start must use HH:MM time."
-
-
-@pytest.mark.asyncio
-async def test_clear_engagement_quiet_hours_command_clears_both_values() -> None:
+async def test_clear_quiet_hours_callback_clears_both_values() -> None:
     client = _FakeApiClient()
     client.settings = {
         **client.settings,
         "quiet_hours_start": "22:00",
         "quiet_hours_end": "07:00",
     }
-    update = _message_update()
+    update = _callback_update("eng:set:qclear:community-1")
 
-    await clear_engagement_quiet_hours_command(update, _context(client, "community-1"))
+    await callback_query(update, _context(client))
 
     assert client.update_settings_calls == [
         {
@@ -2033,66 +1926,22 @@ async def test_clear_engagement_quiet_hours_command_clears_both_values() -> None
             },
         }
     ]
-    assert "Quiet hours: 22:00-07:00" not in update.message.replies[0]["text"]
+    assert "Quiet hours: 22:00-07:00" not in update.callback_query.edits[0]["text"]
 
 
 @pytest.mark.asyncio
-async def test_assign_engagement_account_command_uses_uuid_and_masked_label() -> None:
-    client = _FakeApiClient()
-    context = _context(client, "community-1", "12345678-1234-1234-1234-123456789abc")
-    update = _message_update()
-    account_id = "12345678-1234-1234-1234-123456789abc"
-
-    await assign_engagement_account_command(update, context)
-
-    assert client.update_settings_calls == []
-    preview_text = update.message.replies[0]["text"]
-    assert "Confirm engagement account assignment" in preview_text
-    assert "Before: none" in preview_text
-    assert f"After: {account_id} | +123*****89" in preview_text
-    assert "+123456789" not in preview_text
-    assert "eng:set:acctc" in _callback_data_values(update.message.replies[0]["reply_markup"])
-
-    confirm_update = _callback_update("eng:set:acctc")
-    await callback_query(confirm_update, context)
-
-    assert client.update_settings_calls == [
-        {
-            "community_id": "community-1",
-            "updates": {
-                "mode": "disabled",
-                "allow_join": False,
-                "allow_post": False,
-                "reply_only": True,
-                "require_approval": True,
-                "max_posts_per_day": 1,
-                "min_minutes_between_posts": 240,
-                "quiet_hours_start": None,
-                "quiet_hours_end": None,
-                "assigned_account_id": account_id,
-            },
-        }
-    ]
-    assert client.accounts_calls == 2
-    text = confirm_update.callback_query.edits[0]["text"]
-    assert f"Engagement account: {account_id} | +123*****89" in text
-    assert "+123456789" not in text
-
-
-@pytest.mark.asyncio
-async def test_clear_engagement_account_command_removes_assignment() -> None:
+async def test_clear_account_callback_prompts_for_confirmation_then_clears() -> None:
     client = _FakeApiClient()
     client.settings = {
         **client.settings,
         "assigned_account_id": "12345678-1234-1234-1234-123456789abc",
     }
-    context = _context(client, "community-1")
-    update = _message_update()
+    context = _context(client)
+    update = _callback_update("eng:set:acctclear:community-1")
 
-    await clear_engagement_account_command(update, context)
+    await callback_query(update, context)
 
-    assert client.update_settings_calls == []
-    preview_text = update.message.replies[0]["text"]
+    preview_text = update.callback_query.edits[0]["text"]
     assert "Confirm engagement account assignment" in preview_text
     assert "Before: 12345678-1234-1234-1234-123456789abc | +123*****89" in preview_text
     assert "After: none" in preview_text
@@ -2124,51 +1973,20 @@ async def test_clear_engagement_account_command_removes_assignment() -> None:
 async def test_legacy_admin_allowlist_no_longer_blocks_settings_mutations() -> None:
     client = _FakeApiClient()
     settings = _settings(admin_user_ids=(999,))
-    command_update = _message_update()
     callback_update = _callback_update("eng:set:post:community-1:1")
     edit_update = _callback_update("eng:set:e:community-1:mp")
     account_confirm_update = _callback_update("eng:set:acctc")
 
-    await set_engagement_limits_command(
-        command_update,
-        _context(client, "community-1", "2", "180", settings=settings),
-    )
     await callback_query(callback_update, _context(client, settings=settings))
     await callback_query(edit_update, _context(client, settings=settings))
     await callback_query(account_confirm_update, _context(client, settings=settings))
 
-    assert "Send safety" in command_update.message.replies[0]["text"]
     assert "Send safety" in callback_update.callback_query.edits[0]["text"]
     assert edit_update.callback_query.message.replies[0]["text"].startswith("Editing Max posts per day")
     assert "No" in account_confirm_update.callback_query.message.replies[0]["text"]
     assert "confirm" in account_confirm_update.callback_query.message.replies[0]["text"].lower()
-    assert client.get_settings_calls == ["community-1", "community-1"]
-    assert len(client.update_settings_calls) == 2
-
-
-@pytest.mark.asyncio
-async def test_join_and_detect_commands_queue_explicit_jobs() -> None:
-    client = _FakeApiClient()
-    join_update = _message_update()
-    detect_update = _message_update()
-
-    await join_community_command(join_update, _context(client, "community-1"))
-    await detect_engagement_command(detect_update, _context(client, "community-1", "45"))
-
-    assert client.join_calls == [
-        {"community_id": "community-1", "requested_by": "telegram:123:@operator"}
-    ]
-    assert client.detect_calls == [
-        {
-            "community_id": "community-1",
-            "window_minutes": 45,
-            "requested_by": "telegram:123:@operator",
-        }
-    ]
-    assert "Community join queued." in join_update.message.replies[0]["text"]
-    assert "Engagement detection queued." in detect_update.message.replies[0]["text"]
-    assert "jb:join-job" in _callback_data_values(join_update.message.replies[0]["reply_markup"])
-    assert "jb:detect-job" in _callback_data_values(detect_update.message.replies[0]["reply_markup"])
+    assert client.get_settings_calls == ["community-1"]
+    assert len(client.update_settings_calls) == 1
 
 
 @pytest.mark.asyncio
@@ -2184,24 +2002,6 @@ async def test_join_and_detect_callbacks_queue_jobs() -> None:
     assert client.detect_calls[0]["window_minutes"] == 60
     assert "Community join queued." in join_update.callback_query.message.replies[0]["text"]
     assert "Engagement detection queued." in detect_update.callback_query.message.replies[0]["text"]
-
-
-@pytest.mark.asyncio
-async def test_engagement_actions_command_filters_by_community_and_renders_audit() -> None:
-    client = _FakeApiClient()
-    update = _message_update()
-
-    await engagement_actions_command(update, _context(client, "community-1"))
-
-    assert client.action_calls == [{"community_id": "community-1", "limit": 5, "offset": 0}]
-    assert "Engagement audit (1-1 of 1)" in update.message.replies[0]["text"]
-    assert "reply | failed" in update.message.replies[1]["text"]
-    assert "Error: Flood wait" in update.message.replies[1]["text"]
-    assert "Outbound text: Compare ownership" in update.message.replies[1]["text"]
-    assert _callback_data_values(update.message.replies[0]["reply_markup"]) == [
-        "eng:home",
-        "op:home",
-    ]
 
 
 @pytest.mark.asyncio
@@ -2575,128 +2375,4 @@ async def test_style_rule_inline_create_flow_previews_then_saves() -> None:
         "created_by": "telegram:123:@operator",
     }
     assert "Style rule created." in save_update.callback_query.edits[0]["text"]
-
-
-
-async def test_candidate_open_and_edit_callbacks_use_detail_and_guided_edit() -> None:
-    client = _FakeApiClient()
-    open_update = _callback_update("eng:cand:open:candidate-review")
-    edit_update = _callback_update("eng:cand:edit:candidate-review")
-    context = _context(client)
-
-    await callback_query(open_update, context)
-    await callback_query(edit_update, context)
-
-    assert client.get_candidate_calls == ["candidate-review"]
-    assert "Candidate ID: candidate-review" in open_update.callback_query.message.replies[0]["text"]
-    assert "Editing Final reply" in edit_update.callback_query.message.replies[0]["text"]
-    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
-    assert pending.object_id == "candidate-review"
-
-
-@pytest.mark.asyncio
-async def test_candidate_revisions_command_lists_revision_history() -> None:
-    client = _FakeApiClient()
-    update = _message_update()
-
-    await candidate_revisions_command(update, _context(client, "candidate-review"))
-
-    assert client.revision_calls == ["candidate-review"]
-    message = update.message.replies[0]["text"]
-    assert "Reply revisions (1)" in message
-    assert "Revision 1" in message
-    assert "Edited reply text." in message
-
-
-@pytest.mark.asyncio
-async def test_expire_and_retry_candidate_commands_call_candidate_routes() -> None:
-    client = _FakeApiClient()
-    expire_update = _message_update()
-    retry_update = _message_update()
-
-    await expire_candidate_command(expire_update, _context(client, "candidate-review"))
-    await retry_candidate_command(retry_update, _context(client, "candidate-failed"))
-
-    assert client.expire_candidate_calls == [
-        {"candidate_id": "candidate-review", "expired_by": "telegram:123:@operator"}
-    ]
-    assert client.retry_candidate_calls == [
-        {"candidate_id": "candidate-failed", "retried_by": "telegram:123:@operator"}
-    ]
-    assert "Reply opportunity expired." in expire_update.message.replies[0]["text"]
-    assert "Reply opportunity reopened for review." in retry_update.message.replies[0]["text"]
-
-
-@pytest.mark.asyncio
-async def test_expire_and_retry_candidate_callbacks_edit_current_card() -> None:
-    client = _FakeApiClient()
-    expire_update = _callback_update("eng:cand:exp:candidate-review")
-    retry_update = _callback_update("eng:cand:retry:candidate-failed")
-
-    await callback_query(expire_update, _context(client))
-    await callback_query(retry_update, _context(client))
-
-    assert "Reply opportunity expired." in expire_update.callback_query.edits[0]["text"]
-    assert "Reply opportunity reopened for review." in retry_update.callback_query.edits[0]["text"]
-
-
-@pytest.mark.asyncio
-async def test_approve_reply_returns_queue_send_button_without_sending() -> None:
-    client = _FakeApiClient()
-    update = _message_update()
-
-    await approve_reply_command(update, _context(client, "candidate-review"))
-
-    callbacks = _callback_data_values(update.message.replies[0]["reply_markup"])
-    assert "Ready to send: send reply candidate-review" in update.message.replies[0]["text"]
-    assert "eng:cand:send:candidate-review" in callbacks
-    assert client.approve_calls == [
-        {"candidate_id": "candidate-review", "reviewed_by": "telegram:123:@operator"}
-    ]
-    assert client.send_calls == []
-
-
-@pytest.mark.asyncio
-async def test_send_reply_command_queues_send_job() -> None:
-    client = _FakeApiClient()
-    update = _message_update()
-
-    await send_reply_command(update, _context(client, "candidate-approved"))
-
-    assert "Reply send queued." in update.message.replies[0]["text"]
-    assert "send-job (engagement.send)" in update.message.replies[0]["text"]
-    assert client.send_calls == [
-        {"candidate_id": "candidate-approved", "approved_by": "telegram:123:@operator"}
-    ]
-    assert "jb:send-job" in _callback_data_values(update.message.replies[0]["reply_markup"])
-
-
-@pytest.mark.asyncio
-async def test_send_reply_callback_queues_send_job() -> None:
-    client = _FakeApiClient()
-    update = _callback_update("eng:cand:send:candidate-approved")
-
-    await callback_query(update, _context(client))
-
-    assert update.callback_query.answers == [{"text": None, "show_alert": False}]
-    assert "Reply send queued." in update.callback_query.message.replies[0]["text"]
-    assert client.send_calls == [
-        {"candidate_id": "candidate-approved", "approved_by": "telegram:123:@operator"}
-    ]
-
-
-@pytest.mark.asyncio
-async def test_edit_reply_command_starts_guided_pending_edit() -> None:
-    client = _FakeApiClient()
-    context = _context(client, "candidate-review")
-    update = _message_update()
-
-    await edit_reply_command(update, context)
-
-    assert "Editing Final reply" in update.message.replies[0]["text"]
-    assert "Send the replacement value as your next message." in update.message.replies[0]["text"]
-    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
-    assert pending is not None
-    assert pending.object_id == "candidate-review"
-    assert client.edit_candidate_calls == []
 

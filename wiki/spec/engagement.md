@@ -25,15 +25,21 @@ send orchestration, and audit trails.
 - OpenAI calls remain in `engagement.detect`; sending and scheduling do not call OpenAI.
 - Dedicated engagement account-pool routing is enforced before joins or sends.
 
-## Interface Summary
+## Not The Source Of Truth For Task-First API/Bot UX
+
+- Active task-first engagement API behavior lives in
+  `wiki/spec/api/engagement.md`.
+- Active task-first engagement bot behavior lives in
+  `wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md`.
+- This top-level engagement spec should keep subsystem/worker behavior and route
+  readers to the canonical API/bot/DB/queue docs instead of restating them.
+
+## Runtime Summary
 
 - `community.join` joins an approved engagement target with an engagement-purpose account.
 - `engagement.detect` samples recent approved-target activity, matches topics, renders the active
-prompt against live context, drafts reply candidates, and notifies operators.
+  prompt against live context, drafts reply candidates, and notifies operators.
 - `engagement.send` revalidates approval, rate limits, and membership state before replying.
-- API routes under `backend/api/routes/engagement*.py` expose settings, topics, targets, prompts,
-style rules, candidates, actions, and rollout summaries.
-- Bot handlers expose daily review and admin control surfaces through the `eng:` callback namespace.
 
 ## Code Map
 
@@ -58,7 +64,7 @@ style rules, candidates, actions, and rollout summaries.
 - [Topics and Drafting](engagement/topics-drafting.md) - topic contracts, trigger selection, prompt rules.
 - [Opportunities and Actions](engagement/opportunities-actions.md) - reply opportunities and outbound actions.
 - [Jobs and Scheduling](engagement/jobs-scheduling.md) - worker jobs, notification, monitoring cadence.
-- [API and Bot Surface](engagement/api-bot.md) - API DTOs and Telegram bot workflows.
+- [API and Bot Compat Note](engagement/api-bot.md) - legacy/compat API and bot notes that still matter while old engagement surfaces remain in code.
 - [Observability and Tests](engagement/observability-tests.md) - logs, metrics, and test requirements.
 
 ## Open Questions

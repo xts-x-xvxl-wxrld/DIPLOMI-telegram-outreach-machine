@@ -1,7 +1,16 @@
-# Engagement Cockpit Verification: Phase 1 Spec Baseline
+# Engagement Cockpit Verification Audit Note
 
-Phase 1 extracts the active UX contract into one compact verification matrix for
-later code and test audits.
+Single retained audit note for the task-first engagement cockpit cleanup.
+
+This note preserves the compact verification baseline after the larger wrapper
+plan and drift-heavy verification shards were removed during contract-surface
+cleanup.
+
+## Goal
+
+Audit the task-first Telegram engagement cockpit against the active UX spec,
+verify each operator path in code, and harden the contract with regression
+tests before fixing confirmed defects.
 
 ## Authority Order
 
@@ -13,6 +22,27 @@ later code and test audits.
 
 If callback examples conflict, the task-first cockpit shard wins.
 
+## Scope
+
+In scope:
+
+- `Engagements` home state and button ordering
+- approval queue and draft review actions
+- issue queue and issue-fix subflows
+- `My engagements`
+- engagement detail and resume behavior
+- sent-message feed
+- add/edit wizard flows
+- non-wizard vs wizard navigation rules
+- bot/API contract alignment for task-first callbacks
+
+Out of scope:
+
+- legacy pre-task-first engagement home behavior
+- discovery cockpit redesign work
+- non-bot frontend work
+- new engagement product features not already specified
+
 ## Shared Navigation Rules
 
 - Home is `Engagements` and shows no `Back` or home button.
@@ -23,6 +53,12 @@ If callback examples conflict, the task-first cockpit shard wins.
 - Returning to the top-level operator cockpit uses `op:home`.
 - Prefer backend `next_callback` and `resume_callback` values over bot-inferred
   routing whenever the payload provides them.
+
+## Legacy / Compat Note
+
+Older admin/setup and candidate-review surfaces still exist in code, but they
+are not the active `/engagement` contract. Treat them as compatibility paths
+only, not as operator-source-of-truth behavior for the task-first cockpit.
 
 ## Surface Matrix
 
@@ -42,7 +78,53 @@ If callback examples conflict, the task-first cockpit shard wins.
 | Navigation outside the wizard | applies to `eng:appr:*`, `eng:iss:*`, `eng:mine:*`, `eng:det:*`, `eng:sent:*`, `eng:rate:*`, and `eng:quiet:*` | `Back` goes one step back; `<< Engagements` leaves immediately for the engagement home. | Do not use the older `Home` footer model. `eng:home` is the only cockpit-home return target. |
 | Navigation inside the wizard | applies to `eng:wz:*` screens | Show only step-by-step `Back`; do not show `<< Engagements`; leaving is handled by wizard controls such as `Cancel`, `Retry`, and `Confirm`. | `Cancel` requires local confirmation; `wizard-confirm` and `wizard-retry` must follow returned backend routing instead of bot-inferred destinations. |
 
-## Normalization Notes For Later Phases
+## Verification Workflow
+
+1. Use the matrix below as the intended behavior baseline.
+2. Map each surface to bot handlers, API endpoints, and tests.
+3. Identify mismatches between spec, code, and tests.
+4. Add or tighten regression tests for the real contract.
+5. Fix only confirmed failures or contract drift.
+
+## Code Anchors
+
+- `bot/engagement_commands_daily.py`
+- `bot/callback_handlers.py`
+- `bot/ui_engagement_home.py`
+- `bot/engagement_approval_flow.py`
+- `bot/engagement_issue_flow.py`
+- `bot/engagement_detail_flow.py`
+- `bot/engagement_wizard_flow.py`
+- `backend/api/routes/engagement_cockpit.py`
+- `backend/services/task_first_engagement_cockpit.py`
+- `backend/services/task_first_engagement_cockpit_mutations.py`
+- `tests/test_bot_engagement_cockpit_home.py`
+- `tests/test_bot_engagement_home_handlers.py`
+- `tests/test_bot_engagement_issue_handlers.py`
+- `tests/test_bot_engagement_detail_handlers.py`
+- `tests/test_bot_engagement_wizard.py`
+- `tests/test_engagement_api.py`
+
+## Exit Criteria
+
+This audit thread is done when:
+
+- each in-scope engagement surface is mapped to spec, code, and tests
+- critical navigation paths have regression tests for the real contract
+- known mismatches are either fixed or recorded as explicit follow-up work
+- the engagement cockpit no longer relies on placeholder assertions for core
+  navigation behavior
+
+## Supersedes
+
+This audit note supersedes the removed wrapper and drift-heavy verification
+shards:
+
+- `wiki/plan/engagement-cockpit-verification.md`
+- `wiki/plan/engagement-cockpit-verification/phase-2-code-mapping.md`
+- `wiki/plan/engagement-cockpit-verification/phase-3-test-coverage-review.md`
+
+## Normalization Notes
 
 - Treat `eng:wz:*` as the active callback family for add/edit wizard work during
   verification, even though the older wizard shard still documents

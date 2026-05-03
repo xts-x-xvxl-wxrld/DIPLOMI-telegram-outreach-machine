@@ -35,11 +35,6 @@ from bot.formatting import (
     format_engagement_admin_home,
     format_engagement_admin_limits_home,
     format_engagement_account_assignment_confirmation,
-    format_engagement_candidate_card,
-    format_engagement_candidate_review,
-    format_engagement_candidate_revisions,
-    format_engagement_candidates,
-    format_engagement_home,
     format_engagement_job_response,
     format_engagement_prompt_activation_confirmation,
     format_engagement_prompt_preview,
@@ -96,13 +91,6 @@ from bot.ui import (
     ACTION_ENGAGEMENT_ADMIN,
     ACTION_ENGAGEMENT_ADMIN_ADVANCED,
     ACTION_ENGAGEMENT_ADMIN_LIMITS,
-    ACTION_ENGAGEMENT_APPROVE,
-    ACTION_ENGAGEMENT_CANDIDATES,
-    ACTION_ENGAGEMENT_CANDIDATE_EDIT,
-    ACTION_ENGAGEMENT_CANDIDATE_EXPIRE,
-    ACTION_ENGAGEMENT_CANDIDATE_OPEN,
-    ACTION_ENGAGEMENT_CANDIDATE_RETRY,
-    ACTION_ENGAGEMENT_CANDIDATE_REVISIONS,
     ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_JOIN,
@@ -117,8 +105,6 @@ from bot.ui import (
     ACTION_ENGAGEMENT_PROMPT_ROLLBACK_CONFIRM,
     ACTION_ENGAGEMENT_PROMPT_VERSIONS,
     ACTION_ENGAGEMENT_PROMPTS,
-    ACTION_ENGAGEMENT_REJECT,
-    ACTION_ENGAGEMENT_SEND,
     ACTION_ENGAGEMENT_SETTINGS_JOIN,
     ACTION_ENGAGEMENT_SETTINGS_EDIT,
     ACTION_ENGAGEMENT_SETTINGS_LOOKUP,
@@ -174,13 +160,6 @@ from bot.ui import (
     engagement_admin_advanced_markup,
     engagement_admin_home_markup,
     engagement_admin_limits_markup,
-    engagement_candidate_actions_markup,
-    engagement_candidate_detail_markup,
-    engagement_candidate_filter_markup,
-    engagement_candidate_pager_markup,
-    engagement_candidate_revisions_markup,
-    engagement_candidate_send_markup,
-    engagement_home_markup,
     engagement_prompt_actions_markup,
     engagement_prompt_activation_confirm_markup,
     engagement_prompt_list_markup,
@@ -386,55 +365,10 @@ async def _update_topic_keywords(
     )
 
 
-async def _review_engagement_candidate(
-    update: Any,
-    context: Any,
-    candidate_id: str,
-    *,
-    action: str,
-    edit_callback: bool = False,
-) -> None:
-    client = _api_client(context)
-    reviewer = _reviewer_label(update)
-    if action == "approve":
-        data = await client.approve_engagement_candidate(candidate_id, reviewed_by=reviewer)
-    else:
-        data = await client.reject_engagement_candidate(candidate_id, reviewed_by=reviewer)
-
-    message = format_engagement_candidate_review(action, data)
-    reply_markup = None
-    if data.get("status") == "approved":
-        reply_markup = engagement_candidate_send_markup(candidate_id)
-    if edit_callback:
-        await _edit_callback_message(update, message, reply_markup=reply_markup)
-        return
-    await _reply(update, message, reply_markup=reply_markup)
-
-
-async def _send_engagement_reply(update: Any, context: Any, candidate_id: str) -> None:
-    client = _api_client(context)
-    data = await client.send_engagement_candidate(
-        candidate_id,
-        approved_by=_reviewer_label(update),
-    )
-    job_id = str((data.get("job") or {}).get("id", "unknown"))
-    await _callback_reply(
-        update,
-        format_engagement_job_response(
-            data,
-            label="Reply send",
-            candidate_id=candidate_id,
-        ),
-        reply_markup=engagement_job_markup(job_id, candidate_id=candidate_id),
-    )
-
-
 __all__ = [
     "_send_engagement_topics",
     "_send_engagement_topic",
     "_toggle_engagement_topic",
     "_remove_topic_example",
     "_update_topic_keywords",
-    "_review_engagement_candidate",
-    "_send_engagement_reply",
 ]

@@ -68,8 +68,7 @@ context instead of authoritative contract sources:
 - `wiki/spec/engagement.md`
 - `wiki/spec/bot-engagement-controls.md`
 - `wiki/spec/bot-operator-cockpit.md`
-- `wiki/spec/bot-operator-cockpit-v2.md`
-- `wiki/plan/engagement-cockpit-verification.md`
+- `wiki/plan/engagement-cockpit-verification/phase-1-spec-baseline.md`
 
 ## Rewrite Or Fold Back
 
@@ -83,6 +82,67 @@ behavior and should be rewritten or folded into the canonical docs above:
 - `wiki/plan/engagement-cockpit-verification/phase-3-test-coverage-review.md`
   Reason: wizard mode semantics and fresh-start notes drift from current
   code/tests and mixes audit history with live contract language.
+
+## Step 3 Classification Baseline
+
+This is the first explicit keep/rewrite/demote/historical classification pass
+driven by `wiki/code-index/engagement.md`.
+
+| Wiki surface | Classification | Action |
+| --- | --- | --- |
+| `wiki/spec/api/engagement.md` | keep | canonical API contract |
+| `wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md` | keep | canonical bot contract |
+| `wiki/spec/database/engagement.md` | keep | canonical DB contract |
+| `wiki/spec/queue/job-types/engagement.md` | keep | canonical queue contract |
+| `wiki/code-index/engagement.md` | keep | code-first navigation map for future pruning |
+| `wiki/spec/engagement.md` | demote | keep only as engagement overview and router to narrower shards, not as the active task-first contract source |
+| `wiki/spec/engagement/*.md` | keep but narrow | retain non-duplicated subsystem behavior such as lifecycle, jobs, observability, and account behavior; remove or link away any duplicated task-first cockpit/API wording |
+| `wiki/spec/bot/engagement-add-wizard.md` | rewrite | keep only step-layout detail that the canonical cockpit spec intentionally omits; avoid restating the full wizard contract in parallel |
+| `wiki/spec/bot-engagement-controls.md` | demote | mark as legacy/compat engagement-controls overview, not current task-first source of truth |
+| `wiki/spec/bot-engagement-controls/**` | rewrite or historical | keep only shards that still describe distinct legacy/admin behavior; mark old slice-contract and navigation material historical where it overlaps the task-first cockpit |
+| `wiki/spec/bot-operator-cockpit.md` | demote | keep as top-level operator-shell context only, not engagement contract authority |
+| `wiki/spec/bot-operator-cockpit/**` | historical or narrow | keep non-engagement shell/navigation context if still referenced; demote engagement-specific rollout wording |
+| `wiki/plan/engagement-cockpit-verification/phase-1-spec-baseline.md` | keep | single retained audit note for the cockpit verification thread |
+| `wiki/plan/engagement-cockpit-verification/phase-2-code-mapping.md` | rewrite | shorten into a brief audit note after the canonical docs are landed |
+| `wiki/plan/engagement-cockpit-verification/phase-3-test-coverage-review.md` | rewrite | shorten into a brief coverage note after the canonical docs are landed |
+| `wiki/plan/engagement-task-first-cockpit*.md` | demote | keep as implementation-sequencing history, not contract authority |
+| `wiki/plan/community-engagement*.md` | demote | keep as earlier rollout history where it overlaps the newer task-first cockpit direction |
+| `wiki/plan/engagement-operator-controls*.md` | demote | keep as historical operator-surface planning where superseded by the task-first cockpit |
+| `wiki/plan/bot-engagement-controls*.md` | demote | keep as slice history for older bot control work, not active contract |
+| `wiki/spec/engagement-admin-control-plane*.md` | keep | separate admin surface; not part of this noise-removal target except for cross-links |
+| `wiki/spec/engagement-embedding-matching*.md` | keep | separate semantic-matching subsystem; not a duplicate of the active cockpit contract set |
+| `wiki/plan/engagement-account-behavior*.md`, `wiki/plan/engagement-send-draft-hotfix.md`, `wiki/plan/engagement-join-debug-observability.md`, `wiki/plan/engagement-target-duplicates.md` | keep | implementation plans for distinct runtime seams, not duplicate contract surfaces |
+
+## Step 4/5 First Removal Batch
+
+Removed in the first engagement-noise cleanup batch:
+
+- `wiki/plan/engagement-cockpit-verification/phase-2-code-mapping.md`
+  Reason: drift-heavy verification artifact that overlaps the canonical code
+  index plus extracted API/bot/DB/queue contracts.
+- `wiki/plan/engagement-cockpit-verification/phase-3-test-coverage-review.md`
+  Reason: drift-heavy verification artifact that overlaps the canonical
+  contracts plus current test files.
+- `wiki/spec/bot-engagement-controls/slice-contracts.md`
+- `wiki/spec/bot-engagement-controls/slice-contracts/command-surface.md`
+- `wiki/spec/bot-engagement-controls/slice-contracts/implementation-slices.md`
+- `wiki/spec/bot-engagement-controls/slice-contracts/implementation-slices/**`
+  Reason: older slice-contract history for engagement controls that overlaps
+  the task-first cockpit contract set and should not remain as a competing
+  source of truth.
+- `wiki/spec/bot-engagement-controls/navigation.md`
+  Reason: active `/engagement` routing, top-level home labels, issue/readiness
+  model, and admin-access claims drift from current code/tests; it is not
+  reliable as a live contract source.
+- `wiki/spec/bot-engagement-controls/slice-contracts/menu-gaps.md`
+  Reason: legacy command/config details still exist, but the doc's main-menu,
+  auth, and missing-gap claims drift from the shipped task-first cockpit and
+  current tests.
+
+Not yet marked for removal:
+
+- none in the cockpit-verification family; `phase-1-spec-baseline.md` is the
+  single retained audit note.
 
 ## Contract Boundaries To Remove From Canonical Docs
 
@@ -105,16 +165,17 @@ with the task-first contract set.
    `sending_mode`.
 3. Use the code-first engagement map to classify the existing engagement wiki
    into keep, rewrite, demote, or historical.
-4. Mark drift-heavy verification docs as historical or rewrite them as short
-   audit notes.
-5. Collapse duplicate engagement documentation so bot, API, queue, and DB
-   contracts each have one maintained home.
+4. Mark the engagement docs that are deprecated for removal.
+5. Remove the deprecated docs once the canonical replacements and links are in
+   place.
 6. Repeat the same reduction for search after engagement is stable.
 
 ## Acceptance Criteria
 
 - The repo has one explicit plan that names the canonical contract set.
 - The plan records the engagement-first, code-first sequencing decision.
+- The plan contains an explicit engagement-doc classification baseline.
+- The plan names an initial deprecated-for-removal batch.
 - The task-first engagement surface uses one external field vocabulary for
   wizard reentry.
 - `wiki/index.md` points at this plan.

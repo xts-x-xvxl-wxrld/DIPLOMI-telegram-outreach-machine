@@ -30,10 +30,10 @@ UNIQUE (target_id)
 
 Rules:
 
-- A finished operator-visible engagement row must exist before the engagement
-  appears in `My engagements`.
-- A draft engagement may exist during wizard setup and remain hidden from the
-  operator list until confirmed.
+- A finished operator-visible engagement row must satisfy the active task-first
+  list/detail visibility rules defined by the canonical API/bot/DB contracts.
+- A draft engagement may exist during setup and remain hidden until
+  confirmation.
 - Target approval remains a separate allowlist concept, but the engagement row
   is the primary operator object.
 - One engagement maps to one topic in the first version.
@@ -123,9 +123,9 @@ def upsert_engagement_settings(
 It should not create a database row just because the operator viewed settings.
 Worker-facing community lookups should prefer the active task-first `engagement_settings`
 row for that community and fall back to legacy `community_engagement_settings`
-only for compatibility while old control surfaces are retired. For task-first engagements,
-`allow_post=false` in `suggest` mode blocks automatic sends, but it must not block the explicit
-operator-approved send from the draft approval queue.
+only for compatibility while old control surfaces are retired. For task-first
+engagements, `allow_post=false` in `suggest` mode blocks automatic sends but
+must not block the canonical explicit approval-and-send path.
 
 ## Engagement Topic
 
@@ -133,7 +133,9 @@ Chosen topic belongs to an engagement, not just to a global active-topic pool.
 
 Rules:
 
-- An engagement with no chosen topic should raise `Topics not chosen`.
+- An engagement with no chosen topic is invalid for active task-first
+  operation and should surface through the current cockpit issue rules defined
+  by the canonical API/bot contracts.
 - Topic library rows remain reusable global topic definitions.
 - Topic choice is engagement-specific even though topic definitions are shared.
 

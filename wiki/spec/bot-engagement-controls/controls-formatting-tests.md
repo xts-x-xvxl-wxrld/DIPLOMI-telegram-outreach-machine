@@ -1,169 +1,97 @@
 # Bot Engagement Controls Formatting And Tests
 
-Inline control, formatting, safety, and test contracts for engagement bot surfaces.
+Inline control, formatting, and regression-test notes for the remaining
+legacy/compat engagement bot surfaces.
 
 ## Inline Controls
 
-Recommended callback prefixes:
+The kept compat/manual layer is callback-first. The important live namespaces
+here are:
 
 ```text
-eng:home
-eng:admin
-eng:c:<status>:<offset>
-eng:cd:<candidate_id>
-eng:ca:<candidate_id>
-eng:cr:<candidate_id>
-eng:cs:<candidate_id>
-eng:ce:<candidate_id>
-eng:t:list:<status>:<offset>
-eng:t:open:<target_id>
-eng:t:perm:<target_id>:<j|d|p>:<0|1>
-eng:t:approve:<target_id>
-eng:t:reject:<target_id>
-eng:p:list:<offset>
-eng:p:open:<profile_id>
-eng:p:preview:<profile_id>
-eng:p:activate:<profile_id>
-eng:topic:list:<offset>
-eng:topic:open:<topic_id>
-eng:style:list:<scope>:<offset>
-eng:style:open:<rule_id>
-eng:set:open:<community_id>
+eng:admin:*
+eng:set:*
+eng:join:*
+eng:detect:*
+eng:actions:*
+eng:t:*
+eng:p:*
+eng:style:*
+eng:topic:*
+eng:edit:save
+eng:edit:cancel
 ```
 
-The exact names may change during implementation if needed to preserve the 64-byte callback limit.
-The important contract is that engagement callbacks stay inside the `eng:*` namespace and route
-only through bot API-client methods.
+Rules:
 
-Queue filters must expose at least:
-
-- `needs_review`
-- `approved`
-- `failed`
-- `expired`
-- `sent`
-- `rejected`
+- Engagement callbacks stay inside the `eng:*` namespace.
+- Settings, join, detect, and action-history controls must remain button-led;
+  they should not depend on slash-command mirrors.
+- Target, prompt, style, and topic controls may remain in compat/admin docs as
+  long as they still match shipped code/tests.
+- Exact callback tokens may evolve to preserve the Telegram 64-byte limit, but
+  the namespace split should stay stable.
 
 ## Message Formatting
 
-Reply opportunity cards should show:
-
-- queue label such as `Pending approvals`, `Ready to send`, or `Needs attention`
-- send readiness summary
-- next safe action sentence
-- candidate ID
-- community title and username when available
-- topic name
-- status and expiry
-- capped source excerpt
-- detected reason
-- suggested reply
-- final reply when different from the suggestion
-- prompt profile and version
-- risk notes
-- next safe actions
-
-Open reply-opportunity detail should act as a review workspace:
-
-- show `Source context`, `Reply workspace`, and `Audit fields` sections
-- show generated suggestion and final reply as separate fields
-- when the final reply still matches the generated suggestion, say so explicitly
+Compat/admin surfaces should still favor short operator-facing summaries before
+ raw IDs.
 
 Target cards should show:
 
-- community readiness summary
-- target ID
-- submitted reference
-- resolved community when available
+- readiness
 - status
-- `allow_join`, `allow_detect`, and `allow_post`
+- join/detect/post permission state
+- submitted reference and resolved community when available
 - last error when present
-- next safe actions
+- audit IDs only in detail views
 
-Prompt cards should show:
+Send-safety cards should show:
 
-- profile ID
-- name and active state
-- version
-- model, temperature, and max output tokens
-- output schema
-- capped system and user-template previews
-- next safe actions
+- readiness
+- posting posture
+- pacing
+- quiet hours when set
+- assigned account when set
+- button-led next actions instead of slash-command instructions
 
-Style cards should show:
+Prompt, style, and topic cards should keep:
 
-- rule ID
-- scope and scope ID
-- active state
-- priority
-- capped rule text
-- next safe actions
+- compact summaries first
+- audit fields in detail views
+- action buttons for edit/preview/activate/toggle flows
 
-Config surfaces should show:
+Action-history views should keep:
 
-- `Engagement setup` as the admin home heading
-- operator-intent labels such as `Allowed communities`, `Detection topics`, `Reply style rules`,
-  `Send safety`, and `Drafting profiles`
-- send-safety surfaces that lead with readiness, posting posture, pacing, quiet hours, and account assignment
-- drafting/audit surfaces that keep prompt-profile and diagnostics controls clearly separate from ordinary review work
-
-Formatting rules:
-
-- queue list headers should be status-specific (`Pending approvals`, `Ready to send`, `Needs attention`,
-  `Expired opportunities`, `Sent replies`, `Rejected opportunities`)
-- Put the operator-facing summary and next safe action above raw IDs and backend fields.
-- Prefer compact cards over long lists.
-- Use plain-text visual hierarchy first: short emoji/glyph markers, labeled fields, and section
-  headers must remain readable even when Telegram parse modes are disabled.
-- Emoji usage should be additive, not decorative overload: keep the icon count low and preserve a
-  clear text label for every action and status.
-- Show only state-relevant actions on default cards; move diagnostic and advanced actions into detail
-  views.
-- Truncate source excerpts before final reply text.
-- Never truncate final reply text in a send confirmation card. If it is too long for Telegram,
-  split the confirmation into multiple messages.
-- Never expose sender identity, phone numbers, full account secrets, raw prompt internals that are
-  not meant for operators, or person-level scores.
+- compact audit list headers
+- per-item cards with action type, state, timestamps, and capped outbound text
+- paging controls under `eng:actions:*`
 
 ## Safety Rules
 
-- Approval and sending remain separate.
-- Queueing a send requires an approved candidate.
-- The bot must never offer send controls for `needs_review`, `rejected`, `expired`, or `sent`
-  candidates.
-- The bot must never create seed rows from engagement target commands.
-- Engagement target permissions are engagement-only and must not change community discovery,
-  collection, or analysis state.
-- All target, prompt, style, topic, candidate edit, approval, send, and action views must preserve
-  audit-relevant IDs.
-- Any control that can enable posting must show the current permission state before mutation and the
-  resulting state after mutation.
-- Admin prompt and style controls may not weaken hardcoded backend validation.
+- Any control that can change posting behavior must show current state before
+  mutation and resulting state after mutation.
+- Assigned engagement account output must stay masked; never expose full phone
+  numbers.
+- Config-edit confirmation remains required for risky text/account mutations.
+- The bot must not document or surface removed candidate-review command flows
+  as if they are still live.
 
 ## Testing Contract
 
-Minimum tests for implementation:
+Keep regression coverage for:
 
-- Bot API client tests for each new route.
-- Formatting tests for target, prompt, style, candidate detail, and revision cards.
-- Callback parser tests for every new `eng:*` namespace and the Telegram 64-byte limit.
-- Handler tests proving target commands do not call seed APIs.
-- Handler tests proving prompt preview does not call generation or send endpoints.
-- Conversation-state tests for long prompt, topic, style, and candidate edit flows.
-- Permission tests for admin-only commands once backend admin permission exists.
-- Safety tests proving send controls appear only for approved candidates.
-- Regression tests proving phone numbers, sender identity, and person-level scores are absent from
-  bot messages.
+- callback parsing for `eng:set:*`, `eng:join:*`, `eng:detect:*`,
+  `eng:actions:*`, and `eng:admin:*`
+- settings markup/buttons, including clear-quiet and clear-account callbacks
+- handler flows for settings mutations, account confirmation, join/detect jobs,
+  and action-history paging
+- formatting regressions for target cards, send-safety cards, and action
+  audit cards
+- privacy regressions that ensure masked accounts and no phone-number leaks
 
 ## Open Questions
 
-- Admin permission now prefers backend capabilities. The shipped bot still has a transitional
-  `TELEGRAM_ADMIN_USER_IDS` allowlist for rollout fallback when backend capabilities are
-  unconfigured or unavailable.
-- Prompt duplicate and rollback are now first-class API routes.
-- Should engagement target approval create default community engagement settings, or remain a
-  separate explicit settings action?
-- Assigned engagement accounts currently render as account IDs plus masked labels from
-  `/api/debug/accounts` when available.
-- Should long edit drafts survive bot restarts, or is short-lived in-process state enough for the
-  first slice?
+- Whether the remaining callback-first manual layer (`eng:set:*`,
+  `eng:join:*`, `eng:detect:*`, `eng:actions:*`) is a long-term admin surface
+  or only a temporary compat surface before deeper removal.

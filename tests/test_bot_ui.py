@@ -21,15 +21,7 @@ from bot.ui import (
     ACTION_ENGAGEMENT_ADMIN_LIMITS,
     ACTION_ENGAGEMENT_ACCOUNT_CANCEL,
     ACTION_ENGAGEMENT_ACCOUNT_CONFIRM,
-    ACTION_ENGAGEMENT_APPROVE,
     ACTION_ENGAGEMENT_APPROVAL_QUEUE,
-    ACTION_ENGAGEMENT_CANDIDATES,
-    ACTION_ENGAGEMENT_CANDIDATE_EDIT,
-    ACTION_ENGAGEMENT_CANDIDATE_EXPIRE,
-    ACTION_ENGAGEMENT_CANDIDATE_OPEN,
-    ACTION_ENGAGEMENT_CANDIDATE_RETRY,
-    ACTION_ENGAGEMENT_CANDIDATE_REVISIONS,
-    ACTION_ENGAGEMENT_CANDIDATE_STYLE,
     ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_DETAIL,
     ACTION_ENGAGEMENT_HOME,
@@ -38,6 +30,8 @@ from bot.ui import (
     ACTION_ENGAGEMENT_MINE,
     ACTION_ENGAGEMENT_PROMPT_CREATE,
     ACTION_ENGAGEMENT_PROMPTS,
+    ACTION_ENGAGEMENT_SETTINGS_CLEAR_ACCOUNT,
+    ACTION_ENGAGEMENT_SETTINGS_CLEAR_QUIET,
     ACTION_ENGAGEMENT_SETTINGS_EDIT,
     ACTION_ENGAGEMENT_SETTINGS_LOOKUP,
     ACTION_ENGAGEMENT_SETTINGS_OPEN,
@@ -88,15 +82,7 @@ from bot.ui import (
     discovery_cockpit_markup,
     engagement_action_pager_markup,
     engagement_account_confirm_markup,
-    engagement_candidate_actions_markup,
-    engagement_candidate_detail_markup,
-    engagement_candidate_style_scope_markup,
-    engagement_candidate_filter_markup,
-    engagement_candidate_pager_markup,
-    engagement_candidate_revisions_markup,
-    engagement_candidate_send_markup,
     engagement_admin_home_markup,
-    engagement_home_markup,
     engagement_job_markup,
     engagement_prompt_list_markup,
     engagement_settings_markup,
@@ -140,12 +126,12 @@ def test_encode_and_parse_callback_data_round_trip() -> None:
 
 
 def test_parse_namespaced_engagement_callback_data_round_trip() -> None:
-    data = encode_callback_data(ACTION_ENGAGEMENT_APPROVE, "candidate-1")
+    data = encode_callback_data(ACTION_ENGAGEMENT_ACTIONS, "20")
 
     action, parts = parse_callback_data(data)
 
-    assert action == ACTION_ENGAGEMENT_APPROVE
-    assert parts == ["candidate-1"]
+    assert action == ACTION_ENGAGEMENT_ACTIONS
+    assert parts == ["20"]
 
 
 def test_parse_all_engagement_callback_namespaces() -> None:
@@ -164,6 +150,11 @@ def test_parse_all_engagement_callback_namespaces() -> None:
         "eng:set:e:community-1:mp": (
             ACTION_ENGAGEMENT_SETTINGS_EDIT,
             ["community-1", "mp"],
+        ),
+        "eng:set:qclear:community-1": (ACTION_ENGAGEMENT_SETTINGS_CLEAR_QUIET, ["community-1"]),
+        "eng:set:acctclear:community-1": (
+            ACTION_ENGAGEMENT_SETTINGS_CLEAR_ACCOUNT,
+            ["community-1"],
         ),
         "eng:set:acctc": (ACTION_ENGAGEMENT_ACCOUNT_CONFIRM, []),
         "eng:set:acctx": (ACTION_ENGAGEMENT_ACCOUNT_CANCEL, []),
@@ -184,7 +175,6 @@ def test_parse_all_engagement_callback_namespaces() -> None:
         ),
         "eng:admin:tj:target-1": (ACTION_ENGAGEMENT_TARGET_JOIN, ["target-1"]),
         "eng:admin:td:target-1:60": (ACTION_ENGAGEMENT_TARGET_DETECT, ["target-1", "60"]),
-        "eng:cand:send:candidate-1": ("eng:cand:send", ["candidate-1"]),
         "eng:edit:save": (ACTION_CONFIG_EDIT_SAVE, []),
         "eng:edit:cancel": (ACTION_CONFIG_EDIT_CANCEL, []),
         "eng:actions:list:20": (ACTION_ENGAGEMENT_ACTIONS, ["20"]),
@@ -332,119 +322,6 @@ def test_member_pager_markup_pages_members() -> None:
     assert ACTION_OP_HOME in callbacks
 
 
-def test_engagement_candidate_actions_markup_exposes_review_controls() -> None:
-    markup = engagement_candidate_actions_markup("candidate-1")
-    rows = markup.inline_keyboard
-
-    assert rows[0][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATE_OPEN}:candidate-1"
-    assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATE_EDIT}:candidate-1"
-    assert rows[1][1].callback_data == f"{ACTION_ENGAGEMENT_APPROVE}:candidate-1"
-    assert rows[1][2].text.endswith("Reject")
-    assert rows[2][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:needs_review:0"
-    assert rows[2][0].text.endswith("Pending approvals")
-
-
-def test_engagement_candidate_detail_markup_is_state_aware() -> None:
-    approved = engagement_candidate_detail_markup("candidate-1", status="approved")
-    blocked = engagement_candidate_detail_markup(
-        "candidate-4",
-        status="approved",
-        community_id="community-1",
-        blocked=True,
-    )
-    expired = engagement_candidate_detail_markup("candidate-4", status="expired")
-    failed = engagement_candidate_detail_markup("candidate-2", status="failed")
-    sent = engagement_candidate_detail_markup("candidate-3", status="sent")
-
-    assert "eng:cand:send:candidate-1" in _callbacks(approved)
-    assert f"{ACTION_ENGAGEMENT_SETTINGS_OPEN}:community-1" in _callbacks(blocked)
-    assert f"{ACTION_ENGAGEMENT_ACTIONS}:community-1:0" in _callbacks(blocked)
-    assert f"{ACTION_ENGAGEMENT_CANDIDATE_EXPIRE}:candidate-1" in _callbacks(approved)
-    assert f"{ACTION_ENGAGEMENT_CANDIDATES}:expired:0" in _callbacks(expired)
-    assert f"{ACTION_ENGAGEMENT_CANDIDATE_RETRY}:candidate-2" in _callbacks(failed)
-    assert f"{ACTION_ENGAGEMENT_CANDIDATE_REVISIONS}:candidate-3" in _callbacks(sent)
-    assert "eng:cand:send:candidate-3" not in _callbacks(sent)
-
-
-def test_engagement_candidate_detail_markup_exposes_learning_shortcuts_when_enabled() -> None:
-    markup = engagement_candidate_detail_markup(
-        "candidate-1",
-        status="needs_review",
-        allow_save_good_example=True,
-        allow_create_style_rule=True,
-    )
-
-    callbacks = _callbacks(markup)
-
-    assert f"{ACTION_ENGAGEMENT_CANDIDATE_STYLE}:candidate-1" in callbacks
-    assert "eng:cand:savegood:candidate-1" in callbacks
-
-
-def test_engagement_candidate_style_scope_markup_offers_available_scopes() -> None:
-    markup = engagement_candidate_style_scope_markup(
-        "candidate-1",
-        allow_global=True,
-        allow_community=True,
-        allow_topic=True,
-    )
-
-    callbacks = _callbacks(markup)
-
-    assert f"{ACTION_ENGAGEMENT_CANDIDATE_STYLE}:candidate-1:global" in callbacks
-    assert f"{ACTION_ENGAGEMENT_CANDIDATE_STYLE}:candidate-1:community" in callbacks
-    assert f"{ACTION_ENGAGEMENT_CANDIDATE_STYLE}:candidate-1:topic" in callbacks
-
-
-def test_engagement_candidate_revisions_markup_only_reopens_candidate_detail() -> None:
-    markup = engagement_candidate_revisions_markup("candidate-1")
-
-    assert f"{ACTION_ENGAGEMENT_CANDIDATE_OPEN}:candidate-1" in _callbacks(markup)
-    assert f"{ACTION_ENGAGEMENT_CANDIDATE_EDIT}:candidate-1" not in _callbacks(markup)
-    assert "eng:cand:send:candidate-1" not in _callbacks(markup)
-
-
-def test_engagement_candidate_pager_markup_pages_candidates() -> None:
-    markup = engagement_candidate_pager_markup(offset=0, total=12, page_size=5)
-    rows = markup.inline_keyboard
-
-    assert rows[0][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:needs_review:5"
-
-
-def test_engagement_home_markup_links_core_surfaces() -> None:
-    markup = engagement_home_markup()
-    rows = markup.inline_keyboard
-
-    assert rows[0][0].text.startswith("⚠ ")
-    assert rows[0][0].text.endswith("Pending approvals")
-    assert rows[0][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:needs_review:0"
-    assert rows[1][0].text.startswith("✅ ")
-    assert rows[1][0].text.endswith("Ready to send")
-    assert rows[1][1].text.startswith("⛔ ")
-    assert rows[1][1].text.endswith("Needs attention")
-    assert rows[1][0].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:approved:0"
-    assert rows[1][1].callback_data == f"{ACTION_ENGAGEMENT_CANDIDATES}:failed:0"
-    assert rows[2][0].text.startswith("🏘 ")
-    assert rows[2][0].text.endswith("Communities")
-    assert rows[2][0].callback_data == f"{ACTION_ENGAGEMENT_TARGETS}:0"
-    assert rows[2][1].text.startswith("🧩 ")
-    assert rows[2][1].text.endswith("Topics")
-    assert rows[2][1].callback_data == f"{ACTION_ENGAGEMENT_TOPIC_LIST}:0"
-    assert rows[3][0].text.startswith("⚙ ")
-    assert rows[3][0].text.endswith("Settings")
-    assert rows[3][0].callback_data == f"{ACTION_ENGAGEMENT_SETTINGS_LOOKUP}:0"
-    assert rows[3][1].text.startswith("📜 ")
-    assert rows[3][1].text.endswith("Actions")
-    assert rows[3][1].callback_data == f"{ACTION_ENGAGEMENT_ACTIONS}:0"
-    assert rows[4][0].text == "🛠 Setup"
-    assert rows[4][0].callback_data == ACTION_ENGAGEMENT_ADMIN
-
-
-def test_engagement_home_markup_hides_admin_button_for_non_admins() -> None:
-    markup = engagement_home_markup(show_admin=False)
-
-    assert ACTION_ENGAGEMENT_ADMIN not in _callbacks(markup)
-
-
 def test_engagement_admin_home_markup_links_setup_and_advanced_surfaces() -> None:
     markup = engagement_admin_home_markup()
     rows = markup.inline_keyboard
@@ -482,7 +359,9 @@ def test_engagement_settings_markup_exposes_presets_and_jobs() -> None:
     assert f"{ACTION_ENGAGEMENT_SETTINGS_EDIT}:community-1:mp" in callbacks
     assert f"{ACTION_ENGAGEMENT_SETTINGS_EDIT}:community-1:gap" in callbacks
     assert f"{ACTION_ENGAGEMENT_SETTINGS_EDIT}:community-1:qs" in callbacks
+    assert f"{ACTION_ENGAGEMENT_SETTINGS_CLEAR_QUIET}:community-1" in callbacks
     assert f"{ACTION_ENGAGEMENT_SETTINGS_EDIT}:community-1:acct" in callbacks
+    assert f"{ACTION_ENGAGEMENT_SETTINGS_CLEAR_ACCOUNT}:community-1" in callbacks
     assert f"{ACTION_ENGAGEMENT_JOIN}:community-1" in callbacks
     assert f"{ACTION_ENGAGEMENT_DETECT}:community-1:60" in callbacks
 
@@ -687,26 +566,6 @@ def test_engagement_style_markup_hides_create_and_mutations_for_non_admins() -> 
     assert f"{ACTION_ENGAGEMENT_STYLE_TOGGLE}:rule-1:0" not in _callbacks(rule_markup)
 
 
-def test_engagement_candidate_send_and_filter_markup() -> None:
-    send_markup = engagement_candidate_send_markup("candidate-1")
-    filter_markup = engagement_candidate_filter_markup(status="approved")
-
-    assert send_markup.inline_keyboard[0][0].callback_data == "eng:cand:send:candidate-1"
-    assert send_markup.inline_keyboard[1][0].callback_data == "eng:cand:open:candidate-1"
-    assert send_markup.inline_keyboard[2][0].callback_data == "eng:cand:list:approved:0"
-    assert send_markup.inline_keyboard[2][0].text.endswith("Ready to send")
-    assert any(
-        button.callback_data == "eng:cand:list:failed:0"
-        for row in filter_markup.inline_keyboard
-        for button in row
-    )
-    assert any(
-        button.callback_data == "eng:cand:list:expired:0"
-        for row in filter_markup.inline_keyboard
-        for button in row
-    )
-
-
 def test_engagement_settings_markup_hides_mutations_for_non_admins() -> None:
     markup = engagement_settings_markup(
         "community-1",
@@ -906,7 +765,6 @@ def test_parse_disc_callbacks() -> None:
 
 def test_parse_op_disc_do_not_break_eng_namespace() -> None:
     assert parse_callback_data("eng:home") == (ACTION_ENGAGEMENT_HOME, [])
-    assert parse_callback_data("eng:cand:list:needs_review:0") == ("eng:cand:list", ["needs_review", "0"])
     assert parse_callback_data("eng:admin:to:target-1") == (ACTION_ENGAGEMENT_TARGET_OPEN, ["target-1"])
 
 
@@ -923,5 +781,3 @@ def test_parse_task_first_engagement_callback_families() -> None:
     }
     for raw_data, expected in cases.items():
         assert parse_callback_data(raw_data) == expected
-
-

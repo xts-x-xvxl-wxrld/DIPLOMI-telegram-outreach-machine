@@ -59,7 +59,7 @@ def test_whoami_command_bypasses_access_gate_for_onboarding() -> None:
 @pytest.mark.asyncio
 async def test_access_gate_clears_pending_edit_for_new_command() -> None:
     store = PendingEditStore()
-    field = editable_field("candidate", "final_reply")
+    field = editable_field("settings", "assigned_account_id")
     assert field is not None
     store.start(operator_id=456, field=field, object_id="candidate-1")
     update = SimpleNamespace(

@@ -12,14 +12,9 @@ from bot.formatting import (
     format_community_detail,
     format_created_brief,
     format_discovery_help,
-    format_engagement_candidate_card,
-    format_engagement_candidate_review,
-    format_engagement_candidate_revisions,
-    format_engagement_candidates,
     format_engagement_action_card,
     format_engagement_actions,
     format_engagement_account_assignment_confirmation,
-    format_engagement_home,
     format_engagement_job_response,
     format_engagement_settings,
     format_engagement_settings_lookup,
@@ -369,35 +364,6 @@ def test_format_member_export_reports_count() -> None:
     assert message.endswith("Exported 2 visible members for Founder Circle.")
 
 
-def test_format_engagement_candidates_reports_pending_page() -> None:
-    message = format_engagement_candidates({"items": [{"id": "candidate-1"}], "total": 3}, offset=0)
-
-    assert message.startswith("Pending approvals (1-1 of 3)")
-    assert "Review the freshest reply opportunities first" in message
-
-
-def test_format_engagement_home_reports_operational_counts() -> None:
-    message = format_engagement_home(
-        {
-            "pending_reply_count": 2,
-            "approved_reply_count": 1,
-            "failed_candidate_count": 3,
-            "active_topic_count": 4,
-        }
-    )
-
-    assert "Pending approvals: 2" in message
-    assert "Ready to send: 1" in message
-    assert "Use the Pending approvals button for draft review work." in message
-    assert "Use Ready to send for approved replies waiting on send." in message
-    assert (
-        "Communities, Topics, Settings lookup, Recent actions, and Setup stay in the inline buttons below."
-        in message
-    )
-    assert _slash_commands(message) == []
-    assert "score" not in message.lower()
-
-
 def test_format_engagement_settings_shows_safe_controls() -> None:
     message = format_engagement_settings(
         {
@@ -421,12 +387,11 @@ def test_format_engagement_settings_shows_safe_controls() -> None:
     assert "Readiness: Drafting replies" in message
     assert "Joining allowed: no" in message
     assert "Safety floor: reply-only yes, approval required yes" in message
-    assert "set engagement community-1" in message
-    assert "set engagement limits community-1" in message
-    assert "set engagement quiet hours community-1 <HH:MM> <HH:MM>" in message
-    assert "assign engagement account community-1 <telegram_account_id>" in message
     assert "Quiet hours: 22:00-07:00" in message
     assert "Engagement account: account-1 | +123*****89" in message
+    assert "buttons below" in message
+    assert "clear quiet hours" in message
+    assert "clear the engagement account" in message
     assert message.index("Readiness: Drafting replies") < message.index("Community ID: community-1")
     assert "phone" not in message.lower()
     assert _slash_commands(message) == []
@@ -460,7 +425,6 @@ def test_format_engagement_target_card_is_compact_by_default_and_audit_friendly_
     assert "1. Founder Circle" in message
     assert "Readiness: Drafting replies" in message
     assert "Allowed: watch/draft yes, join yes, post reviewed replies no" in message
-    assert "Settings: engagement settings community-1" in message
     assert "Target ID: target-1" not in message
     assert "Target ID: target-1" in detail
     assert "Raw permissions: allow_join=yes, allow_detect=yes, allow_post=no" in detail
@@ -722,182 +686,6 @@ def test_format_engagement_actions_and_card_keep_audit_safe() -> None:
     assert "sender" not in card.lower()
 
 
-def test_format_engagement_candidate_card_keeps_review_context() -> None:
-    message = format_engagement_candidate_card(
-        {
-            "id": "candidate-1",
-            "community_title": "Founder Circle",
-            "topic_name": "Open-source CRM",
-            "status": "needs_review",
-            "moment_strength": "good",
-            "timeliness": "fresh",
-            "reply_value": "practical_tip",
-            "review_deadline_at": "2026-04-19T13:00:00+00:00",
-            "reply_deadline_at": "2026-04-19T13:30:00+00:00",
-            "source_excerpt": "The group is comparing CRM tools.",
-            "detected_reason": "The group is discussing alternatives.",
-            "suggested_reply": "Compare ownership, integrations, and exit paths first.",
-            "risk_notes": ["Keep it non-salesy."],
-        },
-        index=1,
-    )
-
-    assert "1. Founder Circle" in message
-    assert "Queue: Pending approvals" in message
-    assert "Readiness: Needs review" in message
-    assert "What to do next: Review the generated suggestion, edit if needed, then approve." in message
-    assert "Topic: Open-source CRM" in message
-    assert "Freshness: fresh | moment good | value practical_tip" in message
-    assert "Deadlines: review 2026-04-19T13:00:00+00:00 | reply 2026-04-19T13:30:00+00:00" in message
-    assert "Why this reply opportunity exists: The group is discussing alternatives." in message
-    assert "Source: The group is comparing CRM tools." in message
-    assert "Generated suggestion: Compare ownership" in message
-    assert "approve reply candidate-1" in message
-    assert "send reply candidate-1" not in message
-    assert _slash_commands(message) == []
-    assert "score" not in message.lower()
-
-
-def test_format_engagement_candidate_card_uses_state_relevant_actions() -> None:
-    message = format_engagement_candidate_card(
-        {
-            "id": "candidate-1",
-            "community_title": "Founder Circle",
-            "topic_name": "Open-source CRM",
-            "status": "approved",
-            "source_excerpt": "The group is comparing CRM tools.",
-            "detected_reason": "The group is discussing alternatives.",
-            "suggested_reply": "Compare ownership, integrations, and exit paths first.",
-        }
-    )
-
-    assert "Queue: Ready to send" in message
-    assert "Readiness: Approved, ready to send" in message
-    assert "What to do next: Queue send while the conversation is still fresh." in message
-    assert "Send: send reply candidate-1" in message
-    assert "Approve: approve reply candidate-1" not in message
-    assert _slash_commands(message) == []
-
-
-def test_format_engagement_candidate_card_shows_retry_without_send_for_failed() -> None:
-    message = format_engagement_candidate_card(
-        {
-            "id": "candidate-1",
-            "community_title": "Founder Circle",
-            "topic_name": "Open-source CRM",
-            "status": "failed",
-            "source_excerpt": "The group is comparing CRM tools.",
-            "detected_reason": "The group is discussing alternatives.",
-            "suggested_reply": "Compare ownership, integrations, and exit paths first.",
-        }
-    )
-
-    assert "Queue: Needs attention" in message
-    assert "Readiness: Failed, retry may be available" in message
-    assert "What to do next: Review the failure, retry if the community is ready, or reject." in message
-    assert "Retry: retry candidate candidate-1" in message
-    assert "Send: send reply candidate-1" not in message
-    assert _slash_commands(message) == []
-
-
-def test_format_engagement_candidate_detail_workspace_separates_generated_and_final_reply() -> None:
-    message = format_engagement_candidate_card(
-        {
-            "id": "candidate-1",
-            "community_title": "Founder Circle",
-            "topic_name": "Open-source CRM",
-            "status": "approved",
-            "timeliness": "fresh",
-            "review_deadline_at": "2026-04-19T13:00:00+00:00",
-            "reply_deadline_at": "2026-04-19T13:30:00+00:00",
-            "source_excerpt": "The group is comparing CRM tools.",
-            "detected_reason": "The group is discussing alternatives.",
-            "suggested_reply": "Compare ownership, integrations, and exit paths first.",
-            "final_reply": "Compare ownership, integrations, and exit paths before switching.",
-            "prompt_render_summary": {"profile_name": "Default", "version_number": 3},
-            "prompt_profile_version_id": "version-3",
-            "risk_notes": ["Keep it non-salesy."],
-        },
-        detail=True,
-    )
-
-    assert "Action sequence: edit final reply if needed -> queue send" in message
-    assert "Source context" in message
-    assert "Reply workspace" in message
-    assert "Generated suggestion: Compare ownership" in message
-    assert "Final reply: Compare ownership, integrations, and exit paths before switching." in message
-    assert "Generated by: Default#3" in message
-    assert "Audit fields" in message
-    assert "Next safe actions" in message
-    assert "Send: send reply candidate-1" in message
-    assert _slash_commands(message) == []
-
-
-def test_format_engagement_candidate_detail_workspace_surfaces_blocked_fix_path() -> None:
-    message = format_engagement_candidate_card(
-        {
-            "id": "candidate-1",
-            "community_id": "community-1",
-            "community_title": "Founder Circle",
-            "topic_name": "Open-source CRM",
-            "status": "approved",
-            "send_block_reason": "Blocked: posting permission off",
-            "source_excerpt": "The group is comparing CRM tools.",
-            "detected_reason": "The group is discussing alternatives.",
-            "suggested_reply": "Compare ownership, integrations, and exit paths first.",
-        },
-        detail=True,
-    )
-
-    assert "Blocked path" in message
-    assert "Fix now: open community settings and turn reviewed posting back on." in message
-    assert "Settings: engagement settings community-1" in message
-    assert _slash_commands(message) == []
-
-
-def test_format_engagement_candidate_review_reports_audit_fields() -> None:
-    message = format_engagement_candidate_review(
-        "approve",
-        {
-            "id": "candidate-1",
-            "community_title": "Founder Circle",
-            "status": "approved",
-            "reviewed_by": "telegram:123",
-        },
-    )
-
-    assert "Review decision: approve" in message
-    assert "Reply state: approved" in message
-    assert "Reviewed by: telegram:123" in message
-    assert "Ready to send: send reply candidate-1" in message
-    assert _slash_commands(message) == []
-
-
-def test_format_engagement_candidate_revisions_caps_history_and_keeps_editor_metadata() -> None:
-    message = format_engagement_candidate_revisions(
-        {
-            "items": [
-                {
-                    "id": "revision-1",
-                    "candidate_id": "candidate-1",
-                    "revision_number": 1,
-                    "reply_text": "Edited final reply.",
-                    "edited_by": "telegram:123",
-                    "edit_reason": "manual edit",
-                    "created_at": "2026-04-21T10:00:00Z",
-                }
-            ],
-            "total": 1,
-        },
-        candidate_id="candidate-1",
-    )
-
-    assert "Reply revisions (1)" in message
-    assert "Revision 1" in message
-    assert "Edited by: telegram:123" in message
-    assert "Reply: Edited final reply." in message
-
-
 def test_format_engagement_semantic_rollout_is_aggregate_only() -> None:
     message = format_engagement_semantic_rollout(
         {
@@ -985,4 +773,3 @@ def test_format_community_detail_includes_snapshot_run_and_analysis() -> None:
     assert "Latest snapshot" in message
     assert "Latest snapshot run" in message
     assert "Latest analysis" in message
-

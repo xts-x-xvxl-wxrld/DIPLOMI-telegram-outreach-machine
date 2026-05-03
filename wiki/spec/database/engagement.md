@@ -1,313 +1,385 @@
-# Database Engagement Tables
+# Database Engagement
 
-Engagement target, settings, prompt, style, candidate, and action schema contracts.
+Active engagement database contract extracted from models, migrations, and
+schema tests.
 
-## Engagement Tables
+This doc is part of the extracted active contract set:
 
-The engagement module is optional and operator-controlled. These tables are present once the
-engagement migrations are applied.
+- `wiki/spec/api/engagement.md`
+- `wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md`
+- `wiki/spec/queue/job-types/engagement.md`
+- `wiki/spec/database/engagement.md`
+
+## Scope
+
+This doc covers the live tables and invariants that back the active
+task-first/cockpit engagement path.
+
+Compat note:
+
+- `community_engagement_settings` still exists and still participates in some
+  effective-settings reads and schedulers, but it is not the primary task-first
+  contract surface anymore.
+
+## Core Tables
 
 ### `engagement_targets`
 
-Manual allowlist for communities that may be used by the engagement module. Seed import, discovery,
-expansion, collection, and community review do not create these rows.
+Purpose:
 
-```sql
-id                    uuid PRIMARY KEY
-community_id          uuid REFERENCES communities(id)
-submitted_ref         text NOT NULL
-submitted_ref_type    text NOT NULL DEFAULT 'telegram_username'
-                      -- community_id | telegram_username | telegram_link | invite_link
-status                text NOT NULL DEFAULT 'pending'
-                      -- pending | resolved | approved | rejected | failed | archived
-allow_join            boolean NOT NULL DEFAULT false
-allow_detect          boolean NOT NULL DEFAULT false
-allow_post            boolean NOT NULL DEFAULT false
-notes                 text
-added_by              text NOT NULL
-approved_by           text
-approved_at           timestamptz
-last_error            text
-created_at            timestamptz NOT NULL DEFAULT now()
-updated_at            timestamptz NOT NULL DEFAULT now()
+- operator-created allowlist rows for communities that may enter the engagement
+  path
 
-```
+Key fields:
 
-`community_id` is intentionally not unique here. Operators may create multiple engagement-target rows
-for the same community when they need separate engagement workflows or approval history.
+- `id`
+- `community_id nullable`
+- `submitted_ref`
+- `submitted_ref_type`
+  - `community_id`
+  - `telegram_username`
+  - `telegram_link`
+  - `invite_link`
+- `status`
+  - `pending`
+  - `resolved`
+  - `approved`
+  - `rejected`
+  - `failed`
+  - `archived`
+- `allow_join`
+- `allow_detect`
+- `allow_post`
+- `notes`
+- `added_by`
+- `approved_by`
+- `approved_at`
+- `last_error`
+- `created_at`
+- `updated_at`
 
-Worker gates:
-- `community.join` requires an approved target with `allow_join = true`.
-- `engagement.detect` requires an approved target with `allow_detect = true`.
-- `engagement.send` requires an approved target with `allow_post = true`.
-- When more than one approved target exists for the same community, any approved row with the
-  requested permission grants the worker action.
+Indexes:
+
+- `ix_engagement_targets_community_id`
+- `ix_engagement_targets_status`
+- `ix_engagement_targets_submitted_ref`
+
+Invariants:
+
+- `community_id` is intentionally not unique
+- multiple targets may point at the same community
+- the active confirm path syncs `status` and `allow_*` from engagement settings
 
 ### `engagements`
 
-First-class operator engagement records.
+Purpose:
 
-```sql
-id                    uuid PRIMARY KEY
-target_id             uuid NOT NULL REFERENCES engagement_targets(id)
-community_id          uuid NOT NULL REFERENCES communities(id)
-topic_id              uuid REFERENCES engagement_topics(id)
-status                text NOT NULL DEFAULT 'draft'
-                      -- draft | active | paused | archived
-name                  text
-created_by            text NOT NULL
-created_at            timestamptz NOT NULL DEFAULT now()
-updated_at            timestamptz NOT NULL DEFAULT now()
+- first-class task-first engagement rows tied one-to-one to a target
 
-UNIQUE (target_id)
-```
+Key fields:
+
+- `id`
+- `target_id`
+- `community_id`
+- `topic_id nullable`
+- `status`
+  - `draft`
+  - `active`
+  - `paused`
+  - `archived`
+- `name nullable`
+- `created_by`
+- `created_at`
+- `updated_at`
+
+Indexes and constraints:
+
+- `UNIQUE (target_id)`
+- `ix_engagements_community_id`
+- `ix_engagements_status_created`
+
+Invariants:
+
+- one engagement row per target
+- `topic_id` may stay `null` only while the engagement is still draft/resetting
 
 ### `engagement_settings`
 
-Per-engagement controls. Absence of a row means the engagement is disabled.
+Purpose:
 
-```sql
-id                         uuid PRIMARY KEY
-engagement_id              uuid NOT NULL REFERENCES engagements(id)
-mode                       text NOT NULL DEFAULT 'suggest'
-                           -- disabled | observe | suggest | require_approval | auto_limited
-allow_join                 boolean NOT NULL DEFAULT false
-allow_post                 boolean NOT NULL DEFAULT false
-reply_only                 boolean NOT NULL DEFAULT true
-require_approval           boolean NOT NULL DEFAULT true
-max_posts_per_day          int NOT NULL DEFAULT 1
-min_minutes_between_posts  int NOT NULL DEFAULT 240
-quiet_hours_start          time
-quiet_hours_end            time
-assigned_account_id        uuid REFERENCES telegram_accounts(id)
-created_at                 timestamptz NOT NULL DEFAULT now()
-updated_at                 timestamptz NOT NULL DEFAULT now()
+- per-engagement send/join/account controls
 
-UNIQUE (engagement_id)
-```
+Key fields:
 
-Rules:
+- `id`
+- `engagement_id`
+- `mode`
+  - `disabled`
+  - `observe`
+  - `suggest`
+  - `require_approval`
+  - `auto_limited`
+- `allow_join`
+- `allow_post`
+- `reply_only`
+- `require_approval`
+- `max_posts_per_day`
+- `min_minutes_between_posts`
+- `quiet_hours_start nullable`
+- `quiet_hours_end nullable`
+- `assigned_account_id nullable`
+- `created_at`
+- `updated_at`
 
-- one engagement maps to exactly one topic in the first version
-- incomplete draft engagements may temporarily have `topic_id = null`
-- activation requires a non-null `topic_id`
+Defaults asserted by schema tests:
+
+- `mode = "suggest"`
+- `allow_join = false`
+- `allow_post = false`
+- `reply_only = true`
+- `require_approval = true`
+- `max_posts_per_day = 1`
+- `min_minutes_between_posts = 240`
+
+Indexes and constraints:
+
+- `UNIQUE (engagement_id)`
+- `ix_engagement_settings_engagement_id`
+
+Task-first write-path invariants:
+
+- rows are created lazily if missing
+- task-first confirm sets:
+  - `allow_join = true`
+  - `allow_post = (mode == "auto_limited")`
+- retry reset sets:
+  - `assigned_account_id = null`
+  - `mode = "disabled"`
+  - `allow_join = false`
+  - `allow_post = false`
 
 ### `community_account_memberships`
 
-Tracks which managed Telegram account has joined which community.
+Purpose:
 
-```sql
-id                   uuid PRIMARY KEY
-community_id          uuid NOT NULL REFERENCES communities(id)
-telegram_account_id   uuid NOT NULL REFERENCES telegram_accounts(id)
-status                text NOT NULL DEFAULT 'not_joined'
-                      -- not_joined | join_requested | joined | failed | left | banned
-joined_at             timestamptz
-last_checked_at       timestamptz
-last_error            text
-created_at            timestamptz NOT NULL DEFAULT now()
-updated_at            timestamptz NOT NULL DEFAULT now()
+- track which engagement account has joined which community
 
-UNIQUE (community_id, telegram_account_id)
-```
+Key fields:
 
-### `engagement_topics`
+- `community_id`
+- `telegram_account_id`
+- `status`
+  - `not_joined`
+  - `join_requested`
+  - `joined`
+  - `failed`
+  - `left`
+  - `banned`
+- `joined_at`
+- `last_checked_at`
+- `last_error`
 
-Operator-defined topics that can trigger a candidate public reply.
+Indexes and constraints:
 
-```sql
-id                    uuid PRIMARY KEY
-name                  text NOT NULL
-description           text
-stance_guidance       text NOT NULL
-trigger_keywords      text[] NOT NULL DEFAULT '{}'
-negative_keywords     text[] NOT NULL DEFAULT '{}'
-example_good_replies  text[] NOT NULL DEFAULT '{}'
-example_bad_replies   text[] NOT NULL DEFAULT '{}'
-active                boolean NOT NULL DEFAULT true
-created_at            timestamptz NOT NULL DEFAULT now()
-updated_at            timestamptz NOT NULL DEFAULT now()
-```
+- `UNIQUE (community_id, telegram_account_id)`
+- `ix_community_account_memberships_community_account`
 
-### `engagement_topic_embeddings`
+### `engagement_draft_update_requests`
 
-Cached topic-profile embeddings used by semantic engagement matching.
+Purpose:
 
-```sql
-id                    uuid PRIMARY KEY
-topic_id              uuid NOT NULL REFERENCES engagement_topics(id)
-model                 text NOT NULL
-dimensions            int NOT NULL
-profile_text_hash     text NOT NULL
-embedding             jsonb NOT NULL
-created_at            timestamptz NOT NULL DEFAULT now()
+- durable record for "request edit" approval mutations
 
-UNIQUE (topic_id, model, dimensions, profile_text_hash)
-```
+Key fields:
 
-### `engagement_message_embeddings`
+- `engagement_id`
+- `source_candidate_id`
+- `replacement_candidate_id nullable`
+- `status`
+- `edit_request`
+- `requested_by`
+- `source_queue_created_at`
+- `created_at`
+- `updated_at`
+- `completed_at nullable`
 
-Cached public-message embeddings used by semantic engagement matching.
+Indexes and constraints:
 
-```sql
-id                    uuid PRIMARY KEY
-community_id          uuid NOT NULL REFERENCES communities(id)
-tg_message_id         bigint
-source_text_hash      text NOT NULL
-model                 text NOT NULL
-dimensions            int NOT NULL
-embedding             jsonb NOT NULL
-expires_at            timestamptz NOT NULL
-created_at            timestamptz NOT NULL DEFAULT now()
+- `UNIQUE (source_candidate_id)`
+- `UNIQUE (replacement_candidate_id)`
+- `ix_engagement_draft_update_requests_engagement_status`
+- `ix_engagement_draft_update_requests_queue_created`
 
-UNIQUE (community_id, tg_message_id, source_text_hash, model, dimensions)
-```
+Invariants:
 
-The first implementation keeps message embeddings in Postgres JSONB and validates dimensions in the
-service layer before cache writes and reads. When `tg_message_id` is null, service logic still looks
-up rows by `(community_id, source_text_hash, model, dimensions)` so semantic-only artifacts can
-reuse recent cache entries even though the database uniqueness guard is weaker for null IDs.
+- one active update request per source draft
+- one replacement draft cannot belong to two update requests
 
-### `engagement_prompt_profiles`
-
-Admin-editable prompt profile state used by `engagement.detect`.
-
-```sql
-id                    uuid PRIMARY KEY
-name                  text NOT NULL
-description           text
-active                boolean NOT NULL DEFAULT false
-model                 text NOT NULL
-temperature           numeric NOT NULL DEFAULT 0.2
-max_output_tokens     int NOT NULL DEFAULT 1000
-system_prompt         text NOT NULL
-user_prompt_template  text NOT NULL
-output_schema_name    text NOT NULL DEFAULT 'engagement_detection_v1'
-created_by            text NOT NULL
-updated_by            text NOT NULL
-created_at            timestamptz NOT NULL DEFAULT now()
-updated_at            timestamptz NOT NULL DEFAULT now()
-```
-
-Only one prompt profile should be active in the first implementation. Every profile mutation that
-changes prompt/model fields creates an immutable version row.
-
-### `engagement_prompt_profile_versions`
-
-Immutable prompt profile history.
-
-```sql
-id                    uuid PRIMARY KEY
-prompt_profile_id     uuid NOT NULL REFERENCES engagement_prompt_profiles(id)
-version_number        int NOT NULL
-model                 text NOT NULL
-temperature           numeric NOT NULL
-max_output_tokens     int NOT NULL
-system_prompt         text NOT NULL
-user_prompt_template  text NOT NULL
-output_schema_name    text NOT NULL
-created_by            text NOT NULL
-created_at            timestamptz NOT NULL DEFAULT now()
-
-UNIQUE (prompt_profile_id, version_number)
-```
-
-### `engagement_style_rules`
-
-Scoped admin voice and style rules assembled into engagement prompts.
-
-```sql
-id                    uuid PRIMARY KEY
-scope_type            text NOT NULL DEFAULT 'global'
-                      -- global | account | community | topic
-scope_id              uuid
-name                  text NOT NULL
-rule_text             text NOT NULL
-active                boolean NOT NULL DEFAULT true
-priority              int NOT NULL DEFAULT 100
-created_by            text NOT NULL
-updated_by            text NOT NULL
-created_at            timestamptz NOT NULL DEFAULT now()
-updated_at            timestamptz NOT NULL DEFAULT now()
-```
+## Candidate And Action Tables Used By The Active Cockpit
 
 ### `engagement_candidates`
 
-Detected topic moments and suggested replies awaiting operator review.
+Purpose:
 
-```sql
-id                       uuid PRIMARY KEY
-community_id             uuid NOT NULL REFERENCES communities(id)
-topic_id                 uuid NOT NULL REFERENCES engagement_topics(id)
-source_tg_message_id     bigint
-source_excerpt           text
-source_message_date      timestamptz
-detected_at              timestamptz NOT NULL
-detected_reason          text NOT NULL
-moment_strength          text NOT NULL
-                         -- weak | good | strong
-timeliness               text NOT NULL
-                         -- fresh | aging | stale
-reply_value              text NOT NULL
-                         -- clarifying_question | practical_tip | correction | resource | other | none
-suggested_reply          text
-model                    text
-model_output             jsonb
-prompt_profile_id        uuid REFERENCES engagement_prompt_profiles(id)
-prompt_profile_version_id uuid REFERENCES engagement_prompt_profile_versions(id)
-prompt_render_summary    jsonb
-risk_notes               text[] NOT NULL DEFAULT '{}'
-status                   text NOT NULL DEFAULT 'needs_review'
-                         -- needs_review | approved | rejected | sent | expired | failed
-final_reply              text
-reviewed_by              text
-reviewed_at              timestamptz
-review_deadline_at       timestamptz
-reply_deadline_at        timestamptz NOT NULL
-operator_notified_at     timestamptz
-expires_at               timestamptz NOT NULL
-created_at               timestamptz NOT NULL DEFAULT now()
-updated_at               timestamptz NOT NULL DEFAULT now()
-```
+- detected reply opportunities surfaced in approvals, issues, and send
 
-### `engagement_candidate_revisions`
+Active fields:
 
-Immutable edit history for candidate final replies.
+- `community_id`
+- `topic_id`
+- `source_tg_message_id nullable`
+- `source_reply_to_tg_message_id nullable`
+- `source_excerpt nullable`
+- `source_message_date nullable`
+- `opportunity_kind`
+  - `root`
+  - `continuation`
+- `root_candidate_id nullable`
+- `conversation_key nullable`
+- `detected_at`
+- `detected_reason`
+- `moment_strength`
+- `timeliness`
+- `reply_value`
+- `suggested_reply nullable`
+- `final_reply nullable`
+- `status`
+  - `needs_review`
+  - `approved`
+  - `rejected`
+  - `sent`
+  - `expired`
+  - `failed`
+- `reviewed_by`
+- `reviewed_at`
+- `review_deadline_at nullable`
+- `reply_deadline_at`
+- `operator_notified_at nullable`
+- `expires_at`
+- `created_at`
+- `updated_at`
 
-```sql
-id                    uuid PRIMARY KEY
-candidate_id          uuid NOT NULL REFERENCES engagement_candidates(id)
-revision_number       int NOT NULL
-reply_text            text NOT NULL
-edited_by             text NOT NULL
-edit_reason           text
-created_at            timestamptz NOT NULL DEFAULT now()
+Indexes:
 
-UNIQUE (candidate_id, revision_number)
-```
+- `ix_engagement_candidates_status_created`
+- `ix_engagement_candidates_community_topic_status`
+- `ix_engagement_candidates_root_kind`
+
+Invariants asserted by schema tests:
+
+- cadence fields `source_reply_to_tg_message_id`, `opportunity_kind`,
+  `root_candidate_id`, and `conversation_key` are present
+- default `opportunity_kind = "root"`
 
 ### `engagement_actions`
 
-Audit log for joins, replies, sends, skips, and failures.
+Purpose:
 
-```sql
-id                       uuid PRIMARY KEY
-candidate_id              uuid REFERENCES engagement_candidates(id)
-community_id              uuid NOT NULL REFERENCES communities(id)
-telegram_account_id       uuid NOT NULL REFERENCES telegram_accounts(id)
-action_type               text NOT NULL
-                         -- join | reply | post | skip
-status                    text NOT NULL DEFAULT 'queued'
-                         -- queued | sent | failed | skipped
-idempotency_key           text UNIQUE
-outbound_text             text
-reply_to_tg_message_id    bigint
-sent_tg_message_id        bigint
-scheduled_at              timestamptz
-sent_at                   timestamptz
-error_message             text
-created_at                timestamptz NOT NULL DEFAULT now()
-updated_at                timestamptz NOT NULL DEFAULT now()
-```
+- durable queue/send/join audit rows
 
----
+Key fields:
+
+- `candidate_id nullable`
+- `community_id`
+- `telegram_account_id`
+- `action_type`
+  - `join`
+  - `reply`
+  - `post`
+  - `skip`
+- `status`
+  - `queued`
+  - `sent`
+  - `failed`
+  - `skipped`
+- `idempotency_key nullable`
+- `outbound_text nullable`
+- `reply_to_tg_message_id nullable`
+- `sent_tg_message_id nullable`
+- `scheduled_at nullable`
+- `sent_at nullable`
+- `error_message nullable`
+- `created_at`
+- `updated_at`
+
+Indexes and constraints:
+
+- `UNIQUE (idempotency_key)`
+- `ix_engagement_actions_community_created`
+- `ix_engagement_actions_account_created`
+
+Active invariant:
+
+- reply send idempotency is keyed as `engagement.send:{candidate_id}`
+
+## Referenced Rows Required By The Active Path
+
+### `engagement_topics`
+
+- `engagement.topic_id` must reference an existing active topic row
+- task-first patch/confirm both reject inactive or missing topics
+
+### `telegram_accounts`
+
+- task-first settings writes only accept accounts in the `engagement` pool
+- banned accounts are rejected on write and surface as `account_restricted`
+  issues
+
+## Migration Guarantees
+
+### `20260428_0013_task_first_engagements.py`
+
+Creates:
+
+- `engagements`
+- `engagement_settings`
+
+Backfill contract:
+
+- scans `engagement_targets` with non-null `community_id`
+- derives a single `topic_id` only when a community has exactly one distinct
+  candidate topic
+- creates one engagement per target if one does not already exist
+- engagement status mapping:
+  - target `archived` -> engagement `archived`
+  - missing topic or missing legacy mode -> `draft`
+  - target not approved -> `draft`
+  - approved + legacy mode `disabled` -> `paused`
+  - otherwise -> `active`
+- copies any existing `community_engagement_settings` row into
+  `engagement_settings`
+
+### `20260428_0014_engagement_draft_update_requests.py`
+
+Creates:
+
+- `engagement_draft_update_requests`
+
+Adds:
+
+- unique source/replacement candidate constraints
+- queue-created and engagement/status indexes
+
+### `20260428_0015_engagement_target_duplicates.py`
+
+Drops:
+
+- the old unique constraint on `engagement_targets.community_id`
+
+Guarantee:
+
+- the same community may now back multiple engagement targets
+
+### `20260430_0016_engagement_opportunity_cadence.py`
+
+Adds to `engagement_candidates`:
+
+- `source_reply_to_tg_message_id`
+- `opportunity_kind`
+- `root_candidate_id`
+- `conversation_key`
+
+Adds:
+
+- self-FK on `root_candidate_id`
+- index `ix_engagement_candidates_root_kind`

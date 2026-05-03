@@ -95,6 +95,7 @@ formatting, and compat/manual controls.
   - account assignment confirmation
   - manual join/detect triggers
   - action-history view hook
+  - candidate-review callbacks are not part of this kept compat layer anymore
 
 ### Older admin/config/topic/prompt flows
 
@@ -129,7 +130,8 @@ formatting, and compat/manual controls.
 - `bot/formatting_engagement.py`
   - older admin/settings/topic/prompt/target/action formatting
 - `bot/formatting_engagement_review.py`
-  - older candidate/action/rollout review formatting
+  - older action-history and semantic-rollout formatting only; candidate-review
+    formatting is retired
 
 ## Boundary notes
 

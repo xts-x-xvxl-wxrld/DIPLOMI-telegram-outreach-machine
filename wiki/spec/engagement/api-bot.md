@@ -1,190 +1,39 @@
-# Engagement API And Bot Surface
+# Engagement API And Bot Compat Note
 
-API DTO and Telegram bot surface details for engagement operator workflows.
+Legacy/compat API and bot notes that still matter while older engagement
+surfaces remain in code.
 
-## API Surface
+## Not The Source Of Truth
 
-The implemented API and bot flow are centered on reply opportunities derived from runtime prompt
-rendering. They are not centered on pre-authored outbound engagement messages.
+- Active task-first API behavior lives in `wiki/spec/api/engagement.md`.
+- Active task-first bot behavior lives in
+  `wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md`.
+- This file should not restate live task-first endpoints, callbacks, DTOs, or
+  screen contracts.
 
-Initial endpoints:
+## What Still Matters Here
 
-```http
-GET  /api/communities/{community_id}/engagement-settings
-PUT  /api/communities/{community_id}/engagement-settings
-POST /api/communities/{community_id}/join-jobs
-POST /api/engagement/targets/{target_id}/collection-jobs
-GET  /api/engagement/targets/{target_id}/collection-runs
-GET  /api/engagement/topics
-POST /api/engagement/topics
-PATCH /api/engagement/topics/{topic_id}
-POST /api/communities/{community_id}/engagement-detect-jobs
-GET  /api/engagement/candidates
-POST /api/engagement/candidates/{candidate_id}/approve
-POST /api/engagement/candidates/{candidate_id}/reject
-POST /api/engagement/candidates/{candidate_id}/send-jobs
-GET  /api/engagement/actions
-POST /api/engagement/cockpit/drafts/{draft_id}/approve
-```
+- Older community-scoped settings, topic, target, candidate, and action routes
+  still exist in code during migration/compat cleanup.
+- The remaining intentional compat/manual bot layer is callback-first:
+  `eng:set:*`, `eng:join:*`, `eng:detect:*`, and `eng:actions:*`.
+- Operator copy should prefer `reply opportunity` while implementation-facing
+  code may still use `candidate` until the rename is fully retired.
+- API and bot payloads must not expose phone numbers or person-level scores.
 
-API rules:
+## Compat Code Anchors
 
-- Bot and API auth remain required.
-- Engagement settings default to disabled unless explicitly created.
-- Reply opportunity approval records the approving operator.
-- Approval may accept the runtime-generated `suggested_reply` as-is or persist an operator-edited
-  `final_reply` before send.
-- The send endpoint enqueues a job; it should not call Telethon directly.
-- The task-first cockpit draft approval endpoint is an explicit approve-and-send control: after
-  persisting approval it enqueues `engagement.send` for the approved draft and returns the queued job
-  identity.
-- Join-triggering API flows must not report success when the join job could not be enqueued; they
-  should return a blocking error so the operator can retry before assuming the engagement is ready.
-- Task-first engagement confirmation must promote a resolved target community from `candidate` to
-  `approved` before enabling `allow_join` and enqueueing `community.join`; otherwise the join worker
-  will skip the job as `community_not_approved`.
-- Target-scoped manual collection requires an approved engagement target with `allow_detect = true`
-  and enqueues `collection.run`; collection-run listing exposes recent status and message counts for
-  operator verification.
-- API responses must not expose phone numbers or person-level scores.
+- `backend/api/routes/engagement.py`
+- `backend/api/routes/engagement_settings_topics.py`
+- `backend/api/routes/engagement_targets.py`
+- `backend/api/routes/engagement_candidates_actions.py`
+- `backend/services/community_engagement_*.py`
+- `bot/engagement_commands_*.py`
+- `bot/ui_engagement.py`
+- `bot/callback_handlers.py`
 
-### Request And Response DTOs
+## Cleanup Rule
 
-`EngagementSettingsOut`:
-
-```json
-{
-  "community_id": "uuid",
-  "mode": "disabled",
-  "allow_join": false,
-  "allow_post": false,
-  "reply_only": true,
-  "require_approval": true,
-  "max_posts_per_day": 1,
-  "min_minutes_between_posts": 240,
-  "quiet_hours_start": null,
-  "quiet_hours_end": null,
-  "assigned_account_id": null,
-  "created_at": "iso_datetime|null",
-  "updated_at": "iso_datetime|null"
-}
-```
-
-`EngagementTopicOut`:
-
-```json
-{
-  "id": "uuid",
-  "name": "Open-source CRM",
-  "description": "string|null",
-  "stance_guidance": "string",
-  "trigger_keywords": ["crm"],
-  "negative_keywords": [],
-  "example_good_replies": [],
-  "example_bad_replies": [],
-  "active": true,
-  "created_at": "iso_datetime",
-  "updated_at": "iso_datetime"
-}
-```
-
-`EngagementReplyOpportunityOut`:
-
-The current API may still expose this as `EngagementCandidateOut` until the code-level rename is
-complete.
-
-```json
-{
-  "id": "uuid",
-  "community_id": "uuid",
-  "community_title": "string|null",
-  "topic_id": "uuid",
-  "topic_name": "string",
-  "source_tg_message_id": 123,
-  "source_excerpt": "truncated text",
-  "source_message_date": "iso_datetime",
-  "detected_reason": "plain-language reason",
-  "moment_strength": "good",
-  "timeliness": "fresh",
-  "reply_value": "practical_tip",
-  "suggested_reply": "draft reply",
-  "final_reply": null,
-  "risk_notes": [],
-  "status": "needs_review",
-  "reviewed_by": null,
-  "reviewed_at": null,
-  "review_deadline_at": "iso_datetime|null",
-  "reply_deadline_at": "iso_datetime",
-  "operator_notified_at": "iso_datetime|null",
-  "expires_at": "iso_datetime",
-  "created_at": "iso_datetime"
-}
-```
-
-`EngagementActionOut`:
-
-```json
-{
-  "id": "uuid",
-  "candidate_id": "uuid|null",
-  "community_id": "uuid",
-  "telegram_account_id": "uuid",
-  "action_type": "reply",
-  "status": "sent",
-  "outbound_text": "exact text",
-  "reply_to_tg_message_id": 123,
-  "sent_tg_message_id": 456,
-  "scheduled_at": "iso_datetime|null",
-  "sent_at": "iso_datetime|null",
-  "error_message": null,
-  "created_at": "iso_datetime"
-}
-```
-
-## Bot Surface
-
-The Telegram bot may expose operator controls:
-
-```text
-/engagement_topics
-/engagement_opportunities
-/engagement_candidates
-/approve_reply <candidate_id>
-/reject_reply <candidate_id>
-/join_community <community_id>
-/target_collect <target_id>
-/target_collection_runs <target_id>
-```
-
-`/engagement_candidates` and `eng:cand:*` are legacy command/callback names. Bot copy should say
-reply opportunity. The bot should treat `candidate` as implementation vocabulary and `reply
-opportunity` as operator vocabulary.
-
-Inline review cards should show:
-
-- community title
-- matched topic
-- capped source excerpt
-- suggested reply
-- current `final_reply` when it differs from the suggestion
-- approval / review state and deadlines
-- approve/send button
-- reject button
-
-Editing is part of the current workflow contract: operators may edit the generated suggestion into a
-durable `final_reply` before approval or send.
-
-Bot callback contract:
-
-```text
-eng:cand:list:<page>
-eng:cand:approve:<candidate_id>
-eng:cand:reject:<candidate_id>
-eng:cand:send:<candidate_id>
-eng:topic:list:<page>
-eng:join:<community_id>
-```
-
-Bot messages must keep source excerpts and suggested replies short enough for Telegram message
-limits. If a reply opportunity card would exceed Telegram limits, the bot should truncate the
-excerpt first, then the detected reason, never the final reply text.
+Do not add new task-first contract detail here. Either point to the canonical
+task-first docs or remove the compat note once the remaining legacy surfaces are
+gone.

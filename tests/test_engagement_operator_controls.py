@@ -25,7 +25,7 @@ from backend.db.models import CollectionRun, Community, EngagementTarget
 from backend.queue.client import QueuedJob
 from bot.api_client import BotApiClient
 from bot.engagement_commands_admin import target_collect_command, target_collection_runs_command
-from bot.formatting import format_engagement_candidate_card, format_engagement_target_card
+from bot.formatting import format_engagement_target_card
 from bot.ui import (
     ACTION_ENGAGEMENT_TARGET_COLLECT,
     ACTION_ENGAGEMENT_TARGET_COLLECTION_RUNS,
@@ -192,23 +192,6 @@ def test_target_card_and_callbacks_expose_collection_controls() -> None:
         ACTION_ENGAGEMENT_TARGET_COLLECTION_RUNS,
         ["target-1"],
     )
-
-
-def test_reply_opportunity_copy_keeps_legacy_candidate_id() -> None:
-    message = format_engagement_candidate_card(
-        {
-            "id": "candidate-1",
-            "community_title": "Founder Circle",
-            "topic_name": "Open CRM",
-            "status": "needs_review",
-            "source_excerpt": "Which CRM should we try?",
-            "detected_reason": "The thread is comparing CRM options.",
-            "suggested_reply": "Compare data ownership first.",
-        }
-    )
-
-    assert "Reply opportunity ID: candidate-1" in message
-    assert "Candidate ID: candidate-1" in message
 
 
 class FakeDb:

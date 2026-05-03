@@ -47,9 +47,9 @@ Supported first implementation value types:
 - `uuid`
 - `keyword_list`
 
-Short values may use commands or inline toggles. Long text values should use conversation-state
-editing. Risky values, including posting permission, prompt activation, assigned account changes,
-and long instruction changes, must show a confirmation before saving.
+Short values should use inline toggles or button-led guided edits. Long text values should use
+conversation-state editing. Risky values, including posting permission, prompt activation, assigned
+account changes, and long instruction changes, must show a confirmation before saving.
 
 ### Editable Config Map
 
@@ -91,11 +91,10 @@ Editable configuration must never weaken hard safety rules. The backend and work
 enforce:
 
 - no DMs
-- no automatic sending in MVP
 - no impersonation or fake personal experience
 - no hidden sponsorship or fake consensus
 - no person-level scoring, ranking, or targeting
-- no bypassing operator approval
+- no bypassing the backend engagement mode and approval rules
 - no disabling audit logs
 - no outbound behavior from collection, discovery, expansion, or analysis workers
 

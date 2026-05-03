@@ -1,49 +1,36 @@
 # Bot Engagement Controls Spec
 
-Top-level routing contract for Telegram-native engagement review and admin controls. Detailed
-navigation, editing, command, formatting, and test contracts live under
-`wiki/spec/bot-engagement-controls/`.
+Legacy/compat overview for older Telegram-native engagement admin and
+candidate-review controls.
 
 ## Purpose
 
-Give operators a compact Telegram bot surface for reviewing reply opportunities, managing approved
-engagement targets, editing prompt/style configuration, and inspecting readiness before any public
-reply is sent.
+Keep a short pointer for the legacy/compat engagement-control surfaces that
+still exist in code, without letting this doc compete with the task-first
+cockpit contract.
 
-The current implementation is bot-first and opportunity-first. Operators are not configuring
-campaign-style outbound messages ahead of time; they are reviewing runtime-generated reply
-opportunities, approving or editing `final_reply`, and then sending audited public replies.
+## Not The Source Of Truth
 
-## Goals
+- Do not use this file as the active contract for `/engagement`.
+- The active engagement UX contract lives in
+  `wiki/spec/bot-cockpit-experience/engagement-task-first-cockpit.md`.
+- The active engagement API, DB, and queue contracts live in
+  `wiki/spec/api/engagement.md`,
+  `wiki/spec/database/engagement.md`, and
+  `wiki/spec/queue/job-types/engagement.md`.
 
-- Keep daily engagement review fast and low-noise.
-- Keep admin controls explicit, permission-gated, and reversible.
-- Preserve callback namespaces that route cleanly through `bot/callback_handlers.py`.
-- Keep message formatting concise enough for Telegram while exposing readiness blockers.
+## What Still Lives Here
 
-## Non-Goals
+This spec is now limited to legacy/compat engagement-control context such as:
 
-- No autonomous public posting from bot controls.
-- No private-message outreach or invite-only community management.
-- No hidden admin actions for non-allowlisted operators.
+- `/engagement_admin` and related `eng:admin:*` paths
+- callback-driven manual controls under `eng:set:*`, `eng:join:*`,
+  `eng:detect:*`, and `eng:actions:*`
+- config-editing mechanics in `bot/config_editing.py`
+- older admin/config markups in `bot/ui_engagement.py`
+- compat workflow tests that still exercise those surfaces
 
-## Interface Summary
-
-- Daily surfaces use `/engagement`, `/engagement_candidates`, candidate detail callbacks, and send
-confirmation callbacks.
-- Admin surfaces use `/engagement_admin`, target/prompt/topic/style commands, and `eng:admin:*`
-callbacks.
-- Conversation-state edits are registered in `bot/config_editing.py` and confirmed through
-`eng:edit:*` callbacks.
-- Formatting and markup are split into `bot/formatting_engagement.py` and `bot/ui_engagement.py`.
-
-Daily review should consistently expose these operator decisions:
-
-- Is this reply opportunity worth taking?
-- Is the suggested reply safe and useful?
-- Does the operator want to approve as-is, edit into `final_reply`, reject, expire, or send?
-
-## Code Map
+## Compat Code Anchors
 
 - `bot/main.py` - compatibility exports for legacy imports.
 - `bot/callback_handlers.py` - inline callback router.
@@ -58,14 +45,10 @@ Daily review should consistently expose these operator decisions:
 - `tests/test_bot_config_editing.py` - config edit parsing and expiry tests.
 - `tests/test_bot_ui.py` - callback encoding and markup contract tests.
 
-## Shards
+## Remaining Shards
 
-- [Navigation](bot-engagement-controls/navigation.md) - operator modes, navigation, readiness summaries.
 - [Config Editing](bot-engagement-controls/config-editing.md) - editable config map and conversation state.
-- [Slice Contracts](bot-engagement-controls/slice-contracts.md) - menu gaps, implementation slices, commands.
 - [Controls, Formatting, Tests](bot-engagement-controls/controls-formatting-tests.md) - inline controls, formatting, safety, tests.
 
-## Open Questions
-
-- Which oversized engagement test surfaces should be split now that production handler entrypoints are stable?
-- Should admin prompt/style tests track the new command and flow modules directly or keep importing through `bot.main`?
+Older navigation and slice-contract shards were removed during contract-surface
+cleanup because they no longer matched the shipped task-first cockpit contract.

@@ -12,7 +12,6 @@ Recommended bot entrypoints:
 /engagement_admin
 /engagement_targets
 /add_engagement_target <telegram_link_or_username_or_community_id>
-/engagement_settings <engagement_target_or_community_id>
 /engagement_prompts
 /engagement_prompt <prompt_profile_id>
 /engagement_prompt_versions <prompt_profile_id>
@@ -31,10 +30,6 @@ Recommended bot entrypoints:
 /topic_remove_example <topic_id> <good|bad> <index>
 /topic_keywords <topic_id> <trigger|negative> <comma_keywords>
 /edit_topic_guidance <topic_id>
-/engagement_candidates [status]
-/edit_reply <candidate_id> | <new final reply>
-/approve_reply <candidate_id>
-/send_reply <candidate_id>
 ```
 
 Core app surfaces may show a handoff action such as `Add to engagement`, but that action must call
@@ -42,6 +37,11 @@ the engagement intake API and create an auditable engagement target row. It must
 approval as engagement approval.
 
 Callback prefixes should remain under `eng:*`. Admin-only controls may use `eng:admin:*`.
+
+Settings, manual join/detect, and action-history controls should be treated as
+callback-first admin surfaces, not as slash-command entrypoints. Candidate
+review command flows are historical and should not be used as the active bot
+contract here.
 
 The backend exposes `GET /api/operator/capabilities` for the bot's current Telegram operator
 context. The bot sends `X-Telegram-User-Id` and uses the returned `engagement_admin` capability as

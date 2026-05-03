@@ -168,6 +168,9 @@ not be treated as the primary contract source for the engagement-first cleanup.
 These still matter because active task-first behavior can adapt to or coexist
 with older engagement data and admin flows.
 
+The removed `eng:cand:*` candidate-review callback family should be treated as
+retired, not as part of the kept compat layer.
+
 ### Stale Or Suspect
 
 These should not be used as contract sources without fresh code verification.

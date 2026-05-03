@@ -113,13 +113,13 @@ candidate created with suggested_reply
   -> admin queues send
 ```
 
-Bot controls:
+Bot note:
 
-```text
-/edit_reply <candidate_id> | <new final reply>
-/approve_reply <candidate_id>
-/send_reply <candidate_id>
-```
+- Historical candidate-review slash commands are no longer the active bot-side
+  contract.
+- Any surviving review/edit/send behavior should be documented through the
+  current task-first or callback-first surfaces, not through a slash-command
+  inventory.
 
 Inline candidate cards should show:
 

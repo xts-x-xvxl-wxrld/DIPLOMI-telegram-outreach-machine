@@ -208,144 +208,23 @@ Replaces the selected keyword list through `PATCH /api/engagement/topics/{topic_
 
 Starts the shared guided config-edit flow for topic guidance.
 
-### `/engagement_settings <community_id>`
+## Historical Compat Note
 
-Calls `GET /api/communities/{community_id}/engagement-settings`.
+The old slash-command layer for engagement settings, join/detect triggers,
+action-history review, and candidate review is no longer the intended contract.
 
-The bot should show mode, join/post flags, reply-only and approval requirements, rate limits, quiet
-hours when configured, and the assigned engagement account as an ID or masked non-secret label.
-The daily engagement menu also exposes a Settings lookup button that lists approved resolved
-engagement targets and opens this same settings card without requiring the operator to type a
-community ID.
-Admins can start guided button-led edits for posting limits, quiet-hour start/end, and assigned
-account from the settings card. These guided saves preserve `reply_only=true` and
-`require_approval=true` and rely on the API for bounds and engagement-account pool validation.
+Current operator/admin behavior:
 
-### `/set_engagement <community_id> <off|observe|suggest|ready>`
+- Send-safety and manual controls are callback-first under `eng:set:*`,
+  `eng:join:*`, `eng:detect:*`, and `eng:actions:*`.
+- The settings card still shows mode, pacing, quiet hours, and assigned account,
+  but edits now start from buttons instead of slash-command mirrors.
+- Join and manual detect still queue the same backend jobs; the operator reaches
+  them from button-led target/settings surfaces rather than typed commands.
+- Action-history paging remains under `eng:actions:*`.
+- Legacy candidate-review slash commands are removed from the active bot-side
+  contract and should not be reintroduced in compat docs.
 
-Applies a safe settings preset through `PUT /api/communities/{community_id}/engagement-settings`.
-
-Preset meanings:
-
-- `off` - disabled, no joins, no posts.
-- `observe` - detect-only posture, no joins or posts.
-- `suggest` - draft candidates for review, no joins or posts.
-- `ready` - allow joins and approved public replies while preserving `reply_only=true` and
-  `require_approval=true`.
-
-### `/set_engagement_limits <community_id> <max_posts_per_day> <min_minutes_between_posts>`
-
-Reads the current community settings, replaces the two rate-limit fields, preserves
-`reply_only=true` and `require_approval=true`, and updates the full settings payload through
-`PUT /api/communities/{community_id}/engagement-settings`.
-
-### `/set_engagement_quiet_hours <community_id> <HH:MM> <HH:MM>`
-
-Reads the current community settings, validates simple `HH:MM` input in the bot, and updates quiet
-hours through `PUT /api/communities/{community_id}/engagement-settings`.
-
-### `/clear_engagement_quiet_hours <community_id>`
-
-Clears both quiet-hour fields while preserving the rest of the current settings payload.
-
-### `/assign_engagement_account <community_id> <telegram_account_id>`
-
-Reads the current community settings and shows a before/after account assignment confirmation using
-the account ID plus a masked label from `GET /api/debug/accounts` when available. The settings API
-is called only after the admin confirms. The API remains the source of truth for wrong-pool and
-invalid-account rejection.
-
-### `/clear_engagement_account <community_id>`
-
-Shows a before/after confirmation for clearing the assigned engagement account, then clears it after
-the admin confirms while preserving the rest of the current settings payload.
-
-### `/join_community <community_id>`
-
-Queues `community.join` through `POST /api/communities/{community_id}/join-jobs`.
-
-The bot must show the queued job ID and a refresh button. The API and worker still own all preflight
-checks and Telethon behavior.
-
-### `/detect_engagement <community_id> [window_minutes]`
-
-Queues manual `engagement.detect` through
-`POST /api/communities/{community_id}/engagement-detect-jobs`.
-
-### `/engagement_candidates [status]`
-
-Lists engagement candidates. Default status is `needs_review`; supported operator filters include
-`approved`, `failed`, `sent`, and `rejected` when the API supports them.
-
-Candidate cards should show community title, topic, capped source excerpt, detected reason,
-suggested and edited final reply text, prompt profile/version summary when available, risk notes,
-status, and a send-readiness summary. The bot must not show sender identity. Cards should list only
-state-relevant primary action hints, such as approve/reject for `needs_review` and send for
-`approved`.
-
-### `/engagement_candidate <candidate_id>`
-
-Calls `GET /api/engagement/candidates/{candidate_id}` and shows one full candidate detail card with
-capped source excerpt, detected reason, suggested reply, current final reply, prompt profile/version
-summary, risk notes, status, expiry, and state-aware controls. The card must not show sender
-identity, phone numbers, private account metadata, or person-level scores.
-
-### `/edit_reply <candidate_id> | <new final reply>`
-
-Edits the candidate's final reply through the API. The edit creates a candidate revision and uses
-the same safety and length validation as generated replies.
-
-Operators may also start a guided edit with only:
-
-```text
-/edit_reply <candidate_id>
-```
-
-In that mode, the bot stores a pending edit for the caller's Telegram user ID, accepts the next text
-message as the proposed final reply, shows a preview, and saves or cancels through inline controls.
-Pending edits are in-process, expire after a short timeout, and are not shared between operators.
-
-### `/candidate_revisions <candidate_id>`
-
-Calls `GET /api/engagement/candidates/{candidate_id}/revisions` and shows immutable manual reply
-revision history with revision number, edited-by label, optional edit reason, timestamp, and capped
-reply text.
-
-### `/expire_candidate <candidate_id>`
-
-Calls `POST /api/engagement/candidates/{candidate_id}/expire` to explicitly remove a reviewable or
-approved candidate from active review when the operator decides it is stale. Sent, rejected, and
-already expired candidates remain read-only.
-
-### `/retry_candidate <candidate_id>`
-
-Calls `POST /api/engagement/candidates/{candidate_id}/retry` to reopen a failed candidate for review
-when the backend permits the transition. Retry does not send anything; it only returns the candidate
-to review.
-
-### `/cancel_edit`
-
-Cancels the caller's pending guided config edit, if one exists.
-
-### `/approve_reply <candidate_id>`
-
-Approves a candidate through `POST /api/engagement/candidates/{candidate_id}/approve`. If the
-candidate has an edited final reply, approval uses that text; otherwise it falls back to the
-suggested reply. The returned card may offer `Queue send`, but approval itself must not enqueue
-sending.
-
-### `/reject_reply <candidate_id>`
-
-Rejects a candidate through `POST /api/engagement/candidates/{candidate_id}/reject`.
-
-### `/send_reply <candidate_id>`
-
-Queues `engagement.send` through `POST /api/engagement/candidates/{candidate_id}/send-jobs`.
-
-Only approved candidates should expose this command or inline button. The API must still reject
-unapproved candidates.
-
-### `/engagement_actions [community_id]`
-
-Calls `GET /api/engagement/actions` and shows recent join/reply audit rows. Community filtering is
-optional in the command and should be passed to the API when provided.
+Top-level bot entrypoints such as `/engagement` and `/engagement_admin` may
+still hand operators into the task-first or admin flows, but the detailed manual
+control layer should be documented as callback-driven.

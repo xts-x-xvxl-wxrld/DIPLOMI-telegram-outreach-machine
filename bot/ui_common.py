@@ -58,17 +58,6 @@ ACTION_SEARCH_REVIEW = "srv"
 ACTION_SEARCH_CONVERT = "scv"
 ACTION_SEARCH_RERANK = "srk"
 ACTION_ENGAGEMENT_HOME = "eng:home"
-ACTION_ENGAGEMENT_CANDIDATES = "eng:cand:list"
-ACTION_ENGAGEMENT_APPROVE = "eng:cand:approve"
-ACTION_ENGAGEMENT_REJECT = "eng:cand:reject"
-ACTION_ENGAGEMENT_SEND = "eng:cand:send"
-ACTION_ENGAGEMENT_CANDIDATE_OPEN = "eng:cand:open"
-ACTION_ENGAGEMENT_CANDIDATE_EDIT = "eng:cand:edit"
-ACTION_ENGAGEMENT_CANDIDATE_REVISIONS = "eng:cand:rev"
-ACTION_ENGAGEMENT_CANDIDATE_EXPIRE = "eng:cand:exp"
-ACTION_ENGAGEMENT_CANDIDATE_RETRY = "eng:cand:retry"
-ACTION_ENGAGEMENT_CANDIDATE_SAVE_GOOD = "eng:cand:savegood"
-ACTION_ENGAGEMENT_CANDIDATE_STYLE = "eng:cand:style"
 ACTION_ENGAGEMENT_TOPIC_LIST = "eng:topic:list"
 ACTION_ENGAGEMENT_TOPIC_CREATE = "eng:topic:create"
 ACTION_ENGAGEMENT_TOPIC_OPEN = "eng:topic:open"
@@ -84,6 +73,8 @@ ACTION_ENGAGEMENT_SETTINGS_PRESET = "eng:set:preset"
 ACTION_ENGAGEMENT_SETTINGS_JOIN = "eng:set:join"
 ACTION_ENGAGEMENT_SETTINGS_POST = "eng:set:post"
 ACTION_ENGAGEMENT_SETTINGS_EDIT = "eng:set:e"
+ACTION_ENGAGEMENT_SETTINGS_CLEAR_QUIET = "eng:set:qclear"
+ACTION_ENGAGEMENT_SETTINGS_CLEAR_ACCOUNT = "eng:set:acctclear"
 ACTION_ENGAGEMENT_ACCOUNT_CONFIRM = "eng:set:acctc"
 ACTION_ENGAGEMENT_ACCOUNT_CANCEL = "eng:set:acctx"
 ACTION_ENGAGEMENT_JOIN = "eng:join"
@@ -167,7 +158,7 @@ def parse_callback_data(data: str) -> tuple[str, list[str]]:
     if parts[0] == "eng":
         if len(parts) >= 3 and parts[1] == "admin":
             return ":".join(parts[:3]), parts[3:]
-        if len(parts) >= 3 and parts[1] in {"actions", "cand", "edit", "set", "topic"}:
+        if len(parts) >= 3 and parts[1] in {"actions", "edit", "set", "topic"}:
             return ":".join(parts[:3]), parts[3:]
         if len(parts) >= 2 and parts[1] in {"appr", "iss", "mine", "det", "sent", "wz", "rate", "quiet"}:
             return ":".join(parts[:2]), parts[2:]
@@ -234,19 +225,6 @@ def _button_label(label: str, action: str, parts: Sequence[str]) -> str:
     if key == (ACTION_ENGAGEMENT_ADMIN, ()):
         return _ButtonLabel(label, equals_alias="Setup")
     overrides = {
-        (ACTION_ENGAGEMENT_CANDIDATES, ("needs_review", "0")): _ButtonLabel(
-            "⚠ Pending approvals",
-            equals_alias="Pending approvals",
-        ),
-        (ACTION_ENGAGEMENT_CANDIDATES, ("approved", "0")): _ButtonLabel(
-            "✅ Ready to send",
-            endswith_alias="Approved",
-            equals_alias="Ready to send",
-        ),
-        (ACTION_ENGAGEMENT_CANDIDATES, ("failed", "0")): _ButtonLabel(
-            "⛔ Needs attention",
-            equals_alias="Needs attention",
-        ),
         (ACTION_ENGAGEMENT_TARGETS, ("0",)): _ButtonLabel(
             "🏘 Communities",
             equals_alias="Communities",

@@ -36,11 +36,6 @@ from bot.formatting import (
     format_engagement_admin_home,
     format_engagement_admin_limits_home,
     format_engagement_account_assignment_confirmation,
-    format_engagement_candidate_card,
-    format_engagement_candidate_review,
-    format_engagement_candidate_revisions,
-    format_engagement_candidates,
-    format_engagement_home,
     format_engagement_job_response,
     format_engagement_prompt_activation_confirmation,
     format_engagement_prompt_preview,
@@ -98,14 +93,6 @@ from bot.ui import (
     ACTION_ENGAGEMENT_ADMIN,
     ACTION_ENGAGEMENT_ADMIN_ADVANCED,
     ACTION_ENGAGEMENT_ADMIN_LIMITS,
-    ACTION_ENGAGEMENT_APPROVE,
-    ACTION_ENGAGEMENT_CANDIDATES,
-    ACTION_ENGAGEMENT_CANDIDATE_EDIT,
-    ACTION_ENGAGEMENT_CANDIDATE_EXPIRE,
-    ACTION_ENGAGEMENT_CANDIDATE_OPEN,
-    ACTION_ENGAGEMENT_CANDIDATE_RETRY,
-    ACTION_ENGAGEMENT_CANDIDATE_REVISIONS,
-    ACTION_ENGAGEMENT_CANDIDATE_SAVE_GOOD,
     ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_JOIN,
@@ -120,10 +107,10 @@ from bot.ui import (
     ACTION_ENGAGEMENT_PROMPT_ROLLBACK_CONFIRM,
     ACTION_ENGAGEMENT_PROMPT_VERSIONS,
     ACTION_ENGAGEMENT_PROMPTS,
-    ACTION_ENGAGEMENT_REJECT,
-    ACTION_ENGAGEMENT_SEND,
     ACTION_ENGAGEMENT_SETTINGS_JOIN,
     ACTION_ENGAGEMENT_SETTINGS_EDIT,
+    ACTION_ENGAGEMENT_SETTINGS_CLEAR_ACCOUNT,
+    ACTION_ENGAGEMENT_SETTINGS_CLEAR_QUIET,
     ACTION_ENGAGEMENT_SETTINGS_LOOKUP,
     ACTION_ENGAGEMENT_SETTINGS_OPEN,
     ACTION_ENGAGEMENT_SETTINGS_POST,
@@ -198,13 +185,6 @@ from bot.ui import (
     engagement_admin_advanced_markup,
     engagement_admin_home_markup,
     engagement_admin_limits_markup,
-    engagement_candidate_actions_markup,
-    engagement_candidate_detail_markup,
-    engagement_candidate_filter_markup,
-    engagement_candidate_pager_markup,
-    engagement_candidate_revisions_markup,
-    engagement_candidate_send_markup,
-    engagement_home_markup,
     engagement_prompt_actions_markup,
     engagement_prompt_activation_confirm_markup,
     engagement_prompt_list_markup,
@@ -610,10 +590,6 @@ async def callback_query(update: Any, context: Any) -> None:
                 edit_callback=True,
             )
             return
-        if action == ACTION_ENGAGEMENT_CANDIDATES and parts:
-            status, offset = _engagement_callback_status_and_offset(parts)
-            await _send_engagement_candidates(update, context, status=status, offset=offset)
-            return
         if action == ACTION_ENGAGEMENT_SETTINGS_OPEN and len(parts) == 1:
             await _send_engagement_settings(update, context, parts[0])
             return
@@ -651,6 +627,25 @@ async def callback_query(update: Any, context: Any) -> None:
                 parts[0],
                 field="allow_post",
                 value=parts[1] == "1",
+                edit_callback=True,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_SETTINGS_CLEAR_QUIET and len(parts) == 1:
+            await _update_engagement_settings_from_current(
+                update,
+                context,
+                parts[0],
+                quiet_hours_start=None,
+                quiet_hours_end=None,
+                edit_callback=True,
+            )
+            return
+        if action == ACTION_ENGAGEMENT_SETTINGS_CLEAR_ACCOUNT and len(parts) == 1:
+            await _confirm_engagement_account_assignment(
+                update,
+                context,
+                parts[0],
+                assigned_account_id=None,
                 edit_callback=True,
             )
             return

@@ -36,11 +36,6 @@ from bot.formatting import (
     format_engagement_admin_home,
     format_engagement_admin_limits_home,
     format_engagement_account_assignment_confirmation,
-    format_engagement_candidate_card,
-    format_engagement_candidate_review,
-    format_engagement_candidate_revisions,
-    format_engagement_candidates,
-    format_engagement_home,
     format_engagement_job_response,
     format_engagement_prompt_activation_confirmation,
     format_engagement_prompt_preview,
@@ -97,13 +92,6 @@ from bot.ui import (
     ACTION_ENGAGEMENT_ADMIN,
     ACTION_ENGAGEMENT_ADMIN_ADVANCED,
     ACTION_ENGAGEMENT_ADMIN_LIMITS,
-    ACTION_ENGAGEMENT_APPROVE,
-    ACTION_ENGAGEMENT_CANDIDATES,
-    ACTION_ENGAGEMENT_CANDIDATE_EDIT,
-    ACTION_ENGAGEMENT_CANDIDATE_EXPIRE,
-    ACTION_ENGAGEMENT_CANDIDATE_OPEN,
-    ACTION_ENGAGEMENT_CANDIDATE_RETRY,
-    ACTION_ENGAGEMENT_CANDIDATE_REVISIONS,
     ACTION_ENGAGEMENT_DETECT,
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_JOIN,
@@ -118,8 +106,6 @@ from bot.ui import (
     ACTION_ENGAGEMENT_PROMPT_ROLLBACK_CONFIRM,
     ACTION_ENGAGEMENT_PROMPT_VERSIONS,
     ACTION_ENGAGEMENT_PROMPTS,
-    ACTION_ENGAGEMENT_REJECT,
-    ACTION_ENGAGEMENT_SEND,
     ACTION_ENGAGEMENT_SETTINGS_JOIN,
     ACTION_ENGAGEMENT_SETTINGS_EDIT,
     ACTION_ENGAGEMENT_SETTINGS_LOOKUP,
@@ -175,13 +161,6 @@ from bot.ui import (
     engagement_admin_advanced_markup,
     engagement_admin_home_markup,
     engagement_admin_limits_markup,
-    engagement_candidate_actions_markup,
-    engagement_candidate_detail_markup,
-    engagement_candidate_filter_markup,
-    engagement_candidate_pager_markup,
-    engagement_candidate_revisions_markup,
-    engagement_candidate_send_markup,
-    engagement_home_markup,
     engagement_prompt_actions_markup,
     engagement_prompt_activation_confirm_markup,
     engagement_prompt_list_markup,
@@ -251,9 +230,9 @@ ENGAGEMENT_ADMIN_ONLY_MESSAGE = (
 
 from .runtime import *
 
+from .engagement_manual_controls import *
 from .engagement_targets_flow import *
 from .engagement_prompts_flow import *
-from .engagement_review_flow import *
 from .engagement_topics_flow import *
 
 
@@ -499,223 +478,6 @@ async def toggle_style_rule_command(update: Any, context: Any) -> None:
         await _reply(update, format_api_error(exc.message))
 
 
-async def engagement_settings_command(update: Any, context: Any) -> None:
-    community_id = _first_arg(context)
-    if community_id is None:
-        await _reply(update, "Usage: /engagement_settings <community_id>")
-        return
-
-    try:
-        await _send_engagement_settings(update, context, community_id)
-    except BotApiError as exc:
-        await _reply(update, format_api_error(exc.message))
-
-
-async def set_engagement_command(update: Any, context: Any) -> None:
-    if not await _require_engagement_admin(update, context):
-        return
-    if len(context.args) < 2:
-        await _reply(update, "Usage: /set_engagement <community_id> <off|observe|suggest|ready>")
-        return
-
-    community_id = str(context.args[0]).strip()
-    preset = str(context.args[1]).strip().casefold()
-    if not community_id or preset not in ENGAGEMENT_SETTING_PRESETS:
-        await _reply(update, "Usage: /set_engagement <community_id> <off|observe|suggest|ready>")
-        return
-
-    try:
-        await _apply_engagement_preset(update, context, community_id, preset=preset)
-    except BotApiError as exc:
-        await _reply(update, format_api_error(exc.message))
-
-
-async def join_community_command(update: Any, context: Any) -> None:
-    community_id = _first_arg(context)
-    if community_id is None:
-        await _reply(update, "Usage: /join_community <community_id>")
-        return
-
-    try:
-        await _start_engagement_join(update, context, community_id)
-    except BotApiError as exc:
-        await _reply(update, format_api_error(exc.message))
-
-
-async def detect_engagement_command(update: Any, context: Any) -> None:
-    community_id = _first_arg(context)
-    if community_id is None:
-        await _reply(update, "Usage: /detect_engagement <community_id> [window_minutes]")
-        return
-
-    window_minutes = _optional_window_minutes(context)
-    if window_minutes is None:
-        await _reply(update, "Usage: /detect_engagement <community_id> [window_minutes]")
-        return
-
-    try:
-        await _start_engagement_detection(update, context, community_id, window_minutes=window_minutes)
-    except BotApiError as exc:
-        await _reply(update, format_api_error(exc.message))
-
-
-async def set_engagement_limits_command(update: Any, context: Any) -> None:
-    if not await _require_engagement_admin(update, context):
-        return
-    if len(context.args) < 3:
-        await _reply(
-            update,
-            "Usage: /set_engagement_limits <community_id> <max_posts_per_day> <min_minutes_between_posts>",
-        )
-        return
-
-    community_id = str(context.args[0]).strip()
-    if not community_id:
-        await _reply(
-            update,
-            "Usage: /set_engagement_limits <community_id> <max_posts_per_day> <min_minutes_between_posts>",
-        )
-        return
-
-    ok_max_posts, max_posts_or_error = _parse_settings_value("max_posts_per_day", str(context.args[1]))
-    if not ok_max_posts:
-        await _reply(update, str(max_posts_or_error))
-        return
-    ok_min_minutes, min_minutes_or_error = _parse_settings_value(
-        "min_minutes_between_posts",
-        str(context.args[2]),
-    )
-    if not ok_min_minutes:
-        await _reply(update, str(min_minutes_or_error))
-        return
-
-    try:
-        await _update_engagement_settings_from_current(
-            update,
-            context,
-            community_id,
-            max_posts_per_day=max_posts_or_error,
-            min_minutes_between_posts=min_minutes_or_error,
-        )
-    except BotApiError as exc:
-        await _reply(update, format_api_error(exc.message))
-
-
-async def set_engagement_quiet_hours_command(update: Any, context: Any) -> None:
-    if not await _require_engagement_admin(update, context):
-        return
-    if len(context.args) < 3:
-        await _reply(
-            update,
-            "Usage: /set_engagement_quiet_hours <community_id> <HH:MM> <HH:MM>",
-        )
-        return
-
-    community_id = str(context.args[0]).strip()
-    if not community_id:
-        await _reply(
-            update,
-            "Usage: /set_engagement_quiet_hours <community_id> <HH:MM> <HH:MM>",
-        )
-        return
-
-    ok_start, start_or_error = _parse_settings_value("quiet_hours_start", str(context.args[1]))
-    if not ok_start:
-        await _reply(update, str(start_or_error))
-        return
-    ok_end, end_or_error = _parse_settings_value("quiet_hours_end", str(context.args[2]))
-    if not ok_end:
-        await _reply(update, str(end_or_error))
-        return
-
-    try:
-        await _update_engagement_settings_from_current(
-            update,
-            context,
-            community_id,
-            quiet_hours_start=start_or_error,
-            quiet_hours_end=end_or_error,
-        )
-    except BotApiError as exc:
-        await _reply(update, format_api_error(exc.message))
-
-
-async def clear_engagement_quiet_hours_command(update: Any, context: Any) -> None:
-    if not await _require_engagement_admin(update, context):
-        return
-    community_id = _first_arg(context)
-    if community_id is None:
-        await _reply(update, "Usage: /clear_engagement_quiet_hours <community_id>")
-        return
-
-    try:
-        await _update_engagement_settings_from_current(
-            update,
-            context,
-            community_id,
-            quiet_hours_start=None,
-            quiet_hours_end=None,
-        )
-    except BotApiError as exc:
-        await _reply(update, format_api_error(exc.message))
-
-
-async def assign_engagement_account_command(update: Any, context: Any) -> None:
-    if not await _require_engagement_admin(update, context):
-        return
-    if len(context.args) < 2:
-        await _reply(
-            update,
-            "Usage: /assign_engagement_account <community_id> <telegram_account_id>",
-        )
-        return
-
-    community_id = str(context.args[0]).strip()
-    if not community_id:
-        await _reply(
-            update,
-            "Usage: /assign_engagement_account <community_id> <telegram_account_id>",
-        )
-        return
-
-    ok_account, account_id_or_error = _parse_settings_value(
-        "assigned_account_id",
-        str(context.args[1]),
-    )
-    if not ok_account:
-        await _reply(update, str(account_id_or_error))
-        return
-
-    try:
-        await _confirm_engagement_account_assignment(
-            update,
-            context,
-            community_id,
-            assigned_account_id=account_id_or_error,
-        )
-    except BotApiError as exc:
-        await _reply(update, format_api_error(exc.message))
-
-
-async def clear_engagement_account_command(update: Any, context: Any) -> None:
-    if not await _require_engagement_admin(update, context):
-        return
-    community_id = _first_arg(context)
-    if community_id is None:
-        await _reply(update, "Usage: /clear_engagement_account <community_id>")
-        return
-
-    try:
-        await _confirm_engagement_account_assignment(
-            update,
-            context,
-            community_id,
-            assigned_account_id=None,
-        )
-    except BotApiError as exc:
-        await _reply(update, format_api_error(exc.message))
-
-
 async def engagement_topics_command(update: Any, context: Any) -> None:
     try:
         await _send_engagement_topics(update, context, offset=0)
@@ -869,15 +631,6 @@ __all__ = [
     "create_style_rule_command",
     "edit_style_rule_command",
     "toggle_style_rule_command",
-    "engagement_settings_command",
-    "set_engagement_command",
-    "join_community_command",
-    "detect_engagement_command",
-    "set_engagement_limits_command",
-    "set_engagement_quiet_hours_command",
-    "clear_engagement_quiet_hours_command",
-    "assign_engagement_account_command",
-    "clear_engagement_account_command",
     "engagement_topics_command",
     "engagement_topic_command",
     "create_engagement_topic_command",

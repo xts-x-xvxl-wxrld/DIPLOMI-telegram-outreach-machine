@@ -6,7 +6,6 @@ from bot.config_editing import PendingEditStore, editable_field, parse_edit_valu
 
 
 def test_editable_field_registry_exposes_slice_four_fields() -> None:
-    candidate_field = editable_field("candidate", "final_reply")
     target_field = editable_field("target", "notes")
     prompt_field = editable_field("prompt_profile", "system_prompt")
     prompt_create_field = editable_field("prompt_profile_create", "payload")
@@ -16,9 +15,6 @@ def test_editable_field_registry_exposes_slice_four_fields() -> None:
     target_create_field = editable_field("target_create", "payload")
     settings_field = editable_field("settings", "assigned_account_id")
 
-    assert candidate_field is not None
-    assert candidate_field.api_method == "edit_engagement_candidate"
-    assert candidate_field.requires_confirmation is True
     assert target_field is not None
     assert target_field.api_method == "update_engagement_target"
     assert target_field.admin_only is True
@@ -96,7 +92,7 @@ def test_parse_edit_value_rejects_unapproved_prompt_template_variables() -> None
 
 def test_pending_edit_store_scopes_edits_by_operator() -> None:
     store = PendingEditStore()
-    field = editable_field("candidate", "final_reply")
+    field = editable_field("settings", "assigned_account_id")
     assert field is not None
 
     first = store.start(operator_id=123, field=field, object_id="candidate-1")
@@ -137,7 +133,7 @@ def test_pending_edit_store_preserves_flow_state_updates() -> None:
 def test_pending_edit_store_expires_stale_edits() -> None:
     now = datetime(2026, 4, 20, 12, 0, tzinfo=UTC)
     store = PendingEditStore(timeout_seconds=60)
-    field = editable_field("candidate", "final_reply")
+    field = editable_field("settings", "assigned_account_id")
     assert field is not None
 
     store.start(operator_id=123, field=field, object_id="candidate-1", now=now)

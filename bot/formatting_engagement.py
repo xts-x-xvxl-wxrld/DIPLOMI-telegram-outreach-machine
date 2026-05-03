@@ -22,10 +22,6 @@ from .formatting_common import (
 from .formatting_engagement_review import (
     format_engagement_action_card as format_engagement_action_card,
     format_engagement_actions as format_engagement_actions,
-    format_engagement_candidate_card as format_engagement_candidate_card,
-    format_engagement_candidate_review as format_engagement_candidate_review,
-    format_engagement_candidate_revisions as format_engagement_candidate_revisions,
-    format_engagement_candidates as format_engagement_candidates,
     format_engagement_semantic_rollout as format_engagement_semantic_rollout,
 )
 from .formatting_engagement_wizard import (
@@ -35,38 +31,6 @@ from .formatting_engagement_wizard import (
     format_wizard_level_prompt as format_wizard_level_prompt,
     format_wizard_launch_card as format_wizard_launch_card,
 )
-
-def format_engagement_home(data: dict[str, Any]) -> str:
-    counts = data.get("counts") or data
-    pending_count = counts.get("pending_reply_count", counts.get("needs_review", 0))
-    approved_count = counts.get("approved_reply_count", counts.get("approved", 0))
-    failed_count = counts.get("failed_candidate_count", counts.get("failed", 0))
-    active_topic_count = counts.get("active_topic_count", counts.get("active_topics", 0))
-    return "\n".join(
-        [
-            _headline("Engagement cockpit", icon="💬"),
-            _field("Pending approvals", pending_count, icon="⚠"),
-            _field("Ready to send", approved_count, icon="✅"),
-            _field("Needs attention", failed_count, icon="⛔"),
-            _field("Active topics", active_topic_count, icon="🧩"),
-            *_action_block(
-                [
-                    "Use the Pending approvals button for draft review work.",
-                    "Use Ready to send for approved replies waiting on send.",
-                    "Use Needs attention when something is blocked or failed.",
-                    "Edit, approve, reject, and send continue from the reply cards.",
-                ],
-                title="Review flow",
-            ),
-            *_action_block(
-                [
-                    "Communities, Topics, Settings lookup, Recent actions, and Setup stay in the inline buttons below.",
-                    "Open a community or reply card first when you need item-specific actions.",
-                ],
-                title="Configuration",
-            ),
-        ]
-    )
 
 def format_engagement_admin_home(data: dict[str, Any]) -> str:
     return "\n".join(
@@ -194,8 +158,6 @@ def format_engagement_target_card(
     ]
     if item.get("submitted_ref"):
         lines.append(_field("Submitted", item["submitted_ref"], icon="🔗"))
-    if item.get("community_id"):
-        lines.append(_field("Settings", f"/engagement_settings {item['community_id']}", icon="⚙"))
     if item.get("community_id"):
         lines.append(_field("Community", item.get("community_title") or item["community_id"]))
     if item.get("notes"):
@@ -593,23 +555,7 @@ def format_engagement_settings(
     lines.extend(
         _action_block(
             [
-                f"Preset: /set_engagement {community_id} <off|observe|suggest|ready>",
-                (
-                    "Limits: /set_engagement_limits "
-                    f"{community_id} <max_posts_per_day> <min_minutes_between_posts>"
-                ),
-                (
-                    "Quiet hours: /set_engagement_quiet_hours "
-                    f"{community_id} <HH:MM> <HH:MM>"
-                ),
-                f"Clear quiet hours: /clear_engagement_quiet_hours {community_id}",
-                (
-                    "Assign account: /assign_engagement_account "
-                    f"{community_id} <telegram_account_id>"
-                ),
-                f"Clear account: /clear_engagement_account {community_id}",
-                f"Join: /join_community {community_id}",
-                f"Detect: /detect_engagement {community_id}",
+                "Use the buttons below to adjust pacing, clear quiet hours, assign or clear the engagement account, queue a join, or run detection now.",
             ]
         )
     )
@@ -742,7 +688,4 @@ def format_engagement_job_response(
         lines.append(_field("Reply opportunity ID", candidate_id, icon="💬"))
         lines.append(_field("Candidate ID", candidate_id, icon="🆔"))
     return "\n".join(lines)
-
-
-
 

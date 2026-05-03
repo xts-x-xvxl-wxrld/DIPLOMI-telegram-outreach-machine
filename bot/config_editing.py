@@ -132,14 +132,6 @@ class PendingEditStore:
 
 
 EDITABLE_FIELDS: dict[tuple[str, str], EditableField] = {
-    ("candidate", "final_reply"): EditableField(
-        entity="candidate",
-        field="final_reply",
-        label="Final reply",
-        value_type="long_text",
-        api_method="edit_engagement_candidate",
-        requires_confirmation=True,
-    ),
     ("target", "notes"): EditableField(
         entity="target",
         field="notes",

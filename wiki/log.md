@@ -2350,3 +2350,15 @@ while preserving the staged testing contract.
   test anchors.
 - Updated `wiki/code-index/index.md` and `wiki/index.md` so the new engagement
   shard set is discoverable from the repo’s normal documentation entrypoints.
+
+## [2026-05-03] refactor | Retire remaining half-dead candidate-review compat residue
+
+- Removed the leftover exported `eng:cand:*` callback constants and candidate
+  formatter/config-edit registry entries that still advertised the old
+  candidate-review surface after its router and tests had already been cut.
+- Trimmed the shared bot import/export façades and inline UI helpers so the
+  kept compat layer now covers only settings, target admin, topic/prompt flows,
+  and action history instead of implying candidate-review support still exists.
+- Updated the active cockpit spec, engagement code-index shards, and the
+  remaining bot-formatting/UI/config-edit tests to treat the old candidate
+  review family as retired rather than live compat behavior.

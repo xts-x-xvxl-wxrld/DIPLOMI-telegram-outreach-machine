@@ -42,69 +42,6 @@ def _status_icon(value: Any) -> str:
     return "•"
 
 
-def _engagement_candidate_readiness(item: dict[str, Any]) -> str:
-    readiness = _backend_readiness_text(item, "readiness", "send_readiness", "readiness_summary")
-    if readiness:
-        return readiness
-
-    block_reason = _backend_block_reason(item, "send_block_reason", "blocked_reason", "block_reason")
-    if block_reason:
-        return block_reason
-
-    status = str(item.get("status") or "unknown")
-    if status == "needs_review":
-        return "Needs review"
-    if status == "approved":
-        return "Approved, ready to send"
-    if status == "failed":
-        return "Failed, retry may be available"
-    if status == "sent":
-        return "Sent"
-    if status == "rejected":
-        return "Rejected"
-    if status == "expired":
-        return "Blocked: reply expired"
-    return status.replace("_", " ").title()
-
-
-def _engagement_candidate_next_actions(candidate_id: str, status: str) -> list[str]:
-    if status == "needs_review":
-        return [
-            f"Open: /engagement_candidate {candidate_id}",
-            f"Edit: /edit_reply {candidate_id} | <final reply>",
-            f"Approve: /approve_reply {candidate_id}",
-            f"Reject: /reject_reply {candidate_id}",
-            f"Expire: /expire_candidate {candidate_id}",
-        ]
-    if status == "approved":
-        return [
-            f"Open: /engagement_candidate {candidate_id}",
-            f"Send: /send_reply {candidate_id}",
-            f"Edit: /edit_reply {candidate_id} | <final reply>",
-            f"Reject: /reject_reply {candidate_id}",
-            f"Expire: /expire_candidate {candidate_id}",
-        ]
-    if status == "failed":
-        return [
-            f"Open: /engagement_candidate {candidate_id}",
-            f"Retry: /retry_candidate {candidate_id}",
-            f"Edit: /edit_reply {candidate_id} | <final reply>",
-            f"Reject: /reject_reply {candidate_id}",
-            f"Expire: /expire_candidate {candidate_id}",
-        ]
-    if status in {"sent", "rejected", "expired"}:
-        return [
-            f"Open: /engagement_candidate {candidate_id}",
-            f"Revisions: /candidate_revisions {candidate_id}",
-            "Audit: /engagement_actions",
-        ]
-    return [
-        f"Open: /engagement_candidate {candidate_id}",
-        f"Edit: /edit_reply {candidate_id} | <final reply>",
-        f"Reject: /reject_reply {candidate_id}",
-    ]
-
-
 def _engagement_target_readiness(item: dict[str, Any]) -> str:
     readiness = _backend_readiness_text(
         item,

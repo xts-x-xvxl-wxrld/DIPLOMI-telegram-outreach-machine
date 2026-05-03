@@ -226,13 +226,6 @@ async def _save_config_edit(update: Any, context: Any, pending: PendingEdit) -> 
     reviewer = _reviewer_label(update)
     operator_user_id = _telegram_user_id(update)
 
-    if pending.entity == "candidate" and pending.field == "final_reply":
-        return await client.edit_engagement_candidate(
-            pending.object_id,
-            final_reply=str(value),
-            edited_by=reviewer,
-        )
-
     if pending.entity == "target":
         return await client.update_engagement_target(
             pending.object_id,
@@ -422,11 +415,6 @@ def _refresh_topic_create_pending_after_partial_save(
 
 def _saved_config_edit_response(pending: PendingEdit, data: dict[str, Any]) -> tuple[str, Any | None]:
     prefix = render_edit_saved(pending)
-    if pending.entity == "candidate":
-        return (
-            prefix + "\n\n" + format_engagement_candidate_card(data, detail=True),
-            _engagement_candidate_detail_markup(pending.object_id, data),
-        )
     if pending.entity == "target":
         return (
             prefix + "\n\n" + format_engagement_target_card(data, detail=True),
