@@ -222,7 +222,13 @@ ENGAGEMENT_SETTING_PRESETS = {"off", "observe", "suggest", "ready"}
 ENGAGEMENT_ADMIN_ONLY_MESSAGE = (
     "This engagement admin control is limited to admin operators."
 )
-STARTUP_BOT_COMMANDS: tuple[tuple[str, str], ...] = ()
+STARTUP_BOT_COMMANDS: tuple[tuple[str, str], ...] = (
+    ("start", "Open the main cockpit"),
+    ("seeds", "Open seed groups"),
+    ("engagement", "Open engagement cockpit"),
+    ("accounts", "Open account cockpit"),
+    ("help", "Open help"),
+)
 
 from .runtime import *
 from .account_handlers import *
@@ -233,6 +239,16 @@ from .callback_handlers import *
 
 
 async def post_init(application: Any) -> None:
+    try:
+        from telegram import BotCommand
+    except ImportError:
+        command_menu: Any = STARTUP_BOT_COMMANDS
+    else:
+        command_menu = [
+            BotCommand(command=command, description=description)
+            for command, description in STARTUP_BOT_COMMANDS
+        ]
+
     settings: BotSettings = application.bot_data["settings"]
     application.bot_data[API_CLIENT_KEY] = BotApiClient(
         base_url=settings.api_base_url,
@@ -242,7 +258,7 @@ async def post_init(application: Any) -> None:
     application.bot_data[CONFIG_EDIT_STORE_KEY] = PendingEditStore()
     application.bot_data[ACCOUNT_CONFIRM_STORE_KEY] = {}
     application.bot_data[ACCOUNT_ONBOARDING_STORE_KEY] = {}
-    await application.bot.set_my_commands(STARTUP_BOT_COMMANDS)
+    await application.bot.set_my_commands(command_menu)
 
 
 async def post_shutdown(application: Any) -> None:

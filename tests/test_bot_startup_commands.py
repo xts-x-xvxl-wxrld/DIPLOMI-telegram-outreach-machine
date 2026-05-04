@@ -19,7 +19,7 @@ class _FakeBot:
 
 
 @pytest.mark.asyncio
-async def test_post_init_clears_public_command_menu() -> None:
+async def test_post_init_registers_cockpit_command_menu() -> None:
     bot = _FakeBot()
     settings = SimpleNamespace(
         api_base_url="http://api.local",
@@ -32,5 +32,11 @@ async def test_post_init_clears_public_command_menu() -> None:
 
     assert application.bot_data[API_CLIENT_KEY] is not None
     assert application.bot_data[CONFIG_EDIT_STORE_KEY] is not None
-    assert bot.commands == STARTUP_BOT_COMMANDS
-    assert STARTUP_BOT_COMMANDS == ()
+    assert tuple((command.command, command.description) for command in bot.commands) == STARTUP_BOT_COMMANDS
+    assert STARTUP_BOT_COMMANDS == (
+        ("start", "Open the main cockpit"),
+        ("seeds", "Open seed groups"),
+        ("engagement", "Open engagement cockpit"),
+        ("accounts", "Open account cockpit"),
+        ("help", "Open help"),
+    )

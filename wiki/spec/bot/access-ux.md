@@ -17,7 +17,8 @@ directly to Redis, workers, Postgres, web-search providers, Telethon, or OpenAI.
 
 The top-level operator cockpit is specified in `wiki/spec/bot-operator-cockpit.md`. That cockpit
 replaces the old persistent reply-keyboard menu with inline navigation while preserving slash
-commands as durable shortcuts.
+commands as durable shortcuts. Telegram's command menu may advertise only a short allowlist of
+cockpit-entry commands: `/start`, `/seeds`, `/engagement`, `/accounts`, and `/help`.
 ## Operator Access
 
 The bot may be restricted with `TELEGRAM_ALLOWED_USER_IDS`, a comma- or whitespace-separated list of
@@ -67,6 +68,8 @@ The current MVP bot uses approve-as-monitoring to keep the first workflow short.
 - Button labels should use clear verbs (`Open`, `Approve`, `Queue send`, `Detect now`) and may add a
   leading icon when it improves recognition without making the button wrap awkwardly.
 - The top-level bot entry should expose an inline operator cockpit for the main actions.
+- Telegram's command menu should expose only cockpit-entry commands and must not advertise deep
+  detail, mutation, review, or settings commands.
 - Candidate cards must not expose raw message history.
 - Candidate cards should explain graph evidence, such as linked discussion, forwarded source,
   Telegram link, or repeated discovery from multiple seeds.

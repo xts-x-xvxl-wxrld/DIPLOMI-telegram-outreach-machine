@@ -2362,3 +2362,25 @@ while preserving the staged testing contract.
 - Updated the active cockpit spec, engagement code-index shards, and the
   remaining bot-formatting/UI/config-edit tests to treat the old candidate
   review family as retired rather than live compat behavior.
+
+## [2026-05-03] feat | Expose a minimal Telegram command menu for cockpit entrypoints
+
+- Replaced the empty startup command menu in `bot/app.py` with a small public
+  allowlist of cockpit-entry commands: `/start`, `/seeds`, `/engagement`,
+  `/accounts`, and `/help`.
+- Kept deep detail, mutation, and settings slash commands registered in code
+  but out of the Telegram command menu so typed compatibility/admin entrypoints
+  remain available without advertising the full legacy command surface.
+- Updated the startup command test and the bot UX docs so the repo now treats
+  the Telegram menu as a compact cockpit launcher instead of a fully hidden
+  slash-command surface.
+- `docker build .` could not run locally because the Docker Desktop Linux engine
+  named pipe was unavailable on this machine at validation time.
+
+## [2026-05-03] fix | Exclude local pip scratch state from Docker build context
+
+- Added `.localtmp` to `.dockerignore` after Docker context upload failed on a
+  local pip scratch directory with an access-denied error.
+- Kept the change packaging-scoped so the command-menu bot UX update can still
+  satisfy the repo's `docker build .` parity gate without shipping local
+  workstation temp state into the image context.
