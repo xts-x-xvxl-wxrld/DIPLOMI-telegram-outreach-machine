@@ -60,7 +60,7 @@ class Settings(BaseSettings):
         validation_alias="ENGAGEMENT_ACCOUNT_HEALTH_REFRESH_INTERVAL_SECONDS",
     )
     engagement_semantic_matching_enabled: bool = Field(
-        default=False,
+        default=True,
         validation_alias="ENGAGEMENT_SEMANTIC_MATCHING_ENABLED",
     )
     engagement_semantic_match_threshold: float = Field(

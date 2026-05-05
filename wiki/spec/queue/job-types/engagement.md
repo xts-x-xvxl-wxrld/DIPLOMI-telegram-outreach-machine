@@ -87,6 +87,9 @@ Result mapping:
 - `joined` or `already_joined`
   - membership -> `joined`
   - action -> `sent`
+  - enqueue manual `collection.run` with `reason = "manual"` so the next
+    detect job uses an exact fresh message batch instead of a direct
+    collection-less detect
 - failure
   - membership -> `failed`
   - action -> `failed` or `skipped` depending on failure mode
@@ -143,7 +146,7 @@ Job ID rules:
 Prefixes in active use:
 
 - scheduled or collection-triggered: `engagement.detect`
-- manual confirm path: `engagement.detect.manual`
+- manual operator detect path: `engagement.detect.manual`
 
 Contract:
 

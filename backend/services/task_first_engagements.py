@@ -356,7 +356,7 @@ async def confirm_task_first_engagement(
     *,
     engagement_id: UUID,
     requested_by: str,
-    enqueue_detect: Callable[..., Any],
+    enqueue_collection: Callable[..., Any],
 ) -> TaskFirstWizardConfirmResult:
     engagement = await db.get(Engagement, engagement_id)
     if engagement is None:
@@ -487,14 +487,14 @@ async def confirm_task_first_engagement(
             )
     else:
         try:
-            enqueue_detect(
+            enqueue_collection(
                 engagement.community_id,
-                window_minutes=60,
+                reason="manual",
                 requested_by=requested_by,
             )
         except Exception:
             LOGGER.exception(
-                "Failed to enqueue engagement detect during task-first confirm",
+                "Failed to enqueue engagement collection during task-first confirm",
                 extra={
                     "engagement_id": str(engagement.id),
                     "community_id": str(engagement.community_id),
@@ -504,7 +504,7 @@ async def confirm_task_first_engagement(
             return TaskFirstWizardConfirmResult(
                 result="blocked",
                 message="Could not start engagement right now.",
-                code="detect_enqueue_failed",
+                code="collection_enqueue_failed",
                 next_callback=_wizard_edit_callback(engagement.id, "mode"),
             )
 

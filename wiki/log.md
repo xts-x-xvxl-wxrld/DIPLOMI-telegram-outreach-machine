@@ -2394,3 +2394,16 @@ while preserving the staged testing contract.
   wizard return/resume paths, and surfaced them in the review summary.
 - Updated the active draft-instruction wizard spec plus the focused bot wizard
   tests to match the new 9-step flow.
+
+## [2026-05-05] fix | Enable semantic topic matching by default and collect before detect
+
+- Changed `ENGAGEMENT_SEMANTIC_MATCHING_ENABLED` to default `true` so fresh
+  engagement message matching uses the semantic selector unless runtime config
+  explicitly disables it.
+- Changed task-first wizard confirm so already-joined engagements enqueue a
+  manual `collection.run` job instead of a direct manual detect, ensuring
+  detection works from an exact fresh message batch.
+- Changed the community-join worker to enqueue manual collection after a
+  successful join or already-joined confirmation for the same reason.
+- Updated the active engagement API/queue specs and focused wizard/join worker
+  tests to match the new collection-first startup path.

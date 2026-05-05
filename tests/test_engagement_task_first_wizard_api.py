@@ -52,7 +52,7 @@ async def test_task_first_wizard_confirm_enqueues_join_for_unjoined_account(monk
         engagement_settings=settings,
     )
     join_calls: list[dict[str, object]] = []
-    detect_calls: list[dict[str, object]] = []
+    collection_calls: list[dict[str, object]] = []
 
     def fake_enqueue_join(*, community_id, telegram_account_id, requested_by):
         join_calls.append(
@@ -64,18 +64,18 @@ async def test_task_first_wizard_confirm_enqueues_join_for_unjoined_account(monk
         )
         return QueuedJob(id="join-job", type="community.join")
 
-    def fake_enqueue_detect(community_id_arg, *, window_minutes, requested_by):
-        detect_calls.append(
+    def fake_enqueue_collection(community_id_arg, *, reason, requested_by):
+        collection_calls.append(
             {
                 "community_id": community_id_arg,
-                "window_minutes": window_minutes,
+                "reason": reason,
                 "requested_by": requested_by,
             }
         )
-        return QueuedJob(id="detect-job", type="engagement.detect")
+        return QueuedJob(id="collection-job", type="collection.run")
 
     monkeypatch.setattr("backend.services.task_first_engagements.enqueue_community_join", fake_enqueue_join)
-    monkeypatch.setattr("backend.api.routes.engagement.enqueue_manual_engagement_detect", fake_enqueue_detect)
+    monkeypatch.setattr("backend.api.routes.engagement.enqueue_collection", fake_enqueue_collection)
 
     response = await post_task_first_wizard_confirm(
         engagement.id,
@@ -91,7 +91,7 @@ async def test_task_first_wizard_confirm_enqueues_join_for_unjoined_account(monk
             "requested_by": "telegram:123",
         }
     ]
-    assert detect_calls == []
+    assert collection_calls == []
     assert response.engagement_status == EngagementStatus.ACTIVE.value
 
 
@@ -114,17 +114,17 @@ async def test_task_first_wizard_confirm_approves_target_and_activates_engagemen
     )
     captured: dict[str, object] = {}
 
-    def fake_enqueue(community_id_arg: object, *, window_minutes: int, requested_by: str) -> QueuedJob:
+    def fake_enqueue(community_id_arg: object, *, reason: str, requested_by: str) -> QueuedJob:
         captured.update(
             {
                 "community_id": community_id_arg,
-                "window_minutes": window_minutes,
+                "reason": reason,
                 "requested_by": requested_by,
             }
         )
-        return QueuedJob(id="detect-job", type="engagement.detect")
+        return QueuedJob(id="collection-job", type="collection.run")
 
-    monkeypatch.setattr("backend.api.routes.engagement.enqueue_manual_engagement_detect", fake_enqueue)
+    monkeypatch.setattr("backend.api.routes.engagement.enqueue_collection", fake_enqueue)
 
     response = await post_task_first_wizard_confirm(
         engagement.id,
@@ -140,7 +140,7 @@ async def test_task_first_wizard_confirm_approves_target_and_activates_engagemen
     assert target.allow_post is True
     assert captured == {
         "community_id": community_id,
-        "window_minutes": 60,
+        "reason": "manual",
         "requested_by": "telegram:123",
     }
     assert db.commits == 1
@@ -167,11 +167,11 @@ async def test_task_first_wizard_confirm_promotes_candidate_community_before_joi
     def fake_enqueue_join(*, community_id, telegram_account_id, requested_by):
         return QueuedJob(id="join-job", type="community.join")
 
-    def fake_enqueue_detect(community_id_arg, *, window_minutes, requested_by):
-        return QueuedJob(id="detect-job", type="engagement.detect")
+    def fake_enqueue_collection(community_id_arg, *, reason, requested_by):
+        return QueuedJob(id="collection-job", type="collection.run")
 
     monkeypatch.setattr("backend.services.task_first_engagements.enqueue_community_join", fake_enqueue_join)
-    monkeypatch.setattr("backend.api.routes.engagement.enqueue_manual_engagement_detect", fake_enqueue_detect)
+    monkeypatch.setattr("backend.api.routes.engagement.enqueue_collection", fake_enqueue_collection)
 
     response = await post_task_first_wizard_confirm(
         engagement.id,
@@ -204,11 +204,11 @@ async def test_task_first_wizard_confirm_blocks_when_join_enqueue_fails(monkeypa
     def fake_enqueue_join(*, community_id, telegram_account_id, requested_by):
         raise RuntimeError("redis unavailable")
 
-    def fake_enqueue_detect(community_id_arg, *, window_minutes, requested_by):
-        return QueuedJob(id="detect-job", type="engagement.detect")
+    def fake_enqueue_collection(community_id_arg, *, reason, requested_by):
+        return QueuedJob(id="collection-job", type="collection.run")
 
     monkeypatch.setattr("backend.services.task_first_engagements.enqueue_community_join", fake_enqueue_join)
-    monkeypatch.setattr("backend.api.routes.engagement.enqueue_manual_engagement_detect", fake_enqueue_detect)
+    monkeypatch.setattr("backend.api.routes.engagement.enqueue_collection", fake_enqueue_collection)
 
     response = await post_task_first_wizard_confirm(
         engagement.id,

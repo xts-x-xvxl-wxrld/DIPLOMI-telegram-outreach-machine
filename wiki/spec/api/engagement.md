@@ -182,7 +182,7 @@ Queue side effects:
 - if the selected account is not already joined to the community:
   - enqueue `community.join`
 - otherwise:
-  - enqueue manual engagement detect with `window_minutes = 60`
+  - enqueue manual `collection.run` with `reason = "manual"`
 
 Returned callbacks:
 
@@ -199,7 +199,7 @@ Blocking codes:
 - `target_not_resolved`
 - `target_not_approved`
 - `join_enqueue_failed`
-- `detect_enqueue_failed`
+- `collection_enqueue_failed`
 
 Validation fields:
 

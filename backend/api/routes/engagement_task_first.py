@@ -19,7 +19,7 @@ from backend.api.schemas import (
     TaskFirstWizardConfirmResponse,
     TaskFirstWizardRetryResponse,
 )
-from backend.queue.client import enqueue_manual_engagement_detect
+from backend.queue.client import enqueue_collection
 from backend.services.task_first_engagements import (
     confirm_task_first_engagement,
     create_task_first_engagement,
@@ -124,7 +124,7 @@ async def post_task_first_wizard_confirm(
         db,
         engagement_id=engagement_id,
         requested_by=payload.requested_by or "operator",
-        enqueue_detect=enqueue_manual_engagement_detect,
+        enqueue_collection=enqueue_collection,
     )
     if result.result == "confirmed":
         await db.commit()

@@ -19,7 +19,7 @@ from backend.db.enums import (
 from backend.db.models import Community, EngagementAction
 from backend.db.session import AsyncSessionLocal
 from backend.queue.payloads import CommunityJoinPayload
-from backend.queue.client import enqueue_manual_engagement_detect
+from backend.queue.client import enqueue_collection
 from backend.services.community_engagement import (
     get_engagement_settings,
     get_joined_membership_for_send,
@@ -64,7 +64,7 @@ async def process_community_join(
     acquire_account_by_id_fn: AcquireAccountFn = acquire_account_by_id,
     release_account_fn: ReleaseAccountFn = release_account,
     adapter_factory: EngagementAdapterFactory = TelethonTelegramEngagementAdapter,
-    enqueue_detect_fn: Callable[..., Any] = enqueue_manual_engagement_detect,
+    enqueue_collection_fn: Callable[..., Any] = enqueue_collection,
 ) -> dict[str, object]:
     validated_payload = CommunityJoinPayload.model_validate(payload)
     job_id = _current_job_id() or f"community.join:{validated_payload.community_id}"
@@ -188,9 +188,9 @@ async def process_community_join(
             )
             await session.commit()
             if result.status in {"joined", "already_joined"}:
-                enqueue_detect_fn(
+                enqueue_collection_fn(
                     validated_payload.community_id,
-                    window_minutes=60,
+                    reason="manual",
                     requested_by=validated_payload.requested_by,
                 )
         except EngagementAccountRateLimited as exc:
