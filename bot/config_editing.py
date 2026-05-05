@@ -518,43 +518,55 @@ def _shorten(value: str, limit: int) -> str:
 
 _TOPIC_CREATE_STEP_DETAILS: dict[str, tuple[str, str, str | None, bool]] = {
     "name": (
-        "Step 1 of 7: Topic name",
+        "Step 1 of 9: Topic name",
         "Send the topic name as your next message.",
         "Founder outreach",
         False,
     ),
     "description": (
-        "Step 2 of 7: Conversation target",
+        "Step 2 of 9: Conversation target",
         "What kind of discussion should we notice?",
         "People comparing CRM tools or asking about migration tradeoffs.",
         False,
     ),
+    "trigger_keywords": (
+        "Step 3 of 9: Trigger keywords",
+        "Add optional trigger keywords for exact-match fallback.\n\nSend one or more comma-separated keywords or phrases.",
+        "crm, data migration, open source",
+        True,
+    ),
+    "negative_keywords": (
+        "Step 4 of 9: Negative keywords",
+        "Add optional negative keywords to ignore weak or wrong matches.\n\nSend one or more comma-separated keywords or phrases.",
+        "jobs, hiring, recruiter",
+        True,
+    ),
     "stance_guidance": (
-        "Step 3 of 7: Reply position",
+        "Step 5 of 9: Reply position",
         "What should our reply contribute?",
         "Be practical, factual, and non-salesy.",
         False,
     ),
     "style_guidance": (
-        "Step 4 of 7: Voice and style",
+        "Step 6 of 9: Voice and style",
         "How should this account sound here?\n\nUse this for tone, brevity, disclosure, and link posture. Hard safety rules still apply.",
         "Brief, transparent, helpful, no links unless asked.",
         True,
     ),
     "example_good_replies": (
-        "Step 5 of 7: Good reply examples",
+        "Step 7 of 9: Good reply examples",
         "Paste one or more replies you would be happy for the model to write. Separate multiple examples with a blank line.\n\nGood examples teach the shape of a helpful reply. The model should not copy examples word for word.",
         "Compare data ownership and export access first.",
         True,
     ),
     "example_bad_replies": (
-        "Step 6 of 7: Bad reply examples",
+        "Step 8 of 9: Bad reply examples",
         "Paste one or more replies that are too salesy, risky, fake, or off-tone. Separate multiple examples with a blank line.\n\nBad examples teach what to avoid. They stay negative examples only, and the model should not copy them word for word either.",
         "Buy our tool now.",
         True,
     ),
     "avoid_rules": (
-        "Step 7 of 7: Avoid rules",
+        "Step 9 of 9: Avoid rules",
         "Anything the reply must never do?\n\nUse this to tighten behavior, not to weaken the hard safety rules.",
         "No DMs, no fake customer claims, no urgency.",
         True,
@@ -652,6 +664,8 @@ def _topic_create_summary_lines(
     name = str(payload.get("name") or "").strip()
     description = str(payload.get("description") or "").strip()
     guidance = str(payload.get("stance_guidance") or "").strip()
+    trigger_keywords = payload.get("trigger_keywords") or []
+    negative_keywords = payload.get("negative_keywords") or []
     style_guidance = str(payload.get("style_guidance") or "").strip()
     good_examples = payload.get("example_good_replies") or []
     bad_examples = payload.get("example_bad_replies") or []
@@ -663,6 +677,12 @@ def _topic_create_summary_lines(
         lines.append(f"We will look for: {_shorten(description, 240)}")
     if guidance:
         lines.append(f"We will contribute: {_shorten(guidance, 240)}")
+    if trigger_keywords or include_optional:
+        trigger_summary = ", ".join(_shorten(str(keyword), 80) for keyword in trigger_keywords) if trigger_keywords else "-"
+        lines.append("Notice: " + trigger_summary)
+    if negative_keywords or include_optional:
+        negative_summary = ", ".join(_shorten(str(keyword), 80) for keyword in negative_keywords) if negative_keywords else "-"
+        lines.append("Ignore: " + negative_summary)
     if include_optional:
         lines.append("Voice: " + (_shorten(style_guidance, 240) if style_guidance else "-"))
         lines.append(

@@ -22,7 +22,7 @@ async def test_topic_create_callback_starts_guided_create() -> None:
     await callback_query(update, context)
 
     assert "Creating draft brief" in update.callback_query.message.replies[0]["text"]
-    assert "Step 1 of 7: Topic name" in update.callback_query.message.replies[0]["text"]
+    assert "Step 1 of 9: Topic name" in update.callback_query.message.replies[0]["text"]
     pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
     assert pending is not None
     assert pending.entity == "topic_create"
@@ -36,6 +36,8 @@ async def test_topic_inline_create_flow_previews_then_saves() -> None:
     start_update = _callback_update("eng:topic:create")
     name_update = _message_update("Founder outreach")
     target_update = _message_update("Startup operators asking about outbound outreach")
+    keywords_update = _message_update("crm, open source")
+    negative_update = _message_update("jobs")
     guidance_update = _message_update("Be concise and practical.")
     style_update = _message_update("Brief, transparent, no links unless asked.")
     good_update = _message_update("Compare data ownership and export access first.")
@@ -48,6 +50,8 @@ async def test_topic_inline_create_flow_previews_then_saves() -> None:
     await callback_query(start_update, context)
     await telegram_entity_text(name_update, context)
     await telegram_entity_text(target_update, context)
+    await telegram_entity_text(keywords_update, context)
+    await telegram_entity_text(negative_update, context)
     await telegram_entity_text(guidance_update, context)
     await telegram_entity_text(style_update, context)
     await telegram_entity_text(good_update, context)
@@ -57,14 +61,16 @@ async def test_topic_inline_create_flow_previews_then_saves() -> None:
     await telegram_entity_text(avoid_update, context)
     await callback_query(save_update, context)
 
-    assert "Step 2 of 7: Conversation target" in name_update.message.replies[0]["text"]
-    assert "Step 3 of 7: Reply position" in target_update.message.replies[0]["text"]
-    assert "Step 4 of 7: Voice and style" in guidance_update.message.replies[0]["text"]
-    assert "Step 5 of 7: Good reply examples" in style_update.message.replies[0]["text"]
+    assert "Step 2 of 9: Conversation target" in name_update.message.replies[0]["text"]
+    assert "Step 3 of 9: Trigger keywords" in target_update.message.replies[0]["text"]
+    assert "Step 4 of 9: Negative keywords" in keywords_update.message.replies[0]["text"]
+    assert "Step 5 of 9: Reply position" in negative_update.message.replies[0]["text"]
+    assert "Step 6 of 9: Voice and style" in guidance_update.message.replies[0]["text"]
+    assert "Step 7 of 9: Good reply examples" in style_update.message.replies[0]["text"]
     assert "Current good examples:" in good_update.message.replies[0]["text"]
-    assert "Step 6 of 7: Bad reply examples" in good_continue_update.callback_query.message.replies[0]["text"]
+    assert "Step 8 of 9: Bad reply examples" in good_continue_update.callback_query.message.replies[0]["text"]
     assert "Current bad examples:" in bad_update.message.replies[0]["text"]
-    assert "Step 7 of 7: Avoid rules" in bad_done_update.callback_query.message.replies[0]["text"]
+    assert "Step 9 of 9: Avoid rules" in bad_done_update.callback_query.message.replies[0]["text"]
     assert "Review Draft brief" in avoid_update.message.replies[0]["text"]
     assert "Good examples teach shape, not literal templates." in avoid_update.message.replies[0]["text"]
     assert "Bad examples stay in avoid-only guidance" in avoid_update.message.replies[0]["text"]
@@ -74,8 +80,8 @@ async def test_topic_inline_create_flow_previews_then_saves() -> None:
         "name": "Founder outreach",
         "description": "Startup operators asking about outbound outreach",
         "stance_guidance": "Be concise and practical.",
-        "trigger_keywords": [],
-        "negative_keywords": [],
+        "trigger_keywords": ["crm", "open source"],
+        "negative_keywords": ["jobs"],
         "example_good_replies": ["Compare data ownership and export access first."],
         "example_bad_replies": ["Buy our tool now."],
         "active": True,
@@ -100,6 +106,8 @@ async def test_topic_inline_create_flow_allows_skipping_optional_fields() -> Non
     await callback_query(_callback_update("eng:topic:create"), context)
     await telegram_entity_text(_message_update("Founder outreach"), context)
     await telegram_entity_text(_message_update("Startup operators asking about outbound outreach"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("-"), context)
     await telegram_entity_text(_message_update("Be concise and practical."), context)
     await telegram_entity_text(_message_update("-"), context)
     await telegram_entity_text(_message_update("-"), context)
@@ -120,6 +128,8 @@ async def test_topic_inline_create_flow_accumulates_examples_across_add_another_
     await callback_query(_callback_update("eng:topic:create"), context)
     await telegram_entity_text(_message_update("Founder outreach"), context)
     await telegram_entity_text(_message_update("Startup operators asking about outbound outreach"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("-"), context)
     await telegram_entity_text(_message_update("Be concise and practical."), context)
     await telegram_entity_text(_message_update("Brief, transparent, no links unless asked."), context)
     first_good_update = _message_update("Compare data ownership and export access first.")
@@ -184,6 +194,8 @@ async def test_topic_inline_create_flow_can_preview_sample_before_save() -> None
     await callback_query(_callback_update("eng:topic:create"), context)
     await telegram_entity_text(_message_update("Founder outreach"), context)
     await telegram_entity_text(_message_update("Startup operators asking about outbound outreach"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("-"), context)
     await telegram_entity_text(_message_update("Be concise and practical."), context)
     await telegram_entity_text(_message_update("Brief, transparent, no links unless asked."), context)
     await telegram_entity_text(_message_update("Compare data ownership and export access first."), context)
@@ -225,6 +237,8 @@ async def test_topic_inline_create_flow_can_preview_real_post_before_save() -> N
     await callback_query(_callback_update("eng:topic:create"), context)
     await telegram_entity_text(_message_update("Founder outreach"), context)
     await telegram_entity_text(_message_update("Startup operators asking about outbound outreach"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("-"), context)
     await telegram_entity_text(_message_update("Be concise and practical."), context)
     await telegram_entity_text(_message_update("Brief, transparent, no links unless asked."), context)
     await telegram_entity_text(_message_update("Compare data ownership and export access first."), context)
@@ -264,6 +278,8 @@ async def test_topic_inline_create_real_post_preview_requires_collected_candidat
     await callback_query(_callback_update("eng:topic:create"), context)
     await telegram_entity_text(_message_update("Founder outreach"), context)
     await telegram_entity_text(_message_update("Startup operators asking about outbound outreach"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("-"), context)
     await telegram_entity_text(_message_update("Be concise and practical."), context)
     await telegram_entity_text(_message_update("Brief, transparent, no links unless asked."), context)
     await telegram_entity_text(_message_update("Compare data ownership and export access first."), context)
@@ -289,6 +305,8 @@ async def test_topic_brief_step_markup_exposes_back_skip_save_later_and_cancel()
     await callback_query(_callback_update("eng:topic:create"), context)
     await telegram_entity_text(_message_update("Founder outreach"), context)
     await telegram_entity_text(_message_update("Startup operators asking about outbound outreach"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("-"), context)
     guidance_update = _message_update("Be concise and practical.")
 
     await telegram_entity_text(guidance_update, context)
@@ -308,12 +326,14 @@ async def test_topic_brief_back_callback_returns_to_previous_step() -> None:
     await callback_query(_callback_update("eng:topic:create"), context)
     await telegram_entity_text(_message_update("Founder outreach"), context)
     await telegram_entity_text(_message_update("Startup operators asking about outbound outreach"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("-"), context)
     await telegram_entity_text(_message_update("Be concise and practical."), context)
     back_update = _callback_update("eng:topic:brief:nav:back")
 
     await callback_query(back_update, context)
 
-    assert "Step 3 of 7: Reply position" in back_update.callback_query.message.replies[0]["text"]
+    assert "Step 5 of 9: Reply position" in back_update.callback_query.message.replies[0]["text"]
     pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
     assert pending is not None
     assert pending.flow_step == "stance_guidance"
@@ -327,12 +347,14 @@ async def test_topic_brief_skip_callback_advances_optional_step() -> None:
     await callback_query(_callback_update("eng:topic:create"), context)
     await telegram_entity_text(_message_update("Founder outreach"), context)
     await telegram_entity_text(_message_update("Startup operators asking about outbound outreach"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("-"), context)
     await telegram_entity_text(_message_update("Be concise and practical."), context)
     skip_update = _callback_update("eng:topic:brief:nav:skip")
 
     await callback_query(skip_update, context)
 
-    assert "Step 5 of 7: Good reply examples" in skip_update.callback_query.message.replies[0]["text"]
+    assert "Step 7 of 9: Good reply examples" in skip_update.callback_query.message.replies[0]["text"]
     pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
     assert pending is not None
     assert pending.flow_step == "example_good_replies"
@@ -355,7 +377,7 @@ async def test_topic_brief_save_later_resumes_existing_draft() -> None:
     resume_update = _callback_update("eng:topic:create")
     await callback_query(resume_update, context)
 
-    assert "Step 2 of 7: Conversation target" in resume_update.callback_query.message.replies[0]["text"]
+    assert "Step 2 of 9: Conversation target" in resume_update.callback_query.message.replies[0]["text"]
     pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
     assert pending is not None
     assert pending.flow_step == "description"
@@ -369,6 +391,8 @@ async def test_topic_brief_preview_markup_keeps_back_and_save_later_controls() -
     await callback_query(_callback_update("eng:topic:create"), context)
     await telegram_entity_text(_message_update("Founder outreach"), context)
     await telegram_entity_text(_message_update("Startup operators asking about outbound outreach"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("-"), context)
     await telegram_entity_text(_message_update("Be concise and practical."), context)
     await callback_query(_callback_update("eng:topic:brief:nav:skip"), context)
     await callback_query(_callback_update("eng:topic:brief:nav:skip"), context)
@@ -401,6 +425,8 @@ async def test_topic_brief_confirmation_offers_community_and_existing_rule_targe
     await callback_query(_callback_update("eng:topic:create"), context)
     await telegram_entity_text(_message_update("Founder outreach"), context)
     await telegram_entity_text(_message_update("Startup operators asking about outbound outreach"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("-"), context)
     await telegram_entity_text(_message_update("Be concise and practical."), context)
     await telegram_entity_text(_message_update("Brief, transparent, no links unless asked."), context)
     await callback_query(_callback_update("eng:topic:brief:nav:skip"), context)
@@ -430,6 +456,8 @@ async def test_topic_brief_can_save_guidance_to_community_scope() -> None:
     await callback_query(_callback_update("eng:topic:create"), context)
     await telegram_entity_text(_message_update("Founder outreach"), context)
     await telegram_entity_text(_message_update("Startup operators asking about outbound outreach"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("-"), context)
     await telegram_entity_text(_message_update("Be concise and practical."), context)
     await telegram_entity_text(_message_update("Brief, transparent, no links unless asked."), context)
     await callback_query(_callback_update("eng:topic:brief:nav:skip"), context)
@@ -469,6 +497,8 @@ async def test_topic_brief_can_attach_guidance_to_existing_community_rule() -> N
     await callback_query(_callback_update("eng:topic:create"), context)
     await telegram_entity_text(_message_update("Founder outreach"), context)
     await telegram_entity_text(_message_update("Startup operators asking about outbound outreach"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("-"), context)
     await telegram_entity_text(_message_update("Be concise and practical."), context)
     await telegram_entity_text(_message_update("Brief, transparent, no links unless asked."), context)
     await callback_query(_callback_update("eng:topic:brief:nav:skip"), context)
@@ -511,6 +541,8 @@ async def test_topic_brief_preview_failure_keeps_confirmation_controls() -> None
     await callback_query(_callback_update("eng:topic:create"), context)
     await telegram_entity_text(_message_update("Founder outreach"), context)
     await telegram_entity_text(_message_update("Startup operators asking about outbound outreach"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("-"), context)
     await telegram_entity_text(_message_update("Be concise and practical."), context)
     await telegram_entity_text(_message_update("Brief, transparent, no links unless asked."), context)
     await telegram_entity_text(_message_update("Compare data ownership and export access first."), context)
@@ -550,6 +582,8 @@ async def test_topic_brief_partial_save_rebinds_pending_topic_after_style_rule_f
     await callback_query(_callback_update("eng:topic:create"), context)
     await telegram_entity_text(_message_update("Founder outreach"), context)
     await telegram_entity_text(_message_update("Startup operators asking about outbound outreach"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("-"), context)
     await telegram_entity_text(_message_update("Be concise and practical."), context)
     await telegram_entity_text(_message_update("Brief, transparent, no links unless asked."), context)
     await telegram_entity_text(_message_update("Compare data ownership and export access first."), context)

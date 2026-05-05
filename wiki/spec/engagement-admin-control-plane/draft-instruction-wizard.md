@@ -55,6 +55,8 @@ The wizard should collect the following operator-facing steps.
 | Step | Operator question | Primary destination |
 |---|---|---|
 | Conversation target | What kind of discussion should we notice? | `topic.description`, optional `trigger_keywords`, optional `negative_keywords` |
+| Trigger keywords | Which exact terms should still count as strong matches? | `topic.trigger_keywords` |
+| Negative keywords | Which exact terms should we ignore? | `topic.negative_keywords` |
 | Reply position | What should our reply contribute? | `topic.stance_guidance` |
 | Voice and constraints | How should this account sound here? | style rule `rule_text` at topic or community scope |
 | Good replies | Paste replies you would be happy for the model to write. | `topic.example_good_replies` |
@@ -77,8 +79,8 @@ The first implementation should map wizard answers into the existing control-pla
 
 - `description` stores the conversation target in natural language.
 - `stance_guidance` stores the desired contribution or position.
-- `trigger_keywords` and `negative_keywords` may be optionally edited in advanced mode, but they
-  should not be required to complete the wizard.
+- `trigger_keywords` and `negative_keywords` are optional dedicated steps in the wizard.
+- operators may skip either keyword step without blocking topic creation.
 - `example_good_replies` and `example_bad_replies` remain the canonical storage for reply examples.
 
 ### Style rules
@@ -112,6 +114,8 @@ start Add engagement
   -> choose target topic or create topic
   -> if create topic:
   -> collect conversation target
+  -> collect optional trigger keywords
+  -> collect optional negative keywords
   -> collect reply position
   -> collect voice/style guidance
   -> collect one or more good reply examples

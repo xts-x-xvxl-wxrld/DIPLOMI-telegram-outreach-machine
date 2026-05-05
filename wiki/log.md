@@ -2384,3 +2384,13 @@ while preserving the staged testing contract.
 - Kept the change packaging-scoped so the command-menu bot UX update can still
   satisfy the repo's `docker build .` parity gate without shipping local
   workstation temp state into the image context.
+
+## [2026-05-05] fix | Restore topic-keyword steps in the draft-brief wizard
+
+- Added explicit optional `Trigger keywords` and `Negative keywords` questions
+  to the guided topic-create flow so `Create topic` from the engagement wizard
+  no longer saves empty keyword lists by default.
+- Carried keyword values through topic-brief prefill, preview, save-later, and
+  wizard return/resume paths, and surfaced them in the review summary.
+- Updated the active draft-instruction wizard spec plus the focused bot wizard
+  tests to match the new 9-step flow.

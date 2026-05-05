@@ -20,6 +20,8 @@ from .ui_common import _button, _inline_markup
 _TOPIC_CREATE_STEP_ORDER = (
     "name",
     "description",
+    "trigger_keywords",
+    "negative_keywords",
     "stance_guidance",
     "style_guidance",
     "example_good_replies",
@@ -27,6 +29,8 @@ _TOPIC_CREATE_STEP_ORDER = (
     "avoid_rules",
 )
 _TOPIC_CREATE_OPTIONAL_STEPS = {
+    "trigger_keywords",
+    "negative_keywords",
     "style_guidance",
     "example_good_replies",
     "example_bad_replies",
@@ -318,6 +322,24 @@ def _topic_create_skip_step(
     if normalized_step not in _TOPIC_CREATE_OPTIONAL_STEPS:
         return None
     state = dict(pending.flow_state or {})
+    if normalized_step == "trigger_keywords":
+        state["trigger_keywords"] = []
+        return _config_edit_store(context).set_value(
+            operator_id,
+            raw_value="-",
+            parsed_value=None,
+            flow_step="negative_keywords",
+            flow_state=state,
+        )
+    if normalized_step == "negative_keywords":
+        state["negative_keywords"] = []
+        return _config_edit_store(context).set_value(
+            operator_id,
+            raw_value="-",
+            parsed_value=None,
+            flow_step="stance_guidance",
+            flow_state=state,
+        )
     if normalized_step == "style_guidance":
         state["style_guidance"] = ""
         return _config_edit_store(context).set_value(
@@ -418,15 +440,17 @@ def _topic_create_step_back(
 def _topic_create_saved_for_later_message(pending: PendingEdit) -> str:
     step = pending.flow_step or _TOPIC_CREATE_STEP_ORDER[0]
     step_titles = {
-        "name": "Step 1 of 7: Topic name",
-        "description": "Step 2 of 7: Conversation target",
-        "stance_guidance": "Step 3 of 7: Reply position",
-        "style_guidance": "Step 4 of 7: Voice and style",
-        "example_good_replies": "Step 5 of 7: Good reply examples",
-        "example_good_replies_review": "Step 5 of 7: Good reply examples",
-        "example_bad_replies": "Step 6 of 7: Bad reply examples",
-        "example_bad_replies_review": "Step 6 of 7: Bad reply examples",
-        "avoid_rules": "Step 7 of 7: Avoid rules",
+        "name": "Step 1 of 9: Topic name",
+        "description": "Step 2 of 9: Conversation target",
+        "trigger_keywords": "Step 3 of 9: Trigger keywords",
+        "negative_keywords": "Step 4 of 9: Negative keywords",
+        "stance_guidance": "Step 5 of 9: Reply position",
+        "style_guidance": "Step 6 of 9: Voice and style",
+        "example_good_replies": "Step 7 of 9: Good reply examples",
+        "example_good_replies_review": "Step 7 of 9: Good reply examples",
+        "example_bad_replies": "Step 8 of 9: Bad reply examples",
+        "example_bad_replies_review": "Step 8 of 9: Bad reply examples",
+        "avoid_rules": "Step 9 of 9: Avoid rules",
         "confirm": "Review Draft brief",
     }
     title = step_titles.get(step, step_titles["name"])

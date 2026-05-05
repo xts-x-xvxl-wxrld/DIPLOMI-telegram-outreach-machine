@@ -32,7 +32,7 @@ async def test_wizard_step2_create_topic_starts_subflow_and_saves_return_state()
 
     text = create_update.callback_query.message.replies[0]["text"]
     assert "Creating draft brief" in text
-    assert "Step 1 of 7: Topic name" in text
+    assert "Step 1 of 9: Topic name" in text
     pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
     assert pending is not None
     assert pending.entity == "topic_create"
@@ -52,6 +52,8 @@ async def test_wizard_topic_create_save_returns_to_step2_with_new_topic_selected
         _message_update("Startup operators asking about outbound outreach"),
         context,
     )
+    await telegram_entity_text(_message_update("crm, open source"), context)
+    await telegram_entity_text(_message_update("jobs"), context)
     await telegram_entity_text(_message_update("Be concise and practical."), context)
     await telegram_entity_text(
         _message_update("Brief, transparent, no links unless asked."),

@@ -129,6 +129,8 @@ def _prefill_topic_create_state(
     return {
         "name": str(topic.get("name") or ""),
         "description": str(topic.get("description") or ""),
+        "trigger_keywords": list(topic.get("trigger_keywords") or []),
+        "negative_keywords": list(topic.get("negative_keywords") or []),
         "stance_guidance": str(topic.get("stance_guidance") or ""),
         "style_guidance": style_guidance,
         "example_good_replies": list(topic.get("example_good_replies") or []),
@@ -172,6 +174,74 @@ async def _handle_topic_create_text(
             await _reply(update, "Conversation target cannot be blank.\n\n" + render_edit_request(pending))
             return True
         state["description"] = text
+        return await _advance_topic_create_step(
+            update,
+            context,
+            operator_id=operator_id,
+            raw_value=raw_text,
+            next_step="trigger_keywords",
+            flow_state=state,
+        )
+
+    if normalized_step == "trigger_keywords":
+        if text == "-":
+            state["trigger_keywords"] = []
+            return await _advance_topic_create_step(
+                update,
+                context,
+                operator_id=operator_id,
+                raw_value=raw_text,
+                next_step="negative_keywords",
+                flow_state=state,
+            )
+        field = editable_field("topic", "trigger_keywords")
+        if field is None:
+            keywords = [part.strip() for part in raw_text.split(",") if part.strip()]
+        else:
+            ok, parsed = parse_edit_value(field, raw_text)
+            if not ok or not isinstance(parsed, list) or not parsed:
+                await _reply(
+                    update,
+                    "Send one or more trigger keywords separated by commas, or - to skip.\n\n"
+                    + render_edit_request(pending),
+                )
+                return True
+            keywords = [str(part) for part in parsed]
+        state["trigger_keywords"] = keywords
+        return await _advance_topic_create_step(
+            update,
+            context,
+            operator_id=operator_id,
+            raw_value=raw_text,
+            next_step="negative_keywords",
+            flow_state=state,
+        )
+
+    if normalized_step == "negative_keywords":
+        if text == "-":
+            state["negative_keywords"] = []
+            return await _advance_topic_create_step(
+                update,
+                context,
+                operator_id=operator_id,
+                raw_value=raw_text,
+                next_step="stance_guidance",
+                flow_state=state,
+            )
+        field = editable_field("topic", "negative_keywords")
+        if field is None:
+            keywords = [part.strip() for part in raw_text.split(",") if part.strip()]
+        else:
+            ok, parsed = parse_edit_value(field, raw_text)
+            if not ok or not isinstance(parsed, list) or not parsed:
+                await _reply(
+                    update,
+                    "Send one or more negative keywords separated by commas, or - to skip.\n\n"
+                    + render_edit_request(pending),
+                )
+                return True
+            keywords = [str(part) for part in parsed]
+        state["negative_keywords"] = keywords
         return await _advance_topic_create_step(
             update,
             context,
