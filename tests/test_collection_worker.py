@@ -95,6 +95,50 @@ async def test_collection_worker_persists_exact_batch_and_enqueues_detection() -
 
 
 @pytest.mark.asyncio
+async def test_collection_worker_manual_reason_still_enqueues_detection() -> None:
+    community_id = uuid4()
+    session = CollectionSession(
+        community=_community(community_id, store_messages=False),
+        settings=_settings(community_id),
+        target=_target(community_id),
+    )
+    collector = FakeCollector([_message(111, "Fresh CRM question", sender_id=511)])
+    enqueued: list[dict[str, object]] = []
+
+    async def acquire_account(*_args: object, **_kwargs: object) -> AccountLease:
+        return AccountLease(
+            account_id=uuid4(),
+            phone="+10000000000",
+            session_file_path="session",
+            lease_owner="test",
+            lease_expires_at=datetime.now(timezone.utc),
+        )
+
+    def enqueue_detect(*args: object, **kwargs: object) -> SimpleNamespace:
+        enqueued.append({"args": args, "kwargs": kwargs})
+        return SimpleNamespace(id="engagement.detect:manual", status="queued")
+
+    result = await process_collection(
+        {
+            "community_id": str(community_id),
+            "reason": "manual",
+            "requested_by": "operator",
+            "window_days": 90,
+        },
+        session_factory=lambda: session,
+        acquire_account_fn=acquire_account,
+        collector_factory=lambda _lease: collector,
+        enqueue_detect_fn=enqueue_detect,
+        settings=SimpleNamespace(engagement_detection_window_minutes=10),  # type: ignore[arg-type]
+    )
+
+    collection_run = session.collection_runs[0]
+    assert result["status"] == CollectionRunStatus.COMPLETED.value
+    assert result["collection_run_id"] == str(collection_run.id)
+    assert enqueued[0]["kwargs"]["collection_run_id"] == collection_run.id
+
+
+@pytest.mark.asyncio
 async def test_collection_service_writes_raw_messages_only_when_enabled() -> None:
     community_id = uuid4()
     session = CollectionSession(

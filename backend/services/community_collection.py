@@ -468,7 +468,7 @@ def _should_enqueue_detection(
     quiet_hours_end: time | None,
 ) -> bool:
     return (
-        reason == "engagement"
+        reason in {"engagement", "manual"}
         and detection_messages > 0
         and settings_mode in ENABLED_DETECTION_MODES
         and has_detect_permission

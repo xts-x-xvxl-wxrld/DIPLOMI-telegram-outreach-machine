@@ -2485,3 +2485,12 @@ while preserving the staged testing contract.
 - Left the existing read cadence unchanged for all other engagement communities.
 - Added a focused collection-worker regression that proves `@tgoutreachtest` skips the due-state
   gate and due-state advance while still issuing the read acknowledgement.
+
+## [2026-05-06] fix | Re-enable follow-up detect after manual engagement collection
+
+- Investigated the managed test-group path after fresh inbound posts were still not producing
+  reply opportunities and found the collection worker only auto-enqueued detect when
+  `reason == "engagement"`.
+- Updated the engagement collection service so manual task-first and post-join collections also
+  enqueue the exact-batch follow-up detect job when eligible.
+- Added a focused collection-worker regression covering the manual collection path.
