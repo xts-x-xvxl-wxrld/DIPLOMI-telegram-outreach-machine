@@ -2465,3 +2465,14 @@ while preserving the staged testing contract.
   action now matches the active engagement behavior operators actually get from the backend.
 - Refreshed the active cockpit spec and the detail-markup regression to keep the archive label from
   drifting back out of sync.
+
+## [2026-05-06] fix | Keep engagement read-ack retries alive after Telethon failures
+
+- Investigated the new collection-side read acknowledgement path after outbound chats still showed
+  unread-looking behavior and found the worker was advancing the read due-state even when the
+  Telethon `send_read_acknowledge` call failed or was unavailable.
+- Changed the collection adapter and worker contract so read acknowledgements return explicit
+  success, emit failure logs, and only move the per-account/community retry window forward after a
+  real successful Telegram acknowledgement.
+- Added a focused collection-worker regression that proves failed read acknowledgements no longer
+  poison the retry cadence.

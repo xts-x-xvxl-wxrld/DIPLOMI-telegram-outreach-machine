@@ -111,7 +111,7 @@ class TelegramEngagementCollector(Protocol):
         community: Community,
         *,
         max_tg_message_id: int,
-    ) -> None:
+    ) -> bool:
         pass
 
 

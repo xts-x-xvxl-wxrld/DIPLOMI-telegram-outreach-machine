@@ -165,6 +165,9 @@ Implementation note:
   visible-user activity updates.
 - `backend/workers/telegram_collection.py` is the fakeable Telethon adapter for engagement
   collection reads.
+- Best-effort read acknowledgements should advance their per-account/community due-state only after
+  the Telethon read call succeeds; failed acknowledgements must remain retryable on the next due
+  collection.
 
 Default cadence for engagement collection should be shorter than analysis collection. The current
 target is every 3 minutes for engagement-enabled communities, with the engagement scheduler acting

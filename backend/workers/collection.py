@@ -349,7 +349,18 @@ async def _acknowledge_read_if_due(
         lease.account_id,
         summary.latest_tg_message_id,
     )
-    await collector.acknowledge_read(community, max_tg_message_id=summary.latest_tg_message_id)
+    acknowledged = await collector.acknowledge_read(
+        community,
+        max_tg_message_id=summary.latest_tg_message_id,
+    )
+    if not acknowledged:
+        LOGGER.warning(
+            "Engagement collection read acknowledgement did not complete community_id=%s telegram_account_id=%s max_tg_message_id=%s",
+            summary.community_id,
+            lease.account_id,
+            summary.latest_tg_message_id,
+        )
+        return
     try:
         due_state.mark_read_receipt_checked(
             lease.account_id,

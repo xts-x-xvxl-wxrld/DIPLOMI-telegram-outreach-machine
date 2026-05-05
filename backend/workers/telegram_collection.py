@@ -75,7 +75,7 @@ class TelethonEngagementCollector:
         community: Community,
         *,
         max_tg_message_id: int,
-    ) -> None:
+    ) -> bool:
         LOGGER.info(
             "Telethon collection acknowledging read community_id=%s target=%s max_tg_message_id=%s telegram_account_id=%s",
             community.id,
@@ -87,11 +87,33 @@ class TelethonEngagementCollector:
         entity = await self._get_entity(client, community)
         mark_read = getattr(client, "send_read_acknowledge", None)
         if not callable(mark_read):
-            return
+            LOGGER.warning(
+                "Telethon collection read acknowledgement unavailable community_id=%s target=%s telegram_account_id=%s",
+                community.id,
+                community.username or community.tg_id,
+                self.lease.account_id,
+            )
+            return False
         try:
             await mark_read(entity, max_id=max_tg_message_id)
         except Exception:
-            return
+            LOGGER.warning(
+                "Telethon collection read acknowledgement failed community_id=%s target=%s max_tg_message_id=%s telegram_account_id=%s",
+                community.id,
+                community.username or community.tg_id,
+                max_tg_message_id,
+                self.lease.account_id,
+                exc_info=True,
+            )
+            return False
+        LOGGER.info(
+            "Telethon collection read acknowledgement finished community_id=%s target=%s max_tg_message_id=%s telegram_account_id=%s",
+            community.id,
+            community.username or community.tg_id,
+            max_tg_message_id,
+            self.lease.account_id,
+        )
+        return True
 
     async def aclose(self) -> None:
         if self._client is not None:
