@@ -27,6 +27,8 @@ find the right anchors quickly.
   - target normalization, resolve, permission rules
 - `tests/test_engagement_detect_worker.py`
   - detect orchestration, sampling, duplicate suppression, model decision flow
+- `tests/test_engagement_detect_warmup.py`
+  - post-join warmup draft creation behavior
 - `tests/test_engagement_send_worker.py`
   - send preflight, idempotency, rate-limit and Telethon error mapping
 - `tests/test_engagement_scheduler.py`

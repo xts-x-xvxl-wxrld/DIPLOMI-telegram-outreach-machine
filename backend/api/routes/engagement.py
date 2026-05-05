@@ -135,6 +135,11 @@ async def patch_engagement_topic(*args, **kwargs):
     return await _engagement_settings_topics.patch_engagement_topic(*args, **kwargs)
 
 
+async def delete_engagement_topic(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_settings_topics.delete_engagement_topic(*args, **kwargs)
+
+
 async def post_engagement_topic_example(*args, **kwargs):
     _sync_route_dependencies()
     return await _engagement_settings_topics.post_engagement_topic_example(*args, **kwargs)
@@ -375,6 +380,11 @@ async def post_task_first_wizard_retry(*args, **kwargs):
     return await _engagement_task_first.post_task_first_wizard_retry(*args, **kwargs)
 
 
+async def delete_task_first_engagement(*args, **kwargs):
+    _sync_route_dependencies()
+    return await _engagement_task_first.delete_task_first_engagement_route(*args, **kwargs)
+
+
 __all__ = ["router", "enqueue_community_join", "enqueue_collection", "enqueue_engagement_send", "enqueue_engagement_target_resolve", "enqueue_manual_engagement_detect", "list_engagement_actions", "list_engagement_candidates",
     "get_operator_capabilities",
     "get_engagement_targets",
@@ -392,6 +402,7 @@ __all__ = ["router", "enqueue_community_join", "enqueue_collection", "enqueue_en
     "get_engagement_topic_detail",
     "post_engagement_topic",
     "patch_engagement_topic",
+    "delete_engagement_topic",
     "post_engagement_topic_example",
     "delete_engagement_topic_example",
     "post_community_join_job",
@@ -440,4 +451,5 @@ __all__ = ["router", "enqueue_community_join", "enqueue_collection", "enqueue_en
     "put_task_first_settings",
     "post_task_first_wizard_confirm",
     "post_task_first_wizard_retry",
+    "delete_task_first_engagement",
 ]

@@ -13,7 +13,7 @@ This doc is part of the extracted active contract set:
 
 This doc covers only the active engagement API surfaces:
 
-- task-first engagement create, patch, settings, confirm, retry
+- task-first engagement create, patch, settings, confirm, retry, delete
 - cockpit home, approvals, issues, engagement list/detail, sent feed
 - cockpit approval and issue mutations
 - cockpit rate-limit and quiet-hours drill-ins
@@ -36,7 +36,7 @@ Request:
 Success:
 
 - status `201`
-- response `result: "created" | "existing"`
+- response `result: "created" | "existing" | "reopened"`
 - `engagement` fields:
   - `id`, `target_id`, `community_id`
   - `topic_id`
@@ -51,6 +51,8 @@ Rules:
 - target must already point at a `community_id`
 - one engagement row exists per `target_id`
 - if the row already exists, return it with `result = "existing"`
+- if the existing row is `archived`, reopen it as a fresh draft and return it
+  with `result = "reopened"`
 - newly created rows start as:
   - `topic_id = null`
   - `status = "draft"`
@@ -237,6 +239,32 @@ Codes:
 
 - `engagement_archived`
 - `engagement_active`
+
+### `DELETE /api/engagements/{engagement_id}`
+
+Response:
+
+- `result: "deleted" | "archived" | "stale"`
+- `message: string`
+- `next_callback: string`
+- `engagement_id?: uuid`
+- `code?: string`
+
+Rules:
+
+- draft engagements with no runtime candidate history are physically deleted
+- active, paused, and historical engagements are archived instead
+- delete/archive disables task-first send/join settings
+- archive clears target allow flags and archives the target
+
+Codes:
+
+- `engagement_stale`
+
+Compat note:
+
+- topic deletion remains on the older admin topic surface as
+  `DELETE /api/engagement/topics/{topic_id}`
 
 ## Cockpit Read Path
 

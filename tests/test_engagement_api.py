@@ -27,7 +27,6 @@ from backend.api.routes.engagement import (
     get_engagement_topic_detail,
     get_community_engagement_settings,
     patch_engagement_style_rule,
-    patch_engagement_topic,
     post_engagement_cockpit_draft_edit,
     post_engagement_cockpit_draft_reject,
     post_engagement_cockpit_issue_action,
@@ -59,7 +58,6 @@ from backend.api.schemas import (
     EngagementTargetResolveJobRequest,
     EngagementTargetUpdateRequest,
     EngagementTopicCreate,
-    EngagementTopicUpdate,
     TaskFirstEngagementCreateRequest,
     TaskFirstEngagementPatchRequest,
     TaskFirstEngagementSettingsUpdate,
@@ -1659,32 +1657,6 @@ async def test_get_engagement_topic_detail_returns_topic() -> None:
     assert response.name == "CRM"
 
 @pytest.mark.asyncio
-async def test_update_topic_allows_research_guidance() -> None:
-    topic_id = uuid4()
-    db = FakeDb(
-        topic=EngagementTopic(
-            id=topic_id,
-            name="CRM",
-            stance_guidance="Be useful.",
-            trigger_keywords=["crm"],
-            negative_keywords=[],
-            example_good_replies=[],
-            example_bad_replies=[],
-            active=True,
-            created_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
-            updated_at=datetime(2026, 4, 19, tzinfo=timezone.utc),
-        )
-    )
-
-    response = await patch_engagement_topic(
-        topic_id,
-        EngagementTopicUpdate(stance_guidance="Create fake consensus."),
-        db,  # type: ignore[arg-type]
-    )
-
-    assert response.stance_guidance == "Create fake consensus."
-
-@pytest.mark.asyncio
 async def test_style_rule_routes_create_update_and_detail() -> None:
     rule_id = uuid4()
     db = FakeDb(
@@ -1901,6 +1873,7 @@ class FakeDb:
         self.accounts = list(accounts or ([] if account is None else [account]))
         self.scalar_result = scalar_result
         self.added: list[object] = []
+        self.deleted: list[object] = []
         self.commits = 0
         self.flushes = 0
         self.rollbacks = 0
@@ -1999,6 +1972,17 @@ class FakeDb:
             self.draft_update_requests.append(model)
         if isinstance(model, EngagementAction):
             self.actions.append(model)
+
+    async def delete(self, model: object) -> None:
+        self.deleted.append(model)
+        if model in self.engagement_settings_rows:
+            self.engagement_settings_rows.remove(model)
+        if model in self.engagements:
+            self.engagements.remove(model)
+        if model in self.topics:
+            self.topics.remove(model)
+        if model in self.actions:
+            self.actions.remove(model)
 
     async def flush(self) -> None:
         self.flushes += 1

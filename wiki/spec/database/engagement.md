@@ -69,6 +69,8 @@ Invariants:
 - `community_id` is intentionally not unique
 - multiple targets may point at the same community
 - the active confirm path syncs `status` and `allow_*` from engagement settings
+- deleting an active or historical engagement archives the target and clears all
+  `allow_*` flags
 
 ### `engagements`
 
@@ -102,6 +104,8 @@ Invariants:
 
 - one engagement row per target
 - `topic_id` may stay `null` only while the engagement is still draft/resetting
+- `archived` engagements remain durable so historical candidate/action records
+  do not lose their lifecycle parent
 
 ### `engagement_settings`
 
@@ -154,6 +158,10 @@ Task-first write-path invariants:
   - `allow_post = (mode == "auto_limited")`
 - retry reset sets:
   - `assigned_account_id = null`
+  - `mode = "disabled"`
+  - `allow_join = false`
+  - `allow_post = false`
+- archive also forces:
   - `mode = "disabled"`
   - `allow_join = false`
   - `allow_post = false`

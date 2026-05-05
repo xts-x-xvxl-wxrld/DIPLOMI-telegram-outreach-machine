@@ -9,6 +9,7 @@ from backend.api.deps import DbSession, require_bot_token
 from backend.api.schemas import (
     TaskFirstEngagementCreateRequest,
     TaskFirstEngagementCreateResponse,
+    TaskFirstEngagementDeleteResponse,
     TaskFirstEngagementOut,
     TaskFirstEngagementPatchRequest,
     TaskFirstEngagementPatchResponse,
@@ -23,6 +24,7 @@ from backend.queue.client import enqueue_collection
 from backend.services.task_first_engagements import (
     confirm_task_first_engagement,
     create_task_first_engagement,
+    delete_task_first_engagement,
     patch_task_first_engagement,
     put_task_first_engagement_settings,
     retry_task_first_engagement,
@@ -160,11 +162,32 @@ async def post_task_first_wizard_retry(
     )
 
 
+@router.delete(
+    "/engagements/{engagement_id}",
+    response_model=TaskFirstEngagementDeleteResponse,
+)
+async def delete_task_first_engagement_route(
+    engagement_id: UUID,
+    db: DbSession,
+) -> TaskFirstEngagementDeleteResponse:
+    result = await delete_task_first_engagement(db, engagement_id=engagement_id)
+    if result.result in {"deleted", "archived"}:
+        await db.commit()
+    return TaskFirstEngagementDeleteResponse(
+        result=result.result,
+        message=result.message,
+        next_callback=result.next_callback,
+        engagement_id=result.engagement_id,
+        code=result.code,
+    )
+
+
 __all__ = [
     "router",
     "patch_engagement",
     "post_task_first_engagement",
     "post_task_first_wizard_confirm",
     "post_task_first_wizard_retry",
+    "delete_task_first_engagement_route",
     "put_task_first_settings",
 ]

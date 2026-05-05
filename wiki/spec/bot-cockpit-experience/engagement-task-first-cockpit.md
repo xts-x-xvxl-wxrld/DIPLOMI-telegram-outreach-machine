@@ -190,6 +190,7 @@ Wizard write behavior:
 - mode selection writes `PUT /api/engagements/{id}/settings`
 - confirm calls `POST /api/engagements/{id}/wizard-confirm`
 - retry calls `POST /api/engagements/{id}/wizard-retry`
+- detail delete calls `DELETE /api/engagements/{id}`
 
 Wizard button labels:
 
@@ -224,6 +225,33 @@ Flow rules:
 - scoped queues add `Back -> eng:det:open:{engagement_id}`
 - successful approve/reject/edit submission routes back to `eng:appr:list:0`
 - placeholder-only queues show `Updating draft`
+
+## Detail And Archive
+
+Detail callbacks:
+
+- `eng:det:open:{engagement_id}`
+- `eng:det:resume:{engagement_id}`
+- `eng:det:del:{engagement_id}`
+
+Detail actions:
+
+- `Topic`
+- `Account`
+- `Mode`
+- `Archive engagement`
+
+Delete behavior:
+
+- deleting a draft-only engagement removes it and returns to `My engagements`
+- deleting an active or historical engagement archives it and returns to
+  `My engagements`
+
+## Topic Admin Note
+
+The older admin topic surface now supports `Delete topic` via
+`eng:topic:del:{topic_id}`. Unused topics are removed; topics with historical
+references are archived.
 
 ## Issue Queue
 

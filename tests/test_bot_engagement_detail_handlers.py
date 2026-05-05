@@ -22,6 +22,7 @@ from bot.engagement_detail_flow import (
     show_engagement_list,
     show_engagement_preview,
     show_engagement_detail,
+    delete_engagement,
     handle_engagement_resume,
     show_sent_messages,
 )
@@ -61,6 +62,7 @@ class _FakeApiClient:
         self.list_engagements_calls: list[dict[str, Any]] = []
         self.get_engagement_calls: list[str] = []
         self.list_sent_calls: list[dict[str, Any]] = []
+        self.delete_engagement_calls: list[str] = []
         self.raise_error: str | None = None
 
         self.engagements = [
@@ -157,6 +159,19 @@ class _FakeApiClient:
             "total": len(self.sent_messages),
             "offset": offset,
             "limit": limit,
+        }
+
+    async def delete_engagement(self, engagement_id: str) -> dict[str, Any]:
+        from bot.api_client import BotApiError
+        if self.raise_error:
+            raise BotApiError(self.raise_error)
+        self.delete_engagement_calls.append(engagement_id)
+        self.engagements = [item for item in self.engagements if item.get("engagement_id") != engagement_id]
+        return {
+            "result": "archived",
+            "message": "Engagement archived.",
+            "next_callback": "op:engs",
+            "engagement_id": engagement_id,
         }
 
 
@@ -471,9 +486,12 @@ class TestEngagementDetailMarkup:
         keyboard = markup.inline_keyboard
         all_buttons = [btn for row in keyboard for btn in row]
         cb_data = [btn.callback_data for btn in all_buttons if hasattr(btn, "callback_data")]
+        labels = [btn.text for btn in all_buttons if hasattr(btn, "text")]
         assert any("topic" in d for d in cb_data)
         assert any("account" in d for d in cb_data)
         assert any("mode" in d for d in cb_data)
+        assert any("eng:det:del:eng-1" == d for d in cb_data)
+        assert "Archive engagement" in labels
         assert "eng:home" in cb_data
         assert "op:home" not in cb_data
 
@@ -693,6 +711,32 @@ class TestHandleEngagementResume:
         await handle_engagement_resume(update, context, engagement_id="eng-1")
         text = update.callback_query.edits[0]["text"]
         assert "Couldn't resume" in text or "Service down" in text
+
+
+class TestDeleteEngagement:
+    @pytest.mark.asyncio
+    async def test_deletes_and_returns_to_list(self):
+        client = _FakeApiClient()
+        update = _FakeUpdate("eng:det:del:eng-1")
+        context = _FakeContext(client)
+
+        await delete_engagement(update, context, engagement_id="eng-1")
+
+        assert client.delete_engagement_calls == ["eng-1"]
+        assert update.callback_query.answers[0]["text"] == "Engagement archived."
+        assert "My engagements" in update.callback_query.edits[0]["text"]
+
+    @pytest.mark.asyncio
+    async def test_delete_api_error(self):
+        client = _FakeApiClient()
+        client.raise_error = "Service down"
+        update = _FakeUpdate("eng:det:del:eng-1")
+        context = _FakeContext(client)
+
+        await delete_engagement(update, context, engagement_id="eng-1")
+
+        text = update.callback_query.edits[0]["text"]
+        assert "Couldn't delete engagement" in text
 
 
 class TestShowSentMessages:

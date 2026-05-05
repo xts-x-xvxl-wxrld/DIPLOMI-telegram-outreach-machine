@@ -79,6 +79,14 @@ def list_active_topics(db) -> list[EngagementTopic]:
     ...
 ```
 
+Deletion contract:
+
+- topics cannot be deleted while a non-archived engagement still references
+  them
+- topics with historical engagement or candidate references are archived by
+  setting `active = false`
+- only fully unreferenced topics may be physically removed
+
 ## Detection And Drafting Prompt Rules
 
 The engagement detector may use OpenAI to decide whether a live message sample is a good moment for

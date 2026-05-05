@@ -283,6 +283,7 @@ from .engagement_detail_flow import (
     show_engagement_preview,
     show_engagement_detail,
     handle_engagement_resume,
+    delete_engagement,
     show_sent_messages,
 )
 from .formatting_engagement_home import format_cockpit_home
@@ -810,6 +811,8 @@ async def callback_query(update: Any, context: Any) -> None:
                 await show_engagement_detail(update, context, engagement_id=parts[1])
             elif sub == "resume" and len(parts) >= 2:
                 await handle_engagement_resume(update, context, engagement_id=parts[1])
+            elif sub == "del" and len(parts) >= 2:
+                await delete_engagement(update, context, engagement_id=parts[1])
             return
         if action == ACTION_ENGAGEMENT_RATE and parts:
             sub = parts[0]

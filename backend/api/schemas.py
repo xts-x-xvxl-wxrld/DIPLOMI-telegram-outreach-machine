@@ -451,8 +451,7 @@ class TaskFirstEngagementSettingsResponse(BaseModel):
     settings: TaskFirstEngagementSettingsOut | None = None
     message: str | None = None
     code: str | None = None
-
-
+class TaskFirstEngagementDeleteResponse(BaseModel): result: str; message: str; next_callback: str; engagement_id: UUID | None = None; code: str | None = None  # noqa: E701,E702
 class TaskFirstWizardConfirmResponse(BaseModel):
     result: str
     message: str
@@ -793,8 +792,7 @@ class EngagementTopicOut(BaseModel):
 
 class EngagementTopicListResponse(BaseModel):
     items: list[EngagementTopicOut]
-
-
+class EngagementTopicDeleteResponse(BaseModel): result: str; message: str; code: str | None = None  # noqa: E701,E702
 class EngagementTopicExampleCreateRequest(BaseModel):
     example_type: str = Field(pattern="^(good|bad)$")
     example: str = Field(min_length=1, max_length=800)

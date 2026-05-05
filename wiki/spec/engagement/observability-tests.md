@@ -34,6 +34,21 @@ Metrics or structured logs should count:
 - FloodWait events
 - validation failures
 
+Local Docker live-test runs should also emit INFO-level stage checkpoints for:
+
+- scheduler target counts plus per-community enqueue/skip reasons
+- collection account selection, collection summary, read-acknowledgement
+  attempts, and follow-up detect enqueue outcomes
+- join account selection, join outcome, post-join read result, and follow-up
+  detect enqueue outcomes
+- detect sample/topic counts, trigger-candidate counts, detector outcomes, and
+  candidate creation vs dedupe decisions
+- send preflight gating, account acquisition, source verification, and final
+  send outcome
+
+These logs must stay operator-safe by preferring IDs, counts, statuses, and
+skip reasons over raw large text payloads.
+
 ## Testing Contract
 
 Minimum tests for the first implementation:
@@ -47,7 +62,7 @@ Minimum tests for the first implementation:
   reply opportunity, no joined membership, and rate limits
 - join worker success, already joined, inaccessible community, FloodWait, and banned account paths
 - detect worker no-signal and reply-opportunity-created paths with fake LLM output
-- detect worker skip reasons for missing joined engagement membership, missing `joined_at`,
+- detect worker skip reasons for missing joined engagement membership,
   disabled settings, observe mode, missing target permission, no recent samples, no trigger
   opportunities, active reply opportunity dedupe, and quiet hours
 - trigger selection rejects pre-join messages, too-new messages, too-old messages, non-replyable

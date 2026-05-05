@@ -23,6 +23,7 @@ from backend.db.models import (
     Community,
     CommunityAccountMembership,
     Engagement,
+    EngagementCandidate,
     EngagementSettings,
     EngagementTarget,
     EngagementTopic,
@@ -98,6 +99,15 @@ class TaskFirstWizardRetryResult:
     code: str | None = None
 
 
+@dataclass(frozen=True)
+class TaskFirstEngagementDeleteResult:
+    result: str
+    message: str
+    next_callback: str
+    engagement_id: UUID | None = None
+    code: str | None = None
+
+
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -108,6 +118,28 @@ def _detail_callback(engagement_id: UUID) -> str:
 
 def _wizard_edit_callback(engagement_id: UUID, field: str) -> str:
     return f"eng:wz:edit:{engagement_id}:{field}"
+
+
+def _disable_target_permissions(target: EngagementTarget, *, archived: bool) -> None:
+    target.allow_join = False
+    target.allow_detect = False
+    target.allow_post = False
+    if archived:
+        target.status = EngagementTargetStatus.ARCHIVED.value
+
+
+def _reset_task_first_settings(
+    settings: EngagementSettings,
+    *,
+    clear_assignment: bool,
+    now: datetime,
+) -> None:
+    if clear_assignment:
+        settings.assigned_account_id = None
+    settings.mode = EngagementMode.DISABLED.value
+    settings.allow_join = False
+    settings.allow_post = False
+    settings.updated_at = now
 
 
 def _engagement_view(engagement: Engagement) -> TaskFirstEngagementView:
@@ -185,15 +217,32 @@ async def create_task_first_engagement(
     target = await db.get(EngagementTarget, target_id)
     if target is None:
         raise ValueError("target_not_found")
-    if target.community_id is None or target.status not in {
-        EngagementTargetStatus.RESOLVED.value,
-        EngagementTargetStatus.APPROVED.value,
-    }:
+    if target.community_id is None:
         raise RuntimeError("target_not_resolved")
 
     existing = await db.scalar(select(Engagement).where(Engagement.target_id == target_id))
     if existing is not None:
+        if existing.status == EngagementStatus.ARCHIVED.value:
+            now = _utcnow()
+            existing.status = EngagementStatus.DRAFT.value
+            existing.topic_id = None
+            existing.name = None
+            existing.updated_at = now
+            settings = await _get_settings(db, engagement_id=existing.id)
+            if settings is not None:
+                _reset_task_first_settings(settings, clear_assignment=True, now=now)
+            if target.status == EngagementTargetStatus.ARCHIVED.value:
+                target.status = EngagementTargetStatus.RESOLVED.value
+            _disable_target_permissions(target, archived=False)
+            target.updated_at = now
+            await db.flush()
+            return TaskFirstEngagementCreateResult(result="reopened", engagement=_engagement_view(existing))
         return TaskFirstEngagementCreateResult(result="existing", engagement=_engagement_view(existing))
+    if target.status not in {
+        EngagementTargetStatus.RESOLVED.value,
+        EngagementTargetStatus.APPROVED.value,
+    }:
+        raise RuntimeError("target_not_resolved")
 
     now = _utcnow()
     engagement = Engagement(
@@ -552,11 +601,7 @@ async def retry_task_first_engagement(
     engagement.topic_id = None
     engagement.updated_at = now
     if settings is not None:
-        settings.assigned_account_id = None
-        settings.mode = EngagementMode.DISABLED.value
-        settings.allow_join = False
-        settings.allow_post = False
-        settings.updated_at = now
+        _reset_task_first_settings(settings, clear_assignment=True, now=now)
     await db.flush()
 
     return TaskFirstWizardRetryResult(
@@ -567,16 +612,82 @@ async def retry_task_first_engagement(
     )
 
 
+async def delete_task_first_engagement(
+    db: AsyncSession,
+    *,
+    engagement_id: UUID,
+) -> TaskFirstEngagementDeleteResult:
+    engagement = await db.get(Engagement, engagement_id)
+    if engagement is None:
+        return TaskFirstEngagementDeleteResult(
+            result="stale",
+            message="This engagement is no longer available.",
+            next_callback="op:engs",
+            code="engagement_stale",
+        )
+
+    settings = await _get_settings(db, engagement_id=engagement.id)
+    target = await db.get(EngagementTarget, engagement.target_id)
+    candidate_rows = await db.scalars(
+        select(EngagementCandidate).where(
+            EngagementCandidate.community_id == engagement.community_id,
+        )
+    )
+    history_candidates = [
+        candidate
+        for candidate in candidate_rows
+        if candidate.community_id == engagement.community_id
+        and (
+            engagement.topic_id is None
+            or candidate.topic_id == engagement.topic_id
+        )
+    ]
+    has_runtime_history = bool(history_candidates)
+
+    if engagement.status == EngagementStatus.DRAFT.value and not has_runtime_history:
+        now = _utcnow()
+        if settings is not None:
+            await db.delete(settings)
+        await db.delete(engagement)
+        if target is not None:
+            _disable_target_permissions(target, archived=False)
+            target.updated_at = now
+        await db.flush()
+        return TaskFirstEngagementDeleteResult(
+            result="deleted",
+            message="Draft deleted.",
+            next_callback="op:engs",
+        )
+
+    now = _utcnow()
+    engagement.status = EngagementStatus.ARCHIVED.value
+    engagement.updated_at = now
+    if settings is not None:
+        _reset_task_first_settings(settings, clear_assignment=False, now=now)
+    if target is not None:
+        _disable_target_permissions(target, archived=True)
+        target.updated_at = now
+    await db.flush()
+    return TaskFirstEngagementDeleteResult(
+        result="archived",
+        message="Engagement archived.",
+        next_callback="op:engs",
+        engagement_id=engagement.id,
+    )
+
+
 __all__ = [
     "TaskFirstEngagementCreateResult",
     "TaskFirstEngagementPatchResult",
     "TaskFirstEngagementSettingsResult",
     "TaskFirstEngagementSettingsView",
     "TaskFirstEngagementView",
+    "TaskFirstEngagementDeleteResult",
     "TaskFirstWizardConfirmResult",
     "TaskFirstWizardRetryResult",
     "confirm_task_first_engagement",
     "create_task_first_engagement",
+    "delete_task_first_engagement",
     "patch_task_first_engagement",
     "put_task_first_engagement_settings",
     "retry_task_first_engagement",

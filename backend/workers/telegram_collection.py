@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,8 @@ from backend.services.community_collection import (
     TelegramCollectionMetadata,
 )
 from backend.workers.account_manager import AccountLease
+
+LOGGER = logging.getLogger(__name__)
 
 
 class TelethonCollectionError(RuntimeError):
@@ -34,6 +37,14 @@ class TelethonEngagementCollector:
         after_tg_message_id: int | None,
         limit: int,
     ) -> TelegramCollectionBatch:
+        LOGGER.info(
+            "Telethon collection starting community_id=%s target=%s after_tg_message_id=%s limit=%s telegram_account_id=%s",
+            community.id,
+            community.username or community.tg_id,
+            after_tg_message_id,
+            limit,
+            self.lease.account_id,
+        )
         client = await self._get_client()
         entity = await self._get_entity(client, community)
         metadata = await _metadata_from_entity(client, entity, fallback=community)
@@ -50,6 +61,13 @@ class TelethonEngagementCollector:
                     messages.append(collected)
         except Exception as exc:
             _raise_collection_exception(exc)
+        LOGGER.info(
+            "Telethon collection finished community_id=%s target=%s messages=%s telegram_account_id=%s",
+            community.id,
+            community.username or community.tg_id,
+            len(messages),
+            self.lease.account_id,
+        )
         return TelegramCollectionBatch(messages=messages, metadata=metadata)
 
     async def acknowledge_read(
@@ -58,6 +76,13 @@ class TelethonEngagementCollector:
         *,
         max_tg_message_id: int,
     ) -> None:
+        LOGGER.info(
+            "Telethon collection acknowledging read community_id=%s target=%s max_tg_message_id=%s telegram_account_id=%s",
+            community.id,
+            community.username or community.tg_id,
+            max_tg_message_id,
+            self.lease.account_id,
+        )
         client = await self._get_client()
         entity = await self._get_entity(client, community)
         mark_read = getattr(client, "send_read_acknowledge", None)

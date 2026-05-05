@@ -2,16 +2,18 @@
 
 ## Goal
 
-Avoid immediate post-join detection or sending and give the selected engagement account a short
-warmup period.
+Avoid immediate post-join sending and give the selected engagement account a short
+warmup period while still allowing operators to review newly drafted replies.
 
 ## Scope
 
 - After successful join, read the latest visible messages up to the configured limit.
 - Best-effort mark that initial batch as read when Telegram allows it.
-- Block detection and sending while the selected joined membership is inside the 60-minute warmup
-  window.
-- Add explicit skip reasons for missing membership, missing `joined_at`, and active warmup.
+- Block sending while the selected joined membership is inside the 60-minute warmup window.
+- Let detection keep drafting opportunities during warmup so review can begin before posting is
+  allowed.
+- Add explicit skip reasons for missing membership, missing `joined_at`, and active warmup on the
+  send path.
 
 ## Code Areas
 
@@ -27,8 +29,8 @@ warmup period.
 ## Acceptance
 
 - Successful join performs one bounded best-effort initial read.
-- Detection skips memberships still inside warmup.
 - Send skips memberships still inside warmup.
+- Detection can still create drafts during warmup.
 - Warmup does not alter existing join audit semantics.
 
 ## Dependencies

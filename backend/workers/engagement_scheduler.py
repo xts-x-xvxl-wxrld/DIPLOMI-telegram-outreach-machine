@@ -206,6 +206,11 @@ async def process_engagement_scheduler_tick(
 
     async with session_factory() as session:
         targets = await target_loader(session)
+    LOGGER.info(
+        "Loaded %s engagement detection targets for scheduler window_minutes=%s",
+        len(targets),
+        window_minutes,
+    )
 
     for target in targets:
         summary.targets_checked += 1
@@ -216,6 +221,11 @@ async def process_engagement_scheduler_tick(
         )
         if skip_reason is not None:
             _record_skip(summary, skip_reason)
+            LOGGER.info(
+                "Skipping engagement detection enqueue for community %s: %s",
+                target.community_id,
+                skip_reason,
+            )
             continue
 
         try:
@@ -232,6 +242,12 @@ async def process_engagement_scheduler_tick(
 
         summary.jobs_enqueued += 1
         summary.job_ids.append(job.id)
+        LOGGER.info(
+            "Enqueued engagement detection for community %s job_id=%s status=%s",
+            target.community_id,
+            job.id,
+            job.status,
+        )
 
     return summary.to_dict()
 
@@ -254,6 +270,11 @@ async def process_engagement_collection_scheduler_tick(
 
     async with session_factory() as session:
         targets = await target_loader(session)
+    LOGGER.info(
+        "Loaded %s engagement collection targets for scheduler interval_seconds=%s",
+        len(targets),
+        interval_seconds,
+    )
 
     for target in targets:
         summary.targets_checked += 1
@@ -264,6 +285,11 @@ async def process_engagement_collection_scheduler_tick(
         )
         if skip_reason is not None:
             _record_collection_skip(summary, skip_reason)
+            LOGGER.info(
+                "Skipping engagement collection enqueue for community %s: %s",
+                target.community_id,
+                skip_reason,
+            )
             continue
         try:
             due_decision = due_state.collection_due(target.community_id, now=current_time)
@@ -273,6 +299,11 @@ async def process_engagement_collection_scheduler_tick(
             continue
         if not due_decision.due:
             summary.skipped_not_due += 1
+            LOGGER.info(
+                "Skipping engagement collection enqueue for community %s: not_due next_due_at=%s",
+                target.community_id,
+                getattr(due_decision, "due_at", None),
+            )
             continue
 
         try:
@@ -289,8 +320,19 @@ async def process_engagement_collection_scheduler_tick(
 
         if job.status == "duplicate":
             summary.duplicate_jobs += 1
+            LOGGER.info(
+                "Engagement collection job already queued for community %s job_id=%s",
+                target.community_id,
+                job.id,
+            )
         else:
             summary.jobs_enqueued += 1
+            LOGGER.info(
+                "Enqueued engagement collection for community %s job_id=%s status=%s",
+                target.community_id,
+                job.id,
+                job.status,
+            )
         try:
             due_state.mark_collection_enqueued(target.community_id, now=current_time)
         except EngagementDueStateUnavailable:
@@ -537,7 +579,11 @@ async def run_detection_scheduler_loop() -> None:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        force=True,
+    )
     asyncio.run(run_scheduler_loop())
 
 

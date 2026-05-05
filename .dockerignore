@@ -9,6 +9,7 @@
 .tmp_pytest
 .tmp_pytest_local
 .tmp_pytest_workspace
+.localtmp
 pytest-temp-*
 .ruff_cache
 .venv

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .engagement_handlers import (
+    _delete_engagement_topic,
     _remove_topic_example,
     _send_engagement_topic,
     _send_engagement_topics,
@@ -17,6 +18,7 @@ from .runtime import (
 )
 from .ui import (
     ACTION_ENGAGEMENT_TOPIC_BRIEF,
+    ACTION_ENGAGEMENT_TOPIC_DELETE,
     ACTION_ENGAGEMENT_TOPIC_EDIT,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
@@ -41,6 +43,9 @@ async def _handle_engagement_topic_candidate_callback(
         return await _handle_topic_brief_callback(update, context, parts)
     if action == ACTION_ENGAGEMENT_TOPIC_OPEN and len(parts) == 1:
         await _send_engagement_topic(update, context, parts[0])
+        return True
+    if action == ACTION_ENGAGEMENT_TOPIC_DELETE and len(parts) == 1:
+        await _delete_engagement_topic(update, context, parts[0])
         return True
     if action == ACTION_ENGAGEMENT_TOPIC_PREVIEW:
         preview_source = "real" if parts and parts[0] == "real" else "sample"

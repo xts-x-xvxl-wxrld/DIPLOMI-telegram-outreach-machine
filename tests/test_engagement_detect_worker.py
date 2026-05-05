@@ -236,30 +236,6 @@ async def test_engagement_detect_skips_without_joined_membership() -> None:
 
 
 @pytest.mark.asyncio
-async def test_engagement_detect_skips_during_post_join_warmup() -> None:
-    community_id = uuid4()
-    membership = _membership(community_id)
-    membership.joined_at = _now() - timedelta(minutes=30)
-    session = FakeSession(
-        community=_community(community_id),
-        settings=_settings(community_id),
-        membership=membership,
-    )
-
-    async def detector(_model_input: dict[str, object]) -> EngagementDetectionDecision:
-        raise AssertionError("detector should not run during post-join warmup")
-
-    result = await process_engagement_detect(
-        {"community_id": str(community_id), "window_minutes": 60, "requested_by": "op"},
-        session_factory=lambda: session,
-        detector=detector,
-    )
-
-    assert result["status"] == "skipped"
-    assert result["reason"] == "post_join_warmup_active"
-
-
-@pytest.mark.asyncio
 async def test_engagement_detect_skips_semantic_only_topic_until_selector_is_enabled() -> None:
     community_id = uuid4()
     topic = _topic(trigger_keywords=[])

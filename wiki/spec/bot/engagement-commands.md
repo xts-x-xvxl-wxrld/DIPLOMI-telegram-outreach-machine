@@ -176,8 +176,10 @@ avoid-copy guidance, and inline edit/remove controls.
 Creates a topic through `POST /api/engagement/topics`.
 
 Calling `/create_engagement_topic` with no arguments starts a guided one-question-at-a-time bot
-flow that collects topic name, reply guidance, trigger keywords, optional description, and optional
-negative keywords before showing a confirmation step.
+flow that collects topic name, conversation target, optional trigger keywords, reply guidance,
+optional voice guidance, good examples, bad examples, and optional avoid rules before showing a
+confirmation step. Negative keywords remain editable from the topic detail surfaces and
+`/topic_keywords`.
 
 For backward compatibility, the bot may still accept the legacy pipe-delimited inline payload when
 arguments are supplied directly. Validation remains owned by the API and engagement service.

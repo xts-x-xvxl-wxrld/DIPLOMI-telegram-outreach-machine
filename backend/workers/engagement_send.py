@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -47,6 +48,8 @@ from backend.workers.telegram_engagement import (
     TelethonTelegramEngagementAdapter,
 )
 
+LOGGER = logging.getLogger(__name__)
+
 
 class AsyncSessionContext(Protocol):
     async def __aenter__(self) -> AsyncSession:
@@ -80,6 +83,7 @@ async def process_engagement_send(
     job_id = _current_job_id() or f"engagement.send:{validated_payload.candidate_id}"
     idempotency_key = _send_idempotency_key(validated_payload.candidate_id)
     rate_limit_checker = rate_limit_checker or check_send_limits
+    LOGGER.info("Starting engagement send job_id=%s candidate_id=%s", job_id, validated_payload.candidate_id)
 
     async with session_factory() as session:
         lease: AccountLease | None = None
@@ -90,6 +94,7 @@ async def process_engagement_send(
             candidate = await _load_candidate(session, validated_payload.candidate_id)
             if candidate is None:
                 return _skipped("candidate_not_found", validated_payload.candidate_id)
+            LOGGER.info("Loaded engagement send candidate job_id=%s candidate_id=%s community_id=%s status=%s source_tg_message_id=%s", job_id, candidate.id, candidate.community_id, candidate.status, candidate.source_tg_message_id)
 
             existing_sent_action = await _load_action_by_idempotency(session, idempotency_key)
             if existing_sent_action is not None and existing_sent_action.status == EngagementActionStatus.SENT.value:
@@ -116,6 +121,7 @@ async def process_engagement_send(
 
             settings = await get_engagement_settings(session, candidate.community_id)
             task_first_operator_send = await _allows_task_first_operator_send(session, candidate)
+            LOGGER.info("Checked engagement send settings job_id=%s candidate_id=%s mode=%s allow_post=%s require_approval=%s reply_only=%s task_first_operator_send=%s", job_id, candidate.id, settings.mode, settings.allow_post, settings.require_approval, settings.reply_only, task_first_operator_send)
             if (
                 settings.mode == EngagementMode.DISABLED.value
                 or (not settings.allow_post and not task_first_operator_send)
@@ -190,6 +196,7 @@ async def process_engagement_send(
                 now=now,
             )
             if not limit_decision.allowed:
+                LOGGER.info("Engagement send rate limit blocked job_id=%s candidate_id=%s reason=%s", job_id, candidate.id, limit_decision.reason)
                 action = await _reserve_action(
                     session,
                     candidate=candidate,
@@ -217,6 +224,7 @@ async def process_engagement_send(
             )
             action = reservation.action
             if not reservation.created:
+                LOGGER.info("Reusing engagement send reservation job_id=%s candidate_id=%s action_id=%s action_status=%s", job_id, candidate.id, action.id, action.status)
                 if action.status == EngagementActionStatus.SENT.value:
                     await _mark_candidate_sent(session, candidate)
                     await session.commit()
@@ -236,6 +244,7 @@ async def process_engagement_send(
                 purpose="engagement_send",
             )
             await session.commit()
+            LOGGER.info("Acquired engagement send account job_id=%s candidate_id=%s telegram_account_id=%s action_id=%s", job_id, candidate.id, lease.account_id, action.id)
 
             adapter = adapter_factory(lease)
             assert candidate.community is not None
@@ -245,12 +254,14 @@ async def process_engagement_send(
                 community=candidate.community,
                 reply_to_tg_message_id=candidate.source_tg_message_id,
             )
+            LOGGER.info("Verified engagement send source job_id=%s candidate_id=%s community_id=%s reply_to_tg_message_id=%s", job_id, candidate.id, candidate.community_id, candidate.source_tg_message_id)
             result = await adapter.send_public_reply(
                 session_file_path=lease.session_file_path,
                 community=candidate.community,
                 reply_to_tg_message_id=candidate.source_tg_message_id,
                 text=outbound_text,
             )
+            LOGGER.info("Telegram send completed job_id=%s candidate_id=%s telegram_account_id=%s sent_tg_message_id=%s", job_id, candidate.id, lease.account_id, result.sent_tg_message_id)
             await _record_send_success(session, action=action, candidate=candidate, result=result)
             await release_account_fn(
                 session,
@@ -261,6 +272,7 @@ async def process_engagement_send(
             await session.commit()
             return _send_summary(validated_payload, action)
         except EngagementAccountRateLimited as exc:
+            LOGGER.warning("Engagement send rate limited job_id=%s candidate_id=%s telegram_account_id=%s error=%s", job_id, validated_payload.candidate_id, None if lease is None else lease.account_id, exc)
             await session.rollback()
             if candidate is not None and membership is not None and lease is not None:
                 action = await _ensure_action_for_error(
@@ -286,6 +298,7 @@ async def process_engagement_send(
                 await session.commit()
             raise
         except EngagementAccountBanned as exc:
+            LOGGER.warning("Engagement send banned account job_id=%s candidate_id=%s telegram_account_id=%s error=%s", job_id, validated_payload.candidate_id, None if lease is None else lease.account_id, exc)
             await session.rollback()
             if candidate is not None and membership is not None and lease is not None:
                 action = await _ensure_action_for_error(
@@ -310,6 +323,7 @@ async def process_engagement_send(
                 await session.commit()
             raise
         except EngagementCommunityInaccessible as exc:
+            LOGGER.warning("Engagement send community inaccessible job_id=%s candidate_id=%s telegram_account_id=%s error=%s", job_id, validated_payload.candidate_id, None if lease is None else lease.account_id, exc)
             await session.rollback()
             if candidate is not None and membership is not None and lease is not None:
                 action = await _ensure_action_for_error(
@@ -334,6 +348,7 @@ async def process_engagement_send(
                 return _send_summary(validated_payload, action)
             raise
         except EngagementMessageNotReplyable as exc:
+            LOGGER.warning("Engagement send source message not replyable job_id=%s candidate_id=%s telegram_account_id=%s error=%s", job_id, validated_payload.candidate_id, None if lease is None else lease.account_id, exc)
             await session.rollback()
             if candidate is not None and membership is not None and lease is not None:
                 action = await _ensure_action_for_error(
@@ -358,6 +373,7 @@ async def process_engagement_send(
                 return _send_summary(validated_payload, action)
             raise
         except Exception as exc:
+            LOGGER.exception("Engagement send failed unexpectedly job_id=%s candidate_id=%s telegram_account_id=%s", job_id, validated_payload.candidate_id, None if lease is None else lease.account_id)
             await session.rollback()
             if candidate is not None and membership is not None and lease is not None:
                 action = await _ensure_action_for_error(
@@ -718,7 +734,7 @@ def _send_summary(payload: EngagementSendPayload, action: EngagementAction) -> d
         status = "skipped"
     elif action.status == EngagementActionStatus.FAILED.value:
         status = "failed"
-    return {
+    result = {
         "status": status,
         "job_type": "engagement.send",
         "candidate_id": str(payload.candidate_id),
@@ -729,15 +745,19 @@ def _send_summary(payload: EngagementSendPayload, action: EngagementAction) -> d
         "sent_tg_message_id": action.sent_tg_message_id,
         "reason": action.error_message,
     }
+    LOGGER.info("Engagement send summary %s", result)
+    return result
 
 
 def _skipped(reason: str, candidate_id: object) -> dict[str, object]:
-    return {
+    result = {
         "status": "skipped",
         "job_type": "engagement.send",
         "candidate_id": str(candidate_id),
         "reason": reason,
     }
+    LOGGER.info("Skipping engagement send %s", result)
+    return result
 
 
 def _current_job_id() -> str | None:

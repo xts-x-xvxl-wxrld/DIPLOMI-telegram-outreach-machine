@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Callable
 from typing import Any, Protocol
 
@@ -35,6 +36,8 @@ from backend.workers.account_manager import (
     release_account,
 )
 from backend.workers.telegram_collection import TelethonEngagementCollector
+
+LOGGER = logging.getLogger(__name__)
 
 
 class AsyncSessionContext(Protocol):
@@ -75,6 +78,13 @@ async def process_collection(
     runtime_settings = settings or get_settings()
     due_state = due_state or RedisEngagementDueState(settings=runtime_settings)
     job_id = _current_job_id() or f"collection:{validated_payload.community_id}"
+    LOGGER.info(
+        "Starting engagement collection job job_id=%s community_id=%s reason=%s window_days=%s",
+        job_id,
+        validated_payload.community_id,
+        validated_payload.reason,
+        validated_payload.window_days,
+    )
 
     async with session_factory() as session:
         lease: AccountLease | None = None
@@ -98,6 +108,13 @@ async def process_collection(
                     purpose="engagement_collection",
                 )
             await session.commit()
+            LOGGER.info(
+                "Acquired engagement collection account job_id=%s community_id=%s telegram_account_id=%s preferred_account_id=%s",
+                job_id,
+                validated_payload.community_id,
+                None if lease is None else lease.account_id,
+                preferred_account_id,
+            )
 
             collector = collector_factory(lease)
             summary = await collect_community_engagement_messages(
@@ -107,6 +124,7 @@ async def process_collection(
                 reason=validated_payload.reason,
                 window_days=validated_payload.window_days,
             )
+            LOGGER.info("Collected engagement messages job_id=%s summary=%s", job_id, summary.to_dict())
             await _acknowledge_read_if_due(
                 session,
                 collector=collector,
@@ -116,6 +134,13 @@ async def process_collection(
             )
             await session.commit()
         except CollectionAccountRateLimited as exc:
+            LOGGER.warning(
+                "Engagement collection rate limited job_id=%s community_id=%s telegram_account_id=%s error=%s",
+                job_id,
+                validated_payload.community_id,
+                None if lease is None else lease.account_id,
+                exc,
+            )
             await session.rollback()
             failure_summary = await record_collection_failure(
                 session,
@@ -134,9 +159,17 @@ async def process_collection(
                 )
             await session.commit()
             if failure_summary is not None:
+                LOGGER.info("Recorded engagement collection failure job_id=%s summary=%s", job_id, failure_summary.to_dict())
                 return failure_summary.to_dict()
             raise
         except CollectionAccountBanned as exc:
+            LOGGER.warning(
+                "Engagement collection banned account job_id=%s community_id=%s telegram_account_id=%s error=%s",
+                job_id,
+                validated_payload.community_id,
+                None if lease is None else lease.account_id,
+                exc,
+            )
             await session.rollback()
             failure_summary = await record_collection_failure(
                 session,
@@ -154,9 +187,16 @@ async def process_collection(
                 )
             await session.commit()
             if failure_summary is not None:
+                LOGGER.info("Recorded engagement collection failure job_id=%s summary=%s", job_id, failure_summary.to_dict())
                 return failure_summary.to_dict()
             raise
         except Exception as exc:
+            LOGGER.exception(
+                "Engagement collection failed unexpectedly job_id=%s community_id=%s telegram_account_id=%s",
+                job_id,
+                validated_payload.community_id,
+                None if lease is None else lease.account_id,
+            )
             await session.rollback()
             failure_summary = await record_collection_failure(
                 session,
@@ -174,6 +214,7 @@ async def process_collection(
                 )
             await session.commit()
             if failure_summary is not None:
+                LOGGER.info("Recorded engagement collection failure job_id=%s summary=%s", job_id, failure_summary.to_dict())
                 return failure_summary.to_dict()
             raise
         else:
@@ -185,12 +226,14 @@ async def process_collection(
                     outcome="success",
                 )
                 await session.commit()
-            return _enqueue_detection_if_needed(
+            result = _enqueue_detection_if_needed(
                 summary,
                 enqueue_detect_fn=enqueue_detect_fn,
                 window_minutes=runtime_settings.engagement_detection_window_minutes,
                 requested_by=validated_payload.requested_by,
             )
+            LOGGER.info("Finished engagement collection job job_id=%s result=%s", job_id, result)
+            return result
         finally:
             if collector is not None and hasattr(collector, "aclose"):
                 await collector.aclose()  # type: ignore[attr-defined]
@@ -209,6 +252,11 @@ def _enqueue_detection_if_needed(
 ) -> dict[str, object]:
     result = summary.to_dict()
     if not summary.should_enqueue_detection:
+        LOGGER.info(
+            "Skipping follow-up engagement detect enqueue community_id=%s collection_run_id=%s reason=no_detection_needed",
+            summary.community_id,
+            summary.collection_run_id,
+        )
         return result
     job = enqueue_detect_fn(
         summary.community_id,
@@ -218,6 +266,13 @@ def _enqueue_detection_if_needed(
     )
     result["engagement_detect_job_id"] = job.id
     result["engagement_detect_job_status"] = job.status
+    LOGGER.info(
+        "Enqueued follow-up engagement detect community_id=%s collection_run_id=%s job_id=%s status=%s",
+        summary.community_id,
+        summary.collection_run_id,
+        job.id,
+        job.status,
+    )
     return result
 
 
@@ -256,6 +311,13 @@ async def _acknowledge_read_if_due(
     due_state: ReadDueState,
 ) -> None:
     if lease is None or summary.latest_tg_message_id is None or summary.messages_seen <= 0:
+        LOGGER.info(
+            "Skipping engagement collection read acknowledgement community_id=%s telegram_account_id=%s latest_tg_message_id=%s messages_seen=%s",
+            summary.community_id,
+            None if lease is None else lease.account_id,
+            summary.latest_tg_message_id,
+            summary.messages_seen,
+        )
         return
     try:
         due_decision = due_state.read_receipt_due(
@@ -264,12 +326,29 @@ async def _acknowledge_read_if_due(
             now=_utcnow(),
         )
     except EngagementDueStateUnavailable:
+        LOGGER.warning(
+            "Engagement collection read-ack due-state unavailable community_id=%s telegram_account_id=%s",
+            summary.community_id,
+            lease.account_id,
+        )
         return
     if not due_decision.due:
+        LOGGER.info(
+            "Skipping engagement collection read acknowledgement community_id=%s telegram_account_id=%s next_due_at=%s",
+            summary.community_id,
+            lease.account_id,
+            getattr(due_decision, "due_at", None),
+        )
         return
     community = await session.get(Community, summary.community_id)
     if community is None:
         return
+    LOGGER.info(
+        "Acknowledging engagement collection read state community_id=%s telegram_account_id=%s max_tg_message_id=%s",
+        summary.community_id,
+        lease.account_id,
+        summary.latest_tg_message_id,
+    )
     await collector.acknowledge_read(community, max_tg_message_id=summary.latest_tg_message_id)
     try:
         due_state.mark_read_receipt_checked(
@@ -278,7 +357,17 @@ async def _acknowledge_read_if_due(
             now=_utcnow(),
         )
     except EngagementDueStateUnavailable:
+        LOGGER.warning(
+            "Failed to mark engagement collection read acknowledgement due-state community_id=%s telegram_account_id=%s",
+            summary.community_id,
+            lease.account_id,
+        )
         return
+    LOGGER.info(
+        "Recorded engagement collection read acknowledgement community_id=%s telegram_account_id=%s",
+        summary.community_id,
+        lease.account_id,
+    )
 
 
 def _utcnow():

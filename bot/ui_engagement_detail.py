@@ -119,6 +119,7 @@ def engagement_detail_markup(
             _button("Account", ACTION_ENGAGEMENT_WIZARD, "edit", engagement_id, "account"),
             _button("Mode", ACTION_ENGAGEMENT_WIZARD, "edit", engagement_id, "mode"),
         ],
+        [_button("Archive engagement", ACTION_ENGAGEMENT_DETAIL, "del", engagement_id)],
     ])
 
     return _engagement_markup(

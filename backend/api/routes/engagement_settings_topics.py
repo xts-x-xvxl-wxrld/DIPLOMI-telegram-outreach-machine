@@ -50,6 +50,7 @@ from backend.api.schemas import (
     EngagementTargetResolveJobRequest,
     EngagementTargetUpdateRequest,
     EngagementTopicCreate,
+    EngagementTopicDeleteResponse,
     EngagementTopicExampleCreateRequest,
     EngagementTopicListResponse,
     EngagementTopicOut,
@@ -77,6 +78,7 @@ from backend.services.community_engagement import (
     create_prompt_profile,
     create_style_rule,
     create_topic,
+    delete_topic,
     duplicate_prompt_profile,
     edit_candidate_reply,
     expire_candidate,
@@ -204,6 +206,27 @@ async def patch_engagement_topic(
 
     await db.commit()
     return EngagementTopicOut.model_validate(topic)
+
+
+@router.delete(
+    "/engagement/topics/{topic_id}",
+    response_model=EngagementTopicDeleteResponse,
+    dependencies=[Depends(require_engagement_admin_capability)],
+)
+async def delete_engagement_topic(
+    topic_id: UUID,
+    db: DbSession,
+) -> EngagementTopicDeleteResponse:
+    try:
+        result = await delete_topic(db, topic_id=topic_id)
+    except EngagementServiceError as exc:
+        raise _http_error(exc) from exc
+    await db.commit()
+    return EngagementTopicDeleteResponse(
+        result=result.result,
+        message=result.message,
+        code=result.code,
+    )
 
 
 @router.post(

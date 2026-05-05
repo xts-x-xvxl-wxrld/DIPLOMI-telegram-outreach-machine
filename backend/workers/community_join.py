@@ -124,6 +124,16 @@ async def process_community_join(
                 settings_account_id=settings.assigned_account_id,
                 community_id=validated_payload.community_id,
             )
+            LOGGER.info(
+                "Resolved preferred account for community join",
+                extra={
+                    "job_id": job_id,
+                    "community_id": str(validated_payload.community_id),
+                    "preferred_account_id": None
+                    if preferred_account_id is None
+                    else str(preferred_account_id),
+                },
+            )
             if preferred_account_id is None:
                 lease = await acquire_account_fn(
                     session,
@@ -175,9 +185,18 @@ async def process_community_join(
                 },
             )
             if result.status in {"joined", "already_joined"}:
-                await adapter.read_recent_messages_after_join(
+                messages_read = await adapter.read_recent_messages_after_join(
                     session_file_path=lease.session_file_path,
                     community=community,
+                )
+                LOGGER.info(
+                    "Read recent messages after join",
+                    extra={
+                        "job_id": job_id,
+                        "community_id": str(validated_payload.community_id),
+                        "telegram_account_id": str(lease.account_id),
+                        "messages_read": messages_read,
+                    },
                 )
             await _record_join_result(
                 session,
@@ -188,10 +207,20 @@ async def process_community_join(
             )
             await session.commit()
             if result.status in {"joined", "already_joined"}:
-                enqueue_collection_fn(
+                collection_job = enqueue_collection_fn(
                     validated_payload.community_id,
                     reason="manual",
                     requested_by=validated_payload.requested_by,
+                )
+                LOGGER.info(
+                    "Enqueued follow-up collection after community join",
+                    extra={
+                        "job_id": job_id,
+                        "community_id": str(validated_payload.community_id),
+                        "telegram_account_id": str(lease.account_id),
+                        "collection_job_id": getattr(collection_job, "id", None),
+                        "collection_job_status": getattr(collection_job, "status", None),
+                    },
                 )
         except EngagementAccountRateLimited as exc:
             LOGGER.warning(

@@ -56,9 +56,11 @@ After an engagement account joins a community:
 
 - Read the latest 3-5 visible messages once.
 - Mark that initial batch as read when Telegram allows it.
-- Start an acclimation window before detection or sending is allowed.
+- Start an acclimation window before sending is allowed.
 - During the window, passively read newly arriving messages on jittered intervals.
 - Cap warmup read checks so the account does not mark every poll as read.
+- Detection may still draft reply opportunities during the window so operators
+  can review them before public posting is eligible.
 
 Initial defaults:
 
@@ -70,8 +72,9 @@ warmup_read_interval_max_minutes = 15
 warmup_read_checks_max = 5
 ```
 
-Detection and sending must ignore communities whose selected engagement membership is still inside
-the post-join acclimation window.
+Sending must ignore communities whose selected engagement membership is still
+inside the post-join acclimation window. Detection may continue creating drafts
+for review during that window.
 
 ## Jittered Community Collection
 

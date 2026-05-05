@@ -14,7 +14,6 @@ from backend.services.community_engagement_candidates import (
     normalize_moment_strength,
     normalize_reply_value,
 )
-from backend.services.engagement_account_behavior import post_join_warmup_skip_reason
 
 
 async def process_engagement_detect(
@@ -35,6 +34,8 @@ async def process_engagement_detect(
     context_loader = context_loader or load_community_context
     allow_stale_candidates = _is_manual_detect_request(validated_payload)
     reply_deadline_minutes = _reply_deadline_minutes(runtime_settings)
+    job_id = _current_job_id() or f"engagement.detect:{validated_payload.community_id}"
+    LOGGER.info("Starting engagement detect job_id=%s community_id=%s collection_run_id=%s window_minutes=%s allow_stale_candidates=%s", job_id, validated_payload.community_id, validated_payload.collection_run_id, validated_payload.window_minutes, allow_stale_candidates)
 
     async with session_factory() as session:
         try:
@@ -62,13 +63,11 @@ async def process_engagement_detect(
             )
             if membership is None:
                 return _skipped("no_joined_engagement_membership", validated_payload.community_id)
-            warmup_skip_reason = post_join_warmup_skip_reason(joined_at=membership.joined_at)
-            if warmup_skip_reason is not None:
-                return _skipped(warmup_skip_reason, validated_payload.community_id)
 
             topics = await active_topics_fn(session)
             if not topics:
                 return _skipped("no_active_topics", validated_payload.community_id)
+            LOGGER.info("Loaded engagement topics job_id=%s community_id=%s topic_count=%s", job_id, validated_payload.community_id, len(topics))
 
             messages = await sample_loader(
                 session,
@@ -85,6 +84,7 @@ async def process_engagement_detect(
             )
             if not eligible_messages:
                 return _skipped("no_trigger_opportunities", validated_payload.community_id)
+            LOGGER.info("Prepared engagement detect samples job_id=%s community_id=%s sampled_messages=%s eligible_messages=%s reply_only=%s", job_id, validated_payload.community_id, len(messages), len(eligible_messages), engagement_settings.reply_only)
 
             community_context = await context_loader(session, community=community)
             prompt_selection = await select_active_prompt_profile(session)
@@ -111,6 +111,7 @@ async def process_engagement_detect(
                     semantic_selector=semantic_selector,
                     semantic_observability=summary.semantic_observability,
                 )
+                LOGGER.info("Evaluated engagement topic job_id=%s community_id=%s topic_id=%s topic_messages=%s trigger_candidates=%s skipped_duplicates=%s", job_id, validated_payload.community_id, topic.id, len(topic_messages), len(trigger_candidates), skipped_duplicates)
                 if not trigger_candidates:
                     summary.skipped_no_signal += 1
                     continue
@@ -119,6 +120,7 @@ async def process_engagement_detect(
                     if summary.detector_calls >= runtime_settings.engagement_max_detector_calls_per_run:
                         summary.skipped_detector_cap += 1
                         detector_cap_reached = True
+                        LOGGER.info("Detector cap reached job_id=%s community_id=%s topic_id=%s detector_calls=%s max_calls=%s", job_id, validated_payload.community_id, topic.id, summary.detector_calls, runtime_settings.engagement_max_detector_calls_per_run)
                         break
                     source_message = trigger_candidate.message
 
@@ -149,7 +151,9 @@ async def process_engagement_detect(
                         decision = EngagementDetectionDecision.model_validate(decision)
                     except ValidationError:
                         summary.skipped_validation += 1
+                        LOGGER.info("Detector output failed validation job_id=%s community_id=%s topic_id=%s source_tg_message_id=%s", job_id, validated_payload.community_id, topic.id, source_message.tg_message_id)
                         continue
+                    LOGGER.info("Detector returned decision job_id=%s community_id=%s topic_id=%s source_tg_message_id=%s should_engage=%s has_reply=%s", job_id, validated_payload.community_id, topic.id, source_message.tg_message_id, decision.should_engage, bool(decision.suggested_reply))
                     if not decision.should_engage:
                         summary.skipped_no_signal += 1
                         continue
@@ -182,6 +186,7 @@ async def process_engagement_detect(
                         and not allow_stale_candidates
                     ):
                         summary.skipped_stale += 1
+                        LOGGER.info("Skipping stale engagement candidate job_id=%s community_id=%s topic_id=%s source_tg_message_id=%s", job_id, validated_payload.community_id, topic.id, source_message.tg_message_id)
                         continue
                     try:
                         moment_strength = normalize_moment_strength(decision.moment_strength)
@@ -191,6 +196,7 @@ async def process_engagement_detect(
                         )
                     except EngagementValidationError:
                         summary.skipped_validation += 1
+                        LOGGER.info("Normalized detector output failed validation job_id=%s community_id=%s topic_id=%s source_tg_message_id=%s", job_id, validated_payload.community_id, topic.id, source_message.tg_message_id)
                         continue
                     model_output = decision.model_dump(mode="json", exclude_none=True)
                     model_output["moment_strength"] = moment_strength
@@ -227,6 +233,7 @@ async def process_engagement_detect(
                         )
                     except EngagementValidationError:
                         summary.skipped_validation += 1
+                        LOGGER.info("Candidate creation validation failed job_id=%s community_id=%s topic_id=%s source_tg_message_id=%s", job_id, validated_payload.community_id, topic.id, source_message.tg_message_id)
                         continue
 
                     if creation.created:
@@ -235,6 +242,7 @@ async def process_engagement_detect(
                             summary.semantic_candidates_created += 1
                     else:
                         summary.skipped_dedupe += 1
+                    LOGGER.info("Candidate creation result job_id=%s community_id=%s topic_id=%s source_tg_message_id=%s created=%s semantic_match=%s", job_id, validated_payload.community_id, topic.id, source_message.tg_message_id, creation.created, trigger_candidate.semantic_match is not None)
 
                 if detector_cap_reached:
                     break
@@ -502,6 +510,7 @@ def _semantic_match_for_storage(match: SemanticTriggerMatch | None) -> dict[str,
 
 
 def _skipped(reason: str, community_id: object) -> dict[str, object]:
+    LOGGER.info("Skipping engagement detect community_id=%s reason=%s", community_id, reason)
     return {
         "status": "skipped",
         "job_type": "engagement.detect",

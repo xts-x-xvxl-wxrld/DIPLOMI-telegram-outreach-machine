@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,6 +11,8 @@ from backend.core.settings import Settings, get_settings
 from backend.db.models import Community
 from backend.services.engagement_account_behavior import INITIAL_JOIN_READ_LIMIT
 from backend.workers.account_manager import AccountLease
+
+LOGGER = logging.getLogger(__name__)
 
 
 class EngagementAccountRateLimited(RuntimeError):
@@ -120,6 +123,12 @@ class TelethonTelegramEngagementAdapter:
         session_file_path: str,
         community: Community,
     ) -> JoinResult:
+        LOGGER.info(
+            "Telethon engagement join starting community_id=%s target=%s telegram_account_id=%s",
+            community.id,
+            _community_target(community),
+            _lease_account_id(self.lease),
+        )
         client = await self._get_client(session_file_path)
         target = _community_target(community)
         if target is None:
@@ -143,7 +152,15 @@ class TelethonTelegramEngagementAdapter:
         except Exception as exc:
             return _classify_telethon_join_exception(exc)
 
-        return JoinResult(status="joined", joined_at=_utcnow())
+        result = JoinResult(status="joined", joined_at=_utcnow())
+        LOGGER.info(
+            "Telethon engagement join finished community_id=%s target=%s status=%s telegram_account_id=%s",
+            community.id,
+            target,
+            result.status,
+            _lease_account_id(self.lease),
+        )
+        return result
 
     async def send_public_reply(
         self,
@@ -153,6 +170,14 @@ class TelethonTelegramEngagementAdapter:
         reply_to_tg_message_id: int,
         text: str,
     ) -> SendResult:
+        LOGGER.info(
+            "Telethon engagement send starting community_id=%s target=%s reply_to_tg_message_id=%s text_len=%s telegram_account_id=%s",
+            community.id,
+            _community_target(community),
+            reply_to_tg_message_id,
+            len(text),
+            _lease_account_id(self.lease),
+        )
         client = await self._get_client(session_file_path)
         entity = await _resolve_send_entity(client, community)
 
@@ -180,7 +205,14 @@ class TelethonTelegramEngagementAdapter:
             sent_at = _utcnow()
         elif sent_at.tzinfo is None:
             sent_at = sent_at.replace(tzinfo=timezone.utc)
-        return SendResult(sent_tg_message_id=int(sent_id), sent_at=sent_at)
+        result = SendResult(sent_tg_message_id=int(sent_id), sent_at=sent_at)
+        LOGGER.info(
+            "Telethon engagement send finished community_id=%s sent_tg_message_id=%s telegram_account_id=%s",
+            community.id,
+            result.sent_tg_message_id,
+            _lease_account_id(self.lease),
+        )
+        return result
 
     async def verify_reply_source(
         self,
@@ -189,6 +221,13 @@ class TelethonTelegramEngagementAdapter:
         community: Community,
         reply_to_tg_message_id: int,
     ) -> SourceMessagePreflight:
+        LOGGER.info(
+            "Telethon engagement verify source community_id=%s target=%s reply_to_tg_message_id=%s telegram_account_id=%s",
+            community.id,
+            _community_target(community),
+            reply_to_tg_message_id,
+            _lease_account_id(self.lease),
+        )
         client = await self._get_client(session_file_path)
         entity = await _resolve_send_entity(client, community)
         try:
@@ -202,7 +241,14 @@ class TelethonTelegramEngagementAdapter:
             raise EngagementMessageNotReplyable("Source message is no longer accessible")
         if getattr(message, "action", None) is not None:
             raise EngagementMessageNotReplyable("Source message is not replyable")
-        return SourceMessagePreflight(source_tg_message_id=int(reply_to_tg_message_id))
+        result = SourceMessagePreflight(source_tg_message_id=int(reply_to_tg_message_id))
+        LOGGER.info(
+            "Telethon engagement verified source community_id=%s reply_to_tg_message_id=%s telegram_account_id=%s",
+            community.id,
+            reply_to_tg_message_id,
+            _lease_account_id(self.lease),
+        )
+        return result
 
     async def read_recent_messages_after_join(
         self,
@@ -213,6 +259,13 @@ class TelethonTelegramEngagementAdapter:
     ) -> int:
         if limit <= 0:
             return 0
+        LOGGER.info(
+            "Telethon engagement post-join read starting community_id=%s target=%s limit=%s telegram_account_id=%s",
+            community.id,
+            _community_target(community),
+            limit,
+            _lease_account_id(self.lease),
+        )
         client = await self._get_client(session_file_path)
         entity = await _resolve_send_entity(client, community)
         try:
@@ -224,7 +277,14 @@ class TelethonTelegramEngagementAdapter:
             if messages:
                 max_id = max(int(message.id) for message in messages)
                 await _mark_entity_read(client, entity, max_id=max_id)
-            return len(messages)
+            count = len(messages)
+            LOGGER.info(
+                "Telethon engagement post-join read finished community_id=%s messages_read=%s telegram_account_id=%s",
+                community.id,
+                count,
+                _lease_account_id(self.lease),
+            )
+            return count
         except Exception:
             return 0
 
@@ -234,6 +294,11 @@ class TelethonTelegramEngagementAdapter:
         session_file_path: str,
         joined_communities: list[Community] | None = None,
     ) -> None:
+        LOGGER.info(
+            "Telethon engagement account health starting telegram_account_id=%s joined_communities=%s",
+            _lease_account_id(self.lease),
+            len(joined_communities or []),
+        )
         client = await self._get_client(session_file_path)
         try:
             identity = await client.get_me()
@@ -244,6 +309,11 @@ class TelethonTelegramEngagementAdapter:
 
         for community in joined_communities or []:
             await _spot_check_joined_community(client, community)
+        LOGGER.info(
+            "Telethon engagement account health finished telegram_account_id=%s joined_communities=%s",
+            _lease_account_id(self.lease),
+            len(joined_communities or []),
+        )
 
     async def aclose(self) -> None:
         if self._client is not None:
@@ -265,6 +335,11 @@ class TelethonTelegramEngagementAdapter:
             raise TelegramEngagementError("TELEGRAM_API_ID and TELEGRAM_API_HASH are required")
 
         session_path = _session_path(session_file_path, self.settings.sessions_dir)
+        LOGGER.info(
+            "Connecting Telethon engagement client session_path=%s telegram_account_id=%s",
+            session_path,
+            _lease_account_id(self.lease),
+        )
         self._client = TelegramClient(
             str(session_path),
             int(self.settings.telegram_api_id),
@@ -273,6 +348,11 @@ class TelethonTelegramEngagementAdapter:
         await self._client.connect()
         if not await self._client.is_user_authorized():
             raise EngagementAccountBanned("Telegram session is not authorized")
+        LOGGER.info(
+            "Connected Telethon engagement client session_path=%s telegram_account_id=%s",
+            session_path,
+            _lease_account_id(self.lease),
+        )
         return self._client
 
 
@@ -347,6 +427,12 @@ def _community_target(community: Community) -> str | int | None:
     if community.tg_id:
         return int(community.tg_id)
     return None
+
+
+def _lease_account_id(lease: AccountLease | None) -> object | None:
+    if lease is None:
+        return None
+    return lease.account_id
 
 
 async def _spot_check_joined_community(client: Any, community: Community) -> None:

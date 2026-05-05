@@ -2407,3 +2407,61 @@ while preserving the staged testing contract.
   successful join or already-joined confirmation for the same reason.
 - Updated the active engagement API/queue specs and focused wizard/join worker
   tests to match the new collection-first startup path.
+
+## [2026-05-04] feat | Add Docker-visible engagement runtime debug checkpoints
+
+- Enabled INFO-level worker bootstrap logging in
+  `backend/workers/runner.py` and aligned scheduler startup logging so local
+  Docker stdout surfaces engagement worker checkpoints instead of only status
+  summaries and exceptions.
+- Added targeted engagement runtime logs across scheduler, collection, join,
+  detect, send, and Telethon adapter seams to expose per-community skip
+  reasons, account selection, trigger counts, detector outcomes, follow-up job
+  enqueue results, and send preflight/send completion without dumping large raw
+  message or reply bodies.
+- Added `wiki/plan/engagement-live-docker-debug-logging.md` plus observability
+  spec/index updates so the new local live-test logging contract is documented.
+- Validation: `ruff check .` and `pytest -q` passed.
+- Validation blocker: `python scripts/check_fragmentation.py` still fails on the
+  pre-existing oversized plan `wiki/plan/engagement-backend-strangler-refactor.md`.
+- Validation blocker: `docker build .` could not run because the Docker Desktop
+  Linux engine named pipe `//./pipe/dockerDesktopLinuxEngine` was unavailable on
+  this machine at validation time, although `docker compose -f docker-compose.yml -f docker-compose.dev.yml config`
+  resolved successfully.
+
+## [2026-05-04] fix | Allow engagement drafts during post-join warmup
+
+- Removed the post-join warmup skip from `backend/workers/engagement_detect_process.py` after
+  live Docker logs showed new inbound test messages were collected and detect jobs were queued, but
+  draft creation was still blocked by `post_join_warmup_active`.
+- Kept warmup enforcement on `engagement.send` so managed accounts still cannot post publicly until
+  the acclimation window ends.
+- Replaced the detect warmup regression with a draft-creation regression in
+  `tests/test_engagement_detect_worker.py` and updated the related spec/plan docs to describe the
+  new "draft now, send later" behavior.
+
+## [2026-05-05] feat | Add archive-first deletion for engagements and topics
+
+- Added task-first engagement deletion so draft-only engagements with no runtime history are
+  physically removed, while active or historical engagements are archived and their target
+  permissions are shut off safely.
+- Reopening an archived task-first engagement target now revives the archived row as a fresh draft
+  instead of leaving the operator stuck behind the archived target state.
+- Added topic deletion so active topic assignments are blocked, historical topics are archived by
+  deactivating them, and fully unreferenced topics can be removed cleanly.
+- Wired the new delete actions into the bot detail/topic admin surfaces and documented the lifecycle
+  in the active engagement API, DB, bot, and plan docs.
+- Added regression coverage in `tests/test_engagement_deletion_api.py` plus bot/task-first client
+  and detail-handler tests for the new delete flows.
+- Validation: `ruff check .` and `pytest -q` passed.
+- Validation blocker: `python scripts/check_fragmentation.py` still fails on the pre-existing
+  oversized plan `wiki/plan/engagement-backend-strangler-refactor.md`.
+
+## [2026-05-06] fix | Show archive action in task-first engagement detail
+
+- Investigated the task-first `My engagements` detail action after the archive-first deletion work
+  and confirmed the callback already hit the archive-capable delete API path.
+- Updated the detail button copy from `Delete engagement` to `Archive engagement` so the visible
+  action now matches the active engagement behavior operators actually get from the backend.
+- Refreshed the active cockpit spec and the detail-markup regression to keep the archive label from
+  drifting back out of sync.

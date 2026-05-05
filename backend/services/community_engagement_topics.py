@@ -33,6 +33,7 @@ from backend.db.models import (
     Community,
     CommunityAccountMembership,
     CommunityEngagementSettings,
+    Engagement,
     EngagementAction,
     EngagementCandidate,
     EngagementCandidateRevision,
@@ -41,6 +42,7 @@ from backend.db.models import (
     EngagementStyleRule,
     EngagementTarget,
     EngagementTopic,
+    EngagementTopicEmbedding,
     TelegramAccount,
 )
 from backend.services.seed_import import normalize_telegram_seed
@@ -259,6 +261,63 @@ async def remove_topic_example(
     return topic
 
 
+@dataclass(frozen=True)
+class EngagementTopicDeleteResult:
+    result: str
+    message: str
+    code: str | None = None
+
+
+async def delete_topic(db: AsyncSession, *, topic_id: UUID) -> EngagementTopicDeleteResult:
+    topic = await db.get(EngagementTopic, topic_id)
+    if topic is None:
+        raise EngagementNotFound("not_found", "Engagement topic not found")
+
+    engagement_rows = await db.scalars(select(Engagement).where(Engagement.topic_id == topic_id))
+    linked_engagements = [engagement for engagement in engagement_rows if engagement.topic_id == topic_id]
+    live_engagements = [
+        engagement
+        for engagement in linked_engagements
+        if engagement.status != "archived"
+    ]
+    if live_engagements:
+        raise EngagementConflict(
+            "topic_in_use",
+            "This topic is still assigned to an active engagement.",
+        )
+
+    candidate_rows = await db.scalars(select(EngagementCandidate).where(EngagementCandidate.topic_id == topic_id))
+    linked_candidates = [candidate for candidate in candidate_rows if candidate.topic_id == topic_id]
+
+    if linked_engagements or linked_candidates:
+        topic.active = False
+        topic.updated_at = _utcnow()
+        await db.flush()
+        return EngagementTopicDeleteResult(
+            result="archived",
+            message="Topic archived because it has historical engagement records.",
+        )
+
+    style_rule_rows = await db.scalars(select(EngagementStyleRule).where(EngagementStyleRule.scope_id == topic_id))
+    topic_style_rules = [
+        rule
+        for rule in style_rule_rows
+        if rule.scope_type == EngagementStyleRuleScope.TOPIC.value and rule.scope_id == topic_id
+    ]
+    embedding_rows = await db.scalars(
+        select(EngagementTopicEmbedding).where(EngagementTopicEmbedding.topic_id == topic_id)
+    )
+    topic_embeddings = [embedding for embedding in embedding_rows if embedding.topic_id == topic_id]
+
+    for rule in topic_style_rules:
+        await db.delete(rule)
+    for embedding in topic_embeddings:
+        await db.delete(embedding)
+    await db.delete(topic)
+    await db.flush()
+    return EngagementTopicDeleteResult(result="deleted", message="Topic deleted.")
+
+
 def normalize_keywords(values: list[str] | None) -> list[str]:
     normalized: list[str] = []
     seen: set[str] = set()
@@ -357,6 +416,8 @@ __all__ = [
     "get_topic",
     "add_topic_example",
     "remove_topic_example",
+    "EngagementTopicDeleteResult",
+    "delete_topic",
     "normalize_keywords",
     "normalize_text_list",
     "validate_topic_policy",

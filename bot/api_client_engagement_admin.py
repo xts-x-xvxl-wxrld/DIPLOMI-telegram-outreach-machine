@@ -18,6 +18,18 @@ class EngagementAdminApiClientMixin:
     ) -> dict[str, Any]:
         return await self._request("GET", f"/engagement/topics/{topic_id}")
 
+    async def delete_engagement_topic(
+        self: _EngagementAdminRequestClient,
+        topic_id: str,
+        *,
+        operator_user_id: int | None = None,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "DELETE",
+            f"/engagement/topics/{topic_id}",
+            operator_user_id=operator_user_id,
+        )
+
     async def create_engagement_topic(
         self: _EngagementAdminRequestClient,
         *,
@@ -325,6 +337,15 @@ class EngagementAdminApiClientMixin:
             "POST",
             f"/engagements/{engagement_id}/wizard-retry",
             json={},
+        )
+
+    async def delete_engagement(
+        self: _EngagementAdminRequestClient,
+        engagement_id: str,
+    ) -> dict[str, Any]:
+        return await self._request(
+            "DELETE",
+            f"/engagements/{engagement_id}",
         )
 
 

@@ -150,6 +150,23 @@ async def handle_engagement_resume(update: Any, context: Any, *, engagement_id: 
     await _edit_or_reply(update, text, reply_markup=markup)
 
 
+async def delete_engagement(update: Any, context: Any, *, engagement_id: str) -> None:
+    client = _get_client(context)
+    try:
+        payload = await client.delete_engagement(engagement_id)
+    except BotApiError as exc:
+        await _edit_or_reply(update, f"Couldn't delete engagement: {exc.message}")
+        return
+
+    query = getattr(update, "callback_query", None)
+    if query is not None:
+        try:
+            await query.answer(str(payload.get("message") or "Engagement deleted."))
+        except Exception:
+            pass
+    await show_engagement_list(update, context, offset=0)
+
+
 async def show_sent_messages(update: Any, context: Any, *, offset: int = 0) -> None:
     client = _get_client(context)
     try:

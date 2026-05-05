@@ -97,6 +97,7 @@ __all__ = [
     "_send_engagement_topics",
     "_send_engagement_topic",
     "_toggle_engagement_topic",
+    "_delete_engagement_topic",
     "_remove_topic_example",
     "_update_topic_keywords",
     "_start_engagement_wizard",

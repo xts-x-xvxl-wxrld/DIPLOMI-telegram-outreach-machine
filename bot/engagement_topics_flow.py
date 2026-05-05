@@ -306,6 +306,25 @@ async def _toggle_engagement_topic(
     await _reply(update, message, reply_markup=reply_markup)
 
 
+async def _delete_engagement_topic(
+    update: Any,
+    context: Any,
+    topic_id: str,
+) -> None:
+    client = _api_client(context)
+    data = await client.delete_engagement_topic(
+        topic_id,
+        operator_user_id=_telegram_user_id(update),
+    )
+    query = getattr(update, "callback_query", None)
+    if query is not None:
+        try:
+            await query.answer(str(data.get("message") or "Topic deleted."))
+        except Exception:
+            pass
+    await _send_engagement_topics(update, context, offset=0)
+
+
 async def _remove_topic_example(
     update: Any,
     context: Any,
@@ -369,6 +388,7 @@ __all__ = [
     "_send_engagement_topics",
     "_send_engagement_topic",
     "_toggle_engagement_topic",
+    "_delete_engagement_topic",
     "_remove_topic_example",
     "_update_topic_keywords",
 ]

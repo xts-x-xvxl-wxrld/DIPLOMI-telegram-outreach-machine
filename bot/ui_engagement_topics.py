@@ -6,6 +6,7 @@ from .ui_common import (
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_TOPIC_BRIEF,
     ACTION_ENGAGEMENT_TOPIC_CREATE,
+    ACTION_ENGAGEMENT_TOPIC_DELETE,
     ACTION_ENGAGEMENT_TOPIC_EDIT,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD,
     ACTION_ENGAGEMENT_TOPIC_EXAMPLE_REMOVE,
@@ -84,6 +85,7 @@ def engagement_topic_actions_markup(
                         topic_id,
                         "0" if active else "1",
                     ),
+                    _button("Delete topic", ACTION_ENGAGEMENT_TOPIC_DELETE, topic_id),
                 ],
                 [
                     _button("Add good example", ACTION_ENGAGEMENT_TOPIC_EXAMPLE_ADD, topic_id, "g"),

@@ -33,6 +33,7 @@ async def test_engagement_wizard_methods_use_task_first_routes() -> None:
     )
     await client.wizard_confirm_engagement("eng-1", requested_by="telegram:123")
     await client.wizard_retry_engagement("eng-1")
+    await client.delete_engagement("eng-1")
     await client.aclose()
 
     assert seen == [
@@ -57,4 +58,5 @@ async def test_engagement_wizard_methods_use_task_first_routes() -> None:
             {"requested_by": "telegram:123"},
         ),
         ("POST", "/api/engagements/eng-1/wizard-retry", {}),
+        ("DELETE", "/api/engagements/eng-1", None),
     ]
