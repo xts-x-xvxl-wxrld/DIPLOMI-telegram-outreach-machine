@@ -353,6 +353,48 @@ async def test_collection_worker_does_not_mark_due_state_when_read_ack_fails() -
     assert due_state.marked == []
 
 
+@pytest.mark.asyncio
+async def test_collection_worker_bypasses_read_ack_jitter_for_test_group() -> None:
+    community_id = uuid4()
+    account_id = uuid4()
+    session = CollectionSession(
+        community=_community(community_id, store_messages=False, username="tgoutreachtest"),
+        settings=_settings(community_id, assigned_account_id=account_id),
+        target=_target(community_id),
+    )
+    collector = FakeCollector([_message(404, "Need CRM advice", sender_id=804)])
+    due_state = ReadDueState(due=False)
+
+    async def acquire_account_by_id(*_args: object, **_kwargs: object) -> AccountLease:
+        return AccountLease(
+            account_id=account_id,
+            phone="+10000000000",
+            session_file_path="session",
+            lease_owner="test",
+            lease_expires_at=datetime.now(timezone.utc),
+        )
+
+    result = await process_collection(
+        {
+            "community_id": str(community_id),
+            "reason": "engagement",
+            "requested_by": "operator",
+            "window_days": 90,
+        },
+        session_factory=lambda: session,
+        acquire_account_by_id_fn=acquire_account_by_id,
+        collector_factory=lambda _lease: collector,
+        due_state=due_state,
+        enqueue_detect_fn=lambda *_args, **_kwargs: SimpleNamespace(id="detect", status="queued"),
+        settings=SimpleNamespace(engagement_detection_window_minutes=10),  # type: ignore[arg-type]
+    )
+
+    assert result["status"] == CollectionRunStatus.COMPLETED.value
+    assert collector.read_acks == [{"community_id": community_id, "max_tg_message_id": 404}]
+    assert due_state.checked == []
+    assert due_state.marked == []
+
+
 class FakeCollector:
     def __init__(self, messages: list[TelegramCollectedMessage], *, ack_succeeds: bool = True) -> None:
         self.messages = messages
@@ -386,11 +428,12 @@ class FailingCollector:
 class ReadDueState:
     def __init__(self, *, due: bool) -> None:
         self.due = due
+        self.checked: list[tuple[object, object]] = []
         self.marked: list[tuple[object, object]] = []
 
     def read_receipt_due(self, telegram_account_id: object, community_id: object, *, now: object) -> DueDecision:
-        del telegram_account_id, community_id
         assert now is not None
+        self.checked.append((telegram_account_id, community_id))
         return DueDecision(due=self.due, due_at=datetime.now(timezone.utc))
 
     def mark_read_receipt_checked(self, telegram_account_id: object, community_id: object, *, now: object) -> object:
@@ -476,11 +519,11 @@ class CollectionSession:
         self.rollbacks += 1
 
 
-def _community(community_id: object, *, store_messages: bool) -> Community:
+def _community(community_id: object, *, store_messages: bool, username: str = "example") -> Community:
     return Community(
         id=community_id,
         tg_id=100,
-        username="example",
+        username=username,
         title="Example Group",
         is_group=True,
         status=CommunityStatus.MONITORING.value,

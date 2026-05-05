@@ -38,6 +38,7 @@ from backend.workers.account_manager import (
 from backend.workers.telegram_collection import TelethonEngagementCollector
 
 LOGGER = logging.getLogger(__name__)
+IMMEDIATE_READ_ACK_USERNAMES = frozenset({"tgoutreachtest"})
 
 
 class AsyncSessionContext(Protocol):
@@ -319,12 +320,19 @@ async def _acknowledge_read_if_due(
             summary.messages_seen,
         )
         return
+    community = await session.get(Community, summary.community_id)
+    if community is None:
+        return
+    bypass_due_state = _should_bypass_read_ack_due_state(community)
     try:
-        due_decision = due_state.read_receipt_due(
-            lease.account_id,
-            summary.community_id,
-            now=_utcnow(),
-        )
+        if bypass_due_state:
+            due_decision = DueDecision(due=True, due_at=_utcnow())
+        else:
+            due_decision = due_state.read_receipt_due(
+                lease.account_id,
+                summary.community_id,
+                now=_utcnow(),
+            )
     except EngagementDueStateUnavailable:
         LOGGER.warning(
             "Engagement collection read-ack due-state unavailable community_id=%s telegram_account_id=%s",
@@ -340,9 +348,13 @@ async def _acknowledge_read_if_due(
             getattr(due_decision, "due_at", None),
         )
         return
-    community = await session.get(Community, summary.community_id)
-    if community is None:
-        return
+    if bypass_due_state:
+        LOGGER.info(
+            "Bypassing engagement collection read-ack jitter community_id=%s telegram_account_id=%s username=%s",
+            summary.community_id,
+            lease.account_id,
+            community.username,
+        )
     LOGGER.info(
         "Acknowledging engagement collection read state community_id=%s telegram_account_id=%s max_tg_message_id=%s",
         summary.community_id,
@@ -359,6 +371,14 @@ async def _acknowledge_read_if_due(
             summary.community_id,
             lease.account_id,
             summary.latest_tg_message_id,
+        )
+        return
+    if bypass_due_state:
+        LOGGER.info(
+            "Skipping engagement collection read-ack due-state advance community_id=%s telegram_account_id=%s username=%s",
+            summary.community_id,
+            lease.account_id,
+            community.username,
         )
         return
     try:
@@ -379,6 +399,11 @@ async def _acknowledge_read_if_due(
         summary.community_id,
         lease.account_id,
     )
+
+
+def _should_bypass_read_ack_due_state(community: Community) -> bool:
+    username = (community.username or "").strip().lstrip("@").casefold()
+    return username in IMMEDIATE_READ_ACK_USERNAMES
 
 
 def _utcnow():

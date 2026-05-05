@@ -168,6 +168,8 @@ Implementation note:
 - Best-effort read acknowledgements should advance their per-account/community due-state only after
   the Telethon read call succeeds; failed acknowledgements must remain retryable on the next due
   collection.
+- The managed test group `@tgoutreachtest` bypasses the normal read-receipt jitter so app-managed
+  accounts attempt near-immediate read acknowledgements on every successful new-message collection.
 
 Default cadence for engagement collection should be shorter than analysis collection. The current
 target is every 3 minutes for engagement-enabled communities, with the engagement scheduler acting

@@ -2476,3 +2476,12 @@ while preserving the staged testing contract.
   real successful Telegram acknowledgement.
 - Added a focused collection-worker regression that proves failed read acknowledgements no longer
   poison the retry cadence.
+
+## [2026-05-06] fix | Bypass read-ack jitter for the managed test group
+
+- Scoped the collection worker so the managed test group `@tgoutreachtest` bypasses the normal
+  per-chat read-receipt jitter and tries a Telegram read acknowledgement on every successful
+  collection that sees new messages.
+- Left the existing read cadence unchanged for all other engagement communities.
+- Added a focused collection-worker regression that proves `@tgoutreachtest` skips the due-state
+  gate and due-state advance while still issuing the read acknowledgement.
