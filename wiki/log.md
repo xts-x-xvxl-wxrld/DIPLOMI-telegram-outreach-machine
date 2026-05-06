@@ -2563,3 +2563,15 @@ while preserving the staged testing contract.
 - Added the two remaining optional cleanup items explicitly to the same plan:
   cockpit detail visibility tightening for hidden engagements and reducing the
   legacy settings fallback truth-split risk.
+
+## [2026-05-06] fix | Force-recreate app runtimes during VPS deploy
+
+- Tightened `scripts/vps-deploy.sh` so staging deploys now force-recreate the
+  `api`, `worker`, `scheduler`, and `bot` containers after migrations instead
+  of relying on Compose's default reuse decision for unchanged-looking service
+  definitions.
+- Updated the deployment spec and scheduler mismatch plan to record that the
+  repo-side startup path now explicitly replaces stale app runtimes, while the
+  actual staging host still needs a fresh deploy run to apply it.
+- Extended the deploy-script regression to assert both the scheduler rebuild
+  step and the force-recreate app-service restart command.

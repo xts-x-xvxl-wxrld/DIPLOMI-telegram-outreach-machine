@@ -163,6 +163,10 @@ still needs a separate follow-up investigation.
 4. Next runtime check:
    - completed enough to identify stale runtime code from the live log string
 5. Next fix step:
+   - completed in repo scripts: staging deploys now force-recreate the
+     `api`, `worker`, `scheduler`, and `bot` containers after rebuild/migrate
+     so stale app runtimes cannot survive a deploy because Compose reused an
+     unchanged-looking service definition
    - rebuild/restart the staging scheduler so it runs the current image/code,
      then re-check detection and collection scheduler logs
    - if zero-target logs persist after that restart, inspect the scheduler
@@ -184,8 +188,8 @@ collection/detect when its target and settings allow it.
 
 ## Remaining Follow-Up
 
-- Staging still needs a fresh deploy/restart to actually pick up the rebuilt
-  scheduler image.
+- Staging still needs an actual deploy run so the force-recreate startup path
+  can replace the currently stale scheduler container.
 - Optional cleanup after the shipped fix:
   - tighten cockpit detail visibility so hidden engagements do not stay
     directly openable by ID

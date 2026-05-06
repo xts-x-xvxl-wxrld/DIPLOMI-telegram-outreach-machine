@@ -108,7 +108,7 @@ for attempt in $(seq 1 30); do
 done
 
 docker compose run --rm api alembic upgrade head
-docker compose up -d --remove-orphans
+docker compose up -d --remove-orphans --force-recreate api worker scheduler bot
 docker compose ps
 
 api_port="$(docker compose port api 8000 2>/dev/null | tail -n 1 | awk -F: '{print $NF}')"

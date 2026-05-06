@@ -31,10 +31,11 @@ def test_settings_default_engagement_collection_interval_is_three_minutes() -> N
     assert settings.engagement_active_collection_interval_seconds == 180
 
 
-def test_vps_deploy_script_rebuilds_scheduler() -> None:
+def test_vps_deploy_script_rebuilds_and_force_recreates_app_services() -> None:
     script = (Path(__file__).resolve().parents[1] / "scripts" / "vps-deploy.sh").read_text()
 
     assert "docker compose build api worker scheduler bot" in script
+    assert "docker compose up -d --remove-orphans --force-recreate api worker scheduler bot" in script
 
 
 @pytest.mark.asyncio

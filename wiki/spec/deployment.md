@@ -94,10 +94,12 @@ The deployment process:
 9. Starts Postgres and Redis.
 10. Waits for Postgres readiness.
 11. Runs `alembic upgrade head` inside the API container.
-12. Runs `docker compose up -d --remove-orphans`.
+12. Runs `docker compose up -d --remove-orphans --force-recreate api worker scheduler bot`.
 
 This makes the source tree deterministic while preserving server-only secrets and Docker volume
-mount directories.
+mount directories. App containers are force-recreated on every deploy so scheduler, worker, API,
+and bot processes cannot keep running an older image just because Docker Compose considered their
+service definition unchanged.
 
 Manual deploys use the same script through the environment wrapper:
 
