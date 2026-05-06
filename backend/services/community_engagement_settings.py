@@ -87,6 +87,10 @@ _ALLOWED_PROMPT_VARIABLES = {
     "community_context.latest_summary",
     "community_context.dominant_themes",
 }
+TASK_FIRST_RUNTIME_ENGAGEMENT_STATUSES = (
+    EngagementStatus.ACTIVE.value,
+    EngagementStatus.PAUSED.value,
+)
 
 async def get_engagement_settings(
     db: AsyncSession,
@@ -283,7 +287,7 @@ async def _get_active_task_first_settings(
         .join(Engagement, EngagementSettings.engagement_id == Engagement.id)
         .where(
             Engagement.community_id == community_id,
-            Engagement.status == EngagementStatus.ACTIVE.value,
+            Engagement.status.in_(TASK_FIRST_RUNTIME_ENGAGEMENT_STATUSES),
         )
         .order_by(Engagement.updated_at.desc(), Engagement.created_at.desc())
         .limit(1)
@@ -418,6 +422,7 @@ def _enum_value(value: Any) -> str:
     return getattr(value, "value", value)
 
 __all__ = [
+    "TASK_FIRST_RUNTIME_ENGAGEMENT_STATUSES",
     "get_engagement_settings",
     "upsert_engagement_settings",
     "mark_join_requested",

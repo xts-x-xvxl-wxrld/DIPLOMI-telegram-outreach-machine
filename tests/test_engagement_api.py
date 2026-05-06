@@ -226,6 +226,7 @@ async def test_get_engagement_settings_prefers_active_task_first_settings() -> N
 
     assert response.mode == EngagementMode.SUGGEST.value
     assert response.assigned_account_id == account_id
+
 @pytest.mark.asyncio
 async def test_put_engagement_settings_forces_disabled_to_read_only() -> None:
     community_id = uuid4()

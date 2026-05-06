@@ -2540,3 +2540,18 @@ while preserving the staged testing contract.
 - Clarified in the mismatch note that this explains the zero-target scheduler
   signal, but may still coexist with a separate read/collection-path bug if
   target communities remain unread after the scheduler runtime is refreshed.
+
+## [2026-05-06] fix | Align paused task-first runtime state and rebuild scheduler on deploy
+
+- Updated the shared task-first runtime settings lookup so `paused`
+  engagements stay visible to runtime loaders instead of silently falling back
+  to disabled legacy settings.
+- Updated the scheduler's effective community-id seed query to include
+  `paused` task-first engagements, matching the cockpit's operator-visible
+  state contract.
+- Fixed `scripts/vps-deploy.sh` to rebuild the `scheduler` service alongside
+  `api`, `worker`, and `bot`, preventing stale scheduler images from surviving
+  deploys.
+- Added regression coverage for both SQL loader predicates and for the VPS
+  deploy script, then ran `python scripts/check_fragmentation.py`,
+  `ruff check .`, and `pytest -q` successfully.

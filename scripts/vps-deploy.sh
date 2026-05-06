@@ -91,7 +91,7 @@ git clean -ffdx \
   -e postgres_data/ \
   -e redis_data/
 
-docker compose build api worker bot
+docker compose build api worker scheduler bot
 docker compose up -d postgres redis
 
 for attempt in $(seq 1 30); do

@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 from datetime import datetime, time, timedelta, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
 from backend.core.settings import Settings
 from backend.db.enums import EngagementMode
 from backend.queue.client import QueuedJob
+from backend.services.community_engagement_settings import _get_active_task_first_settings
 from backend.services.engagement_due_state import DueDecision, EngagementDueStateUnavailable
 from backend.workers.engagement_scheduler import (
     EngagementCollectionTarget,
     EngagementDetectionTarget,
+    _load_effective_settings_community_ids,
     collection_target_skip_reason,
     detection_target_skip_reason,
     is_quiet_time,
@@ -25,6 +29,12 @@ def test_settings_default_engagement_collection_interval_is_three_minutes() -> N
     settings = Settings(_env_file=None)
 
     assert settings.engagement_active_collection_interval_seconds == 180
+
+
+def test_vps_deploy_script_rebuilds_scheduler() -> None:
+    script = (Path(__file__).resolve().parents[1] / "scripts" / "vps-deploy.sh").read_text()
+
+    assert "docker compose build api worker scheduler bot" in script
 
 
 @pytest.mark.asyncio
@@ -254,6 +264,40 @@ async def test_engagement_collection_scheduler_records_enqueue_failure() -> None
 
 
 @pytest.mark.asyncio
+async def test_task_first_settings_query_keeps_paused_engagements_visible_to_runtime() -> None:
+    session = _RecordingScalarSession()
+
+    result = await _get_active_task_first_settings(session, community_id=uuid4())  # type: ignore[arg-type]
+
+    assert result is None
+    assert session.statement is not None
+    compiled = str(
+        session.statement.compile(
+            dialect=postgresql.dialect(),
+            compile_kwargs={"literal_binds": True},
+        )
+    )
+    assert "engagements.status IN ('active', 'paused')" in compiled
+
+
+@pytest.mark.asyncio
+async def test_scheduler_effective_settings_loader_keeps_paused_task_first_engagements() -> None:
+    session = _RecordingScalarsSession()
+
+    community_ids = await _load_effective_settings_community_ids(session)  # type: ignore[arg-type]
+
+    assert community_ids == []
+    assert len(session.statements) == 2
+    compiled = str(
+        session.statements[1].compile(
+            dialect=postgresql.dialect(),
+            compile_kwargs={"literal_binds": True},
+        )
+    )
+    assert "engagements.status IN ('active', 'paused')" in compiled
+
+
+@pytest.mark.asyncio
 async def test_engagement_collection_scheduler_initializes_future_due_without_enqueue() -> None:
     now = datetime(2026, 4, 19, 13, 30, tzinfo=timezone.utc)
     community_id = uuid4()
@@ -329,6 +373,24 @@ def test_quiet_hours_support_overnight_windows() -> None:
         quiet_hours_start=time(22, 0),
         quiet_hours_end=time(6, 0),
     )
+
+
+class _RecordingScalarsSession:
+    def __init__(self) -> None:
+        self.statements: list[object] = []
+
+    async def scalars(self, statement: object) -> list[object]:
+        self.statements.append(statement)
+        return []
+
+
+class _RecordingScalarSession:
+    def __init__(self) -> None:
+        self.statement: object | None = None
+
+    async def scalar(self, statement: object) -> None:
+        self.statement = statement
+        return None
 
 
 class FakeSession:

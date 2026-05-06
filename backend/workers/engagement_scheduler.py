@@ -16,7 +16,6 @@ from backend.db.enums import (
     CollectionRunStatus,
     EngagementCandidateStatus,
     EngagementMode,
-    EngagementStatus,
     EngagementTargetStatus,
 )
 from backend.db.models import (
@@ -34,7 +33,10 @@ from backend.queue.client import (
     enqueue_collection,
     enqueue_engagement_detect,
 )
-from backend.services.community_engagement import get_engagement_settings
+from backend.services.community_engagement import (
+    TASK_FIRST_RUNTIME_ENGAGEMENT_STATUSES,
+    get_engagement_settings,
+)
 from backend.services.engagement_account_behavior import ACCOUNT_HEALTH_REFRESH_HOURS
 from backend.services.engagement_due_state import (
     DueDecision,
@@ -404,7 +406,7 @@ async def _load_effective_settings_community_ids(session: AsyncSession) -> list[
             await session.scalars(
                 select(Engagement.community_id)
                 .join(EngagementSettings, EngagementSettings.engagement_id == Engagement.id)
-                .where(Engagement.status == EngagementStatus.ACTIVE.value)
+                .where(Engagement.status.in_(TASK_FIRST_RUNTIME_ENGAGEMENT_STATUSES))
             )
         )
         if community_id is not None
