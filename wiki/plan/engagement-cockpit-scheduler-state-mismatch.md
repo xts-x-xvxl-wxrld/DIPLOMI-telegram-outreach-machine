@@ -181,3 +181,13 @@ do not cover the real DB loader path from task-first confirm -> engagement row
 Align the scheduler seed path with the task-first cockpit/runtime truth so an
 engagement visible in `My engagements` is also eligible for scheduled
 collection/detect when its target and settings allow it.
+
+## Remaining Follow-Up
+
+- Staging still needs a fresh deploy/restart to actually pick up the rebuilt
+  scheduler image.
+- Optional cleanup after the shipped fix:
+  - tighten cockpit detail visibility so hidden engagements do not stay
+    directly openable by ID
+  - reduce the legacy `community_engagement_settings` fallback truth-split risk
+    when task-first engagement state exists for the same community

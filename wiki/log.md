@@ -2555,3 +2555,11 @@ while preserving the staged testing contract.
 - Added regression coverage for both SQL loader predicates and for the VPS
   deploy script, then ran `python scripts/check_fragmentation.py`,
   `ruff check .`, and `pytest -q` successfully.
+
+## [2026-05-06] docs | Record remaining scheduler mismatch follow-up
+
+- Updated the scheduler mismatch plan to note that staging still needs a fresh
+  deploy/restart before the rebuilt scheduler image can take effect.
+- Added the two remaining optional cleanup items explicitly to the same plan:
+  cockpit detail visibility tightening for hidden engagements and reducing the
+  legacy settings fallback truth-split risk.
