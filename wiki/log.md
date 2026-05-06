@@ -2502,3 +2502,41 @@ while preserving the staged testing contract.
 - Recorded the concrete engagement ID, deployment/log evidence, likely seed-path
   fault line, and the next staging DB/runtime checks needed to reconcile cockpit
   visibility with scheduler eligibility.
+
+## [2026-05-06] docs | Tighten cockpit scheduler mismatch diagnosis
+
+- Expanded the staging mismatch note with verified code findings from the live
+  cockpit and scheduler predicates instead of keeping it at a hypothesis-only
+  level.
+- Recorded the direct status-model mismatch where `My engagements` includes
+  `paused` rows but the scheduler only seeds `active` task-first engagements.
+- Added a ranked cause list, clarified the difference between collection and
+  detection zero-target logs, and documented the missing end-to-end scheduler
+  loader coverage.
+
+## [2026-05-06] docs | Record staging DB checks for scheduler mismatch
+
+- Ran the planned staging checks against Postgres and confirmed the reported
+  engagement row is `active`, has a valid task-first settings row, and points at
+  an approved target with `allow_detect = true`.
+- Re-ran the scheduler seed logic and the current repo's detection/collection
+  target loaders directly against the staging database and confirmed that the
+  target community is included in both loader results.
+- Narrowed the bug from a generic cockpit-vs-state mismatch to a staging
+  runtime mismatch: the running scheduler process is not behaving like the
+  current repo code against the current staging DB.
+
+## [2026-05-06] docs | Confirm stale scheduler runtime on staging
+
+- Compared the live staging scheduler logs against the current repo source and
+  found the container still emits the old `Engagement scheduler tick:` message
+  that no longer exists anywhere in the current codebase.
+- Confirmed the current code only logs separate `Engagement collection
+  scheduler tick:` and `Engagement detection scheduler tick:` messages, so the
+  running scheduler container is on stale code.
+- Elevated the likely root cause from generic runtime mismatch to a stale
+  scheduler image/process, with `DATABASE_URL` drift kept as a secondary follow-up
+  check only if a fresh scheduler restart still shows zero targets.
+- Clarified in the mismatch note that this explains the zero-target scheduler
+  signal, but may still coexist with a separate read/collection-path bug if
+  target communities remain unread after the scheduler runtime is refreshed.
