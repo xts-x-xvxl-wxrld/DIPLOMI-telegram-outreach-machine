@@ -2494,3 +2494,11 @@ while preserving the staged testing contract.
 - Updated the engagement collection service so manual task-first and post-join collections also
   enqueue the exact-batch follow-up detect job when eligible.
 - Added a focused collection-worker regression covering the manual collection path.
+
+## [2026-05-06] docs | Capture cockpit vs scheduler staging mismatch
+
+- Added a brief bug note for the staging case where `@tgoutreachtest` appears in
+  task-first `My engagements` while scheduler logs still report `targets_checked: 0`.
+- Recorded the concrete engagement ID, deployment/log evidence, likely seed-path
+  fault line, and the next staging DB/runtime checks needed to reconcile cockpit
+  visibility with scheduler eligibility.
