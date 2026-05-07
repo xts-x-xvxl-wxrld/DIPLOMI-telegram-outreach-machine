@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
 from backend.db.enums import (
     CommunityAccountMembershipStatus,
@@ -432,6 +433,28 @@ async def test_engagement_send_existing_queued_action_is_resumed() -> None:
 
 
 @pytest.mark.asyncio
+async def test_check_send_limits_ignores_current_candidate_reserved_action_for_cadence() -> None:
+    community = _community()
+    account_id = uuid4()
+    candidate = _candidate(community)
+    current_action = _action(candidate, account_id, status=EngagementActionStatus.QUEUED.value)
+    session = SelfReservedCadenceSession(current_action=current_action)
+
+    decision = await check_send_limits(
+        session,  # type: ignore[arg-type]
+        candidate=candidate,
+        community_id=community.id,
+        telegram_account_id=account_id,
+        max_posts_per_day=10,
+        min_minutes_between_posts=1,
+        now=_now(),
+    )
+
+    assert decision.allowed is True
+    assert session.saw_candidate_exclusion is True
+
+
+@pytest.mark.asyncio
 async def test_engagement_send_maps_flood_wait_to_rate_limited_release() -> None:
     community = _community()
     account_id = uuid4()
@@ -617,6 +640,28 @@ class LimitSession:
     async def scalar(self, statement: object) -> object | None:
         del statement
         return self.scalar_values.pop(0)
+
+
+class SelfReservedCadenceSession:
+    def __init__(self, *, current_action: EngagementAction) -> None:
+        self.current_action = current_action
+        self.saw_candidate_exclusion = False
+
+    async def scalar(self, statement: object) -> object | None:
+        compiled = str(
+            statement.compile(
+                dialect=postgresql.dialect(),
+                compile_kwargs={"literal_binds": False},
+            )
+        )
+        if "count(engagement_actions.id)" in compiled:
+            return 0
+        if "FROM engagement_actions JOIN engagement_candidates" in compiled and "ORDER BY" in compiled:
+            if "engagement_actions.candidate_id !=" in compiled:
+                self.saw_candidate_exclusion = True
+                return None
+            return self.current_action
+        return None
 
 
 class FakeSendAdapter:

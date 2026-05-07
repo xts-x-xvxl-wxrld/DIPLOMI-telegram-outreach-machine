@@ -37,18 +37,21 @@ async def check_opportunity_cadence(
     telegram_account_id: uuid.UUID,
     now: datetime,
 ) -> SendLimitDecision:
+    exclude_candidate_id = candidate.id if candidate is not None else None
     if candidate is not None and candidate.opportunity_kind == EngagementOpportunityKind.CONTINUATION.value:
         return await _check_continuation_cadence(
             session,
             root_candidate_id=candidate.root_candidate_id,
             telegram_account_id=telegram_account_id,
             now=now,
+            exclude_candidate_id=exclude_candidate_id,
         )
     return await _check_root_opportunity_cadence(
         session,
         community_id=community_id,
         telegram_account_id=telegram_account_id,
         now=now,
+        exclude_candidate_id=exclude_candidate_id,
     )
 
 
@@ -58,23 +61,27 @@ async def _check_root_opportunity_cadence(
     community_id: uuid.UUID,
     telegram_account_id: uuid.UUID,
     now: datetime,
+    exclude_candidate_id: uuid.UUID | None = None,
 ) -> SendLimitDecision:
     if await _count_started_root_opportunities(
         session,
         telegram_account_id=telegram_account_id,
         since=now - timedelta(hours=4),
+        exclude_candidate_id=exclude_candidate_id,
     ) >= MAX_STARTED_OPPORTUNITIES_PER_ACCOUNT_4H:
         return SendLimitDecision(False, "Account 4-hour root opportunity limit reached")
     if await _count_started_root_opportunities(
         session,
         telegram_account_id=telegram_account_id,
         since=now - timedelta(hours=24),
+        exclude_candidate_id=exclude_candidate_id,
     ) >= MAX_STARTED_OPPORTUNITIES_PER_ACCOUNT_24H:
         return SendLimitDecision(False, "Account 24-hour root opportunity limit reached")
 
     latest_account_start = await _latest_started_root_opportunity(
         session,
         telegram_account_id=telegram_account_id,
+        exclude_candidate_id=exclude_candidate_id,
     )
     if _action_started_at(latest_account_start) is not None:
         assert latest_account_start is not None
@@ -86,6 +93,7 @@ async def _check_root_opportunity_cadence(
         session,
         telegram_account_id=telegram_account_id,
         community_id=community_id,
+        exclude_candidate_id=exclude_candidate_id,
     )
     if _action_started_at(latest_community_start) is not None:
         assert latest_community_start is not None
@@ -101,6 +109,7 @@ async def _check_continuation_cadence(
     root_candidate_id: uuid.UUID | None,
     telegram_account_id: uuid.UUID,
     now: datetime,
+    exclude_candidate_id: uuid.UUID | None = None,
 ) -> SendLimitDecision:
     if root_candidate_id is None:
         return SendLimitDecision(False, "Continuation is missing root opportunity")
@@ -109,12 +118,14 @@ async def _check_continuation_cadence(
         root_candidate_id=root_candidate_id,
         telegram_account_id=telegram_account_id,
         since=now - timedelta(hours=24),
+        exclude_candidate_id=exclude_candidate_id,
     ) >= MAX_CONTINUATION_REPLIES_PER_OPPORTUNITY_24H:
         return SendLimitDecision(False, "Continuation 24-hour reply limit reached")
     latest_continuation = await _latest_continuation_reply(
         session,
         root_candidate_id=root_candidate_id,
         telegram_account_id=telegram_account_id,
+        exclude_candidate_id=exclude_candidate_id,
     )
     if _action_started_at(latest_continuation) is not None:
         assert latest_continuation is not None
@@ -129,6 +140,7 @@ async def _count_started_root_opportunities(
     *,
     telegram_account_id: uuid.UUID,
     since: datetime,
+    exclude_candidate_id: uuid.UUID | None = None,
 ) -> int:
     query = (
         select(func.count(EngagementAction.id))
@@ -143,6 +155,8 @@ async def _count_started_root_opportunities(
             _action_started_expression() >= since,
         )
     )
+    if exclude_candidate_id is not None:
+        query = query.where(EngagementAction.candidate_id != exclude_candidate_id)
     return int(await session.scalar(query) or 0)
 
 
@@ -151,6 +165,7 @@ async def _latest_started_root_opportunity(
     *,
     telegram_account_id: uuid.UUID,
     community_id: uuid.UUID | None = None,
+    exclude_candidate_id: uuid.UUID | None = None,
 ) -> EngagementAction | None:
     query = (
         select(EngagementAction)
@@ -171,6 +186,8 @@ async def _latest_started_root_opportunity(
     )
     if community_id is not None:
         query = query.where(EngagementAction.community_id == community_id)
+    if exclude_candidate_id is not None:
+        query = query.where(EngagementAction.candidate_id != exclude_candidate_id)
     return await session.scalar(query)
 
 
@@ -180,6 +197,7 @@ async def _count_continuation_replies(
     root_candidate_id: uuid.UUID,
     telegram_account_id: uuid.UUID,
     since: datetime,
+    exclude_candidate_id: uuid.UUID | None = None,
 ) -> int:
     query = (
         select(func.count(EngagementAction.id))
@@ -195,6 +213,8 @@ async def _count_continuation_replies(
             _action_started_expression() >= since,
         )
     )
+    if exclude_candidate_id is not None:
+        query = query.where(EngagementAction.candidate_id != exclude_candidate_id)
     return int(await session.scalar(query) or 0)
 
 
@@ -203,8 +223,9 @@ async def _latest_continuation_reply(
     *,
     root_candidate_id: uuid.UUID,
     telegram_account_id: uuid.UUID,
+    exclude_candidate_id: uuid.UUID | None = None,
 ) -> EngagementAction | None:
-    return await session.scalar(
+    query = (
         select(EngagementAction)
         .join(EngagementCandidate, EngagementAction.candidate_id == EngagementCandidate.id)
         .where(
@@ -222,6 +243,9 @@ async def _latest_continuation_reply(
         )
         .limit(1)
     )
+    if exclude_candidate_id is not None:
+        query = query.where(EngagementAction.candidate_id != exclude_candidate_id)
+    return await session.scalar(query)
 
 
 def _action_started_expression() -> object:

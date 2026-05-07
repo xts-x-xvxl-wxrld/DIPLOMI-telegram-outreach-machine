@@ -2575,3 +2575,11 @@ while preserving the staged testing contract.
   actual staging host still needs a fresh deploy run to apply it.
 - Extended the deploy-script regression to assert both the scheduler rebuild
   step and the force-recreate app-service restart command.
+
+## [2026-05-07] fix | Unblock approved draft sends from self-cadence skips
+
+- Fixed engagement send cadence checks so an approved draft's own pre-reserved
+  `queued` action is excluded from root and continuation cadence lookups.
+- Added a regression test that covers the approval path where the send worker
+  resumes a reserved action and must not block itself on its own queued record.
+- Ran `uv run pytest -q tests/test_engagement_send_worker.py` successfully.
