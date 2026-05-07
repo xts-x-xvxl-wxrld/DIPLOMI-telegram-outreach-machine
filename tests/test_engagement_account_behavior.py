@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from uuid import UUID
 from uuid import uuid4
 
 import pytest
@@ -18,6 +20,8 @@ from backend.services.engagement_account_behavior import (
     WARMUP_DURATION_MINUTES,
     engagement_send_delay_seconds,
     engagement_send_scheduled_at,
+    engagement_wait_periods_disabled_for_community,
+    post_join_warmup_skip_reason,
     stable_jitter_minutes,
     stable_jitter_seconds,
     utc_epoch_bucket,
@@ -62,6 +66,19 @@ def test_engagement_send_scheduled_at_uses_stable_candidate_delay() -> None:
     assert SEND_DELAY_MIN_SECONDS <= (scheduled_at - now).total_seconds() <= SEND_DELAY_MAX_SECONDS
 
 
+def test_engagement_send_scheduled_at_can_skip_wait_periods() -> None:
+    candidate_id = uuid4()
+    now = datetime(2026, 4, 30, 12, 0, tzinfo=timezone.utc)
+
+    scheduled_at = engagement_send_scheduled_at(
+        candidate_id,
+        now=now,
+        skip_wait_periods=True,
+    )
+
+    assert scheduled_at == now
+
+
 def test_stable_jitter_minutes_supports_collection_and_read_ranges() -> None:
     community_id = uuid4()
     account_id = uuid4()
@@ -103,6 +120,42 @@ def test_utc_epoch_bucket_is_timezone_stable() -> None:
         value.replace(tzinfo=None),
         bucket_seconds=300,
     )
+
+
+def test_post_join_warmup_skip_reason_can_skip_wait_periods() -> None:
+    now = datetime(2026, 4, 30, 12, 0, tzinfo=timezone.utc)
+    joined_at = now - timedelta(minutes=30)
+
+    skip_reason = post_join_warmup_skip_reason(
+        joined_at=joined_at,
+        now=now,
+        skip_wait_periods=True,
+    )
+
+    assert skip_reason is None
+
+
+def test_wait_period_bypass_matches_uuid_username_and_tg_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "backend.services.engagement_account_behavior.get_settings",
+        lambda: SimpleNamespace(
+            engagement_wait_period_bypass_communities=(
+                "@ExampleTest, 12345, https://t.me/AnotherTest, "
+                "550e8400-e29b-41d4-a716-446655440000"
+            )
+        ),
+    )
+
+    assert engagement_wait_periods_disabled_for_community(username="@exampletest") is True
+    assert engagement_wait_periods_disabled_for_community(username="anothertest") is True
+    assert engagement_wait_periods_disabled_for_community(tg_id=12345) is True
+    assert (
+        engagement_wait_periods_disabled_for_community(
+            community_id=UUID("550e8400-e29b-41d4-a716-446655440000")
+        )
+        is True
+    )
+    assert engagement_wait_periods_disabled_for_community(username="@not-listed") is False
 
 
 @pytest.mark.parametrize(

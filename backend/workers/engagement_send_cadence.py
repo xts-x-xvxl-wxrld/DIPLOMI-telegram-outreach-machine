@@ -36,6 +36,7 @@ async def check_opportunity_cadence(
     community_id: uuid.UUID,
     telegram_account_id: uuid.UUID,
     now: datetime,
+    skip_wait_periods: bool = False,
 ) -> SendLimitDecision:
     exclude_candidate_id = candidate.id if candidate is not None else None
     if candidate is not None and candidate.opportunity_kind == EngagementOpportunityKind.CONTINUATION.value:
@@ -45,6 +46,7 @@ async def check_opportunity_cadence(
             telegram_account_id=telegram_account_id,
             now=now,
             exclude_candidate_id=exclude_candidate_id,
+            skip_wait_periods=skip_wait_periods,
         )
     return await _check_root_opportunity_cadence(
         session,
@@ -52,6 +54,7 @@ async def check_opportunity_cadence(
         telegram_account_id=telegram_account_id,
         now=now,
         exclude_candidate_id=exclude_candidate_id,
+        skip_wait_periods=skip_wait_periods,
     )
 
 
@@ -62,6 +65,7 @@ async def _check_root_opportunity_cadence(
     telegram_account_id: uuid.UUID,
     now: datetime,
     exclude_candidate_id: uuid.UUID | None = None,
+    skip_wait_periods: bool = False,
 ) -> SendLimitDecision:
     if await _count_started_root_opportunities(
         session,
@@ -77,6 +81,8 @@ async def _check_root_opportunity_cadence(
         exclude_candidate_id=exclude_candidate_id,
     ) >= MAX_STARTED_OPPORTUNITIES_PER_ACCOUNT_24H:
         return SendLimitDecision(False, "Account 24-hour root opportunity limit reached")
+    if skip_wait_periods:
+        return SendLimitDecision(True)
 
     latest_account_start = await _latest_started_root_opportunity(
         session,
@@ -110,6 +116,7 @@ async def _check_continuation_cadence(
     telegram_account_id: uuid.UUID,
     now: datetime,
     exclude_candidate_id: uuid.UUID | None = None,
+    skip_wait_periods: bool = False,
 ) -> SendLimitDecision:
     if root_candidate_id is None:
         return SendLimitDecision(False, "Continuation is missing root opportunity")
@@ -121,6 +128,8 @@ async def _check_continuation_cadence(
         exclude_candidate_id=exclude_candidate_id,
     ) >= MAX_CONTINUATION_REPLIES_PER_OPPORTUNITY_24H:
         return SendLimitDecision(False, "Continuation 24-hour reply limit reached")
+    if skip_wait_periods:
+        return SendLimitDecision(True)
     latest_continuation = await _latest_continuation_reply(
         session,
         root_candidate_id=root_candidate_id,

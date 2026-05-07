@@ -31,7 +31,10 @@ from backend.services.community_engagement import (
     has_engagement_target_permission,
     validate_suggested_reply,
 )
-from backend.services.engagement_account_behavior import post_join_warmup_skip_reason
+from backend.services.engagement_account_behavior import (
+    engagement_wait_periods_disabled_for_community,
+    post_join_warmup_skip_reason,
+)
 from backend.workers.account_manager import (
     AccountLease,
     acquire_account_by_id,
@@ -144,7 +147,16 @@ async def process_engagement_send(
             )
             if membership is None:
                 return _skipped("no_joined_membership", candidate.id)
-            warmup_skip_reason = post_join_warmup_skip_reason(joined_at=membership.joined_at, now=now)
+            skip_wait_periods = engagement_wait_periods_disabled_for_community(
+                community_id=candidate.community_id,
+                tg_id=None if candidate.community is None else candidate.community.tg_id,
+                username=None if candidate.community is None else candidate.community.username,
+            )
+            warmup_skip_reason = post_join_warmup_skip_reason(
+                joined_at=membership.joined_at,
+                now=now,
+                skip_wait_periods=skip_wait_periods,
+            )
             if warmup_skip_reason is not None:
                 return _skipped(warmup_skip_reason, candidate.id)
 
@@ -194,6 +206,7 @@ async def process_engagement_send(
                 max_posts_per_day=settings.max_posts_per_day,
                 min_minutes_between_posts=settings.min_minutes_between_posts,
                 now=now,
+                skip_wait_periods=skip_wait_periods,
             )
             if not limit_decision.allowed:
                 LOGGER.info("Engagement send rate limit blocked job_id=%s candidate_id=%s reason=%s", job_id, candidate.id, limit_decision.reason)
@@ -411,6 +424,7 @@ async def check_send_limits(
     max_posts_per_day: int,
     min_minutes_between_posts: int,
     now: datetime | None = None,
+    skip_wait_periods: bool = False,
 ) -> SendLimitDecision:
     current_time = now or _utcnow()
     if max_posts_per_day <= 0:
@@ -439,9 +453,12 @@ async def check_send_limits(
         community_id=community_id,
         telegram_account_id=telegram_account_id,
         now=current_time,
+        skip_wait_periods=skip_wait_periods,
     )
     if not cadence_decision.allowed:
         return cadence_decision
+    if skip_wait_periods:
+        return SendLimitDecision(True)
 
     spacing_cutoff = current_time - timedelta(minutes=min_minutes_between_posts)
     latest_community_action = await _latest_sent_reply(session, community_id=community_id)

@@ -2583,3 +2583,15 @@ while preserving the staged testing contract.
 - Added a regression test that covers the approval path where the send worker
   resumes a reserved action and must not block itself on its own queued record.
 - Ran `uv run pytest -q tests/test_engagement_send_worker.py` successfully.
+
+## [2026-05-08] feat | Bypass engagement wait periods for allowlisted test communities
+
+- Added `ENGAGEMENT_WAIT_PERIOD_BYPASS_COMMUNITIES` so operators can list test
+  communities by UUID, Telegram ID, or public username for faster engagement
+  validation.
+- Applied the bypass to delayed send scheduling, post-join warmup, and send
+  spacing/cooldown waits while keeping approvals, permissions, replyability,
+  and hard send-volume caps intact.
+- Extended engagement timing and send-worker regressions, updated the
+  engagement account-behavior and scheduling specs, and documented the new plan
+  and env example entry.

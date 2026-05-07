@@ -38,6 +38,17 @@ send_delay_min_seconds = 45
 send_delay_max_seconds = 120
 ```
 
+Test-community bypass:
+
+- `ENGAGEMENT_WAIT_PERIOD_BYPASS_COMMUNITIES` may list test communities whose
+  wait periods are skipped for manual validation.
+- Supported identifiers are community UUIDs, Telegram numeric IDs, and public
+  usernames with or without `@` or `t.me/` prefixes.
+- Allowlisted communities bypass delayed send scheduling, post-join warmup, and
+  spacing/cooldown waits only.
+- Approval, permission, replyability, and hard daily/root-opportunity caps stay
+  enforced even when the bypass applies.
+
 Scheduling rules:
 
 - Compute send delay when an approved reply is queued, not when `engagement.send` starts.
@@ -197,6 +208,13 @@ conversation_key text
 
 The first implementation may use service-level inference before adding all fields, but durable
 fields are preferred once continuations are operator-visible or counted in cadence checks.
+
+Test-community bypass:
+
+- The same `ENGAGEMENT_WAIT_PERIOD_BYPASS_COMMUNITIES` allowlist skips
+  account/community spacing and same-thread cooldown waits for those
+  communities.
+- It does not waive rolling daily send caps or root/continuation volume caps.
 
 ## Implementation Notes
 

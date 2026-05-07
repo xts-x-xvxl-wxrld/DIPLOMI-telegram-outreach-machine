@@ -22,8 +22,12 @@ from backend.api.schemas import (
     CockpitRateLimitDetailResponse,
     CockpitSentFeedResponse,
 )
+from backend.db.models import Community, EngagementCandidate
 from backend.queue.client import QueueUnavailable, enqueue_engagement_send, enqueue_engagement_target_resolve
-from backend.services.engagement_account_behavior import engagement_send_scheduled_at
+from backend.services.engagement_account_behavior import (
+    engagement_send_scheduled_at,
+    engagement_wait_periods_disabled_for_community,
+)
 from backend.services.task_first_engagement_cockpit import (
     get_cockpit_approvals,
     get_cockpit_engagement_detail,
@@ -174,7 +178,16 @@ async def post_engagement_cockpit_draft_approve(
 ) -> CockpitDraftActionResponse:
     payload = await approve_cockpit_draft(db, draft_id=draft_id, requested_by="operator")
     if payload.result == "approved":
-        scheduled_at = engagement_send_scheduled_at(draft_id)
+        candidate = await db.get(EngagementCandidate, draft_id)
+        community = None if candidate is None else await db.get(Community, candidate.community_id)
+        scheduled_at = engagement_send_scheduled_at(
+            draft_id,
+            skip_wait_periods=engagement_wait_periods_disabled_for_community(
+                community_id=None if candidate is None else candidate.community_id,
+                tg_id=None if community is None else community.tg_id,
+                username=None if community is None else community.username,
+            ),
+        )
         try:
             await reserve_scheduled_send_action(db, candidate_id=draft_id, scheduled_at=scheduled_at)
             job = enqueue_engagement_send(draft_id, approved_by="operator", scheduled_at=scheduled_at)

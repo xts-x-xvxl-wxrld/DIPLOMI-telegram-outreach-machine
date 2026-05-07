@@ -255,6 +255,35 @@ async def test_engagement_send_skips_during_post_join_warmup() -> None:
 
 
 @pytest.mark.asyncio
+async def test_engagement_send_bypasses_post_join_warmup_for_allowlisted_test_community(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "backend.workers.engagement_send.engagement_wait_periods_disabled_for_community",
+        lambda **kwargs: True,
+    )
+    community = _community()
+    account_id = uuid4()
+    membership = _membership(community.id, account_id)
+    membership.joined_at = _now() - timedelta(minutes=30)
+    candidate = _candidate(community)
+    session = _send_session(community=community, candidate=candidate, membership=membership)
+    adapter = FakeSendAdapter(result=SendResult(sent_tg_message_id=456, sent_at=_now()))
+
+    result = await process_engagement_send(
+        {"candidate_id": str(candidate.id), "approved_by": "op"},
+        session_factory=lambda: session,
+        acquire_account_by_id_fn=_fake_acquire(account_id),
+        adapter_factory=lambda lease: adapter,
+        rate_limit_checker=_allow_send,
+    )
+
+    assert result["status"] == "processed"
+    assert result["action_status"] == EngagementActionStatus.SENT.value
+    assert adapter.calls[-1]["method"] == "send_public_reply"
+
+
+@pytest.mark.asyncio
 async def test_engagement_send_records_success_and_releases_account() -> None:
     community = _community()
     account_id = uuid4()
@@ -565,6 +594,63 @@ async def test_continuation_opportunity_bypasses_root_start_caps() -> None:
     )
 
     assert decision.allowed is True
+
+
+@pytest.mark.asyncio
+async def test_check_send_limits_skips_wait_periods_but_keeps_flow_allowed() -> None:
+    community = _community()
+    account_id = uuid4()
+    candidate = _candidate(community)
+    session = LimitSession(
+        scalar_values=[
+            0,
+            0,
+            0,
+            0,
+        ]
+    )
+
+    decision = await check_send_limits(
+        session,  # type: ignore[arg-type]
+        candidate=candidate,
+        community_id=community.id,
+        telegram_account_id=account_id,
+        max_posts_per_day=10,
+        min_minutes_between_posts=240,
+        now=_now(),
+        skip_wait_periods=True,
+    )
+
+    assert decision.allowed is True
+    assert session.scalar_values == []
+
+
+@pytest.mark.asyncio
+async def test_check_send_limits_keeps_root_opportunity_caps_when_wait_periods_are_skipped() -> None:
+    community = _community()
+    account_id = uuid4()
+    candidate = _candidate(community)
+    session = LimitSession(
+        scalar_values=[
+            0,
+            0,
+            3,
+        ]
+    )
+
+    decision = await check_send_limits(
+        session,  # type: ignore[arg-type]
+        candidate=candidate,
+        community_id=community.id,
+        telegram_account_id=account_id,
+        max_posts_per_day=10,
+        min_minutes_between_posts=240,
+        now=_now(),
+        skip_wait_periods=True,
+    )
+
+    assert decision.allowed is False
+    assert decision.reason == "Account 4-hour root opportunity limit reached"
 
 
 class FakeSession:

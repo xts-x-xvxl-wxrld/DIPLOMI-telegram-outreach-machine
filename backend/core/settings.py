@@ -83,6 +83,10 @@ class Settings(BaseSettings):
         default=14,
         validation_alias="ENGAGEMENT_MESSAGE_EMBEDDING_RETENTION_DAYS",
     )
+    engagement_wait_period_bypass_communities: str = Field(
+        default="",
+        validation_alias="ENGAGEMENT_WAIT_PERIOD_BYPASS_COMMUNITIES",
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

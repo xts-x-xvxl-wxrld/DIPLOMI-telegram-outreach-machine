@@ -66,7 +66,10 @@ from backend.queue.client import (
     enqueue_engagement_target_resolve,
     enqueue_manual_engagement_detect,
 )
-from backend.services.engagement_account_behavior import engagement_send_scheduled_at
+from backend.services.engagement_account_behavior import (
+    engagement_send_scheduled_at,
+    engagement_wait_periods_disabled_for_community,
+)
 from backend.workers.engagement_send import reserve_scheduled_send_action
 from backend.services.community_engagement import (
     EngagementConflict,
@@ -367,7 +370,15 @@ async def post_engagement_candidate_send_job(
             },
         )
 
-    scheduled_at = engagement_send_scheduled_at(candidate.id)
+    community = await db.get(Community, candidate.community_id)
+    scheduled_at = engagement_send_scheduled_at(
+        candidate.id,
+        skip_wait_periods=engagement_wait_periods_disabled_for_community(
+            community_id=candidate.community_id,
+            tg_id=None if community is None else community.tg_id,
+            username=None if community is None else community.username,
+        ),
+    )
     try:
         await reserve_scheduled_send_action(
             db,

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from typing import Any
 from uuid import UUID
+
+from backend.core.settings import get_settings
 
 
 SEND_DELAY_MIN_SECONDS = 45
@@ -27,6 +31,7 @@ SAME_COMMUNITY_NEW_OPPORTUNITY_COOLDOWN_MINUTES = 90
 MAX_CONTINUATION_REPLIES_PER_OPPORTUNITY_24H = 3
 MIN_MINUTES_BETWEEN_CONTINUATION_REPLIES = 5
 ACCOUNT_HEALTH_REFRESH_HOURS = 8
+_WAIT_BYPASS_SPLIT_RE = re.compile(r"[\s,;]+")
 
 
 @dataclass(frozen=True)
@@ -82,8 +87,15 @@ def engagement_send_delay_seconds(candidate_id: UUID) -> int:
     )
 
 
-def engagement_send_scheduled_at(candidate_id: UUID, *, now: datetime | None = None) -> datetime:
+def engagement_send_scheduled_at(
+    candidate_id: UUID,
+    *,
+    now: datetime | None = None,
+    skip_wait_periods: bool = False,
+) -> datetime:
     current_time = ensure_aware_utc(now or datetime.now(timezone.utc))
+    if skip_wait_periods:
+        return current_time
     return current_time + timedelta(seconds=engagement_send_delay_seconds(candidate_id))
 
 
@@ -91,7 +103,10 @@ def post_join_warmup_skip_reason(
     *,
     joined_at: datetime | None,
     now: datetime | None = None,
+    skip_wait_periods: bool = False,
 ) -> str | None:
+    if skip_wait_periods:
+        return None
     if joined_at is None:
         return "missing_joined_at"
     current_time = ensure_aware_utc(now or datetime.now(timezone.utc))
@@ -99,6 +114,29 @@ def post_join_warmup_skip_reason(
     if current_time < warmup_ends_at:
         return "post_join_warmup_active"
     return None
+
+
+def engagement_wait_periods_disabled_for_community(
+    *,
+    community_id: UUID | None = None,
+    tg_id: int | None = None,
+    username: str | None = None,
+) -> bool:
+    configured_tokens = _configured_wait_bypass_tokens(
+        get_settings().engagement_wait_period_bypass_communities
+    )
+    if not configured_tokens:
+        return False
+    candidate_tokens = {
+        token
+        for token in (
+            _normalize_wait_bypass_token(None if community_id is None else str(community_id)),
+            _normalize_wait_bypass_token(None if tg_id is None else str(tg_id)),
+            _normalize_wait_bypass_token(username),
+        )
+        if token is not None
+    }
+    return any(token in configured_tokens for token in candidate_tokens)
 
 
 def ensure_aware_utc(value: datetime) -> datetime:
@@ -128,3 +166,34 @@ def _normalize_seed_part(value: Any) -> str:
     if isinstance(value, datetime):
         return ensure_aware_utc(value).isoformat()
     return str(value)
+
+
+@lru_cache(maxsize=64)
+def _configured_wait_bypass_tokens(raw_value: str) -> frozenset[str]:
+    tokens = {
+        token
+        for token in (
+            _normalize_wait_bypass_token(part) for part in _WAIT_BYPASS_SPLIT_RE.split(raw_value)
+        )
+        if token is not None
+    }
+    return frozenset(tokens)
+
+
+def _normalize_wait_bypass_token(raw_value: str | None) -> str | None:
+    if raw_value is None:
+        return None
+    token = raw_value.strip()
+    if not token:
+        return None
+    token = token.lower()
+    if "://" in token:
+        token = token.split("://", 1)[1]
+    for prefix in ("t.me/", "www.t.me/", "telegram.me/", "www.telegram.me/"):
+        if token.startswith(prefix):
+            token = token[len(prefix) :]
+            break
+    token = token.split("?", 1)[0].split("#", 1)[0].strip().strip("/")
+    if token.startswith("@"):
+        token = token[1:]
+    return token or None

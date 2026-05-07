@@ -120,6 +120,14 @@ Timing behavior should feel sparse and human-supervised:
 - Never batch multiple sends into the same community just because multiple topics matched.
 - Treat failed or skipped send attempts as audit events, not reasons to retry aggressively.
 
+Test-community bypass:
+
+- `ENGAGEMENT_WAIT_PERIOD_BYPASS_COMMUNITIES` may temporarily disable send-delay
+  scheduling and other wait-period checks for an explicit allowlisted set of
+  manual test communities.
+- The bypass is only for timing waits. Approval, posting permissions,
+  replyability checks, and hard send-volume caps remain unchanged.
+
 Recommended MVP:
 
 - Only run detection for communities with engagement settings enabled.
