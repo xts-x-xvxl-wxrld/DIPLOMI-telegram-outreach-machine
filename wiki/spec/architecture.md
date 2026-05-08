@@ -117,6 +117,8 @@ GitHub and VPS deployment use the workflow described in `wiki/spec/deployment.md
 Agent-facing docs and modules must stay cheap to route through:
 
 - `wiki/index.md` is the routing table, not a full design document.
+- `wiki/code-index/` is the fast code-navigation layer, not the behavior source of truth.
+- `wiki/dev-docs/` is the deeper developer-documentary lane for verified subsystem and flow understanding.
 - Top-level specs stay under roughly 300 lines and link to focused shards for detailed endpoint,
   workflow, prompt, or rollout contracts.
 - Plans stay under roughly 200 lines. Larger work is split into slice plans.

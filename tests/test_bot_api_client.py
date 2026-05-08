@@ -605,10 +605,11 @@ async def test_get_and_update_engagement_settings_use_community_routes() -> None
             "allow_post": True,
             "reply_only": True,
             "require_approval": True,
-            "max_posts_per_day": 1,
-            "min_minutes_between_posts": 240,
+            "max_posts_per_day": 300,
+            "min_minutes_between_posts": 1,
             "quiet_hours_start": None,
             "quiet_hours_end": None,
+            "quiet_hours_timezone": "utc",
             "assigned_account_id": None,
         }
         return httpx.Response(
@@ -1037,11 +1038,9 @@ async def test_engagement_cockpit_quiet_hours_methods_use_expected_payloads() ->
         quiet_hours_enabled=True,
         quiet_hours_start="22:00",
         quiet_hours_end="07:00",
+        quiet_hours_timezone="us_west",
     )
-    await client.update_engagement_cockpit_quiet_hours(
-        "eng-1",
-        quiet_hours_enabled=False,
-    )
+    await client.update_engagement_cockpit_quiet_hours("eng-1", quiet_hours_enabled=False)
     await client.aclose()
 
     assert seen == [
@@ -1053,6 +1052,7 @@ async def test_engagement_cockpit_quiet_hours_methods_use_expected_payloads() ->
                 "quiet_hours_enabled": True,
                 "quiet_hours_start": "22:00",
                 "quiet_hours_end": "07:00",
+                "quiet_hours_timezone": "us_west",
             },
         ),
         (
@@ -1061,7 +1061,6 @@ async def test_engagement_cockpit_quiet_hours_methods_use_expected_payloads() ->
             {"quiet_hours_enabled": False},
         ),
     ]
-
 
 @pytest.mark.asyncio
 async def test_api_error_uses_fastapi_detail_message() -> None:

@@ -193,7 +193,7 @@ def _callback_data(markup: Any | None) -> list[str]:
 class TestFormatEngagementList:
     def test_empty(self):
         payload = {"items": [], "total": 0, "offset": 0, "limit": 20}
-        assert format_engagement_list(payload) == "No engagements"
+        assert format_engagement_list(payload) == "No engagements yet."
 
     def test_single_page(self):
         payload = {
@@ -330,7 +330,7 @@ class TestFormatEngagementDetail:
 class TestFormatSentMessages:
     def test_empty(self):
         payload = {"items": [], "total": 0, "offset": 0, "limit": 20}
-        assert format_sent_messages(payload) == "No sent messages"
+        assert format_sent_messages(payload) == "No sent messages yet."
 
     def test_with_items(self):
         payload = {
@@ -667,7 +667,7 @@ class TestHandleEngagementResume:
         await handle_engagement_resume(update, context, engagement_id="eng-1")
         # Should fall back to showing the detail view
         text = update.callback_query.edits[0]["text"]
-        assert "Engagement detail" in text
+        assert "Founder Circle" in text
 
     @pytest.mark.asyncio
     async def test_no_resume_callback_shows_detail(self):
@@ -685,7 +685,7 @@ class TestHandleEngagementResume:
         context = _FakeContext(client)
         await handle_engagement_resume(update, context, engagement_id="eng-1")
         text = update.callback_query.edits[0]["text"]
-        assert "Engagement detail" in text
+        assert "Founder Circle" in text
 
     @pytest.mark.asyncio
     async def test_resume_callback_stored(self):

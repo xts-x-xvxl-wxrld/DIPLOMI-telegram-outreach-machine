@@ -22,6 +22,7 @@ from backend.services.community_engagement import (
     get_engagement_settings,
     has_engagement_target_permission,
 )
+from backend.services.engagement_quiet_hours import is_quiet_time
 
 MAX_ENGAGEMENT_MESSAGES = 100
 MAX_ENGAGEMENT_MESSAGE_CHARS = 500
@@ -239,6 +240,7 @@ async def collect_community_engagement_messages(
             now=current_time,
             quiet_hours_start=engagement_settings.quiet_hours_start,
             quiet_hours_end=engagement_settings.quiet_hours_end,
+            quiet_hours_timezone=engagement_settings.quiet_hours_timezone,
         ),
         latest_tg_message_id=max((message.tg_message_id for message in messages), default=None),
     )
@@ -466,16 +468,18 @@ def _should_enqueue_detection(
     now: datetime,
     quiet_hours_start: time | None,
     quiet_hours_end: time | None,
+    quiet_hours_timezone: str,
 ) -> bool:
     return (
         reason in {"engagement", "manual"}
         and detection_messages > 0
         and settings_mode in ENABLED_DETECTION_MODES
         and has_detect_permission
-        and not _is_quiet_time(
+        and not is_quiet_time(
             now,
             quiet_hours_start=quiet_hours_start,
             quiet_hours_end=quiet_hours_end,
+            quiet_hours_timezone=quiet_hours_timezone,
         )
     )
 
@@ -529,22 +533,6 @@ def _truncate(value: str | None, limit: int) -> str:
     if value is None:
         return ""
     return " ".join(value.split())[:limit]
-
-
-def _is_quiet_time(
-    now: datetime,
-    *,
-    quiet_hours_start: time | None,
-    quiet_hours_end: time | None,
-) -> bool:
-    if quiet_hours_start is None or quiet_hours_end is None:
-        return False
-    current_time = _ensure_aware_utc(now).time().replace(tzinfo=None)
-    if quiet_hours_start == quiet_hours_end:
-        return True
-    if quiet_hours_start < quiet_hours_end:
-        return quiet_hours_start <= current_time < quiet_hours_end
-    return current_time >= quiet_hours_start or current_time < quiet_hours_end
 
 
 def _ensure_aware_utc(value: datetime) -> datetime:

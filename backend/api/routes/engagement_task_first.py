@@ -99,8 +99,11 @@ async def put_task_first_settings(
         engagement_id=engagement_id,
         assigned_account_id=payload.assigned_account_id,
         mode=None if payload.mode is None else payload.mode.value,
+        max_posts_per_day=payload.max_posts_per_day,
+        min_minutes_between_posts=payload.min_minutes_between_posts,
         quiet_hours_start=payload.quiet_hours_start,
         quiet_hours_end=payload.quiet_hours_end,
+        quiet_hours_timezone=None if payload.quiet_hours_timezone is None else payload.quiet_hours_timezone.value,
         fields_set=set(payload.model_fields_set),
     )
     if result.result == "updated":

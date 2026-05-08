@@ -142,8 +142,8 @@ Defaults asserted by schema tests:
 - `allow_post = false`
 - `reply_only = true`
 - `require_approval = true`
-- `max_posts_per_day = 1`
-- `min_minutes_between_posts = 240`
+- `max_posts_per_day = 300`
+- `min_minutes_between_posts = 1`
 
 Indexes and constraints:
 

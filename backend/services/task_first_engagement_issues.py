@@ -31,7 +31,7 @@ from backend.db.models import (
     EngagementTopic,
     TelegramAccount,
 )
-from backend.workers.engagement_scheduler import is_quiet_time
+from backend.services.engagement_quiet_hours import is_quiet_time
 from backend.workers.engagement_send import check_send_limits
 
 _ISSUE_NAMESPACE = uuid.UUID("a507f1ca-3445-4267-a9f0-6e84ed8bd43f")
@@ -416,6 +416,7 @@ async def _engagement_issues(
                 now,
                 quiet_hours_start=settings.quiet_hours_start,
                 quiet_hours_end=settings.quiet_hours_end,
+                quiet_hours_timezone=settings.quiet_hours_timezone,
             ):
                 records.append(
                     _issue_record(

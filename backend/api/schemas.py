@@ -12,6 +12,7 @@ from backend.db.enums import (
     EngagementMode,
     EngagementStyleRuleScope,
     EngagementTargetStatus,
+    QuietHoursTimezone,
 )
 
 
@@ -364,10 +365,11 @@ class EngagementSettingsUpdate(BaseModel):
     allow_post: bool = False
     reply_only: bool = True
     require_approval: bool = True
-    max_posts_per_day: int = Field(default=1, ge=0, le=3)
-    min_minutes_between_posts: int = Field(default=240, ge=1)
+    max_posts_per_day: int = Field(default=300, ge=0, le=300)
+    min_minutes_between_posts: int = Field(default=1, ge=1)
     quiet_hours_start: time | None = None
     quiet_hours_end: time | None = None
+    quiet_hours_timezone: QuietHoursTimezone = QuietHoursTimezone.UTC
     assigned_account_id: UUID | None = None
 
 
@@ -384,6 +386,7 @@ class EngagementSettingsOut(BaseModel):
     min_minutes_between_posts: int
     quiet_hours_start: time | None = None
     quiet_hours_end: time | None = None
+    quiet_hours_timezone: str
     assigned_account_id: UUID | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -402,8 +405,11 @@ class TaskFirstEngagementPatchRequest(BaseModel):
 class TaskFirstEngagementSettingsUpdate(BaseModel):
     assigned_account_id: UUID | None = None
     mode: EngagementMode | None = None
+    max_posts_per_day: int | None = Field(default=None, ge=0, le=300)
+    min_minutes_between_posts: int | None = Field(default=None, ge=1)
     quiet_hours_start: time | None = None
     quiet_hours_end: time | None = None
+    quiet_hours_timezone: QuietHoursTimezone | None = None
 
 
 class TaskFirstWizardActionRequest(BaseModel):
@@ -430,8 +436,11 @@ class TaskFirstEngagementSettingsOut(BaseModel):
     engagement_id: UUID
     assigned_account_id: UUID | None = None
     mode: str
+    max_posts_per_day: int
+    min_minutes_between_posts: int
     quiet_hours_start: time | None = None
     quiet_hours_end: time | None = None
+    quiet_hours_timezone: str
 
 
 class TaskFirstEngagementCreateResponse(BaseModel):
@@ -506,18 +515,16 @@ class CockpitHomeResponse(BaseModel):
 
 
 class CockpitApprovalPlaceholderOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    slot: int
-    label: str
+    model_config = ConfigDict(from_attributes=True); slot: int; label: str  # noqa: E702
 
 
 class CockpitApprovalItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
     draft_id: UUID
     engagement_id: UUID
     target_label: str
+    engagement_label: str
+    community_label: str
     text: str
     why: str
     badge: str | None = None
@@ -535,11 +542,7 @@ class CockpitApprovalQueueResponse(BaseModel):
 
 
 class CockpitIssueActionOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    action_key: str
-    label: str
-    callback_family: str
+    model_config = ConfigDict(from_attributes=True); action_key: str; label: str; callback_family: str  # noqa: E702,E501
 
 
 class CockpitIssueItemOut(BaseModel):
@@ -570,12 +573,7 @@ class CockpitIssueQueueResponse(BaseModel):
 
 
 class CockpitPendingTaskOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    task_kind: str
-    label: str
-    count: int
-    resume_callback: str | None = None
+    model_config = ConfigDict(from_attributes=True); task_kind: str; label: str; count: int; resume_callback: str | None = None  # noqa: E702,E501
 
 
 class CockpitEngagementListItemOut(BaseModel):
@@ -684,12 +682,14 @@ class CockpitQuietHoursReadResponse(BaseModel):
     quiet_hours_enabled: bool | None = None
     quiet_hours_start: time | None = None
     quiet_hours_end: time | None = None
+    quiet_hours_timezone: str | None = None
 
 
 class CockpitQuietHoursWriteRequest(BaseModel):
     quiet_hours_enabled: bool
     quiet_hours_start: time | None = None
     quiet_hours_end: time | None = None
+    quiet_hours_timezone: QuietHoursTimezone | None = None
 
 
 class CockpitQuietHoursWriteResponse(BaseModel):
@@ -702,6 +702,7 @@ class CockpitQuietHoursWriteResponse(BaseModel):
     quiet_hours_enabled: bool | None = None
     quiet_hours_start: time | None = None
     quiet_hours_end: time | None = None
+    quiet_hours_timezone: str | None = None
     code: str | None = None
 
 

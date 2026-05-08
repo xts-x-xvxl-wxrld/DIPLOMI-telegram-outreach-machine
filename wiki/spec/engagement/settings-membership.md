@@ -55,10 +55,11 @@ allow_join                 boolean NOT NULL DEFAULT false
 allow_post                 boolean NOT NULL DEFAULT false
 reply_only                 boolean NOT NULL DEFAULT true
 require_approval           boolean NOT NULL DEFAULT true
-max_posts_per_day          int NOT NULL DEFAULT 1
-min_minutes_between_posts  int NOT NULL DEFAULT 240
+max_posts_per_day          int NOT NULL DEFAULT 300
+min_minutes_between_posts  int NOT NULL DEFAULT 1
 quiet_hours_start          time
 quiet_hours_end            time
+quiet_hours_timezone       text NOT NULL DEFAULT 'utc'
 assigned_account_id        uuid REFERENCES telegram_accounts(id)
 created_at                 timestamptz NOT NULL DEFAULT now()
 updated_at                 timestamptz NOT NULL DEFAULT now()
@@ -84,8 +85,8 @@ allow_join = false
 allow_post = false
 reply_only = true
 require_approval = true
-max_posts_per_day = 1
-min_minutes_between_posts = 240
+max_posts_per_day = 300
+min_minutes_between_posts = 1
 ```
 
 Validation contract:
@@ -94,9 +95,10 @@ Validation contract:
 - `mode = disabled` forces `allow_join = false` and `allow_post = false`.
 - MVP rejects `require_approval = false`.
 - MVP rejects `reply_only = false`.
-- `max_posts_per_day` must be between 0 and 3 in MVP.
-- `min_minutes_between_posts` must be at least 60 in MVP.
+- `max_posts_per_day` must be between 0 and 300.
+- `min_minutes_between_posts` must be at least 1.
 - If one quiet-hour value is provided, both must be provided.
+- `quiet_hours_timezone` must be one of `utc`, `cet`, `us_east`, or `us_west`.
 - `assigned_account_id`, when provided, must reference an account that is not banned.
 - `assigned_account_id`, when provided, must reference an account in the `engagement` account pool
   defined by `wiki/spec/telegram-account-pools.md`.
@@ -126,6 +128,11 @@ row for that community and fall back to legacy `community_engagement_settings`
 only for compatibility while old control surfaces are retired. For task-first
 engagements, `allow_post=false` in `suggest` mode blocks automatic sends but
 must not block the canonical explicit approval-and-send path.
+Task-first setup review should surface the current cadence and quiet-hours
+values before confirmation, with quiet hours editable in-place from the review
+screen. That setup editor accepts `HH:MM-HH:MM` or `off` plus a timezone picker
+limited to `CET`, `US East`, and `US West`; older rows that never picked a
+timezone keep the stored/runtime-safe `utc` default until changed.
 
 ## Engagement Topic
 

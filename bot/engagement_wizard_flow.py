@@ -5,60 +5,28 @@ from typing import Any
 
 from .runtime import *
 from .engagement_wizard_join import start_wizard_account_join, wizard_account_status_note
+from .engagement_wizard_quiet_hours import (
+    handle_wizard_quiet_hours as _handle_wizard_quiet_hours,
+    save_wizard_quiet_hours as _save_wizard_quiet_hours,
+)
+from .engagement_quiet_hours_timezones import DEFAULT_WIZARD_QUIET_HOURS_TIMEZONE
+from .engagement_wizard_state import (
+    LEGACY_WIZARD_LEVEL_ALIASES as _LEGACY_WIZARD_LEVEL_ALIASES,
+    WIZARD_DEFAULT_MAX_POSTS_PER_DAY as _WIZARD_DEFAULT_MAX_POSTS_PER_DAY,
+    WIZARD_DEFAULT_MIN_MINUTES_BETWEEN_POSTS as _WIZARD_DEFAULT_MIN_MINUTES_BETWEEN_POSTS,
+    WIZARD_LEVEL_MODE as _WIZARD_LEVEL_MODE,
+    fresh_wizard_state as _fresh_wizard_state,
+    sync_wizard_settings_state as _sync_wizard_settings_state,
+    wizard_quiet_hours_label as _wizard_quiet_hours_label,
+    wizard_quiet_hours_timezone_display as _wizard_quiet_hours_timezone_display,
+    wizard_state as _wizard_state,
+    wizard_state_account_id as _wizard_state_account_id,
+    wizard_state_engagement_id as _wizard_state_engagement_id,
+    wizard_state_mode as _wizard_state_mode,
+    wizard_state_topic_id as _wizard_state_topic_id,
+)
 from .engagement_wizard_target_flow import prepare_wizard_target_state
 from .ui_common import expand_uuid
-
-
-# ---------------------------------------------------------------------------
-# Mode mapping: wizard sending-mode labels -> API mode values
-# ---------------------------------------------------------------------------
-
-_WIZARD_LEVEL_MODE = {
-    "draft": "suggest",
-    "auto_send": "auto_limited",
-}
-
-_LEGACY_WIZARD_LEVEL_ALIASES = {
-    "watching": "draft",
-    "suggesting": "draft",
-    "sending": "auto_send",
-    "observe": "draft",
-    "suggest": "draft",
-    "require_approval": "auto_send",
-    "auto_limited": "auto_send",
-}
-
-
-# ---------------------------------------------------------------------------
-# Wizard state helpers
-# New state shape: {engagement_id, target_id, topic_id, account_id, mode,
-#                   community_id, join_status, join_message, join_job_id,
-#                   target_ref, return_callback}
-# ---------------------------------------------------------------------------
-
-
-def _wizard_state(pending: Any) -> dict[str, Any]:
-    return dict(pending.flow_state or {})
-
-
-def _wizard_state_engagement_id(state: dict[str, Any]) -> str:
-    return str(state.get("engagement_id") or "")
-
-
-def _wizard_state_topic_id(state: dict[str, Any]) -> str | None:
-    return state.get("topic_id") or None
-
-
-def _wizard_state_account_id(state: dict[str, Any]) -> str | None:
-    return state.get("account_id") or None
-
-
-def _wizard_state_mode(state: dict[str, Any]) -> str | None:
-    mode = state.get("mode") or None
-    if mode is None:
-        return None
-    mode_value = str(mode)
-    return _LEGACY_WIZARD_LEVEL_ALIASES.get(mode_value, mode_value)
 
 
 # ---------------------------------------------------------------------------
@@ -106,22 +74,6 @@ async def _start_engagement_wizard(
         flow_state=_fresh_wizard_state(),
     )
     await _show_wizard_step1(update, context)
-
-
-def _fresh_wizard_state() -> dict[str, Any]:
-    return {
-        "engagement_id": None,
-        "target_id": None,
-        "community_id": None,
-        "target_ref": None,
-        "topic_id": None,
-        "account_id": None,
-        "mode": None,
-        "join_status": None,
-        "join_message": None,
-        "join_job_id": None,
-        "return_callback": None,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -310,6 +262,12 @@ async def _show_wizard_step5(update: Any, context: Any, state: dict[str, Any]) -
             topic_names=topic_names,
             account_phone=account_phone or "(none)",
             level=mode,
+            max_posts_per_day=int(state.get("max_posts_per_day") or _WIZARD_DEFAULT_MAX_POSTS_PER_DAY),
+            min_minutes_between_posts=int(
+                state.get("min_minutes_between_posts") or _WIZARD_DEFAULT_MIN_MINUTES_BETWEEN_POSTS
+            ),
+            quiet_hours_label=_wizard_quiet_hours_label(state),
+            quiet_hours_timezone_label=_wizard_quiet_hours_timezone_display(state),
             account_status_note=wizard_account_status_note(state),
         ),
         reply_markup=markup,
@@ -357,6 +315,21 @@ async def _handle_wizard_text(
         return False
 
     step = pending.flow_step or "target"
+    if step == "quiet_hours":
+        state = _wizard_state(pending)
+        engagement_id = _wizard_state_engagement_id(state)
+        if not engagement_id:
+            await _reply(update, "Setup expired. Return to Engagements and start again.")
+            return True
+        await _save_wizard_quiet_hours(
+            update,
+            context,
+            operator_id,
+            engagement_id,
+            raw_text.strip(),
+            show_review=_show_wizard_step5,
+        )
+        return True
     if step != "target":
         await _reply(update, "Use the wizard buttons to continue, go back, or cancel setup.")
         return True
@@ -425,6 +398,20 @@ async def _handle_wizard_callback(update: Any, context: Any, parts: list[str]) -
         await _handle_wizard_level(update, context, operator_id, level, engagement_id)
         return
 
+    # eng:wz:qh:<action>:<engagement_id>
+    if sub == "qh" and len(parts) >= 3:
+        action = parts[1]
+        engagement_id = parts[2]
+        await _handle_wizard_quiet_hours(
+            update,
+            context,
+            operator_id,
+            action,
+            engagement_id,
+            show_review=_show_wizard_step5,
+        )
+        return
+
     # eng:wz:confirm:<engagement_id>
     if sub == "confirm" and len(parts) >= 2:
         engagement_id = parts[1]
@@ -446,7 +433,7 @@ async def _handle_wizard_callback(update: Any, context: Any, parts: list[str]) -
     # eng:wz:cancel_yes:<engagement_id>
     if sub == "cancel_yes" and len(parts) >= 2:
         _config_edit_store(context).cancel(operator_id)
-        await _edit_callback_message(update, "Wizard cancelled. Return to Engagements when you want to start again.")
+        await _edit_callback_message(update, "Setup cancelled. Return to Engagements whenever you're ready.")
         return
 
     await _callback_reply(update, "Unknown wizard action.")
@@ -460,7 +447,7 @@ async def _handle_wizard_navigate_step(
 ) -> None:
     pending = _config_edit_store(context).get(operator_id)
     if pending is None or pending.entity != "wizard":
-        await _callback_reply(update, "Wizard session expired. Return to Engagements and start again.")
+        await _callback_reply(update, "Setup expired. Return to Engagements and start again.")
         return
     state = _wizard_state(pending)
     n = step_num
@@ -488,7 +475,7 @@ async def _handle_wizard_pick_topic(
 ) -> None:
     pending = _config_edit_store(context).get(operator_id)
     if pending is None or pending.entity != "wizard":
-        await _callback_reply(update, "Wizard session expired. Return to Engagements and start again.")
+        await _callback_reply(update, "Setup expired. Return to Engagements and start again.")
         return
     state = _wizard_state(pending)
 
@@ -552,12 +539,12 @@ async def _handle_wizard_create_topic(
 ) -> None:
     pending = _config_edit_store(context).get(operator_id)
     if pending is None or pending.entity != "wizard":
-        await _callback_reply(update, "Wizard session expired. Return to Engagements and start again.")
+        await _callback_reply(update, "Setup expired. Return to Engagements and start again.")
         return
 
     state = _wizard_state(pending)
     if _wizard_state_engagement_id(state) != engagement_id:
-        await _callback_reply(update, "Wizard session is out of sync. Return to Engagements and start again.")
+        await _callback_reply(update, "Setup got out of sync. Return to Engagements and start again.")
         return
 
     _wizard_return_save(context, operator_id, state)
@@ -573,7 +560,7 @@ async def _handle_wizard_account_pick(
 ) -> None:
     pending = _config_edit_store(context).get(operator_id)
     if pending is None or pending.entity != "wizard":
-        await _callback_reply(update, "Wizard session expired. Return to Engagements and start again.")
+        await _callback_reply(update, "Setup expired. Return to Engagements and start again.")
         return
     state = _wizard_state(pending)
     state["account_id"] = account_id
@@ -591,7 +578,8 @@ async def _handle_wizard_account_pick(
     # Save to backend
     client = _api_client(context)
     try:
-        await client.put_engagement_settings(engagement_id, assigned_account_id=account_id)
+        result = await client.put_engagement_settings(engagement_id, assigned_account_id=account_id)
+        _sync_wizard_settings_state(state, result)
     except BotApiError as exc:
         await _reply(update, f"Couldn't assign account: {exc.message}")
         # Non-fatal: continue wizard
@@ -658,7 +646,7 @@ async def _handle_wizard_level(
             return
     pending = _config_edit_store(context).get(operator_id)
     if pending is None or pending.entity != "wizard":
-        await _callback_reply(update, "Wizard session expired. Return to Engagements and start again.")
+        await _callback_reply(update, "Setup expired. Return to Engagements and start again.")
         return
     state = _wizard_state(pending)
     state["mode"] = level
@@ -673,7 +661,8 @@ async def _handle_wizard_level(
     mode = _WIZARD_LEVEL_MODE[level]
     client = _api_client(context)
     try:
-        await client.put_engagement_settings(engagement_id, mode=mode)
+        result = await client.put_engagement_settings(engagement_id, mode=mode)
+        _sync_wizard_settings_state(state, result)
     except BotApiError as exc:
         await _callback_reply(update, f"Couldn't save mode: {exc.message}")
         return
@@ -742,6 +731,11 @@ async def _handle_wizard_edit_reentry(
         "topic_id": None,
         "account_id": None,
         "mode": None,
+        "max_posts_per_day": _WIZARD_DEFAULT_MAX_POSTS_PER_DAY,
+        "min_minutes_between_posts": _WIZARD_DEFAULT_MIN_MINUTES_BETWEEN_POSTS,
+        "quiet_hours_start": None,
+        "quiet_hours_end": None,
+        "quiet_hours_timezone": DEFAULT_WIZARD_QUIET_HOURS_TIMEZONE,
         "join_status": None,
         "join_message": None,
         "join_job_id": None,
@@ -777,7 +771,7 @@ async def _handle_wizard_confirm(
 ) -> None:
     pending = _config_edit_store(context).get(operator_id)
     if pending is None or pending.entity != "wizard":
-        await _callback_reply(update, "Wizard session expired. Return to Engagements and start again.")
+        await _callback_reply(update, "Setup expired. Return to Engagements and start again.")
         return
 
     client = _api_client(context)
@@ -790,7 +784,7 @@ async def _handle_wizard_confirm(
     except BotApiError as exc:
         await _edit_callback_message(
             update,
-            f"Couldn't confirm engagement: {exc.message}\n\nUse Retry to try again.",
+            f"Couldn't confirm this engagement: {exc.message}\n\nUse Retry to try again.",
             reply_markup=engagement_wizard_retry_markup(engagement_id),
         )
         return
@@ -802,7 +796,7 @@ async def _handle_wizard_confirm(
         message = str(result.get("message") or "Engagement started")
         await _edit_callback_message(
             update,
-            f"🎉 {message} ✓ — first results will appear in the cockpit shortly. Return to Engagements to view them.",
+            f"🎉 {message}. First results should appear in Engagements soon.",
         )
         return
 
@@ -810,7 +804,7 @@ async def _handle_wizard_confirm(
         message = str(result.get("message") or "Validation failed.")
         await _edit_callback_message(
             update,
-            f"⚠ {message}\n\nFix the issue and try again.",
+            f"⚠ {message}\n\nMake the change, then try Confirm again.",
             reply_markup=engagement_wizard_retry_markup(engagement_id),
         )
         return
@@ -819,7 +813,7 @@ async def _handle_wizard_confirm(
         message = str(result.get("message") or "The engagement data is out of date.")
         await _edit_callback_message(
             update,
-            f"⚠ {message}\n\nRetry to refresh.",
+            f"⚠ {message}\n\nUse Retry to refresh this setup.",
             reply_markup=engagement_wizard_retry_markup(engagement_id),
         )
         return
@@ -827,7 +821,7 @@ async def _handle_wizard_confirm(
     # Fallback
     await _edit_callback_message(
         update,
-        f"Unexpected response: {status}.\n\nUse Retry or /add_engagement_target.",
+        f"Unexpected setup response: {status}.\n\nUse Retry to reload it.",
         reply_markup=engagement_wizard_retry_markup(engagement_id),
     )
 

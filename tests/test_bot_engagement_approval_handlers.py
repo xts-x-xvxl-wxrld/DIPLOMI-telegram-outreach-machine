@@ -91,6 +91,8 @@ class _FakeApiClient:
                 "draft_id": "draft-abc",
                 "engagement_id": "eng-1",
                 "target_label": "Founder Circle",
+                "engagement_label": "CRM migration evaluation",
+                "community_label": "@founder_circle",
                 "text": "Compare ownership and integrations first.",
                 "why": "Relevant CRM discussion.",
                 "badge": None,
@@ -102,6 +104,8 @@ class _FakeApiClient:
                 "draft_id": "draft-xyz",
                 "engagement_id": "eng-2",
                 "target_label": "Dev Circle",
+                "engagement_label": "Developer outreach",
+                "community_label": "@dev_circle",
                 "text": "Keep the rollout narrower and more specific.",
                 "why": "Follow up on the target's last thread.",
                 "badge": None,
@@ -117,6 +121,8 @@ class _FakeApiClient:
                 "draft_id": "draft-abc",
                 "engagement_id": "eng-1",
                 "target_label": "Founder Circle",
+                "engagement_label": "CRM migration evaluation",
+                "community_label": "@founder_circle",
                 "text": "Compare ownership and integrations first.",
                 "why": "Relevant CRM discussion.",
                 "badge": None,
@@ -335,13 +341,17 @@ def test_format_draft_card_includes_fields() -> None:
         "draft_id": "draft-abc",
         "engagement_id": "eng-1",
         "target_label": "Founder Circle",
+        "engagement_label": "CRM migration evaluation",
+        "community_label": "@founder_circle",
         "text": "Compare ownership and integrations.",
         "why": "Relevant CRM discussion.",
         "badge": None,
     }
     text = format_draft_card(data)
     assert "Founder Circle" in text
-    assert "draft-abc" in text
+    assert "Engagement: CRM migration evaluation" in text
+    assert "Community: @founder_circle" in text
+    assert "draft-abc" not in text
     assert "Compare ownership" in text
     assert "Relevant CRM" in text
 
@@ -351,6 +361,8 @@ def test_format_draft_card_with_index() -> None:
         "draft_id": "draft-abc",
         "engagement_id": "eng-1",
         "target_label": "Founder Circle",
+        "engagement_label": "CRM migration evaluation",
+        "community_label": "@founder_circle",
         "text": "Some message text.",
         "why": "Why this draft.",
         "badge": "urgent",
@@ -374,7 +386,7 @@ def test_format_approval_queue_header_with_items() -> None:
 
 def test_format_approval_queue_empty_global() -> None:
     text = format_approval_queue_empty(scoped=False)
-    assert "No drafts for approval" in text
+    assert "No drafts waiting for review." in text
 
 
 def test_format_approval_queue_empty_scoped() -> None:
@@ -384,36 +396,54 @@ def test_format_approval_queue_empty_scoped() -> None:
 
 def test_format_approval_placeholder_only() -> None:
     text = format_approval_placeholder_only()
-    assert "Waiting for updated drafts" in text or "updating" in text.lower()
+    assert "updating" in text.lower()
 
 
 def test_format_approve_confirm_has_key_fields() -> None:
-    draft_data = {"target_label": "Founder Circle", "text": "Reply text here."}
+    draft_data = {
+        "target_label": "Founder Circle",
+        "engagement_label": "CRM migration evaluation",
+        "community_label": "@founder_circle",
+        "text": "Reply text here.",
+    }
     text = format_approve_confirm("draft-abc", draft_data)
     assert "Founder Circle" in text
-    assert "draft-abc" in text
+    assert "Engagement: CRM migration evaluation" in text
+    assert "draft-abc" not in text
     assert "Approve" in text or "approve" in text
 
 
 def test_format_reject_confirm_has_key_fields() -> None:
-    draft_data = {"target_label": "Founder Circle", "text": "Reply text here."}
+    draft_data = {
+        "target_label": "Founder Circle",
+        "engagement_label": "CRM migration evaluation",
+        "community_label": "@founder_circle",
+        "text": "Reply text here.",
+    }
     text = format_reject_confirm("draft-abc", draft_data)
     assert "Founder Circle" in text
-    assert "draft-abc" in text
+    assert "Community: @founder_circle" in text
+    assert "draft-abc" not in text
     assert "Reject" in text or "reject" in text
 
 
-def test_format_edit_request_prompt_has_draft_id() -> None:
-    draft_data = {"target_label": "Founder Circle", "text": "Reply text."}
+def test_format_edit_request_prompt_has_friendly_labels() -> None:
+    draft_data = {
+        "target_label": "Founder Circle",
+        "engagement_label": "CRM migration evaluation",
+        "community_label": "@founder_circle",
+        "text": "Reply text.",
+    }
     text = format_edit_request_prompt("draft-abc", draft_data)
-    assert "draft-abc" in text
+    assert "Engagement: CRM migration evaluation" in text
+    assert "draft-abc" not in text
     assert "edit" in text.lower() or "Edit" in text
 
 
 def test_format_edit_submitted_shows_result() -> None:
     result = {"result": "queued_update", "message": "Draft update queued."}
     text = format_edit_submitted("draft-abc", result)
-    assert "draft-abc" in text
+    assert "draft-abc" not in text
     assert "queued_update" in text or "queued" in text.lower()
 
 
@@ -421,7 +451,7 @@ def test_format_approval_result_approved() -> None:
     result = {"result": "approved", "message": "Draft approved."}
     text = format_approval_result(result, draft_id="draft-abc", action="approved")
     assert "approved" in text
-    assert "draft-abc" in text
+    assert "draft-abc" not in text
 
 
 def test_format_approval_result_stale() -> None:
@@ -444,7 +474,7 @@ async def test_global_queue_shows_header_and_draft_card() -> None:
 
     replies = update.callback_query.message.replies
     assert len(replies) >= 2
-    assert "draft-abc" in replies[1]["text"] or "Founder Circle" in replies[1]["text"]
+    assert "Engagement: CRM migration evaluation" in replies[1]["text"]
     assert client.approval_calls == [{"offset": 0, "draft_id": None}]
 
 
@@ -465,7 +495,7 @@ async def test_global_queue_empty_shows_empty_message() -> None:
 
     replies = update.callback_query.message.replies
     assert len(replies) == 1
-    assert "No drafts for approval" in replies[0]["text"]
+    assert "No drafts waiting for review." in replies[0]["text"]
 
 
 @pytest.mark.asyncio
@@ -489,7 +519,7 @@ async def test_global_queue_all_placeholders_shows_waiting() -> None:
     replies = update.callback_query.message.replies
     assert len(replies) == 1
     text = replies[0]["text"]
-    assert "Waiting for updated drafts" in text or "updating" in text.lower()
+    assert "updating" in text.lower()
 
 
 @pytest.mark.asyncio
@@ -566,7 +596,7 @@ async def test_scoped_queue_all_placeholders_shows_waiting() -> None:
     replies = update.callback_query.message.replies
     assert len(replies) == 1
     text = replies[0]["text"]
-    assert "Waiting for updated drafts" in text or "updating" in text.lower()
+    assert "updating" in text.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -593,7 +623,8 @@ async def test_show_draft_card_renders_card_with_actions() -> None:
     replies = update.callback_query.message.replies
     assert len(replies) == 1
     text = replies[0]["text"]
-    assert "draft-abc" in text
+    assert "Engagement: CRM migration evaluation" in text
+    assert "draft-abc" not in text
     callbacks = _callback_data_values(replies[0]["reply_markup"])
     assert any("appr:ok:draft-abc" in cb for cb in callbacks)
     assert any("appr:no:draft-abc" in cb for cb in callbacks)
@@ -613,7 +644,8 @@ async def test_show_draft_card_for_non_current_draft_still_renders() -> None:
     replies = update.callback_query.message.replies
     assert len(replies) == 1
     text = replies[0]["text"]
-    assert "draft-xyz" in text
+    assert "Community: @dev_circle" in text
+    assert "draft-xyz" not in text
     assert "Dev Circle" in text
     assert client.approval_calls[-1] == {"offset": 0, "draft_id": "draft-xyz"}
 
@@ -635,7 +667,8 @@ async def test_approve_confirm_shows_confirmation_without_backend_call() -> None
     replies = update.callback_query.message.replies
     assert len(replies) == 1
     text = replies[0]["text"]
-    assert "draft-abc" in text
+    assert "Community: @founder_circle" in text
+    assert "draft-abc" not in text
     assert "Approve" in text or "approve" in text
     callbacks = _callback_data_values(replies[0]["reply_markup"])
     assert any("appr:okc:draft-abc" in cb for cb in callbacks)
@@ -681,7 +714,7 @@ async def test_approve_confirmed_shows_stale_result() -> None:
 
     assert client.approval_calls == [{"offset": 0, "draft_id": None}]
     text = _rendered_text(update)
-    assert "Founder Circle" in text or "draft-abc" in text
+    assert "Engagement: CRM migration evaluation" in text
 
 
 # ---------------------------------------------------------------------------
@@ -700,7 +733,8 @@ async def test_reject_confirm_shows_confirmation_without_backend_call() -> None:
     replies = update.callback_query.message.replies
     assert len(replies) == 1
     text = replies[0]["text"]
-    assert "draft-abc" in text
+    assert "Community: @founder_circle" in text
+    assert "draft-abc" not in text
     assert "Reject" in text or "reject" in text
     callbacks = _callback_data_values(replies[0]["reply_markup"])
     assert any("appr:noc:draft-abc" in cb for cb in callbacks)
@@ -748,7 +782,8 @@ async def test_edit_request_start_prompts_user_and_stores_pending() -> None:
     replies = update.callback_query.message.replies
     assert len(replies) == 1
     text = replies[0]["text"]
-    assert "draft-abc" in text
+    assert "Engagement: CRM migration evaluation" in text
+    assert "draft-abc" not in text
     assert "edit" in text.lower() or "Edit" in text
 
     # Pending edit is stored
@@ -885,7 +920,7 @@ async def test_reject_confirmed_stale_result() -> None:
 
     assert client.approval_calls == [{"offset": 0, "draft_id": None}]
     text = _rendered_text(update)
-    assert "Founder Circle" in text or "draft-abc" in text
+    assert "Engagement: CRM migration evaluation" in text
 
 
 # ---------------------------------------------------------------------------

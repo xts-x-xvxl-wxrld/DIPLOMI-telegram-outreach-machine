@@ -103,11 +103,13 @@ def test_format_quiet_hours_state_enabled() -> None:
         "quiet_hours_enabled": True,
         "quiet_hours_start": "22:00",
         "quiet_hours_end": "08:00",
+        "quiet_hours_timezone": "us_east",
     }
     text = format_quiet_hours_state(data)
     assert "22:00" in text
     assert "08:00" in text
     assert "Enabled" in text
+    assert "US East" in text
 
 
 def test_format_quiet_hours_state_disabled() -> None:
@@ -117,9 +119,11 @@ def test_format_quiet_hours_state_disabled() -> None:
         "quiet_hours_enabled": False,
         "quiet_hours_start": None,
         "quiet_hours_end": None,
+        "quiet_hours_timezone": "utc",
     }
     text = format_quiet_hours_state(data)
     assert "Disabled" in text
+    assert "UTC" in text
 
 
 def test_format_quiet_hours_saved_enabled() -> None:
@@ -128,10 +132,12 @@ def test_format_quiet_hours_saved_enabled() -> None:
         "quiet_hours_enabled": True,
         "quiet_hours_start": "22:00",
         "quiet_hours_end": "08:00",
+        "quiet_hours_timezone": "cet",
     }
     text = format_quiet_hours_saved(data)
     assert "updated" in text.lower()
     assert "22:00" in text
+    assert "CET" in text
 
 
 def test_format_issue_action_result_resolved() -> None:

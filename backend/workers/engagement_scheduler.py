@@ -38,6 +38,7 @@ from backend.services.community_engagement import (
     TASK_FIRST_RUNTIME_ENGAGEMENT_STATUSES,
     get_engagement_settings,
 )
+from backend.services.engagement_quiet_hours import is_quiet_time
 from backend.services.engagement_account_behavior import (
     ACCOUNT_HEALTH_REFRESH_HOURS,
     engagement_wait_periods_disabled_for_community,
@@ -76,6 +77,7 @@ class EngagementDetectionTarget:
     mode: str
     quiet_hours_start: time | None
     quiet_hours_end: time | None
+    quiet_hours_timezone: str
     latest_collection_completed_at: datetime | None
     active_candidate_count: int
 
@@ -88,6 +90,7 @@ class EngagementCollectionTarget:
     mode: str
     quiet_hours_start: time | None
     quiet_hours_end: time | None
+    quiet_hours_timezone: str
     latest_collection_completed_at: datetime | None
     active_collection_count: int
     has_detect_permission: bool
@@ -374,6 +377,7 @@ async def load_engagement_detection_targets(
                 mode=settings.mode,
                 quiet_hours_start=settings.quiet_hours_start,
                 quiet_hours_end=settings.quiet_hours_end,
+                quiet_hours_timezone=settings.quiet_hours_timezone,
                 latest_collection_completed_at=latest_collection_completed_at,
                 active_candidate_count=active_candidate_count,
             )
@@ -403,6 +407,7 @@ async def load_engagement_collection_targets(
                 mode=settings.mode,
                 quiet_hours_start=settings.quiet_hours_start,
                 quiet_hours_end=settings.quiet_hours_end,
+                quiet_hours_timezone=settings.quiet_hours_timezone,
                 latest_collection_completed_at=latest_collection_completed_at,
                 active_collection_count=active_collection_count,
                 has_detect_permission=detect_target_count > 0,
@@ -497,6 +502,7 @@ def detection_target_skip_reason(
         now,
         quiet_hours_start=target.quiet_hours_start,
         quiet_hours_end=target.quiet_hours_end,
+        quiet_hours_timezone=target.quiet_hours_timezone,
     ):
         return "quiet_hours"
     return None
@@ -522,25 +528,10 @@ def collection_target_skip_reason(
         now,
         quiet_hours_start=target.quiet_hours_start,
         quiet_hours_end=target.quiet_hours_end,
+        quiet_hours_timezone=target.quiet_hours_timezone,
     ):
         return "quiet_hours"
     return None
-
-
-def is_quiet_time(
-    now: datetime,
-    *,
-    quiet_hours_start: time | None,
-    quiet_hours_end: time | None,
-) -> bool:
-    if quiet_hours_start is None or quiet_hours_end is None:
-        return False
-    current_time = _ensure_aware_utc(now).time().replace(tzinfo=None)
-    if quiet_hours_start == quiet_hours_end:
-        return True
-    if quiet_hours_start < quiet_hours_end:
-        return quiet_hours_start <= current_time < quiet_hours_end
-    return current_time >= quiet_hours_start or current_time < quiet_hours_end
 
 
 async def run_scheduler_loop() -> None:

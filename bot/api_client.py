@@ -296,12 +296,15 @@ class BotApiClient(AccountApiClientMixin, EngagementAdminApiClientMixin, SearchA
         quiet_hours_enabled: bool,
         quiet_hours_start: str | None = None,
         quiet_hours_end: str | None = None,
+        quiet_hours_timezone: str | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {"quiet_hours_enabled": quiet_hours_enabled}
         if quiet_hours_start is not None:
             payload["quiet_hours_start"] = quiet_hours_start
         if quiet_hours_end is not None:
             payload["quiet_hours_end"] = quiet_hours_end
+        if quiet_hours_timezone is not None:
+            payload["quiet_hours_timezone"] = quiet_hours_timezone
         return await self._request(
             "PUT",
             f"/engagement/cockpit/engagements/{engagement_id}/quiet-hours",
@@ -508,10 +511,11 @@ class BotApiClient(AccountApiClientMixin, EngagementAdminApiClientMixin, SearchA
         allow_post: bool = False,
         reply_only: bool = True,
         require_approval: bool = True,
-        max_posts_per_day: int = 1,
-        min_minutes_between_posts: int = 240,
+        max_posts_per_day: int = 300,
+        min_minutes_between_posts: int = 1,
         quiet_hours_start: str | None = None,
         quiet_hours_end: str | None = None,
+        quiet_hours_timezone: str = "utc",
         assigned_account_id: str | None = None,
         operator_user_id: int | None = None,
     ) -> dict[str, Any]:
@@ -525,6 +529,7 @@ class BotApiClient(AccountApiClientMixin, EngagementAdminApiClientMixin, SearchA
             "min_minutes_between_posts": min_minutes_between_posts,
             "quiet_hours_start": quiet_hours_start,
             "quiet_hours_end": quiet_hours_end,
+            "quiet_hours_timezone": quiet_hours_timezone,
             "assigned_account_id": assigned_account_id,
         }
         return await self._request(

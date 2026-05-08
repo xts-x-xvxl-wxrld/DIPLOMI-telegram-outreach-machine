@@ -79,6 +79,7 @@ class CockpitQuietHoursReadResult:
     quiet_hours_enabled: bool | None = None
     quiet_hours_start: time | None = None
     quiet_hours_end: time | None = None
+    quiet_hours_timezone: str | None = None
 
 
 @dataclass(frozen=True)
@@ -90,6 +91,7 @@ class CockpitQuietHoursWriteResult:
     quiet_hours_enabled: bool | None = None
     quiet_hours_start: time | None = None
     quiet_hours_end: time | None = None
+    quiet_hours_timezone: str | None = None
     code: str | None = None
 
 
@@ -341,6 +343,7 @@ async def get_cockpit_quiet_hours(
         quiet_hours_enabled=enabled,
         quiet_hours_start=settings.quiet_hours_start,
         quiet_hours_end=settings.quiet_hours_end,
+        quiet_hours_timezone=settings.quiet_hours_timezone,
     )
 
 
@@ -351,6 +354,7 @@ async def update_cockpit_quiet_hours(
     quiet_hours_enabled: bool,
     quiet_hours_start: time | None,
     quiet_hours_end: time | None,
+    quiet_hours_timezone: str | None,
 ) -> CockpitQuietHoursWriteResult:
     issue = await _find_quiet_hours_issue(db, engagement_id=engagement_id)
     if issue is None:
@@ -379,7 +383,12 @@ async def update_cockpit_quiet_hours(
 
     next_start = quiet_hours_start if quiet_hours_enabled else None
     next_end = quiet_hours_end if quiet_hours_enabled else None
-    if settings.quiet_hours_start == next_start and settings.quiet_hours_end == next_end:
+    next_timezone = settings.quiet_hours_timezone if quiet_hours_timezone is None else quiet_hours_timezone
+    if (
+        settings.quiet_hours_start == next_start
+        and settings.quiet_hours_end == next_end
+        and settings.quiet_hours_timezone == next_timezone
+    ):
         return CockpitQuietHoursWriteResult(
             result="noop",
             message="No quiet-hours changes",
@@ -388,10 +397,12 @@ async def update_cockpit_quiet_hours(
             quiet_hours_enabled=quiet_hours_enabled,
             quiet_hours_start=next_start,
             quiet_hours_end=next_end,
+            quiet_hours_timezone=next_timezone,
         )
 
     settings.quiet_hours_start = next_start
     settings.quiet_hours_end = next_end
+    settings.quiet_hours_timezone = next_timezone
     settings.updated_at = _utcnow()
     await db.flush()
     return CockpitQuietHoursWriteResult(
@@ -402,6 +413,7 @@ async def update_cockpit_quiet_hours(
         quiet_hours_enabled=quiet_hours_enabled,
         quiet_hours_start=next_start,
         quiet_hours_end=next_end,
+        quiet_hours_timezone=next_timezone,
     )
 
 

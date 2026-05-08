@@ -76,6 +76,8 @@ class CockpitApprovalItemView:
     draft_id: UUID
     engagement_id: UUID
     target_label: str
+    engagement_label: str
+    community_label: str
     text: str
     why: str
     badge: str | None
@@ -271,10 +273,13 @@ async def get_cockpit_approvals(
             id_getter=lambda record: record.candidate.id,
         )
         first = approvals[current_offset]
+        community = _engagement_community(first.engagement, data)
         current = CockpitApprovalItemView(
             draft_id=first.candidate.id,
             engagement_id=first.engagement.id,
             target_label=_engagement_target_label(first.engagement, data),
+            engagement_label=_engagement_primary_label(first.engagement, data),
+            community_label=_community_label(community),
             text=_draft_text(first.candidate),
             why=_candidate_why(first.candidate),
             badge=first.badge,

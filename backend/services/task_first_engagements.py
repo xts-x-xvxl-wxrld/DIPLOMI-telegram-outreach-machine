@@ -29,9 +29,17 @@ from backend.db.models import (
     EngagementTopic,
     TelegramAccount,
 )
+from backend.services.engagement_quiet_hours import (
+    DEFAULT_QUIET_HOURS_TIMEZONE,
+    normalize_quiet_hours_timezone,
+)
 from backend.queue.client import enqueue_community_join
 
 LOGGER = logging.getLogger(__name__)
+
+TASK_FIRST_DEFAULT_MAX_POSTS_PER_DAY = 300
+TASK_FIRST_DEFAULT_MIN_MINUTES_BETWEEN_POSTS = 1
+TASK_FIRST_MAX_POSTS_PER_DAY_LIMIT = 300
 
 
 @dataclass(frozen=True)
@@ -52,8 +60,11 @@ class TaskFirstEngagementSettingsView:
     engagement_id: UUID
     assigned_account_id: UUID | None
     mode: str
+    max_posts_per_day: int
+    min_minutes_between_posts: int
     quiet_hours_start: time | None
     quiet_hours_end: time | None
+    quiet_hours_timezone: str
 
 
 @dataclass(frozen=True)
@@ -139,6 +150,11 @@ def _reset_task_first_settings(
     settings.mode = EngagementMode.DISABLED.value
     settings.allow_join = False
     settings.allow_post = False
+    settings.max_posts_per_day = TASK_FIRST_DEFAULT_MAX_POSTS_PER_DAY
+    settings.min_minutes_between_posts = TASK_FIRST_DEFAULT_MIN_MINUTES_BETWEEN_POSTS
+    settings.quiet_hours_start = None
+    settings.quiet_hours_end = None
+    settings.quiet_hours_timezone = DEFAULT_QUIET_HOURS_TIMEZONE
     settings.updated_at = now
 
 
@@ -161,8 +177,11 @@ def _settings_view(settings: EngagementSettings) -> TaskFirstEngagementSettingsV
         engagement_id=settings.engagement_id,
         assigned_account_id=settings.assigned_account_id,
         mode=settings.mode,
+        max_posts_per_day=settings.max_posts_per_day,
+        min_minutes_between_posts=settings.min_minutes_between_posts,
         quiet_hours_start=settings.quiet_hours_start,
         quiet_hours_end=settings.quiet_hours_end,
+        quiet_hours_timezone=settings.quiet_hours_timezone,
     )
 
 
@@ -314,8 +333,11 @@ async def put_task_first_engagement_settings(
     engagement_id: UUID,
     assigned_account_id: UUID | None,
     mode: str | None,
+    max_posts_per_day: int | None,
+    min_minutes_between_posts: int | None,
     quiet_hours_start: Any,
     quiet_hours_end: Any,
+    quiet_hours_timezone: str | None,
     fields_set: set[str],
 ) -> TaskFirstEngagementSettingsResult:
     engagement = await db.get(Engagement, engagement_id)
@@ -343,10 +365,11 @@ async def put_task_first_engagement_settings(
             allow_post=False,
             reply_only=True,
             require_approval=True,
-            max_posts_per_day=1,
-            min_minutes_between_posts=240,
+            max_posts_per_day=TASK_FIRST_DEFAULT_MAX_POSTS_PER_DAY,
+            min_minutes_between_posts=TASK_FIRST_DEFAULT_MIN_MINUTES_BETWEEN_POSTS,
             quiet_hours_start=None,
             quiet_hours_end=None,
+            quiet_hours_timezone=DEFAULT_QUIET_HOURS_TIMEZONE,
             assigned_account_id=None,
             created_at=now,
             updated_at=now,
@@ -370,12 +393,29 @@ async def put_task_first_engagement_settings(
 
     quiet_start_set = "quiet_hours_start" in fields_set
     quiet_end_set = "quiet_hours_end" in fields_set
+    quiet_timezone_set = "quiet_hours_timezone" in fields_set
     if quiet_start_set != quiet_end_set:
         return TaskFirstEngagementSettingsResult(
             result="blocked",
             message="Quiet hours must include both start and end times.",
             code="invalid_quiet_hours",
         )
+
+    if "max_posts_per_day" in fields_set:
+        if max_posts_per_day is None or not 0 <= max_posts_per_day <= TASK_FIRST_MAX_POSTS_PER_DAY_LIMIT:
+            return TaskFirstEngagementSettingsResult(
+                result="blocked",
+                message="Choose a valid daily send limit.",
+                code="invalid_max_posts_per_day",
+            )
+
+    if "min_minutes_between_posts" in fields_set:
+        if min_minutes_between_posts is None or min_minutes_between_posts < TASK_FIRST_DEFAULT_MIN_MINUTES_BETWEEN_POSTS:
+            return TaskFirstEngagementSettingsResult(
+                result="blocked",
+                message="Choose a valid spacing limit.",
+                code="invalid_min_minutes_between_posts",
+            )
 
     if "mode" in fields_set:
         if mode not in {EngagementMode.SUGGEST.value, EngagementMode.AUTO_LIMITED.value}:
@@ -391,9 +431,27 @@ async def put_task_first_engagement_settings(
     if "assigned_account_id" in fields_set:
         settings.assigned_account_id = assigned_account_id
 
+    if "max_posts_per_day" in fields_set and max_posts_per_day is not None:
+        settings.max_posts_per_day = max_posts_per_day
+
+    if "min_minutes_between_posts" in fields_set and min_minutes_between_posts is not None:
+        settings.min_minutes_between_posts = min_minutes_between_posts
+
+    if quiet_timezone_set:
+        try:
+            settings.quiet_hours_timezone = normalize_quiet_hours_timezone(quiet_hours_timezone)
+        except ValueError:
+            return TaskFirstEngagementSettingsResult(
+                result="blocked",
+                message="Choose a supported quiet-hours timezone.",
+                code="invalid_quiet_hours_timezone",
+            )
+
     if quiet_start_set and quiet_end_set:
         settings.quiet_hours_start = quiet_hours_start
         settings.quiet_hours_end = quiet_hours_end
+        if not getattr(settings, "quiet_hours_timezone", None):
+            settings.quiet_hours_timezone = DEFAULT_QUIET_HOURS_TIMEZONE
 
     settings.updated_at = now
     await db.flush()

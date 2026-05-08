@@ -435,6 +435,8 @@ async def test_put_task_first_settings_accepts_auto_send_and_account() -> None:
         TaskFirstEngagementSettingsUpdate(
             assigned_account_id=account_id,
             mode=EngagementMode.AUTO_LIMITED,
+            max_posts_per_day=300,
+            min_minutes_between_posts=1,
         ),
         db,  # type: ignore[arg-type]
     )
@@ -443,9 +445,13 @@ async def test_put_task_first_settings_accepts_auto_send_and_account() -> None:
     assert response.settings is not None
     assert response.settings.assigned_account_id == account_id
     assert response.settings.mode == EngagementMode.AUTO_LIMITED.value
+    assert response.settings.max_posts_per_day == 300
+    assert (response.settings.min_minutes_between_posts, response.settings.quiet_hours_timezone) == (1, "utc")
     created_settings = next(item for item in db.added if isinstance(item, EngagementSettings))
     assert created_settings.allow_join is True
     assert created_settings.allow_post is True
+    assert created_settings.max_posts_per_day == 300
+    assert created_settings.min_minutes_between_posts == 1
     assert db.commits == 1
 
 @pytest.mark.asyncio
@@ -484,6 +490,10 @@ async def test_task_first_wizard_retry_clears_draft_state() -> None:
     assert engagement.topic_id is None
     assert settings.assigned_account_id is None
     assert settings.mode == EngagementMode.DISABLED.value
+    assert settings.max_posts_per_day == 300
+    assert settings.min_minutes_between_posts == 1
+    assert settings.quiet_hours_start is None
+    assert (settings.quiet_hours_end, settings.quiet_hours_timezone) == (None, "utc")
     assert db.commits == 1
 
 @pytest.mark.asyncio
@@ -555,6 +565,8 @@ async def test_cockpit_approvals_global_and_scoped_share_queue_shape() -> None:
     assert global_queue.placeholders == []
     assert global_queue.current is not None
     assert global_queue.current.draft_id == candidate.id
+    assert global_queue.current.engagement_label == "CRM replies"
+    assert global_queue.current.community_label == "@founder_circle"
     assert scoped_queue.model_dump() == global_queue.model_dump()
 
 @pytest.mark.asyncio
@@ -581,6 +593,8 @@ async def test_cockpit_approvals_do_not_invent_placeholders_without_update_state
     assert queue.placeholders == []
     assert queue.current is not None
     assert queue.current.draft_id == candidate.id
+    assert queue.current.engagement_label == "CRM replies"
+    assert queue.current.community_label == "@founder_circle"
 
 @pytest.mark.asyncio
 async def test_cockpit_approvals_surface_pending_placeholders_and_updated_draft_badges() -> None:
@@ -1355,9 +1369,11 @@ async def test_cockpit_rate_limit_detail_and_quiet_hours_read_write_routes_use_s
     assert quiet_issue is not None
     assert quiet_read.result == "ready"
     assert quiet_read.next_callback == f"eng:iss:open:{quiet_issue.issue_id}"
+    assert quiet_read.quiet_hours_timezone == "utc"
     assert quiet_write.result == "updated"
     assert quiet_write.next_callback == "eng:iss:list:0"
     assert quiet_write.quiet_hours_enabled is False
+    assert quiet_write.quiet_hours_timezone == "utc"
     assert db.commits == 1
     assert rate_issue is not None
     assert rate_detail.result == "ready"
@@ -2070,10 +2086,11 @@ def _engagement_settings(
         allow_post=allow_post,
         reply_only=True,
         require_approval=True,
-        max_posts_per_day=1,
-        min_minutes_between_posts=240,
+        max_posts_per_day=300,
+        min_minutes_between_posts=1,
         quiet_hours_start=None,
         quiet_hours_end=None,
+        quiet_hours_timezone="utc",
         assigned_account_id=account_id,
         created_at=_now(),
         updated_at=_now(),

@@ -82,6 +82,7 @@ class EngagementSettingsView:
     min_minutes_between_posts: int
     quiet_hours_start: time | None
     quiet_hours_end: time | None
+    quiet_hours_timezone: str
     assigned_account_id: UUID | None
     created_at: datetime | None
     updated_at: datetime | None

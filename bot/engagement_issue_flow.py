@@ -4,6 +4,11 @@ import re
 from typing import Any
 
 from bot.api_client import BotApiClient, BotApiError
+from bot.engagement_quiet_hours_timezones import (
+    USER_SELECTABLE_QUIET_HOURS_TIMEZONES,
+    normalize_bot_quiet_hours_timezone,
+    quiet_hours_timezone_label,
+)
 from bot.display_policy import hide_slash_commands
 from bot.formatting_engagement_home import format_cockpit_home
 from bot.formatting_engagement_issue import (
@@ -19,6 +24,7 @@ from bot.ui_common import (
     ACTION_ENGAGEMENT_DETAIL,
     ACTION_ENGAGEMENT_HOME,
     ACTION_ENGAGEMENT_ISSUE_QUEUE,
+    ACTION_ENGAGEMENT_QUIET,
     _button,
     _inline_markup,
     _with_navigation,
@@ -79,9 +85,14 @@ def _start_quiet_hours_edit(
     *,
     issue_id: str,
     engagement_id: str,
+    quiet_hours_timezone: str,
 ) -> None:
     store = _quiet_hours_edit_store(context)
-    store[operator_id] = {"issue_id": issue_id, "engagement_id": engagement_id}
+    store[operator_id] = {
+        "issue_id": issue_id,
+        "engagement_id": engagement_id,
+        "quiet_hours_timezone": quiet_hours_timezone,
+    }
 
 
 def _get_quiet_hours_edit(context: Any, operator_id: int) -> dict[str, Any] | None:
@@ -272,8 +283,33 @@ def _rate_limit_detail_markup(issue_id: str) -> Any:
     )
 
 
-def _quiet_hours_edit_markup(issue_id: str) -> Any:
-    rows = [[_button("Cancel", ACTION_ENGAGEMENT_ISSUE_QUEUE, "open", issue_id)]]
+def _quiet_hours_timezone_button_label(*, code: str, current: str) -> str:
+    label = quiet_hours_timezone_label(code)
+    if code == current:
+        return f"[x] {label}"
+    return f"[ ] {label}"
+
+
+def _quiet_hours_edit_markup(
+    issue_id: str,
+    *,
+    engagement_id: str,
+    quiet_hours_timezone: str,
+) -> Any:
+    rows = [
+        [
+            _button(
+                _quiet_hours_timezone_button_label(code=code, current=quiet_hours_timezone),
+                ACTION_ENGAGEMENT_QUIET,
+                "tz",
+                code,
+                engagement_id,
+                issue_id,
+            )
+            for code in USER_SELECTABLE_QUIET_HOURS_TIMEZONES
+        ],
+        [_button("Cancel", ACTION_ENGAGEMENT_ISSUE_QUEUE, "open", issue_id)],
+    ]
     return _inline_markup(
         _with_navigation(
             rows,
@@ -541,6 +577,11 @@ async def start_quiet_hours_edit(
         await _edit_or_reply(update, f"Could not load quiet hours: {exc.message}")
         return
 
+    quiet_hours_timezone = normalize_bot_quiet_hours_timezone(
+        qh_data.get("quiet_hours_timezone"),
+        default="utc",
+    )
+
     # Store pending edit state
     if operator_id is not None:
         _start_quiet_hours_edit(
@@ -548,10 +589,62 @@ async def start_quiet_hours_edit(
             operator_id,
             issue_id=issue_id,
             engagement_id=resolved_engagement_id,
+            quiet_hours_timezone=quiet_hours_timezone,
         )
 
     text = format_quiet_hours_state(qh_data)
-    markup = _quiet_hours_edit_markup(issue_id)
+    markup = _quiet_hours_edit_markup(
+        issue_id,
+        engagement_id=resolved_engagement_id,
+        quiet_hours_timezone=quiet_hours_timezone,
+    )
+    await _edit_or_reply(update, text, reply_markup=markup)
+
+
+async def set_quiet_hours_timezone(
+    update: Any,
+    context: Any,
+    *,
+    issue_id: str,
+    engagement_id: str,
+    timezone_code: str,
+) -> None:
+    operator_id = _telegram_user_id(update)
+    if operator_id is None:
+        await _edit_or_reply(update, "Telegram did not include a user ID on this update.")
+        return
+
+    edit_state = _get_quiet_hours_edit(context, operator_id)
+    if edit_state is None:
+        await start_quiet_hours_edit(
+            update,
+            context,
+            issue_id=issue_id,
+            engagement_id=engagement_id,
+        )
+        return
+
+    normalized = normalize_bot_quiet_hours_timezone(timezone_code, default="utc")
+    if normalized not in USER_SELECTABLE_QUIET_HOURS_TIMEZONES:
+        await _edit_or_reply(update, "Unknown timezone option.")
+        return
+
+    edit_state["quiet_hours_timezone"] = normalized
+
+    client = _api_client(context)
+    try:
+        qh_data = await client.get_engagement_cockpit_quiet_hours(engagement_id)
+    except BotApiError as exc:
+        await _edit_or_reply(update, f"Could not load quiet hours: {exc.message}")
+        return
+
+    qh_data["quiet_hours_timezone"] = normalized
+    text = format_quiet_hours_state(qh_data)
+    markup = _quiet_hours_edit_markup(
+        issue_id,
+        engagement_id=engagement_id,
+        quiet_hours_timezone=normalized,
+    )
     await _edit_or_reply(update, text, reply_markup=markup)
 
 
@@ -571,6 +664,10 @@ async def save_quiet_hours(
 
     engagement_id = edit_state.get("engagement_id", "")
     stored_issue_id = edit_state.get("issue_id", issue_id)
+    quiet_hours_timezone = normalize_bot_quiet_hours_timezone(
+        edit_state.get("quiet_hours_timezone"),
+        default="utc",
+    )
 
     client = _api_client(context)
     text_stripped = time_range_text.strip().casefold()
@@ -588,7 +685,11 @@ async def save_quiet_hours(
             await _edit_or_reply(
                 update,
                 "Invalid format. Send HH:MM-HH:MM (e.g. 22:00-08:00) or 'off' to disable.",
-                reply_markup=_quiet_hours_edit_markup(stored_issue_id),
+                reply_markup=_quiet_hours_edit_markup(
+                    stored_issue_id,
+                    engagement_id=engagement_id,
+                    quiet_hours_timezone=quiet_hours_timezone,
+                ),
             )
             return
         start_str, end_str = parsed
@@ -601,6 +702,7 @@ async def save_quiet_hours(
     try:
         result = await client.update_engagement_cockpit_quiet_hours(
             engagement_id,
+            quiet_hours_timezone=quiet_hours_timezone,
             **payload,
         )
     except BotApiError as exc:
@@ -658,5 +760,6 @@ __all__ = [
     "handle_issue_action",
     "show_rate_limit_detail",
     "start_quiet_hours_edit",
+    "set_quiet_hours_timezone",
     "save_quiet_hours",
 ]

@@ -2576,6 +2576,18 @@ while preserving the staged testing contract.
 - Extended the deploy-script regression to assert both the scheduler rebuild
   step and the force-recreate app-service restart command.
 
+## [2026-05-06] ux | Tighten engagement cockpit copy for faster scanning
+
+- Rewrote the active engagement cockpit formatter copy across home, wizard,
+  approvals, issues, detail, and sent-message views so screens lead with
+  status and next action instead of long field dumps.
+- Kept the active task-first cockpit routes and button/callback contract
+  intact while simplifying empty states, pending-work summaries, and
+  confirmation language.
+- Updated the focused bot handler and wizard tests for the refreshed wording,
+  then ran `python scripts/check_fragmentation.py`, `ruff check .`, and the
+  full `pytest -q` suite successfully.
+
 ## [2026-05-07] fix | Unblock approved draft sends from self-cadence skips
 
 - Fixed engagement send cadence checks so an approved draft's own pre-reserved
@@ -2583,6 +2595,22 @@ while preserving the staged testing contract.
 - Added a regression test that covers the approval path where the send worker
   resumes a reserved action and must not block itself on its own queued record.
 - Ran `uv run pytest -q tests/test_engagement_send_worker.py` successfully.
+
+## [2026-05-07] docs | Add manual engagement simulation package
+
+- Replaced the earlier repo-fixture experiment with wiki-native manual-entry
+  simulation docs so engagement testing can be run through the current bot
+  topic and engagement wizards.
+- Added `wiki/plan/engagement-manual-simulation-packages.md` plus the first
+  package at
+  `wiki/plan/engagement-manual-simulation-packages/crm-migration-evaluation.md`
+  with paste-ready topic text, engagement text, and trigger/non-trigger
+  Telegram-style message examples.
+- Updated `wiki/index.md` to point at the new manual simulation package docs
+  and removed the no-longer-needed fixture references.
+- Updated the CRM package to match the active topic-create flow by adding
+  explicit trigger-keyword and negative-keyword fields plus the current wizard
+  step order for manual entry.
 
 ## [2026-05-08] feat | Bypass engagement wait periods for allowlisted test communities
 
@@ -2616,3 +2644,85 @@ while preserving the staged testing contract.
   of waiting for the normal 1-15 / 3-15 minute spread.
 - Added focused regression coverage and updated the account-behavior /
   scheduling specs to document the sandbox special case.
+
+## [2026-05-08] feat | Expose task-first send cadence and setup quiet hours
+
+- Raised the task-first engagement cadence defaults from `1 / 240` to
+  `300 / 1`, widened the task-first settings write contract to accept
+  cadence fields directly, and added a migration that updates rows still on
+  the legacy default pair.
+- Surfaced cadence and quiet-hours values on the engagement setup review card
+  and added setup-time quiet-hours editing with `HH:MM-HH:MM` or `off`
+  input routed through the task-first settings endpoint.
+- Updated the task-first API/client, wizard regressions, and engagement
+  settings/schema docs to keep the operator flow aligned with enforced runtime
+  behavior.
+
+## [2026-05-08] docs | Add developer documentary protocol
+
+- Added `wiki/spec/developer-documentary.md` and
+  `wiki/plan/developer-documentary-protocol.md` to define a dedicated
+  developer-facing documentation lane with evidence-based upkeep rules.
+- Created `wiki/dev-docs/` with an index, protocol, glossary, and starter
+  templates for module and flow guides so future work can accumulate verified
+  implementation knowledge.
+- Reworked `wiki/index.md` into a wiki-first router that points at
+  `wiki/code-index/` and the new developer-docs lane instead of carrying the
+  long implementation-roots inventory inline.
+- Updated `AGENTS.md`, `CLAUDE.md`, and the architecture spec so future agent
+  work reads and maintains the new developer-documentary surface.
+
+## [2026-05-08] ux | Restore emoji anchors on engagement home buttons
+
+- Added emoji-prefixed labels back to the task-first `Engagements` home buttons
+  so `Add engagement`, `My engagements`, `Top issues`, `Approve draft`, and
+  `Sent messages` are easier to scan in Telegram.
+- Updated the active cockpit spec and home-handler regressions to assert the
+  exact button labels and ordering with the restored emoji anchors.
+
+## [2026-05-08] ux | Replace approval-card hashes with friendly labels
+
+- Updated the task-first approval payload to expose human-readable engagement
+  and community labels alongside the existing composite target label.
+- Changed the Telegram approval formatter to show those labels on draft,
+  approve, reject, and edit-request screens while dropping raw draft and
+  engagement hash lines from the normal review flow.
+- Validation: `ruff check bot/formatting_engagement_approval.py
+  backend/services/task_first_engagement_cockpit.py backend/api/schemas.py
+  tests/test_bot_engagement_approval_handlers.py tests/test_engagement_api.py`
+  passed, `pytest -q tests/test_bot_engagement_approval_handlers.py
+  tests/test_engagement_api.py -k cockpit_approvals` passed, and the broader
+  `tests/test_engagement_api.py` file still has pre-existing
+  `quiet_hours_timezone` failures unrelated to this change.
+
+## [2026-05-08] docs | Backfill approval-card protocol follow-through
+
+- Updated the active API engagement spec so the cockpit approvals contract now
+  documents `engagement_label` and `community_label` on the current draft
+  payload.
+- Updated the task-first bot cockpit spec so the approval queue behavior now
+  states that review cards lead with friendly engagement/community labels and
+  omit raw `Draft ID` / `Engagement ID` lines from normal review surfaces.
+- Added `wiki/dev-docs/modules/engagement-approval-review.md` and linked it
+  from the developer-doc and wiki indexes as the narrow module guide for the
+  approval payload-to-formatting seam.
+
+## [2026-05-08] docs | Tighten agent dev-doc update rule
+
+- Updated `AGENTS.md` and `CLAUDE.md` so the dev-doc requirement now applies
+  after inspecting, debugging, or changing subsystem files, not only after
+  "deep" inspection.
+- Updated the developer-documentary spec and protocol so the repo's formal
+  documentation lane matches that more explicit expectation.
+
+## [2026-05-08] feat | Add quiet-hours timezone selection to task-first setup
+
+- Added backend quiet-hours timezone storage and runtime evaluation helpers so
+  task-first quiet-hour windows are checked in the saved timezone instead of
+  assuming UTC wall-clock comparisons.
+- Exposed timezone-aware quiet-hours editing in the task-first wizard review
+  flow and cockpit issue flow, with operator-selectable `CET`, `US East`, and
+  `US West` options while preserving legacy rows on `utc`.
+- Updated task-first/client/runtime tests plus the engagement settings spec,
+  task-first plan note, and a new developer-doc module for quiet-hours
+  plumbing.

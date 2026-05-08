@@ -132,6 +132,7 @@ class _FakeApiClient:
             "quiet_hours_enabled": True,
             "quiet_hours_start": "22:00",
             "quiet_hours_end": "08:00",
+            "quiet_hours_timezone": "utc",
         }
         self.update_quiet_hours_result: dict[str, Any] = {
             "result": "updated",
@@ -141,6 +142,7 @@ class _FakeApiClient:
             "quiet_hours_enabled": True,
             "quiet_hours_start": "22:00",
             "quiet_hours_end": "08:00",
+            "quiet_hours_timezone": "utc",
         }
         self.home_payload: dict[str, Any] = {
             "state": "clear",
@@ -235,6 +237,7 @@ class _FakeApiClient:
         quiet_hours_enabled: bool,
         quiet_hours_start: str | None = None,
         quiet_hours_end: str | None = None,
+        quiet_hours_timezone: str | None = None,
     ) -> dict[str, Any]:
         self.update_quiet_hours_calls.append(
             {
@@ -242,6 +245,7 @@ class _FakeApiClient:
                 "quiet_hours_enabled": quiet_hours_enabled,
                 "quiet_hours_start": quiet_hours_start,
                 "quiet_hours_end": quiet_hours_end,
+                "quiet_hours_timezone": quiet_hours_timezone,
             }
         )
         return dict(self.update_quiet_hours_result)
@@ -752,6 +756,7 @@ async def test_start_quiet_hours_edit_shows_current_state() -> None:
     text = _replied_text(update)
     assert "Quiet hours" in text
     assert "22:00" in text
+    assert "UTC" in text
 
 
 @pytest.mark.asyncio
@@ -765,7 +770,26 @@ async def test_start_quiet_hours_edit_stores_pending_state() -> None:
     store = ctx.application.bot_data.get(QUIET_HOURS_EDIT_STORE_KEY) or {}
     assert 123 in store
     assert store[123]["issue_id"] == "issue-uuid-1"
+    assert store[123]["quiet_hours_timezone"] == "utc"
 
+@pytest.mark.asyncio
+async def test_set_quiet_hours_timezone_re_renders_prompt() -> None:
+    from bot.engagement_issue_flow import set_quiet_hours_timezone
+    client = _FakeApiClient()
+    update = _callback_update("eng:quiet:tz:us_west:engagement-uuid-1:issue-uuid-1")
+    ctx = _context(client)
+    ctx.application.bot_data[QUIET_HOURS_EDIT_STORE_KEY] = {123: {"issue_id": "issue-uuid-1", "engagement_id": "engagement-uuid-1", "quiet_hours_timezone": "utc"}}
+    await set_quiet_hours_timezone(
+        update,
+        ctx,
+        issue_id="issue-uuid-1",
+        engagement_id="engagement-uuid-1",
+        timezone_code="us_west",
+    )
+    text = _replied_text(update)
+    assert "US West" in text
+    store = ctx.application.bot_data.get(QUIET_HOURS_EDIT_STORE_KEY) or {}
+    assert store[123]["quiet_hours_timezone"] == "us_west"
 
 @pytest.mark.asyncio
 async def test_start_quiet_hours_edit_uses_requested_issue_engagement() -> None:
@@ -818,7 +842,11 @@ async def test_save_quiet_hours_valid_range_calls_api() -> None:
 
     # Pre-populate edit state
     ctx.application.bot_data[QUIET_HOURS_EDIT_STORE_KEY] = {
-        123: {"issue_id": "issue-uuid-1", "engagement_id": "engagement-uuid-1"}
+        123: {
+            "issue_id": "issue-uuid-1",
+            "engagement_id": "engagement-uuid-1",
+            "quiet_hours_timezone": "utc",
+        }
     }
 
     await save_quiet_hours(update, ctx, issue_id="issue-uuid-1", time_range_text="22:00-08:00")
@@ -828,6 +856,7 @@ async def test_save_quiet_hours_valid_range_calls_api() -> None:
     assert call["quiet_hours_enabled"] is True
     assert call["quiet_hours_start"] == "22:00"
     assert call["quiet_hours_end"] == "08:00"
+    assert call["quiet_hours_timezone"] == "utc"
 
 
 @pytest.mark.asyncio
@@ -837,7 +866,11 @@ async def test_save_quiet_hours_off_disables_quiet_hours() -> None:
     ctx = _context(client)
 
     ctx.application.bot_data[QUIET_HOURS_EDIT_STORE_KEY] = {
-        123: {"issue_id": "issue-uuid-1", "engagement_id": "engagement-uuid-1"}
+        123: {
+            "issue_id": "issue-uuid-1",
+            "engagement_id": "engagement-uuid-1",
+            "quiet_hours_timezone": "utc",
+        }
     }
 
     await save_quiet_hours(update, ctx, issue_id="issue-uuid-1", time_range_text="off")
@@ -845,6 +878,7 @@ async def test_save_quiet_hours_off_disables_quiet_hours() -> None:
     assert len(client.update_quiet_hours_calls) == 1
     call = client.update_quiet_hours_calls[0]
     assert call["quiet_hours_enabled"] is False
+    assert call["quiet_hours_timezone"] == "utc"
 
 
 @pytest.mark.asyncio
@@ -854,7 +888,11 @@ async def test_save_quiet_hours_invalid_format_shows_error() -> None:
     ctx = _context(client)
 
     ctx.application.bot_data[QUIET_HOURS_EDIT_STORE_KEY] = {
-        123: {"issue_id": "issue-uuid-1", "engagement_id": "engagement-uuid-1"}
+        123: {
+            "issue_id": "issue-uuid-1",
+            "engagement_id": "engagement-uuid-1",
+            "quiet_hours_timezone": "utc",
+        }
     }
 
     await save_quiet_hours(update, ctx, issue_id="issue-uuid-1", time_range_text="not-a-time")
@@ -886,7 +924,11 @@ async def test_save_quiet_hours_clears_pending_edit_after_save() -> None:
     ctx = _context(client)
 
     ctx.application.bot_data[QUIET_HOURS_EDIT_STORE_KEY] = {
-        123: {"issue_id": "issue-uuid-1", "engagement_id": "engagement-uuid-1"}
+        123: {
+            "issue_id": "issue-uuid-1",
+            "engagement_id": "engagement-uuid-1",
+            "quiet_hours_timezone": "utc",
+        }
     }
 
     await save_quiet_hours(update, ctx, issue_id="issue-uuid-1", time_range_text="22:00-08:00")
@@ -902,13 +944,18 @@ async def test_save_quiet_hours_shows_saved_confirmation() -> None:
     ctx = _context(client)
 
     ctx.application.bot_data[QUIET_HOURS_EDIT_STORE_KEY] = {
-        123: {"issue_id": "issue-uuid-1", "engagement_id": "engagement-uuid-1"}
+        123: {
+            "issue_id": "issue-uuid-1",
+            "engagement_id": "engagement-uuid-1",
+            "quiet_hours_timezone": "utc",
+        }
     }
 
     await save_quiet_hours(update, ctx, issue_id="issue-uuid-1", time_range_text="22:00-08:00")
 
     text = _replied_text(update)
     assert "updated" in text.lower() or "Quiet hours" in text
+    assert "UTC" in text
 
 # ---------------------------------------------------------------------------
 # Skip state isolation between users

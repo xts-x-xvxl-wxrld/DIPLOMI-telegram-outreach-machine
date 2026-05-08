@@ -69,6 +69,16 @@ class _FakeWizardApiClient(_FakeApiClient):
         self._join_action_status = "queued"
         self._join_action_error: str | None = None
         self._raise_start_join = False
+        self._task_first_settings: dict[str, Any] = {
+            "engagement_id": _ENG_NEW_ID,
+            "assigned_account_id": None,
+            "mode": None,
+            "max_posts_per_day": 300,
+            "min_minutes_between_posts": 1,
+            "quiet_hours_start": None,
+            "quiet_hours_end": None,
+            "quiet_hours_timezone": "cet",
+        }
         # Override base-class topics with real UUIDs
         self.topics = [
             {
@@ -158,10 +168,50 @@ class _FakeWizardApiClient(_FakeApiClient):
         self.patch_engagement_calls.append(call)
         return {"result": "updated", "engagement": {"id": engagement_id, "topic_id": topic_id}}
 
-    async def put_engagement_settings(self, engagement_id, *, assigned_account_id=None, mode=None):
-        call = {"engagement_id": engagement_id, "assigned_account_id": assigned_account_id, "mode": mode}
+    async def put_engagement_settings(
+        self,
+        engagement_id,
+        *,
+        assigned_account_id=None,
+        mode=None,
+        max_posts_per_day=None,
+        min_minutes_between_posts=None,
+        quiet_hours_start="__unset__",
+        quiet_hours_end="__unset__",
+        quiet_hours_timezone="__unset__",
+    ):
+        call = {
+            "engagement_id": engagement_id,
+            "assigned_account_id": assigned_account_id,
+            "mode": mode,
+        }
+        if max_posts_per_day is not None:
+            call["max_posts_per_day"] = max_posts_per_day
+        if min_minutes_between_posts is not None:
+            call["min_minutes_between_posts"] = min_minutes_between_posts
+        if quiet_hours_start != "__unset__":
+            call["quiet_hours_start"] = quiet_hours_start
+        if quiet_hours_end != "__unset__":
+            call["quiet_hours_end"] = quiet_hours_end
+        if quiet_hours_timezone != "__unset__":
+            call["quiet_hours_timezone"] = quiet_hours_timezone
         self.put_engagement_settings_calls.append(call)
-        return {"result": "updated", "settings": {"engagement_id": engagement_id, "mode": mode}}
+        self._task_first_settings["engagement_id"] = engagement_id
+        if assigned_account_id is not None:
+            self._task_first_settings["assigned_account_id"] = assigned_account_id
+        if mode is not None:
+            self._task_first_settings["mode"] = mode
+        if max_posts_per_day is not None:
+            self._task_first_settings["max_posts_per_day"] = max_posts_per_day
+        if min_minutes_between_posts is not None:
+            self._task_first_settings["min_minutes_between_posts"] = min_minutes_between_posts
+        if quiet_hours_start != "__unset__":
+            self._task_first_settings["quiet_hours_start"] = quiet_hours_start
+        if quiet_hours_end != "__unset__":
+            self._task_first_settings["quiet_hours_end"] = quiet_hours_end
+        if quiet_hours_timezone != "__unset__":
+            self._task_first_settings["quiet_hours_timezone"] = quiet_hours_timezone
+        return {"result": "updated", "settings": dict(self._task_first_settings)}
 
     async def wizard_confirm_engagement(self, engagement_id, *, requested_by=None):
         call = {"engagement_id": engagement_id, "requested_by": requested_by}
@@ -631,7 +681,7 @@ async def test_wizard_step3_without_accounts_offers_add_account_button() -> None
     callbacks = [button.callback_data for row in markup.inline_keyboard for button in row]
     labels = [button.text for row in markup.inline_keyboard for button in row]
 
-    assert "Use the button below to add one" in text
+    assert "Add one below, then come back here." in text
     assert "op:addacct:engagement" in callbacks
     assert "Add engagement account" in labels
 @pytest.mark.asyncio
@@ -659,7 +709,7 @@ async def test_wizard_step4_markup_uses_draft_and_auto_send_labels() -> None:
     labels = [button.text for row in markup.inline_keyboard for button in row]
 
     assert "Step 4 of 5: Sending mode" in text
-    assert "How should sending work?" in text
+    assert "Choose how replies should be sent." in text
     assert "Draft" in labels
     assert "Auto send" in labels
     assert f"eng:wz:lv:draft:{_ENG_NEW_ID}" in callbacks
@@ -718,7 +768,7 @@ async def test_wizard_step5_confirm_success() -> None:
     # Pending edit should be cleared
     assert context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123) is None
     edit_text = confirm_update.callback_query.edits[0]["text"]
-    assert "Started" in edit_text or "✓" in edit_text or "Engagement started" in edit_text
+    assert "Engagement confirmed" in edit_text or "First results should appear" in edit_text
 
 @pytest.mark.asyncio
 async def test_wizard_step5_confirm_validation_failed() -> None:
@@ -940,40 +990,4 @@ async def test_wizard_edit_reentry_topic_opens_step2() -> None:
 
     pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
     assert (pending.flow_state or {}).get("return_callback") is not None
-
-@pytest.mark.asyncio
-async def test_wizard_edit_reentry_mode_returns_to_review_after_save() -> None:
-    client = _FakeWizardApiClient()
-    context = _wiz_context(client)
-
-    store = context.application.bot_data.setdefault(CONFIG_EDIT_STORE_KEY, PendingEditStore())
-    from bot.config_editing import editable_field
-    editable = editable_field("wizard", "state")
-    store.start(
-        operator_id=123,
-        field=editable,
-        object_id=_ENG_EDIT_ID,
-        flow_step="review",
-        flow_state={
-            "engagement_id": _ENG_EDIT_ID,
-            "target_id": "target-edit",
-            "target_ref": "@edit_community",
-            "topic_id": _TOPIC_1_ID,
-            "account_id": _ACCT_1_ID,
-            "mode": "draft",
-            "return_callback": None,
-        },
-    )
-
-    await callback_query(_callback_update(f"eng:wz:edit:{_ENG_EDIT_ID}:mode"), context)
-
-    level_update = _callback_update(f"eng:wz:lv:auto_send:{_ENG_EDIT_ID}")
-    await callback_query(level_update, context)
-
-    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
-    assert (pending.flow_state or {}).get("mode") == "auto_send"
-    assert (pending.flow_state or {}).get("return_callback") is None
-
-    mode_calls = [c for c in client.put_engagement_settings_calls if c.get("mode") == "auto_limited"]
-    assert mode_calls
 

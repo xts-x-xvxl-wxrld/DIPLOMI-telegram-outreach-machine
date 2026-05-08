@@ -30,6 +30,11 @@ async def test_engagement_wizard_methods_use_task_first_routes() -> None:
         "eng-1",
         assigned_account_id="acct-1",
         mode="suggest",
+        max_posts_per_day=300,
+        min_minutes_between_posts=1,
+        quiet_hours_start="22:00",
+        quiet_hours_end="08:00",
+        quiet_hours_timezone="cet",
     )
     await client.wizard_confirm_engagement("eng-1", requested_by="telegram:123")
     await client.wizard_retry_engagement("eng-1")
@@ -50,7 +55,15 @@ async def test_engagement_wizard_methods_use_task_first_routes() -> None:
         (
             "PUT",
             "/api/engagements/eng-1/settings",
-            {"assigned_account_id": "acct-1", "mode": "suggest"},
+            {
+                "assigned_account_id": "acct-1",
+                "mode": "suggest",
+                "max_posts_per_day": 300,
+                "min_minutes_between_posts": 1,
+                "quiet_hours_start": "22:00",
+                "quiet_hours_end": "08:00",
+                "quiet_hours_timezone": "cet",
+            },
         ),
         (
             "POST",

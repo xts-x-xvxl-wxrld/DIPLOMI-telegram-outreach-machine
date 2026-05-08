@@ -20,6 +20,7 @@ from backend.db.enums import (
     EngagementTimeliness,
     EngagementTargetRefType,
     EngagementTargetStatus,
+    QuietHoursTimezone,
 )
 from backend.db.models import (
     CommunityAccountMembership,
@@ -98,6 +99,7 @@ def test_engagement_status_enums_match_contract() -> None:
     assert [item.value for item in EngagementActionType] == ["join", "reply", "post", "skip"]
     assert [item.value for item in EngagementActionStatus] == ["queued", "sent", "failed", "skipped"]
     assert [item.value for item in EngagementStyleRuleScope] == ["global", "account", "community", "topic"]
+    assert [item.value for item in QuietHoursTimezone] == ["utc", "cet", "us_east", "us_west"]
 
 
 def test_engagement_model_defaults_are_contract_defaults() -> None:
@@ -111,8 +113,9 @@ def test_engagement_model_defaults_are_contract_defaults() -> None:
     assert settings_columns.allow_post.default.arg is False
     assert settings_columns.reply_only.default.arg is True
     assert settings_columns.require_approval.default.arg is True
-    assert settings_columns.max_posts_per_day.default.arg == 1
-    assert settings_columns.min_minutes_between_posts.default.arg == 240
+    assert settings_columns.max_posts_per_day.default.arg == 300
+    assert settings_columns.min_minutes_between_posts.default.arg == 1
+    assert settings_columns.quiet_hours_timezone.default.arg == "utc"
 
     engagement_columns = Engagement.__table__.c
     assert engagement_columns.status.default.arg == EngagementStatus.DRAFT.value
@@ -123,8 +126,9 @@ def test_engagement_model_defaults_are_contract_defaults() -> None:
     assert engagement_settings_columns.allow_post.default.arg is False
     assert engagement_settings_columns.reply_only.default.arg is True
     assert engagement_settings_columns.require_approval.default.arg is True
-    assert engagement_settings_columns.max_posts_per_day.default.arg == 1
-    assert engagement_settings_columns.min_minutes_between_posts.default.arg == 240
+    assert engagement_settings_columns.max_posts_per_day.default.arg == 300
+    assert engagement_settings_columns.min_minutes_between_posts.default.arg == 1
+    assert engagement_settings_columns.quiet_hours_timezone.default.arg == "utc"
 
     assert EngagementTarget.__table__.c.submitted_ref_type.default.arg == (
         EngagementTargetRefType.TELEGRAM_USERNAME.value

@@ -59,6 +59,7 @@ async def test_engagement_scheduler_enqueues_only_due_detection_targets() -> Non
             latest_collection_completed_at=datetime(2026, 4, 19, 13, 10, tzinfo=timezone.utc),
             quiet_hours_start=time(13, 0),
             quiet_hours_end=time(14, 0),
+            quiet_hours_timezone="utc",
         ),
         _target(
             disabled_id,
@@ -148,6 +149,7 @@ async def test_engagement_collection_scheduler_enqueues_only_due_targets() -> No
             latest_collection_completed_at=datetime(2026, 4, 19, 13, 10, tzinfo=timezone.utc),
             quiet_hours_start=time(13, 0),
             quiet_hours_end=time(14, 0),
+            quiet_hours_timezone="utc",
         ),
         _collection_target(
             disabled_id,
@@ -428,6 +430,21 @@ def test_quiet_hours_support_overnight_windows() -> None:
     )
 
 
+def test_quiet_hours_use_selected_timezone() -> None:
+    assert is_quiet_time(
+        datetime(2026, 4, 19, 20, 30, tzinfo=timezone.utc),
+        quiet_hours_start=time(22, 0),
+        quiet_hours_end=time(23, 0),
+        quiet_hours_timezone="cet",
+    )
+    assert not is_quiet_time(
+        datetime(2026, 4, 19, 18, 30, tzinfo=timezone.utc),
+        quiet_hours_start=time(22, 0),
+        quiet_hours_end=time(23, 0),
+        quiet_hours_timezone="cet",
+    )
+
+
 class _RecordingScalarsSession:
     def __init__(self) -> None:
         self.statements: list[object] = []
@@ -493,7 +510,8 @@ def _target(
     mode: str = EngagementMode.SUGGEST.value,
     quiet_hours_start: time | None = None,
     quiet_hours_end: time | None = None,
-    latest_collection_completed_at: datetime | None,
+    quiet_hours_timezone: str = "utc",
+    latest_collection_completed_at: datetime | None = None,
     active_candidate_count: int = 0,
 ) -> EngagementDetectionTarget:
     return EngagementDetectionTarget(
@@ -501,6 +519,7 @@ def _target(
         mode=mode,
         quiet_hours_start=quiet_hours_start,
         quiet_hours_end=quiet_hours_end,
+        quiet_hours_timezone=quiet_hours_timezone,
         latest_collection_completed_at=latest_collection_completed_at,
         active_candidate_count=active_candidate_count,
     )
@@ -512,7 +531,8 @@ def _collection_target(
     mode: str = EngagementMode.SUGGEST.value,
     quiet_hours_start: time | None = None,
     quiet_hours_end: time | None = None,
-    latest_collection_completed_at: datetime | None,
+    quiet_hours_timezone: str = "utc",
+    latest_collection_completed_at: datetime | None = None,
     active_collection_count: int = 0,
     has_detect_permission: bool = True,
     community_tg_id: int | None = None,
@@ -525,6 +545,7 @@ def _collection_target(
         mode=mode,
         quiet_hours_start=quiet_hours_start,
         quiet_hours_end=quiet_hours_end,
+        quiet_hours_timezone=quiet_hours_timezone,
         latest_collection_completed_at=latest_collection_completed_at,
         active_collection_count=active_collection_count,
         has_detect_permission=has_detect_permission,

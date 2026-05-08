@@ -143,6 +143,13 @@ class EngagementMode(StrEnum):
     AUTO_LIMITED = "auto_limited"
 
 
+class QuietHoursTimezone(StrEnum):
+    UTC = "utc"
+    CET = "cet"
+    US_EAST = "us_east"
+    US_WEST = "us_west"
+
+
 class EngagementTargetRefType(StrEnum):
     COMMUNITY_ID = "community_id"
     TELEGRAM_USERNAME = "telegram_username"

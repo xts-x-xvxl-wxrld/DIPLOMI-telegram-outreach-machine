@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+_UNSET = object()
+
 
 class _EngagementAdminRequestClient(Protocol):
     async def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
@@ -300,14 +302,29 @@ class EngagementAdminApiClientMixin:
         self: _EngagementAdminRequestClient,
         engagement_id: str,
         *,
-        assigned_account_id: str | None = None,
-        mode: str | None = None,
+        assigned_account_id: str | None | object = _UNSET,
+        mode: str | None | object = _UNSET,
+        max_posts_per_day: int | None | object = _UNSET,
+        min_minutes_between_posts: int | None | object = _UNSET,
+        quiet_hours_start: str | None | object = _UNSET,
+        quiet_hours_end: str | None | object = _UNSET,
+        quiet_hours_timezone: str | None | object = _UNSET,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {}
-        if assigned_account_id is not None:
+        if assigned_account_id is not _UNSET:
             payload["assigned_account_id"] = assigned_account_id
-        if mode is not None:
+        if mode is not _UNSET:
             payload["mode"] = mode
+        if max_posts_per_day is not _UNSET:
+            payload["max_posts_per_day"] = max_posts_per_day
+        if min_minutes_between_posts is not _UNSET:
+            payload["min_minutes_between_posts"] = min_minutes_between_posts
+        if quiet_hours_start is not _UNSET:
+            payload["quiet_hours_start"] = quiet_hours_start
+        if quiet_hours_end is not _UNSET:
+            payload["quiet_hours_end"] = quiet_hours_end
+        if quiet_hours_timezone is not _UNSET:
+            payload["quiet_hours_timezone"] = quiet_hours_timezone
         return await self._request(
             "PUT",
             f"/engagements/{engagement_id}/settings",

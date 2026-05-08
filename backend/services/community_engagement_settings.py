@@ -47,6 +47,7 @@ from backend.db.models import (
     TelegramAccount,
 )
 from backend.services.seed_import import normalize_telegram_seed
+from backend.services.engagement_quiet_hours import DEFAULT_QUIET_HOURS_TIMEZONE
 from backend.services.seed_resolution import TransientResolveError
 from backend.services.telegram_entity_intake import (
     TelegramEntityInfo,
@@ -91,6 +92,9 @@ TASK_FIRST_RUNTIME_ENGAGEMENT_STATUSES = (
     EngagementStatus.ACTIVE.value,
     EngagementStatus.PAUSED.value,
 )
+DEFAULT_MAX_POSTS_PER_DAY = 300
+DEFAULT_MIN_MINUTES_BETWEEN_POSTS = 1
+MAX_POSTS_PER_DAY_LIMIT = 300
 
 async def get_engagement_settings(
     db: AsyncSession,
@@ -155,6 +159,7 @@ async def upsert_engagement_settings(
     settings.min_minutes_between_posts = values["min_minutes_between_posts"]
     settings.quiet_hours_start = values["quiet_hours_start"]
     settings.quiet_hours_end = values["quiet_hours_end"]
+    settings.quiet_hours_timezone = values["quiet_hours_timezone"]
     settings.assigned_account_id = values["assigned_account_id"]
     settings.updated_at = now
     await db.flush()
@@ -267,10 +272,11 @@ def _disabled_settings_view(community_id: UUID) -> EngagementSettingsView:
         allow_post=False,
         reply_only=True,
         require_approval=True,
-        max_posts_per_day=1,
-        min_minutes_between_posts=240,
+        max_posts_per_day=DEFAULT_MAX_POSTS_PER_DAY,
+        min_minutes_between_posts=DEFAULT_MIN_MINUTES_BETWEEN_POSTS,
         quiet_hours_start=None,
         quiet_hours_end=None,
+        quiet_hours_timezone=DEFAULT_QUIET_HOURS_TIMEZONE,
         assigned_account_id=None,
         created_at=None,
         updated_at=None,
@@ -310,6 +316,7 @@ def _settings_view(
         min_minutes_between_posts=settings.min_minutes_between_posts,
         quiet_hours_start=settings.quiet_hours_start,
         quiet_hours_end=settings.quiet_hours_end,
+        quiet_hours_timezone=settings.quiet_hours_timezone,
         assigned_account_id=settings.assigned_account_id,
         created_at=settings.created_at,
         updated_at=settings.updated_at,
@@ -334,6 +341,7 @@ def _settings_values(payload: Any) -> dict[str, Any]:
         "min_minutes_between_posts": int(payload.min_minutes_between_posts),
         "quiet_hours_start": payload.quiet_hours_start,
         "quiet_hours_end": payload.quiet_hours_end,
+        "quiet_hours_timezone": _enum_value(payload.quiet_hours_timezone) or DEFAULT_QUIET_HOURS_TIMEZONE,
         "assigned_account_id": payload.assigned_account_id,
     }
 
@@ -357,15 +365,15 @@ async def _validate_settings_values(
             "reply_only_required",
             "reply_only must remain true in the MVP",
         )
-    if not 0 <= values["max_posts_per_day"] <= 3:
+    if not 0 <= values["max_posts_per_day"] <= MAX_POSTS_PER_DAY_LIMIT:
         raise EngagementValidationError(
             "invalid_max_posts_per_day",
-            "max_posts_per_day must be between 0 and 3 in the MVP",
+            f"max_posts_per_day must be between 0 and {MAX_POSTS_PER_DAY_LIMIT}",
         )
-    if values["min_minutes_between_posts"] < 60:
+    if values["min_minutes_between_posts"] < DEFAULT_MIN_MINUTES_BETWEEN_POSTS:
         raise EngagementValidationError(
             "invalid_min_minutes_between_posts",
-            "min_minutes_between_posts must be at least 60 in the MVP",
+            f"min_minutes_between_posts must be at least {DEFAULT_MIN_MINUTES_BETWEEN_POSTS}",
         )
     quiet_start = values["quiet_hours_start"]
     quiet_end = values["quiet_hours_end"]

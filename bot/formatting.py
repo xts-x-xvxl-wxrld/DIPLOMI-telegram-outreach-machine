@@ -55,6 +55,7 @@ from .formatting_engagement import (
     format_wizard_topics_prompt,
     format_wizard_account_prompt,
     format_wizard_level_prompt,
+    format_wizard_quiet_hours_prompt,
     format_wizard_launch_card,
     format_engagement_admin_home,
     format_engagement_admin_limits_home,
@@ -155,6 +156,7 @@ __all__ = [
     "format_wizard_topics_prompt",
     "format_wizard_account_prompt",
     "format_wizard_level_prompt",
+    "format_wizard_quiet_hours_prompt",
     "format_wizard_launch_card",
 ]
 

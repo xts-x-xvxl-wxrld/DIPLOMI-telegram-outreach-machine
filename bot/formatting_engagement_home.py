@@ -12,34 +12,34 @@ def format_cockpit_home(payload: dict[str, Any]) -> str:
     lines = ["Engagements", ""]
 
     if state == "first_run":
-        lines.append("Add your first engagement")
-        lines.append("Tap add engagement to get started.")
+        lines.append("No engagements yet.")
+        lines.append("Tap Add engagement to start tracking one community.")
         return "\n".join(lines)
 
     if state == "approvals":
         draft_word = "draft" if draft_count == 1 else "drafts"
-        lines.append(f"{draft_count} {draft_word} need approval")
+        lines.append(f"Needs review: {draft_count} {draft_word}.")
         if issue_count > 0:
             issue_word = "issue" if issue_count == 1 else "issues"
             latest = payload.get("latest_issue_preview")
             if latest and latest.get("issue_label"):
-                lines.append(
-                    f"{issue_count} {issue_word} need attention: {latest['issue_label']}"
-                )
+                lines.append(f"Also open: {issue_count} {issue_word}. Latest: {latest['issue_label']}.")
             else:
-                lines.append(f"{issue_count} {issue_word} need attention")
+                lines.append(f"Also open: {issue_count} {issue_word}.")
         return "\n".join(lines)
 
     if state == "issues":
         issue_word = "issue" if issue_count == 1 else "issues"
-        lines.append(f"{issue_count} {issue_word} need attention")
+        lines.append(f"Needs attention: {issue_count} {issue_word}.")
+        lines.append("Open Top issues to clear blockers.")
         return "\n".join(lines)
 
-    # state == "clear"
-    lines.append("No pending work")
+    lines.append("Nothing urgent right now.")
     if active_engagement_count > 0:
         eng_word = "engagement" if active_engagement_count == 1 else "engagements"
-        lines.append(f"{active_engagement_count} active {eng_word}")
+        lines.append(f"Running: {active_engagement_count} active {eng_word}.")
+    else:
+        lines.append("Add an engagement whenever you're ready.")
     return "\n".join(lines)
 
 

@@ -13,6 +13,13 @@ from .ui_common import (
 )
 
 
+ADD_ENGAGEMENT_LABEL = "🧭 Add engagement"
+MY_ENGAGEMENTS_LABEL = "📋 My engagements"
+TOP_ISSUES_LABEL = "⚠ Top issues"
+APPROVE_DRAFT_LABEL = "📝 Approve draft"
+SENT_MESSAGES_LABEL = "📬 Sent messages"
+
+
 def _label_with_count(label: str, count: int) -> str:
     return f"{label} ({count})" if count > 0 else label
 
@@ -30,14 +37,14 @@ def cockpit_home_markup(payload: dict[str, Any]):
     draft_count = payload.get("draft_count", 0) or 0
     issue_count = payload.get("issue_count", 0) or 0
     approve_row = [
-        _button(_label_with_count("Approve draft", draft_count), ACTION_OP_APPROVE)
+        _button(_label_with_count(APPROVE_DRAFT_LABEL, draft_count), ACTION_OP_APPROVE)
     ]
     issues_row = [
-        _button(_label_with_count("Top issues", issue_count), ACTION_OP_ISSUES)
+        _button(_label_with_count(TOP_ISSUES_LABEL, issue_count), ACTION_OP_ISSUES)
     ]
-    my_engagements_row = [_button("My engagements", ACTION_OP_ENGS)]
-    add_engagement_row = [_button("Add engagement", ACTION_OP_ADD)]
-    sent_messages_row = [_button("Sent messages", ACTION_OP_SENT)]
+    my_engagements_row = [_button(MY_ENGAGEMENTS_LABEL, ACTION_OP_ENGS)]
+    add_engagement_row = [_button(ADD_ENGAGEMENT_LABEL, ACTION_OP_ADD)]
+    sent_messages_row = [_button(SENT_MESSAGES_LABEL, ACTION_OP_SENT)]
 
     if state == "first_run":
         return _inline_markup(
@@ -82,5 +89,11 @@ def cockpit_home_markup(payload: dict[str, Any]):
         ]
     )
 
-
-__all__ = ["cockpit_home_markup"]
+__all__ = [
+    "ADD_ENGAGEMENT_LABEL",
+    "APPROVE_DRAFT_LABEL",
+    "MY_ENGAGEMENTS_LABEL",
+    "SENT_MESSAGES_LABEL",
+    "TOP_ISSUES_LABEL",
+    "cockpit_home_markup",
+]

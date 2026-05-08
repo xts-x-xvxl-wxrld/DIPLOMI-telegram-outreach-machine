@@ -2,6 +2,10 @@
 
 from typing import Sequence
 
+from .engagement_quiet_hours_timezones import (
+    USER_SELECTABLE_QUIET_HOURS_TIMEZONES,
+    quiet_hours_timezone_label,
+)
 from .ui_common import (
     ACTION_ENGAGEMENT_WIZARD,
     ACTION_OP_ACCOUNTS,
@@ -133,9 +137,38 @@ def engagement_wizard_launch_markup(engagement_id: str):
             _button("✏ Account", ACTION_ENGAGEMENT_WIZARD, "edit", engagement_id, "account"),
             _button("✏ Mode", ACTION_ENGAGEMENT_WIZARD, "edit", engagement_id, "mode"),
         ],
+        [_button("🌙 Quiet hours", ACTION_ENGAGEMENT_WIZARD, "qh", "open", engagement_id)],
         [_button("✖ Cancel", ACTION_ENGAGEMENT_WIZARD, "cancel", engagement_id)],
     ]
     return _wizard_markup(rows, engagement_id=engagement_id, back_step=4, include_cancel=False)
+
+
+def _quiet_hours_timezone_button_label(*, code: str, current: str) -> str:
+    label = quiet_hours_timezone_label(code)
+    if code == current:
+        return f"[x] {label}"
+    return f"[ ] {label}"
+
+
+def engagement_wizard_quiet_hours_markup(
+    engagement_id: str,
+    *,
+    quiet_hours_timezone: str,
+):
+    rows = [
+        [
+            _button(
+                _quiet_hours_timezone_button_label(code=code, current=quiet_hours_timezone),
+                ACTION_ENGAGEMENT_WIZARD,
+                "qh",
+                f"tz_{code}",
+                engagement_id,
+            )
+            for code in USER_SELECTABLE_QUIET_HOURS_TIMEZONES
+        ],
+        [_button("Turn off", ACTION_ENGAGEMENT_WIZARD, "qh", "off", engagement_id)],
+    ]
+    return _wizard_markup(rows, engagement_id=engagement_id, back_step=5)
 
 
 # ---------------------------------------------------------------------------

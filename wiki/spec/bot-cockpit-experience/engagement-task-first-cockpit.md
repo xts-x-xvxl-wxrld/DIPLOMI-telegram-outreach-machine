@@ -34,45 +34,45 @@ Title:
 
 Always-visible destinations:
 
-- `Approve draft`
-- `Top issues`
-- `My engagements`
-- `Add engagement`
-- `Sent messages`
+- `📝 Approve draft`
+- `⚠ Top issues`
+- `📋 My engagements`
+- `🧭 Add engagement`
+- `📬 Sent messages`
 
 Home has no back button and no `<< Engagements` button.
 
 Button order by state:
 
 - `first_run`
-  - `Add engagement`
-  - `My engagements`
-  - `Top issues`
-  - `Approve draft`
-  - `Sent messages`
+  - `🧭 Add engagement`
+  - `📋 My engagements`
+  - `⚠ Top issues`
+  - `📝 Approve draft`
+  - `📬 Sent messages`
 - `approvals`
-  - `Approve draft`
-  - `Top issues`
-  - `My engagements`
-  - `Add engagement`
-  - `Sent messages`
+  - `📝 Approve draft`
+  - `⚠ Top issues`
+  - `📋 My engagements`
+  - `🧭 Add engagement`
+  - `📬 Sent messages`
 - `issues`
-  - `Top issues`
-  - `Add engagement`
-  - `My engagements`
-  - `Approve draft`
-  - `Sent messages`
+  - `⚠ Top issues`
+  - `🧭 Add engagement`
+  - `📋 My engagements`
+  - `📝 Approve draft`
+  - `📬 Sent messages`
 - `clear`
-  - `Add engagement`
-  - `My engagements`
-  - `Top issues`
-  - `Approve draft`
-  - `Sent messages`
+  - `🧭 Add engagement`
+  - `📋 My engagements`
+  - `⚠ Top issues`
+  - `📝 Approve draft`
+  - `📬 Sent messages`
 
 Count badges:
 
-- `Approve draft (N)` when `draft_count > 0`
-- `Top issues (N)` when `issue_count > 0`
+- `📝 Approve draft (N)` when `draft_count > 0`
+- `⚠ Top issues (N)` when `issue_count > 0`
 
 Home callbacks:
 
@@ -87,7 +87,7 @@ Routing:
 
 - `op:approve` -> approval queue
 - `op:issues` -> issue queue
-- `op:engs` -> `My engagements`
+- `op:engs` -> `📋 My engagements`
 - `op:sent` -> sent feed
 - `op:add` -> wizard start
 
@@ -136,6 +136,10 @@ Wizard state keys:
 - `topic_id`
 - `account_id`
 - `mode`
+- `max_posts_per_day`
+- `min_minutes_between_posts`
+- `quiet_hours_start`
+- `quiet_hours_end`
 - `join_status`
 - `join_message`
 - `join_job_id`
@@ -153,6 +157,8 @@ Core callbacks:
 - `eng:wz:ap:{compact_account_id}:{compact_engagement_id}`
 - `eng:wz:lv:draft:{engagement_id}`
 - `eng:wz:lv:auto_send:{engagement_id}`
+- `eng:wz:qh:open:{engagement_id}`
+- `eng:wz:qh:off:{engagement_id}`
 - `eng:wz:confirm:{engagement_id}`
 - `eng:wz:retry:{engagement_id}`
 - `eng:wz:cancel:{engagement_id | "new"}`
@@ -188,6 +194,7 @@ Wizard write behavior:
 - topic selection toggles on/off and writes `PATCH /api/engagements/{id}`
 - account selection writes `PUT /api/engagements/{id}/settings`
 - mode selection writes `PUT /api/engagements/{id}/settings`
+- quiet-hours review edits write `PUT /api/engagements/{id}/settings`
 - confirm calls `POST /api/engagements/{id}/wizard-confirm`
 - retry calls `POST /api/engagements/{id}/wizard-retry`
 - detail delete calls `DELETE /api/engagements/{id}`
@@ -196,9 +203,16 @@ Wizard button labels:
 
 - step 2: `Create topic`, optional `Continue ->`
 - step 3 empty state: `Add engagement account`, `Accounts`
-- step 5: `Confirm`, `Topic`, `Account`, `Mode`, `Cancel`
+- step 5: `Confirm`, `Topic`, `Account`, `Mode`, `Quiet hours`, `Cancel`
 - retry view: `Retry`
 - cancel confirm: `Confirm cancel`, `Back`
+
+Review behavior:
+
+- the review card shows the current cadence values and current quiet-hours
+  value before confirmation
+- `Quiet hours` opens a text-entry prompt that accepts `HH:MM-HH:MM` or `off`
+  and returns to review after save
 
 ## Approval Queue
 
@@ -225,6 +239,15 @@ Flow rules:
 - scoped queues add `Back -> eng:det:open:{engagement_id}`
 - successful approve/reject/edit submission routes back to `eng:appr:list:0`
 - placeholder-only queues show `Updating draft`
+
+Approval card copy:
+
+- draft cards lead with `target_label`
+- when available, cards show `Engagement: {engagement_label}` and `Community: {community_label}`
+  before the draft body
+- body sections are `Draft` and `Why now`
+- normal review, approve, reject, and edit-request screens do not expose raw `Draft ID` or
+  `Engagement ID` lines
 
 ## Detail And Archive
 

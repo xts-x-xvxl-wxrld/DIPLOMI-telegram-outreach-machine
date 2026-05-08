@@ -6,16 +6,19 @@ This project uses a wiki at `wiki/` as the source of truth for all specs, plans,
 
 1. Read `wiki/index.md` to see what specs and plans exist.
 2. Read only the spec file or spec shard for the module you are working on.
-3. If no plan file exists for your task, write one under `wiki/plan/`.
-4. Use `rg` to locate code symbols before opening large files.
+3. Read `wiki/code-index/index.md` and the narrow shard you need before opening large code areas.
+4. Read `wiki/dev-docs/index.md` and any matching narrow page when the task touches an already-documented subsystem.
+5. If no plan file exists for your task, write one under `wiki/plan/`.
+6. Use `rg` to locate code symbols before opening large files.
 
 ## After Writing Or Changing Code
 
 1. Append to `wiki/log.md`.
 2. Update the relevant spec if the design changed.
-3. Update `wiki/index.md` if new files, specs, shards, modules, or entrypoints were created.
-4. Run local CI parity before committing: `python scripts/check_fragmentation.py`, `ruff check .`, and `pytest -q`. Run `docker build .` too when packaging, dependency, startup, or Docker files changed.
-5. When branch-scoped work is complete and local CI parity passes, merge that branch into `main` instead of leaving the finished change only on the task branch, unless the user explicitly asks to keep the branch open.
+3. Update the relevant `wiki/dev-docs/` page after inspecting, debugging, or changing subsystem files. If you read or edit code in an area, record the useful developer-facing knowledge you confirmed there unless an existing `wiki/dev-docs/` page already fully covers it.
+4. Update `wiki/index.md` if new files, specs, shards, modules, or entrypoints were created.
+5. Run local CI parity before committing: `python scripts/check_fragmentation.py`, `ruff check .`, and `pytest -q`. Run `docker build .` too when packaging, dependency, startup, or Docker files changed.
+6. When branch-scoped work is complete and local CI parity passes, merge that branch into `main` instead of leaving the finished change only on the task branch, unless the user explicitly asks to keep the branch open.
 
 ## Context Budget
 

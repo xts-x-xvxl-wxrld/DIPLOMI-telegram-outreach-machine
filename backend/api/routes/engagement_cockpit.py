@@ -306,6 +306,7 @@ async def put_engagement_cockpit_quiet_hours(
         quiet_hours_enabled=payload.quiet_hours_enabled,
         quiet_hours_start=payload.quiet_hours_start,
         quiet_hours_end=payload.quiet_hours_end,
+        quiet_hours_timezone=None if payload.quiet_hours_timezone is None else payload.quiet_hours_timezone.value,
     )
     if result.result == "updated":
         await db.commit()

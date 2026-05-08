@@ -29,6 +29,7 @@ from .formatting_engagement_wizard import (
     format_wizard_topics_prompt as format_wizard_topics_prompt,
     format_wizard_account_prompt as format_wizard_account_prompt,
     format_wizard_level_prompt as format_wizard_level_prompt,
+    format_wizard_quiet_hours_prompt as format_wizard_quiet_hours_prompt,
     format_wizard_launch_card as format_wizard_launch_card,
 )
 

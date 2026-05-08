@@ -97,6 +97,8 @@ Partial request:
 
 - `assigned_account_id?: uuid | null`
 - `mode?: "disabled" | "observe" | "suggest" | "require_approval" | "auto_limited"`
+- `max_posts_per_day?: int(0..300)`
+- `min_minutes_between_posts?: int(>=1)`
 - `quiet_hours_start?: HH:MM | null`
 - `quiet_hours_end?: HH:MM | null`
 
@@ -109,12 +111,14 @@ Active write-path rules:
   - `allow_post = false`
   - `reply_only = true`
   - `require_approval = true`
-  - `max_posts_per_day = 1`
-  - `min_minutes_between_posts = 240`
+  - `max_posts_per_day = 300`
+  - `min_minutes_between_posts = 1`
 - if `assigned_account_id` is provided and non-null, the account must:
   - exist
   - not be `banned`
   - belong to the `engagement` account pool
+- if `max_posts_per_day` is written, it must stay between `0` and `300`
+- if `min_minutes_between_posts` is written, it must stay at or above `1`
 - quiet hours are all-or-nothing on write:
   - both `quiet_hours_start` and `quiet_hours_end`
   - or neither
@@ -125,7 +129,7 @@ Active write-path rules:
 Response:
 
 - `result: "updated" | "blocked" | "stale"`
-- `settings?: {engagement_id, assigned_account_id, mode, quiet_hours_start, quiet_hours_end}`
+- `settings?: {engagement_id, assigned_account_id, mode, max_posts_per_day, min_minutes_between_posts, quiet_hours_start, quiet_hours_end}`
 - `message?: string`
 - `code?: string`
 
@@ -135,6 +139,8 @@ Codes:
 - `engagement_archived`
 - `account_missing`
 - `account_unusable`
+- `invalid_max_posts_per_day`
+- `invalid_min_minutes_between_posts`
 - `invalid_quiet_hours`
 - `sending_mode_unsupported`
 
@@ -299,7 +305,7 @@ Response:
 - `offset`
 - `empty_state: "none" | "waiting_for_updates" | "no_drafts"`
 - `placeholders[]: {slot, label}`
-- `current?: {draft_id, engagement_id, target_label, text, why, badge}`
+- `current?: {draft_id, engagement_id, target_label, engagement_label, community_label, text, why, badge}`
 
 Rules:
 
@@ -307,6 +313,10 @@ Rules:
 - hidden source drafts stay out of the queue while an update request exists
 - completed replacement drafts surface with `badge = "Updated draft"`
 - pending draft-update requests surface as `Updating draft` placeholders
+- `engagement_label` is the operator-facing primary engagement label: `engagement.name`, then topic
+  name, then community title, then engagement UUID as last resort
+- `community_label` is the operator-facing community label: `@username`, then community title, then
+  community UUID as last resort
 
 ### `GET /api/engagement/cockpit/issues`
 ### `GET /api/engagement/cockpit/engagements/{engagement_id}/issues`

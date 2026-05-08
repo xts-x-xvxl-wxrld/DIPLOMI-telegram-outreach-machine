@@ -276,6 +276,7 @@ from .engagement_issue_flow import (
     handle_issue_action,
     show_rate_limit_detail,
     start_quiet_hours_edit,
+    set_quiet_hours_timezone,
     save_quiet_hours,
 )
 from .engagement_detail_flow import (
@@ -827,6 +828,14 @@ async def callback_query(update: Any, context: Any) -> None:
                     context,
                     issue_id=parts[2],
                     engagement_id=parts[1],
+                )
+            elif sub == "tz" and len(parts) >= 4:
+                await set_quiet_hours_timezone(
+                    update,
+                    context,
+                    issue_id=parts[3],
+                    engagement_id=parts[2],
+                    timezone_code=parts[1],
                 )
             return
         # --- eng:sent:* sent messages ---

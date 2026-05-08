@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .engagement_quiet_hours_timezones import quiet_hours_timezone_label
 from .formatting_common import (
     _bullet,
     _field,
@@ -41,6 +42,12 @@ _ISSUE_TIPS: dict[str, str] = {
 }
 
 
+def _plural(count: int, singular: str, plural: str | None = None) -> str:
+    plural_value = plural or f"{singular}s"
+    word = singular if count == 1 else plural_value
+    return f"{count} {word}"
+
+
 def format_issue_queue(
     data: dict[str, Any],
     *,
@@ -57,11 +64,11 @@ def format_issue_queue(
                 _bullet(empty_state, icon="✅"),
             ]
         )
-    label = "Engagement issue queue" if not scoped else "Issues for this engagement"
+    label = "Issue queue" if not scoped else "Issues for this engagement"
     return "\n".join(
         [
-            _headline(f"{label} — {queue_count} open", icon="⚠"),
-            _bullet(f"Showing issue {offset + 1} of {queue_count}.", icon="•"),
+            _headline(f"{label} ({queue_count} open)", icon="⚠"),
+            _bullet(f"Showing {_plural(offset + 1, 'issue')} of {queue_count}. Fix it now or skip it.", icon="->"),
         ]
     )
 
@@ -89,17 +96,18 @@ def format_issue_card(
         _field("Engagement", _shorten(target_label, 200)),
     ]
     if context_text:
-        lines.append(_field("Context", _shorten(context_text, 240)))
+        lines.append(_field("What needs attention", _shorten(context_text, 240)))
     if tip:
-        lines.append(_bullet(tip, icon="➡"))
-    if item.get("candidate_id"):
-        lines.append(_field("Candidate", str(item["candidate_id"]), icon="💬"))
-    if item.get("community_id"):
-        lines.append(_field("Community", str(item["community_id"]), icon="🏘"))
+        lines.append(_bullet(f"Next step: {tip}", icon="->"))
+    refs: list[str] = []
     if item.get("issue_id"):
-        lines.append(_field("Issue ID", str(item["issue_id"]), icon="🆔"))
+        refs.append(f"issue {item['issue_id']}")
+    if item.get("candidate_id"):
+        refs.append(f"candidate {item['candidate_id']}")
     if engagement_id:
-        lines.append(_field("Engagement ID", engagement_id, icon="🆔"))
+        refs.append(f"engagement {engagement_id}")
+    if refs:
+        lines.append(_field("Refs", " | ".join(refs), icon="#"))
     return "\n".join(lines)
 
 
@@ -118,19 +126,19 @@ def format_rate_limit_detail(data: dict[str, Any]) -> str:
         lines.append(_field("Engagement", _shorten(target_label, 200)))
     lines.extend(
         [
-            _field("Blocked action", blocked_action_label),
-            _field("Limit scope", scope_label),
-            _field("Reason", _shorten(message, 300)),
+            _field("Blocked", blocked_action_label),
+            _field("Scope", scope_label),
+            _field("Why", _shorten(message, 300)),
         ]
     )
     if reset_at:
-        lines.append(_field("Estimated reset", str(reset_at)[:19].replace("T", " ") + " UTC"))
+        lines.append(_field("Resets", str(reset_at)[:19].replace("T", " ") + " UTC"))
     else:
-        lines.append(_field("Reset", "Unknown — check account status"))
+        lines.append(_field("Resets", "Unknown - check account status"))
     lines.extend(
         [
             "",
-            _bullet("No action needed — sending resumes automatically once the limit clears.", icon="➡"),
+            _bullet("No action needed. Sending resumes automatically when the limit clears.", icon="->"),
         ]
     )
     return "\n".join(lines)
@@ -142,6 +150,7 @@ def format_quiet_hours_state(data: dict[str, Any]) -> str:
     enabled = data.get("quiet_hours_enabled")
     start = data.get("quiet_hours_start")
     end = data.get("quiet_hours_end")
+    timezone = quiet_hours_timezone_label(data.get("quiet_hours_timezone"), default="utc")
 
     lines = [
         _headline(title, icon="🌙"),
@@ -154,13 +163,14 @@ def format_quiet_hours_state(data: dict[str, Any]) -> str:
         lines.append(_field("Status", "Enabled", icon=_status_icon("active")))
         start_str = _format_time_field(start) if start else "not set"
         end_str = _format_time_field(end) if end else "not set"
-        lines.append(_field("Window", f"{start_str} – {end_str}"))
+        lines.append(_field("Window", f"{start_str}-{end_str}"))
     else:
         lines.append(_field("Status", "Disabled", icon="•"))
+    lines.append(_field("Timezone", timezone))
     lines.extend(
         [
             "",
-            _bullet("Send HH:MM-HH:MM to set quiet hours, or 'off' to disable them.", icon="➡"),
+            _bullet("Choose a timezone below, then reply with HH:MM-HH:MM to change it, or 'off' to disable it.", icon="->"),
             _bullet("Example: 22:00-08:00", icon="•"),
         ]
     )
@@ -171,13 +181,15 @@ def format_quiet_hours_saved(data: dict[str, Any]) -> str:
     enabled = data.get("quiet_hours_enabled")
     start = data.get("quiet_hours_start")
     end = data.get("quiet_hours_end")
+    timezone = quiet_hours_timezone_label(data.get("quiet_hours_timezone"), default="utc")
     lines = [_headline("Quiet hours updated.", icon="✅")]
     if enabled:
         start_str = _format_time_field(start) if start else "not set"
         end_str = _format_time_field(end) if end else "not set"
-        lines.append(_field("Window", f"{start_str} – {end_str}"))
+        lines.append(_field("Window", f"{start_str}-{end_str}"))
     else:
-        lines.append(_bullet("Quiet hours disabled.", icon="•"))
+        lines.append(_bullet("Quiet hours are off.", icon="•"))
+    lines.append(_field("Timezone", timezone))
     return "\n".join(lines)
 
 
@@ -187,12 +199,12 @@ def format_issue_action_result(status: str, *, message: str | None = None) -> st
     if status == "noop":
         return _headline("No change needed.", icon="•")
     if status == "stale":
-        return _headline("Issue resolved or changed — refreshing queue.", icon="✅")
+        return _headline("Issue resolved or changed - refreshing queue.", icon="✅")
     if status == "blocked":
         return "\n".join(
             [
                 _headline("Action blocked.", icon="⛔"),
-                _bullet(message or "This action cannot be performed right now.", icon="➡"),
+                _bullet(message or "This action cannot be performed right now.", icon="->"),
             ]
         )
     return _headline(f"Action result: {status}", icon="•")
@@ -202,7 +214,6 @@ def _format_time_field(value: Any) -> str:
     if value is None:
         return "not set"
     text = str(value)
-    # Handle time objects as HH:MM
     if ":" in text:
         parts = text.split(":")
         if len(parts) >= 2:

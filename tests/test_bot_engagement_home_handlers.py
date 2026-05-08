@@ -16,7 +16,14 @@ from typing import Any
 import pytest
 
 from bot.formatting_engagement_home import format_cockpit_home
-from bot.ui_engagement_home import cockpit_home_markup
+from bot.ui_engagement_home import (
+    ADD_ENGAGEMENT_LABEL,
+    APPROVE_DRAFT_LABEL,
+    MY_ENGAGEMENTS_LABEL,
+    SENT_MESSAGES_LABEL,
+    TOP_ISSUES_LABEL,
+    cockpit_home_markup,
+)
 from bot.ui import (
     ACTION_ENGAGEMENT_HOME,
     ACTION_OP_HOME,
@@ -73,7 +80,7 @@ def test_format_cockpit_home_first_run() -> None:
     text = format_cockpit_home(_home_payload(state="first_run"))
 
     assert "Engagements" in text
-    assert "Add your first engagement" in text
+    assert "No engagements yet." in text
     # Should not mention drafts or issues
     assert "draft" not in text.lower()
     assert "issue" not in text.lower()
@@ -83,13 +90,13 @@ def test_format_cockpit_home_approval_focused_single_draft() -> None:
     text = format_cockpit_home(_home_payload(state="approvals", draft_count=1))
 
     assert "Engagements" in text
-    assert "1 draft need approval" in text
+    assert "Needs review: 1 draft." in text
 
 
 def test_format_cockpit_home_approval_focused_plural_drafts() -> None:
     text = format_cockpit_home(_home_payload(state="approvals", draft_count=2))
 
-    assert "2 drafts need approval" in text
+    assert "Needs review: 2 drafts." in text
 
 
 def test_format_cockpit_home_approval_focused_includes_issue_line_when_issues_exist() -> None:
@@ -105,15 +112,15 @@ def test_format_cockpit_home_approval_focused_includes_issue_line_when_issues_ex
 
     text = format_cockpit_home(payload)
 
-    assert "2 drafts need approval" in text
-    assert "issue" in text.lower()
+    assert "Needs review: 2 drafts." in text
+    assert "Also open: 1 issue." in text
     assert "Topics not chosen" in text
 
 
 def test_format_cockpit_home_approval_focused_no_issue_line_when_no_issues() -> None:
     text = format_cockpit_home(_home_payload(state="approvals", draft_count=3, issue_count=0))
 
-    assert "3 drafts need approval" in text
+    assert "Needs review: 3 drafts." in text
     # No issue line
     lines = text.strip().splitlines()
     issue_lines = [ln for ln in lines if "issue" in ln.lower()]
@@ -124,33 +131,33 @@ def test_format_cockpit_home_issues_present_single_issue() -> None:
     text = format_cockpit_home(_home_payload(state="issues", issue_count=1))
 
     assert "Engagements" in text
-    assert "1 issue need attention" in text
+    assert "Needs attention: 1 issue." in text
 
 
 def test_format_cockpit_home_issues_present_plural_issues() -> None:
     text = format_cockpit_home(_home_payload(state="issues", issue_count=3))
 
-    assert "3 issues need attention" in text
+    assert "Needs attention: 3 issues." in text
 
 
 def test_format_cockpit_home_clear_state_no_engagements() -> None:
     text = format_cockpit_home(_home_payload(state="clear", active_engagement_count=0))
 
     assert "Engagements" in text
-    assert "No pending work" in text
+    assert "Nothing urgent right now." in text
 
 
 def test_format_cockpit_home_clear_state_with_engagement_count() -> None:
     text = format_cockpit_home(_home_payload(state="clear", active_engagement_count=3))
 
-    assert "No pending work" in text
-    assert "3 active engagements" in text
+    assert "Nothing urgent right now." in text
+    assert "Running: 3 active engagements." in text
 
 
 def test_format_cockpit_home_clear_state_single_engagement() -> None:
     text = format_cockpit_home(_home_payload(state="clear", active_engagement_count=1))
 
-    assert "1 active engagement" in text
+    assert "Running: 1 active engagement." in text
 
 
 # ---------------------------------------------------------------------------
@@ -163,11 +170,11 @@ def test_cockpit_home_markup_first_run_only_add_engagement() -> None:
     labels = _labels(markup)
 
     assert ACTION_OP_ADD in cb
-    assert "Add engagement" in labels
-    assert "My engagements" in labels
-    assert "Top issues" in labels
-    assert "Approve draft" in labels
-    assert "Sent messages" in labels
+    assert ADD_ENGAGEMENT_LABEL in labels
+    assert MY_ENGAGEMENTS_LABEL in labels
+    assert TOP_ISSUES_LABEL in labels
+    assert APPROVE_DRAFT_LABEL in labels
+    assert SENT_MESSAGES_LABEL in labels
 
 
 def test_cockpit_home_markup_first_run_has_no_nav_controls() -> None:
@@ -186,8 +193,8 @@ def test_cockpit_home_markup_approval_focused_action_order() -> None:
 
     approve_idx = next(i for i, lbl in enumerate(labels) if "Approve draft" in lbl)
     issues_idx = next(i for i, lbl in enumerate(labels) if "Top issues" in lbl)
-    engs_idx = next(i for i, lbl in enumerate(labels) if lbl == "My engagements")
-    add_idx = next(i for i, lbl in enumerate(labels) if lbl == "Add engagement")
+    engs_idx = next(i for i, lbl in enumerate(labels) if lbl == MY_ENGAGEMENTS_LABEL)
+    add_idx = next(i for i, lbl in enumerate(labels) if lbl == ADD_ENGAGEMENT_LABEL)
 
     assert approve_idx < issues_idx < engs_idx < add_idx
 
@@ -200,7 +207,7 @@ def test_cockpit_home_markup_approval_focused_hides_sent_messages() -> None:
 
     assert ACTION_OP_SENT in cb
     labels = _labels(markup)
-    assert "Sent messages" in labels
+    assert SENT_MESSAGES_LABEL in labels
 
 
 def test_cockpit_home_markup_approval_focused_hides_top_issues_when_none() -> None:
@@ -210,7 +217,7 @@ def test_cockpit_home_markup_approval_focused_hides_top_issues_when_none() -> No
     cb = _callbacks(markup)
     labels = _labels(markup)
 
-    assert "Top issues" in labels
+    assert TOP_ISSUES_LABEL in labels
     # Approval queue should be present
     approve_cbs = [c for c in cb if "appr" in c]
     assert len(approve_cbs) >= 1
@@ -230,10 +237,10 @@ def test_cockpit_home_markup_issues_action_order() -> None:
     labels = _labels(markup)
 
     issues_idx = next(i for i, lbl in enumerate(labels) if "Top issues" in lbl)
-    add_idx = next(i for i, lbl in enumerate(labels) if lbl == "Add engagement")
-    engs_idx = next(i for i, lbl in enumerate(labels) if lbl == "My engagements")
+    add_idx = next(i for i, lbl in enumerate(labels) if lbl == ADD_ENGAGEMENT_LABEL)
+    engs_idx = next(i for i, lbl in enumerate(labels) if lbl == MY_ENGAGEMENTS_LABEL)
     approve_idx = next(i for i, lbl in enumerate(labels) if "Approve draft" in lbl)
-    sent_idx = next(i for i, lbl in enumerate(labels) if lbl == "Sent messages")
+    sent_idx = next(i for i, lbl in enumerate(labels) if lbl == SENT_MESSAGES_LABEL)
 
     assert issues_idx < add_idx < engs_idx < approve_idx < sent_idx
 
@@ -244,7 +251,7 @@ def test_cockpit_home_markup_issues_shows_sent_messages() -> None:
     )
     labels = _labels(markup)
 
-    assert "Sent messages" in labels
+    assert SENT_MESSAGES_LABEL in labels
 
 
 def test_cockpit_home_markup_issues_hides_sent_messages_when_none() -> None:
@@ -253,7 +260,7 @@ def test_cockpit_home_markup_issues_hides_sent_messages_when_none() -> None:
     )
     labels = _labels(markup)
 
-    assert "Sent messages" in labels
+    assert SENT_MESSAGES_LABEL in labels
 
 
 def test_cockpit_home_markup_clear_action_order() -> None:
@@ -262,11 +269,11 @@ def test_cockpit_home_markup_clear_action_order() -> None:
     )
     labels = _labels(markup)
 
-    add_idx = next(i for i, lbl in enumerate(labels) if lbl == "Add engagement")
-    engs_idx = next(i for i, lbl in enumerate(labels) if lbl == "My engagements")
+    add_idx = next(i for i, lbl in enumerate(labels) if lbl == ADD_ENGAGEMENT_LABEL)
+    engs_idx = next(i for i, lbl in enumerate(labels) if lbl == MY_ENGAGEMENTS_LABEL)
     issues_idx = next(i for i, lbl in enumerate(labels) if "Top issues" in lbl)
     approve_idx = next(i for i, lbl in enumerate(labels) if "Approve draft" in lbl)
-    sent_idx = next(i for i, lbl in enumerate(labels) if lbl == "Sent messages")
+    sent_idx = next(i for i, lbl in enumerate(labels) if lbl == SENT_MESSAGES_LABEL)
 
     assert add_idx < engs_idx < issues_idx < approve_idx < sent_idx
 
@@ -275,14 +282,14 @@ def test_cockpit_home_markup_clear_hides_top_issues_when_none() -> None:
     markup = cockpit_home_markup(_home_payload(state="clear", issue_count=0))
     labels = _labels(markup)
 
-    assert "Top issues" in labels
+    assert TOP_ISSUES_LABEL in labels
 
 
 def test_cockpit_home_markup_clear_shows_sent_messages_when_present() -> None:
     markup = cockpit_home_markup(_home_payload(state="clear", has_sent_messages=True))
     labels = _labels(markup)
 
-    assert "Sent messages" in labels
+    assert SENT_MESSAGES_LABEL in labels
 
 
 def test_cockpit_home_markup_no_back_or_home_on_any_state() -> None:
@@ -425,7 +432,7 @@ async def test_engagement_home_routes_to_new_cockpit_home() -> None:
     edits = update.callback_query.edits
     assert len(edits) == 1
     assert "Engagements" in edits[0]["text"]
-    assert "No pending work" in edits[0]["text"]
+    assert "Nothing urgent right now." in edits[0]["text"]
     assert "Operator cockpit" not in edits[0]["text"]
 
 
@@ -444,16 +451,16 @@ async def test_engagement_home_first_run_renders_first_run_copy() -> None:
     edits = update.callback_query.edits
     assert len(edits) == 1
     text = edits[0]["text"]
-    assert "Add your first engagement" in text
+    assert "No engagements yet." in text
     markup = edits[0]["reply_markup"]
     labels = _labels(markup)
-    assert "Add engagement" in labels
+    assert ADD_ENGAGEMENT_LABEL in labels
     assert labels == [
-        "Add engagement",
-        "My engagements",
-        "Top issues",
-        "Approve draft",
-        "Sent messages",
+        ADD_ENGAGEMENT_LABEL,
+        MY_ENGAGEMENTS_LABEL,
+        TOP_ISSUES_LABEL,
+        APPROVE_DRAFT_LABEL,
+        SENT_MESSAGES_LABEL,
     ]
 
 
@@ -474,7 +481,7 @@ async def test_engagement_home_approval_focused_keeps_sent_messages_visible() ->
 
     markup = update.callback_query.edits[0]["reply_markup"]
     labels = _labels(markup)
-    assert "Sent messages" in labels
+    assert SENT_MESSAGES_LABEL in labels
 
 
 @pytest.mark.asyncio
@@ -494,7 +501,7 @@ async def test_engagement_home_issues_state_shows_sent_messages() -> None:
 
     markup = update.callback_query.edits[0]["reply_markup"]
     labels = _labels(markup)
-    assert "Sent messages" in labels
+    assert SENT_MESSAGES_LABEL in labels
 
 
 @pytest.mark.asyncio
