@@ -2726,3 +2726,12 @@ while preserving the staged testing contract.
 - Updated task-first/client/runtime tests plus the engagement settings spec,
   task-first plan note, and a new developer-doc module for quiet-hours
   plumbing.
+
+## [2026-05-08] fix | Shrink oversized manual simulation shard for CI
+
+- Trimmed the CRM migration manual-simulation package so the tracked plan shard
+  stays under the 200-line fragmentation cap enforced in CI.
+- Updated the developer-documentary protocol with the confirmed guardrail
+  nuance that `scripts/check_fragmentation.py` checks tracked files only, so
+  new files need to be staged or committed before a local green run is
+  trustworthy.

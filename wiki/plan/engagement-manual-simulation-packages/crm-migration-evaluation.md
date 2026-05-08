@@ -5,13 +5,9 @@
 Use this package to manually configure one engagement around CRM migration
 conversations, then test whether the system spots useful public reply openings
 without sounding salesy.
-
 ## Topic Wizard Copy
 
 ### Wizard Step Order
-
-Use this package in the current topic-brief flow order:
-
 1. Topic name
 2. Conversation target
 3. Trigger keywords
@@ -22,11 +18,9 @@ Use this package in the current topic-brief flow order:
 8. Bad reply examples
 9. Avoid rules / review
 
-### Topic Name
-
-`CRM migration evaluation`
-
-### Conversation Target
+### Paste-Ready Fields
+- Topic name: `CRM migration evaluation`
+- Conversation target:
 
 ```text
 People comparing CRM tools, planning CRM migrations, or discussing migration
@@ -34,7 +28,7 @@ risks such as exports, custom fields, notes, activity history, integrations,
 reporting continuity, onboarding friction, and rollout timing.
 ```
 
-### Trigger Keywords
+- Trigger keywords:
 
 ```text
 crm migration, migrate crm, crm switch, crm export, crm imports, custom fields,
@@ -42,7 +36,7 @@ activity history, salesforce migration, hubspot migration, pipedrive migration,
 reporting continuity, crm rollout, crm evaluation, compare crms, switching crm
 ```
 
-### Negative Keywords
+- Negative keywords:
 
 ```text
 job post, hiring, discount code, promo code, meme, shitpost, giveaway, agency
@@ -50,7 +44,7 @@ pitch, dm me, personal mobile numbers, cold email copywriter, wifi, router, pm
 tool, sprint planning
 ```
 
-### Position Guidance
+- Position guidance:
 
 ```text
 Be practical, calm, and useful. Focus on export completeness, field mapping,
@@ -60,77 +54,42 @@ question when there is a natural opening. Do not hard-sell, do not exaggerate,
 and do not claim personal customer experience.
 ```
 
-### Voice / Style
+- Voice / style:
 
 ```text
 Neutral, short, informed, slightly conversational. No hype. No links unless
 someone directly asks for one. Prefer 1 to 3 sentences.
 ```
 
-### Good Reply Examples
-
-```text
-I would compare export completeness and custom field mapping before anything
-else. Those two usually tell you how painful the real migration will be.
-```
-
-```text
-One useful check is whether activity history and notes survive the move cleanly.
-Teams often discover the real migration cost there, not in the feature list.
-```
-
-```text
-If you are narrowing vendors, I would look at reporting continuity, integration
-rebuild effort, and how much cleanup the team needs after import.
-```
-
-### Bad Reply Examples
-
-```text
-We solved this perfectly, just switch now and you will be fine.
-```
-
-```text
-DM me and I will show you the best CRM for this.
-```
-
-```text
-Our product is clearly the winner and everyone here eventually picks it.
-```
-
-### Avoid Rules
-
-```text
-No DMs.
-No fake consensus.
-No pretending to be a customer.
-No urgency or pressure.
-No links unless directly requested.
-No generic "book a demo" language.
-```
+- Good reply examples:
+  `I would compare export completeness and custom field mapping before anything else. Those two usually tell you how painful the real migration will be.`
+  `One useful check is whether activity history and notes survive the move cleanly. Teams often discover the real migration cost there, not in the feature list.`
+  `If you are narrowing vendors, I would look at reporting continuity, integration rebuild effort, and how much cleanup the team needs after import.`
+- Bad reply examples:
+  `We solved this perfectly, just switch now and you will be fine.`
+  `DM me and I will show you the best CRM for this.`
+  `Our product is clearly the winner and everyone here eventually picks it.`
+- Avoid rules:
+  `No DMs.`
+  `No fake consensus.`
+  `No pretending to be a customer.`
+  `No urgency or pressure.`
+  `No links unless directly requested.`
+  `No generic "book a demo" language.`
 
 ## Engagement Wizard Copy
 
-### Engagement Name
-
-`CRM migration conversations`
-
-### Community Target Guidance
+- Engagement name: `CRM migration conversations`
+- Community target guidance:
 
 ```text
 Use this package in founder, revops, sales-ops, CRM, or B2B operations
 Telegram groups where people regularly compare tools or discuss migration work.
 ```
 
-### Topic To Choose
-
-`CRM migration evaluation`
-
-### Recommended Mode
-
-`Draft`
-
-### Operator Note
+- Topic to choose: `CRM migration evaluation`
+- Recommended mode: `Draft`
+- Operator note:
 
 ```text
 This engagement is for public conversations about replacing or evaluating CRM
@@ -221,7 +180,6 @@ Our office wifi is dying again, recommend a router.
 ```
 
 ## Operator Review Notes
-
 ### Approve
 
 - the message is clearly about CRM migration, evaluation, exports, cleanup, or

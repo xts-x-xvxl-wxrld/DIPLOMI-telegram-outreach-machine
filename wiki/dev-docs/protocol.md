@@ -32,6 +32,10 @@ Do not create broad pages for areas you barely touched.
 - link to specs and code-index pages instead of duplicating them
 - describe responsibilities, seams, and behavior shape rather than paraphrasing source line by line
 - keep statements concrete and developer-useful
+- when a local validation script only checks tracked files, stage or otherwise
+  track new files before trusting a green result; `scripts/check_fragmentation.py`
+  follows `git ls-files`, so brand-new oversized files can slip past an
+  unstaged local run and fail later in CI
 
 ## Suggested Page Types
 
