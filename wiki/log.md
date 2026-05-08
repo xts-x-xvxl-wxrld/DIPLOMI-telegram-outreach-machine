@@ -2605,3 +2605,14 @@ while preserving the staged testing contract.
 - Updated API and queue/spec docs plus regression tests to reflect that
   `reply_deadline_at` is now informational timeliness metadata rather than a
   send/approval blocker.
+
+## [2026-05-08] fix | Always bypass sandbox wait periods for @tgoutreachtest
+
+- Made `@tgoutreachtest` a built-in wait-bypass sandbox so delayed send
+  scheduling and post-join warmup are skipped even when
+  `ENGAGEMENT_WAIT_PERIOD_BYPASS_COMMUNITIES` is unset.
+- Extended the collection scheduler so the same sandbox also bypasses
+  collection due-state jitter and can collect on every scheduler tick instead
+  of waiting for the normal 1-15 / 3-15 minute spread.
+- Added focused regression coverage and updated the account-behavior /
+  scheduling specs to document the sandbox special case.

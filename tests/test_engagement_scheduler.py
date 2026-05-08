@@ -324,6 +324,58 @@ async def test_engagement_collection_scheduler_initializes_future_due_without_en
 
 
 @pytest.mark.asyncio
+async def test_engagement_collection_scheduler_bypasses_due_state_for_builtin_test_sandbox() -> None:
+    now = datetime(2026, 4, 19, 13, 30, tzinfo=timezone.utc)
+    community_id = uuid4()
+    enqueued: list[object] = []
+    due_state_called = False
+
+    async def target_loader(_session: object) -> list[EngagementCollectionTarget]:
+        return [
+            _collection_target(
+                community_id,
+                latest_collection_completed_at=None,
+                community_username="tgoutreachtest",
+            )
+        ]
+
+    def enqueue_collection(
+        community_id: object,
+        *,
+        reason: str,
+        requested_by: str | None,
+        now: datetime,
+    ) -> QueuedJob:
+        enqueued.append((community_id, reason, requested_by, now))
+        return QueuedJob(id=f"collection:engagement:{community_id}:202604191330", type="collection.run")
+
+    class _TrackingDueState:
+        def collection_due(self, community_id: object, *, now: datetime) -> DueDecision:
+            del community_id
+            nonlocal due_state_called
+            due_state_called = True
+            return DueDecision(due=False, due_at=now + timedelta(minutes=10))
+
+        def mark_collection_enqueued(self, community_id: object, *, now: datetime) -> datetime:
+            del community_id
+            return now + timedelta(minutes=5)
+
+    result = await process_engagement_collection_scheduler_tick(
+        session_factory=lambda: FakeSession(),
+        target_loader=target_loader,
+        enqueue_collection_fn=enqueue_collection,
+        due_state=_TrackingDueState(),
+        settings=SimpleNamespace(engagement_active_collection_interval_seconds=600),  # type: ignore[arg-type]
+        now=now,
+    )
+
+    assert result["jobs_enqueued"] == 1
+    assert result["skipped_not_due"] == 0
+    assert due_state_called is False
+    assert enqueued == [(community_id, "engagement", None, now)]
+
+
+@pytest.mark.asyncio
 async def test_engagement_collection_scheduler_skips_when_due_state_unavailable() -> None:
     now = datetime(2026, 4, 19, 13, 30, tzinfo=timezone.utc)
 
@@ -463,9 +515,13 @@ def _collection_target(
     latest_collection_completed_at: datetime | None,
     active_collection_count: int = 0,
     has_detect_permission: bool = True,
+    community_tg_id: int | None = None,
+    community_username: str | None = None,
 ) -> EngagementCollectionTarget:
     return EngagementCollectionTarget(
         community_id=community_id,  # type: ignore[arg-type]
+        community_tg_id=community_tg_id,
+        community_username=community_username,
         mode=mode,
         quiet_hours_start=quiet_hours_start,
         quiet_hours_end=quiet_hours_end,

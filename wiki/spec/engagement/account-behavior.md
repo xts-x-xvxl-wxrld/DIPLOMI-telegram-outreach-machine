@@ -44,6 +44,8 @@ Test-community bypass:
   wait periods are skipped for manual validation.
 - Supported identifiers are community UUIDs, Telegram numeric IDs, and public
   usernames with or without `@` or `t.me/` prefixes.
+- The managed sandbox `@tgoutreachtest` is always treated as allowlisted even
+  when the env var is empty.
 - Allowlisted communities bypass delayed send scheduling, post-join warmup, and
   spacing/cooldown waits only.
 - Approval, permission, replyability, and hard daily/root-opportunity caps stay
@@ -105,6 +107,8 @@ Rules:
 - Enqueue collection only for communities whose due time has passed.
 - After enqueue, set the next due time to `now + jitter(3-15 minutes)`.
 - Store this scheduling state outside Telegram account session files.
+- The managed sandbox `@tgoutreachtest` bypasses this due-state wait and may
+  collect on every scheduler tick.
 
 Collection may still keep backend data fresh, but Telegram read acknowledgements must follow their
 own jittered account/community rhythm.

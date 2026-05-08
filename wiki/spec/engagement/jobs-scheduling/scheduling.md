@@ -124,6 +124,7 @@ Test-community bypass:
 - `ENGAGEMENT_WAIT_PERIOD_BYPASS_COMMUNITIES` may temporarily disable send-delay
   scheduling and other wait-period checks for an explicit allowlisted set of
   manual test communities.
+- The managed sandbox `@tgoutreachtest` is always included in that bypass set.
 - The bypass is only for timing waits. Approval, posting permissions,
   replyability checks, and hard send-volume caps remain unchanged.
 

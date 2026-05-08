@@ -20,6 +20,7 @@ from backend.db.enums import (
 )
 from backend.db.models import (
     CollectionRun,
+    Community,
     CommunityEngagementSettings,
     Engagement,
     EngagementCandidate,
@@ -37,7 +38,10 @@ from backend.services.community_engagement import (
     TASK_FIRST_RUNTIME_ENGAGEMENT_STATUSES,
     get_engagement_settings,
 )
-from backend.services.engagement_account_behavior import ACCOUNT_HEALTH_REFRESH_HOURS
+from backend.services.engagement_account_behavior import (
+    ACCOUNT_HEALTH_REFRESH_HOURS,
+    engagement_wait_periods_disabled_for_community,
+)
 from backend.services.engagement_due_state import (
     DueDecision,
     EngagementDueStateUnavailable,
@@ -79,6 +83,8 @@ class EngagementDetectionTarget:
 @dataclass(frozen=True)
 class EngagementCollectionTarget:
     community_id: UUID
+    community_tg_id: int | None
+    community_username: str | None
     mode: str
     quiet_hours_start: time | None
     quiet_hours_end: time | None
@@ -293,12 +299,20 @@ async def process_engagement_collection_scheduler_tick(
                 skip_reason,
             )
             continue
-        try:
-            due_decision = due_state.collection_due(target.community_id, now=current_time)
-        except EngagementDueStateUnavailable:
-            summary.skipped_due_state_unavailable += 1
-            LOGGER.exception("Engagement collection due-state unavailable for community %s", target.community_id)
-            continue
+        bypass_wait_periods = engagement_wait_periods_disabled_for_community(
+            community_id=target.community_id,
+            tg_id=target.community_tg_id,
+            username=target.community_username,
+        )
+        if bypass_wait_periods:
+            due_decision = DueDecision(due=True, due_at=current_time)
+        else:
+            try:
+                due_decision = due_state.collection_due(target.community_id, now=current_time)
+            except EngagementDueStateUnavailable:
+                summary.skipped_due_state_unavailable += 1
+                LOGGER.exception("Engagement collection due-state unavailable for community %s", target.community_id)
+                continue
         if not due_decision.due:
             summary.skipped_not_due += 1
             LOGGER.info(
@@ -378,11 +392,14 @@ async def load_engagement_collection_targets(
             community_id=community_id,
             require_analysis_input=True,
         )
+        community = await session.get(Community, community_id)
         active_collection_count = await _active_collection_count(session, community_id=community_id)
         detect_target_count = await _detect_target_count(session, community_id=community_id)
         targets.append(
             EngagementCollectionTarget(
                 community_id=community_id,
+                community_tg_id=None if community is None else community.tg_id,
+                community_username=None if community is None else community.username,
                 mode=settings.mode,
                 quiet_hours_start=settings.quiet_hours_start,
                 quiet_hours_end=settings.quiet_hours_end,

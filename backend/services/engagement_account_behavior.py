@@ -32,6 +32,7 @@ MAX_CONTINUATION_REPLIES_PER_OPPORTUNITY_24H = 3
 MIN_MINUTES_BETWEEN_CONTINUATION_REPLIES = 5
 ACCOUNT_HEALTH_REFRESH_HOURS = 8
 _WAIT_BYPASS_SPLIT_RE = re.compile(r"[\s,;]+")
+_BUILTIN_WAIT_BYPASS_USERNAMES = frozenset({"tgoutreachtest"})
 
 
 @dataclass(frozen=True)
@@ -122,6 +123,9 @@ def engagement_wait_periods_disabled_for_community(
     tg_id: int | None = None,
     username: str | None = None,
 ) -> bool:
+    normalized_username = _normalize_wait_bypass_token(username)
+    if normalized_username in _BUILTIN_WAIT_BYPASS_USERNAMES:
+        return True
     configured_tokens = _configured_wait_bypass_tokens(
         get_settings().engagement_wait_period_bypass_communities
     )
@@ -132,7 +136,7 @@ def engagement_wait_periods_disabled_for_community(
         for token in (
             _normalize_wait_bypass_token(None if community_id is None else str(community_id)),
             _normalize_wait_bypass_token(None if tg_id is None else str(tg_id)),
-            _normalize_wait_bypass_token(username),
+            normalized_username,
         )
         if token is not None
     }

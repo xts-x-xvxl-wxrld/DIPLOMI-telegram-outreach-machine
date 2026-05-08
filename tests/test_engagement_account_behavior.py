@@ -158,6 +158,13 @@ def test_wait_period_bypass_matches_uuid_username_and_tg_id(monkeypatch: pytest.
     assert engagement_wait_periods_disabled_for_community(username="@not-listed") is False
 
 
+def test_wait_period_bypass_includes_builtin_test_sandbox() -> None:
+    assert engagement_wait_periods_disabled_for_community(username="@tgoutreachtest") is True
+    assert engagement_wait_periods_disabled_for_community(
+        username="https://t.me/tgoutreachtest"
+    ) is True
+
+
 @pytest.mark.parametrize(
     ("minimum", "maximum", "expected_message"),
     [
