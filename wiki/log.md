@@ -2595,3 +2595,13 @@ while preserving the staged testing contract.
 - Extended engagement timing and send-worker regressions, updated the
   engagement account-behavior and scheduling specs, and documented the new plan
   and env example entry.
+
+## [2026-05-08] fix | Remove reply-deadline stale blockers from approval and send
+
+- Removed the candidate approval guard that rejected drafts after
+  `reply_deadline_at`, so stale-but-unexpired drafts can still be approved.
+- Removed the send-worker preflight branch that skipped approved drafts solely
+  because `reply_deadline_at` had passed; `expires_at` remains the hard stop.
+- Updated API and queue/spec docs plus regression tests to reflect that
+  `reply_deadline_at` is now informational timeliness metadata rather than a
+  send/approval blocker.

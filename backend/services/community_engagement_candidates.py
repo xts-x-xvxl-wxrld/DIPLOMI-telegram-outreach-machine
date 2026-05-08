@@ -218,8 +218,6 @@ async def approve_candidate(
         )
     if _candidate_is_expired(candidate, _utcnow()):
         raise EngagementConflict("candidate_expired", "Expired candidates cannot be approved")
-    if _candidate_is_stale(candidate, _utcnow()):
-        raise EngagementConflict("candidate_stale", "Stale reply opportunities cannot be approved")
 
     reply_source = final_reply if final_reply is not None else candidate.final_reply or candidate.suggested_reply
     reply = validate_suggested_reply(reply_source)

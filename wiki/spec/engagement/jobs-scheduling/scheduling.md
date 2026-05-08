@@ -104,7 +104,7 @@ must not queue `engagement.send` in the MVP.
 
 A public reply may be sent only when all of these are true:
 
-- The reply opportunity is still before `reply_deadline_at` and has status `approved`.
+- The reply opportunity has status `approved`.
 - The approved `final_reply` passes safety and length validation.
 - The community settings still allow posting and require approval.
 - The engagement target grants `allow_post`.
@@ -115,7 +115,6 @@ A public reply may be sent only when all of these are true:
 Timing behavior should feel sparse and human-supervised:
 
 - Draft quickly enough that the operator can review while the discussion is still current.
-- Expire stale reply opportunities rather than sending late replies into a cooled-off thread.
 - Use rate limits as hard caps, not goals. The best day may still have zero sends.
 - Never batch multiple sends into the same community just because multiple topics matched.
 - Treat failed or skipped send attempts as audit events, not reasons to retry aggressively.

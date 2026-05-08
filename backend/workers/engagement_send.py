@@ -116,11 +116,6 @@ async def process_engagement_send(
                 candidate.updated_at = now
                 await session.commit()
                 return _skipped("candidate_expired", candidate.id)
-            if _is_stale(candidate, now):
-                candidate.status = EngagementCandidateStatus.EXPIRED.value
-                candidate.updated_at = now
-                await session.commit()
-                return _skipped("candidate_stale", candidate.id)
 
             settings = await get_engagement_settings(session, candidate.community_id)
             task_first_operator_send = await _allows_task_first_operator_send(session, candidate)

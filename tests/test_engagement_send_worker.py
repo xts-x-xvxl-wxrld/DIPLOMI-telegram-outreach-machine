@@ -183,7 +183,7 @@ async def test_engagement_send_expires_stale_candidate_without_network_call() ->
 
 
 @pytest.mark.asyncio
-async def test_engagement_send_skips_stale_candidate_by_reply_deadline() -> None:
+async def test_engagement_send_allows_stale_candidate_by_reply_deadline() -> None:
     community = _community()
     account_id = uuid4()
     candidate = _candidate(community)
@@ -193,19 +193,22 @@ async def test_engagement_send_skips_stale_candidate_by_reply_deadline() -> None
         candidate=candidate,
         membership=_membership(community.id, account_id),
     )
+    adapter = FakeSendAdapter(result=SendResult(sent_tg_message_id=456, sent_at=_now()))
 
     result = await process_engagement_send(
         {"candidate_id": str(candidate.id), "approved_by": "op"},
         session_factory=lambda: session,
-        acquire_account_by_id_fn=lambda *args, **kwargs: (_ for _ in ()).throw(
-            AssertionError("account acquisition should not run")
-        ),
+        acquire_account_by_id_fn=_fake_acquire(account_id),
+        release_account_fn=_capture_release([]),
+        adapter_factory=lambda lease: adapter,
+        rate_limit_checker=_allow_send,
     )
 
-    assert result["status"] == "skipped"
-    assert result["reason"] == "candidate_stale"
-    assert candidate.status == EngagementCandidateStatus.EXPIRED.value
-    assert session.action is None
+    assert result["status"] == "processed"
+    assert result["action_status"] == EngagementActionStatus.SENT.value
+    assert candidate.status == EngagementCandidateStatus.SENT.value
+    assert session.action is not None
+    assert adapter.calls
 
 
 @pytest.mark.asyncio

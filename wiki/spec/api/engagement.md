@@ -404,6 +404,8 @@ Rules:
   - `message = "Draft approved and send queued"`
   - `next_callback = "eng:appr:list:0"`
   - `job_type = "engagement.send"`
+- stale reply opportunities do not block approval; only expired drafts and
+  other candidate conflicts do
 - active draft-update requests block approval with `code = "draft_not_reviewable"`
 
 ### `POST /api/engagement/cockpit/drafts/{draft_id}/reject`

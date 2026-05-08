@@ -198,7 +198,8 @@ Required candidate state:
 - candidate exists
 - candidate status is `approved`
 - candidate is not expired by `expires_at`
-- candidate is not stale by `reply_deadline_at`
+- `reply_deadline_at` is retained for timeliness metadata, but does not block
+  send eligibility
 
 Required engagement state:
 

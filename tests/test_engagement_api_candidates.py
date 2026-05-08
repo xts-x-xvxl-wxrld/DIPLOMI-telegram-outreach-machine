@@ -413,23 +413,21 @@ async def test_approve_engagement_candidate_rejects_expired_candidate() -> None:
 
 
 @pytest.mark.asyncio
-async def test_approve_engagement_candidate_rejects_stale_candidate() -> None:
+async def test_approve_engagement_candidate_allows_stale_candidate() -> None:
     community = _community(uuid4(), title="Founder Circle")
     topic = _topic(uuid4(), name="Open-source CRM")
     candidate = _candidate(uuid4(), community, topic)
     candidate.reply_deadline_at = datetime(2000, 1, 1, tzinfo=timezone.utc)
     db = FakeDb(scalar_result=candidate)
 
-    with pytest.raises(HTTPException) as exc_info:
-        await post_engagement_candidate_approve(
-            candidate.id,
-            EngagementCandidateApproveRequest(reviewed_by="telegram:123"),
-            db,  # type: ignore[arg-type]
-        )
+    response = await post_engagement_candidate_approve(
+        candidate.id,
+        EngagementCandidateApproveRequest(reviewed_by="telegram:123"),
+        db,  # type: ignore[arg-type]
+    )
 
-    assert exc_info.value.status_code == 409
-    assert exc_info.value.detail["code"] == "candidate_stale"
-    assert db.commits == 0
+    assert response.status == EngagementCandidateStatus.APPROVED.value
+    assert db.commits == 1
 
 
 @pytest.mark.asyncio
