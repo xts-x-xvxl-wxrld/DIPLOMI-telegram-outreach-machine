@@ -24,6 +24,10 @@ Query-driven `/search...` bot commands are currently a disabled compatibility pa
 operator triggers them manually or taps stale inline search cards, the bot should return a
 temporary-unavailable message and redirect the operator to CSV seed import or direct public handle
 intake.
+
+While this temporary bot-side removal remains active, the top-level operator cockpit should not show
+Discovery as a primary button. Stale Discovery entry callbacks should return a temporary-unavailable
+message and route the operator back to the reduced cockpit.
 ## Operator Access
 
 The bot may be restricted with `TELEGRAM_ALLOWED_USER_IDS`, a comma- or whitespace-separated list of

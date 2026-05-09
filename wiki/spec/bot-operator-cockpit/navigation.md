@@ -138,7 +138,6 @@ Recommended home card:
 ```text
 Operator cockpit
 
-Discovery: import and review communities.
 Engagement: review replies and participation readiness.
 Accounts: check Telegram account health.
 Help: commands and upload format.

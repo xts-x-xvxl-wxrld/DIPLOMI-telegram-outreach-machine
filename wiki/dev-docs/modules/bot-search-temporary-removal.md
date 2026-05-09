@@ -25,8 +25,13 @@ Discovery cockpit usable for CSV import, direct public handle intake, and review
   handle intake.
 - `_handle_search_callback()` also short-circuits known search callback actions, which blocks stale
   inline search cards already present in Telegram chat history.
-- The Discovery cockpit still uses `ACTION_DISC_START`, but `bot/ui_discovery.py` now labels it as
-  `Add examples` and `bot/callback_handlers.py` renders import guidance instead of a search hub.
+- The top-level operator cockpit no longer shows a `Discovery` button.
+- Stale `ACTION_OP_DISCOVERY` and `ACTION_DISC_HOME` callbacks are intercepted in
+  `bot/callback_handlers.py` and return operators to the smaller operator cockpit with a temporary
+  unavailability message.
+- The underlying Discovery cockpit still uses `ACTION_DISC_START`, but `bot/ui_discovery.py` now
+  labels it as `Add examples` and `bot/callback_handlers.py` renders import guidance instead of a
+  search hub.
 
 ## Developer Notes
 

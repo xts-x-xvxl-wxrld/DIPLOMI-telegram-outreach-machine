@@ -285,7 +285,7 @@ async def test_start_command_sends_keyboard_remove_then_cockpit() -> None:
         for row in second_markup.inline_keyboard
         for button in row
     ]
-    assert ACTION_OP_DISCOVERY in cockpit_callbacks
+    assert ACTION_ENGAGEMENT_HOME in cockpit_callbacks
     assert ACTION_OP_ACCOUNTS in cockpit_callbacks
     assert ACTION_OP_HELP in cockpit_callbacks
 
@@ -325,7 +325,7 @@ async def test_help_command_renders_help_with_cockpit_navigation() -> None:
     cockpit_callbacks = [
         button.callback_data for row in markup.inline_keyboard for button in row
     ]
-    assert ACTION_OP_DISCOVERY in cockpit_callbacks
+    assert ACTION_ENGAGEMENT_HOME in cockpit_callbacks
     assert ACTION_OP_ACCOUNTS in cockpit_callbacks
     # Help text contains expected keywords
     assert "/seeds" in replies[0]["text"] or "commands" in replies[0]["text"].lower()
@@ -479,7 +479,6 @@ async def test_op_home_callback_renders_operator_cockpit() -> None:
         for row in markup.inline_keyboard
         for button in row
     ]
-    assert ACTION_OP_DISCOVERY in callbacks
     assert ACTION_ENGAGEMENT_HOME in callbacks
     assert ACTION_OP_ACCOUNTS in callbacks
     assert ACTION_OP_HELP in callbacks
@@ -493,7 +492,7 @@ async def test_op_home_callback_renders_operator_cockpit() -> None:
 
 
 @pytest.mark.asyncio
-async def test_op_discovery_callback_opens_discovery_cockpit() -> None:
+async def test_op_discovery_callback_reports_temporary_unavailability() -> None:
     client = _FakeApiClient()
     update = _make_callback_update(ACTION_OP_DISCOVERY)
     context = _make_context(client)
@@ -501,20 +500,7 @@ async def test_op_discovery_callback_opens_discovery_cockpit() -> None:
     await callback_query(update, context)
 
     replies = update.callback_query.message.replies
-    assert any("discovery" in r["text"].lower() for r in replies)
-    markups = [r["reply_markup"] for r in replies if r["reply_markup"] is not None]
-    assert markups
-    disc_callbacks = [
-        button.callback_data
-        for markup in markups
-        for row in markup.inline_keyboard
-        for button in row
-    ]
-    assert ACTION_DISC_START in disc_callbacks
-    assert ACTION_DISC_ATTENTION in disc_callbacks
-    assert ACTION_DISC_REVIEW in disc_callbacks
-    assert ACTION_DISC_WATCHING in disc_callbacks
-    assert ACTION_DISC_ACTIVITY in disc_callbacks
+    assert any("temporarily unavailable" in r["text"].lower() for r in replies)
 
 
 # ---------------------------------------------------------------------------
@@ -523,7 +509,7 @@ async def test_op_discovery_callback_opens_discovery_cockpit() -> None:
 
 
 @pytest.mark.asyncio
-async def test_disc_home_callback_opens_discovery_cockpit() -> None:
+async def test_disc_home_callback_reports_temporary_unavailability() -> None:
     client = _FakeApiClient()
     update = _make_callback_update(ACTION_DISC_HOME)
     context = _make_context(client)
@@ -531,7 +517,7 @@ async def test_disc_home_callback_opens_discovery_cockpit() -> None:
     await callback_query(update, context)
 
     replies = update.callback_query.message.replies
-    assert any("discovery" in r["text"].lower() for r in replies)
+    assert any("temporarily unavailable" in r["text"].lower() for r in replies)
 
 
 # ---------------------------------------------------------------------------
@@ -776,7 +762,8 @@ async def test_op_help_callback_renders_help_with_cockpit_navigation() -> None:
         for row in markup.inline_keyboard
         for button in row
     ]
-    assert ACTION_OP_DISCOVERY in nav_callbacks or ACTION_OP_HOME in nav_callbacks
+    assert ACTION_ENGAGEMENT_HOME in nav_callbacks
+    assert ACTION_OP_ACCOUNTS in nav_callbacks
 
 
 # ---------------------------------------------------------------------------

@@ -2940,6 +2940,9 @@ while preserving the staged testing contract.
 - Added a bot-side search kill switch in `bot/search_handlers.py` so legacy `/search...` commands
   and stale inline search callbacks now return a temporary-unavailable message instead of reaching
   the backend search API.
+- Removed the top-level `Discovery` button and summary copy from the operator cockpit, and now
+  bounce stale Discovery entry callbacks back to the reduced cockpit with a temporary-unavailable
+  message.
 - Added focused regression coverage for the temporary-unavailable search path plus the renamed
   Discovery copy, and recorded the wiring in a new developer doc module.
 

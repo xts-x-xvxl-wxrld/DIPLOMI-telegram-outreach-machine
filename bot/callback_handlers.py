@@ -256,6 +256,11 @@ from .runtime import *
 from .callback_handlers_engagement import _handle_engagement_topic_candidate_callback
 from .discovery_handlers import *
 from .search_handlers import *
+
+DISCOVERY_BOT_ACCESS_DISABLED_MESSAGE = (
+    "Discovery is temporarily unavailable from the bot.\n\n"
+    "You can still use Engagement, Accounts, and Help here."
+)
 from .engagement_handlers import *
 from .engagement_approval_flow import (
     show_global_approval_queue,
@@ -694,7 +699,11 @@ async def callback_query(update: Any, context: Any) -> None:
             await _review_callback(update, context, parts[0], decision=decision)
             return
         if action in {ACTION_OP_DISCOVERY, ACTION_DISC_HOME}:
-            await _send_discovery_cockpit(update)
+            await _callback_reply(
+                update,
+                DISCOVERY_BOT_ACCESS_DISABLED_MESSAGE,
+                reply_markup=operator_cockpit_markup(),
+            )
             return
         if action == ACTION_OP_ACCOUNTS:
             await _send_accounts(update, context)

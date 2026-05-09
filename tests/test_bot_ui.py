@@ -611,12 +611,11 @@ def test_engagement_action_pager_markup_preserves_community_filter() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_operator_cockpit_markup_exposes_four_top_level_buttons() -> None:
+def test_operator_cockpit_markup_exposes_three_top_level_buttons() -> None:
     markup = operator_cockpit_markup()
     rows = markup.inline_keyboard
 
     all_callbacks = [button.callback_data for row in rows for button in row]
-    assert ACTION_OP_DISCOVERY in all_callbacks
     assert ACTION_ENGAGEMENT_HOME in all_callbacks
     assert ACTION_OP_ACCOUNTS in all_callbacks
     assert ACTION_OP_HELP in all_callbacks
@@ -626,7 +625,6 @@ def test_operator_cockpit_markup_button_labels() -> None:
     markup = operator_cockpit_markup()
     labels = [button.text for row in markup.inline_keyboard for button in row]
 
-    assert any(label.endswith("Discovery") for label in labels)
     assert any(label.endswith("Engagement") for label in labels)
     assert any(label.startswith("💬 ") and label.endswith("Engagement") for label in labels)
     assert any(label.endswith("Accounts") for label in labels)

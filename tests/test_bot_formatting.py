@@ -51,8 +51,8 @@ def _slash_commands(message: str) -> list[str]:
 def test_format_start_lists_seed_first_controls() -> None:
     message = format_start()
 
-    assert "Open Discovery" in message
-    assert "Add example communities or review queued communities" in message
+    assert "Send @username or a public t.me link when needed" in message
+    assert "Use community cards for snapshots, members, and engagement setup" in message
     assert "community cards" in message
     assert "Accounts covers health plus add search/add engagement onboarding." in message
     assert "Send @username" in message
@@ -64,7 +64,7 @@ def test_format_start_lists_seed_first_controls() -> None:
 def test_format_help_points_to_buttons_instead_of_command_list() -> None:
     message = format_help()
 
-    assert "Discovery opens example imports, review, and community follow-up work." in message
+    assert "Engagement opens reply review, issues, sent messages, and setup." in message
     assert "Accounts opens account health plus add-account actions." in message
     assert "Hidden compatibility commands still work" in message
     assert _slash_commands(message) == []

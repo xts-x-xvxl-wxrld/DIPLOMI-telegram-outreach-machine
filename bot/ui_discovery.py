@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from .ui_common import (
-    ACTION_OP_DISCOVERY,
     ACTION_OP_ACCOUNTS,
     ACTION_OP_ACCOUNT_HEALTH,
     ACTION_OP_ADD_ACCOUNT,
@@ -37,7 +36,6 @@ from .ui_common import (
 def operator_cockpit_markup():
     return _inline_markup(
         [
-            [_button("🔎 Discovery", ACTION_OP_DISCOVERY)],
             [_button("💬 Engagement", ACTION_ENGAGEMENT_HOME)],
             [_button("📲 Accounts", ACTION_OP_ACCOUNTS)],
             [_button("❓ Help", ACTION_OP_HELP)],
