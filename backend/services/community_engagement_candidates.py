@@ -367,6 +367,7 @@ async def create_engagement_candidate(
     operator_notified_at: datetime | None = None,
     reply_deadline_minutes: int = DEFAULT_REPLY_DEADLINE_MINUTES,
     selected_telegram_account_id: UUID | None = None,
+    ignored_duplicate_candidate_ids: set[UUID] | None = None,
     now: datetime | None = None,
 ) -> EngagementCandidateCreationResult:
     current_time = now or detected_at or _utcnow()
@@ -403,6 +404,7 @@ async def create_engagement_candidate(
         topic_id=topic_id,
         source_tg_message_id=source_tg_message_id,
         source_excerpt=excerpt,
+        ignored_candidate_ids=ignored_duplicate_candidate_ids,
     )
     if existing is not None:
         return EngagementCandidateCreationResult(
@@ -647,6 +649,9 @@ def _compact_model_output(value: dict[str, Any] | None) -> dict[str, Any] | None
         "moment_strength",
         "timeliness",
         "reply_value",
+        "continuation_goal",
+        "answered_question",
+        "avoid_repeating",
         "suggested_reply",
         "risk_notes",
         "semantic_match",
@@ -661,6 +666,7 @@ def _compact_prompt_render_summary(value: dict[str, Any] | None) -> dict[str, An
         "profile_name",
         "version_number",
         "style_rule_counts",
+        "opportunity_kind",
         "message_count",
         "source_post_present",
         "serialized_input_bytes",
@@ -676,6 +682,7 @@ async def _find_active_candidate_duplicate(
     topic_id: UUID,
     source_tg_message_id: int | None,
     source_excerpt: str | None,
+    ignored_candidate_ids: set[UUID] | None = None,
 ) -> EngagementCandidate | None:
     active_statuses = (
         EngagementCandidateStatus.NEEDS_REVIEW.value,
@@ -693,6 +700,8 @@ async def _find_active_candidate_duplicate(
             EngagementCandidate.source_tg_message_id.is_(None),
             EngagementCandidate.source_excerpt == source_excerpt,
         )
+    if ignored_candidate_ids:
+        query = query.where(EngagementCandidate.id.not_in(tuple(ignored_candidate_ids)))
     return await db.scalar(query.limit(1))
 
 

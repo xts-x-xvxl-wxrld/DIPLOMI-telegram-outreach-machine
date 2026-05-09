@@ -78,9 +78,17 @@ _ALLOWED_PROMPT_VARIABLES = {
     "style.topic",
     "source_post.text",
     "source_post.tg_message_id",
+    "source_post.reply_to_tg_message_id",
     "source_post.message_date",
     "reply_context",
     "messages",
+    "thread.stage",
+    "thread.objective",
+    "thread.unresolved_question",
+    "thread.avoid_repeating",
+    "thread.last_managed_reply",
+    "thread.recent_replies",
+    "thread.summary",
     "community_context.latest_summary",
     "community_context.dominant_themes",
 }
@@ -531,8 +539,17 @@ def _default_prompt_preview() -> EngagementPromptPreview:
         temperature=Decimal("0.2"),
         max_output_tokens=1000,
         system_prompt=(
-            "You draft transparent, helpful public replies for an approved operator account. "
-            "Prefer no reply over a weak reply."
+            "Write in a natural, realistic group-chat style that sounds like operators, founders, "
+            "or GTM people talking in Telegram or Slack. Keep messages short, casual, and lightly "
+            "imperfect, but still clear. Prefer conversational phrasing over polished prose. Mix "
+            "routine chatter, practical business questions, side remarks, and occasional "
+            "topic-relevant comments. Avoid sounding like marketing copy, formal writing, or an "
+            "AI assistant. The goal is believable human chat, not optimized copy. Do not "
+            "impersonate a normal community member. Do not create urgency, deception, fake "
+            "consensus, or claims of personal experience. Do not target, profile, rank, or "
+            "evaluate individual people. Do not suggest direct messages. Do not mention "
+            "private/internal analysis. Only produce a reply when it is genuinely useful and "
+            "relevant. Prefer no reply over a weak reply."
         ),
         user_prompt_template=(
             "Community: {{community.title}} (@{{community.username}})\n"
@@ -591,6 +608,7 @@ def _render_prompt_preview(
 def _synthetic_prompt_variables() -> dict[str, Any]:
     source_post = {
         "tg_message_id": 123,
+        "reply_to_tg_message_id": 120,
         "text": "Has anyone compared open-source CRM options?",
         "message_date": "2026-04-20T10:00:00+00:00",
     }
@@ -618,6 +636,21 @@ def _synthetic_prompt_variables() -> dict[str, Any]:
         "source_post": source_post,
         "reply_context": "A previous message asks about migration effort and data export.",
         "messages": [source_post],
+        "thread": {
+            "stage": "clarify",
+            "objective": "Answer the latest question clearly and keep the thread moving.",
+            "unresolved_question": "Has anyone compared open-source CRM options?",
+            "avoid_repeating": [
+                "Do not restate the full previous managed reply.",
+                "Do not restart the recommendation from zero.",
+            ],
+            "last_managed_reply": "Compare data ownership, integrations, and exit paths first.",
+            "recent_replies": [
+                "Can you say more about migration effort?",
+                "What was the biggest tradeoff for you?",
+            ],
+            "summary": "This is an ongoing public thread where the managed account already replied and the group asked a follow-up question.",
+        },
         "community_context": {
             "latest_summary": "Members compare sales and support tooling.",
             "dominant_themes": ["crm", "automation"],

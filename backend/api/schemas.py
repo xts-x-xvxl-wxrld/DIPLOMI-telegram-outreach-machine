@@ -525,6 +525,7 @@ class CockpitApprovalItemOut(BaseModel):
     target_label: str
     engagement_label: str
     community_label: str
+    source_excerpt: str | None = None
     text: str
     why: str
     badge: str | None = None

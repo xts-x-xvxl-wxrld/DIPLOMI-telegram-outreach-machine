@@ -25,10 +25,23 @@ Do not use this lane for operator instructions or to restate the full behavior s
 
 ## Module Guides
 
+- [Engagement Approval Notifications](modules/engagement-approval-notifications.md) - bot startup,
+  queue scan, and per-operator dedupe seams for proactive approval-draft alerts
 - [Engagement Approval Review](modules/engagement-approval-review.md) - task-first approval queue
   payload shaping and Telegram draft-card formatting seam
+- [Engagement Detect Continuations](modules/engagement-detect-continuations.md) - direct-reply
+  continuation selection that keeps approved Telegram threads draftable without repeated trigger
+  keywords
+- [Engagement Prompt Profiles](modules/engagement-prompt-profiles.md) - active-vs-fallback draft
+  instruction selection, preview alignment, and prompt-template ownership
 - [Engagement Quiet Hours](modules/engagement-quiet-hours.md) - quiet-hours timezone
   storage, runtime evaluation, and wizard/cockpit edit seam
+- [Engagement Wizard Confirm Handoff](modules/engagement-wizard-confirm-handoff.md) - success
+  reply plus backend callback reroute seam after task-first wizard confirm
+- [Engagement Wizard Cancel Home](modules/engagement-wizard-cancel-home.md) - confirmed
+  wizard cancel reroute back to the shared `Engagements` cockpit home
+- [Engagement Topic Brief State](modules/engagement-topic-brief-state.md) - bot-side `topic_create`
+  pending-edit recovery, snapshot cleanup, and stale-callback seam
 
 ## Relationship To Other Wiki Lanes
 

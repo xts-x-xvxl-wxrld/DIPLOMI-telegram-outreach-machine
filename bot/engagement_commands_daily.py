@@ -251,11 +251,15 @@ async def _send_cockpit_home_command(update: Any, context: Any) -> None:
 
 
 async def cancel_edit_command(update: Any, context: Any) -> None:
+    from bot.engagement_approval_flow import cancel_pending_approval_edit
+
     operator_id = _telegram_user_id(update)
     if operator_id is None:
         await _reply(update, "Telegram did not include a user ID on this update.")
         return
     pending = _config_edit_store(context).cancel(operator_id)
+    if pending is not None and pending.entity == "topic_create":
+        _forget_topic_brief_pending(context, operator_id)
     if pending is not None and pending.entity == "topic_create":
         from bot.engagement_wizard_flow import _wizard_return_pop, _wizard_resume_after_topic_create
 
@@ -263,10 +267,24 @@ async def cancel_edit_command(update: Any, context: Any) -> None:
         if wizard_state is not None:
             await _wizard_resume_after_topic_create(update, context, wizard_state, {})
             return
-    await _reply(update, render_edit_cancelled(pending))
+    if pending is not None:
+        await _reply(update, render_edit_cancelled(pending))
+        return
+    approval_pending = cancel_pending_approval_edit(context, operator_id)
+    if approval_pending is not None:
+        await _reply(update, "Cancelled draft edit request.")
+        return
+    await _reply(update, render_edit_cancelled(None))
+
+
+async def resume_edit_command(update: Any, context: Any) -> None:
+    from bot.engagement_approval_flow import resume_edit_request
+
+    await resume_edit_request(update, context, draft_id=_first_arg(context))
 
 
 __all__ = [
     "engagement_command",
     "cancel_edit_command",
+    "resume_edit_command",
 ]

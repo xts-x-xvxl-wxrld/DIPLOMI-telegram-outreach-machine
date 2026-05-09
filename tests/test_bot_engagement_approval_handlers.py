@@ -7,12 +7,13 @@ import pytest
 
 from bot.engagement_approval_flow import (
     APPROVAL_EDIT_STORE_KEY,
+    APPROVAL_EDIT_POLL_ATTEMPTS_KEY,
+    APPROVAL_EDIT_POLL_INTERVAL_SECONDS_KEY,
     cancel_pending_approval_edit,
     get_pending_approval_edit,
     handle_approve_confirm,
     handle_approve_confirmed,
     handle_edit_request_start,
-    handle_edit_request_text,
     handle_reject_confirm,
     handle_reject_confirmed,
     scoped_queue_empty_callback,
@@ -38,9 +39,11 @@ from bot.formatting_engagement_approval import (
 # ---------------------------------------------------------------------------
 
 class _FakeMessage:
-    def __init__(self, text: str | None = None) -> None:
+    def __init__(self, text: str | None = None, *, chat_id: int = 123) -> None:
         self.text = text
         self.from_user = SimpleNamespace(id=123, username="operator")
+        self.chat = SimpleNamespace(id=chat_id)
+        self.chat_id = chat_id
         self.replies: list[dict[str, Any]] = []
 
     async def reply_text(self, text: str, reply_markup: Any | None = None) -> None:
@@ -48,9 +51,9 @@ class _FakeMessage:
 
 
 class _FakeCallbackQuery:
-    def __init__(self, data: str, *, user_id: int = 123) -> None:
+    def __init__(self, data: str, *, user_id: int = 123, chat_id: int = 123) -> None:
         self.data = data
-        self.message = _FakeMessage()
+        self.message = _FakeMessage(chat_id=chat_id)
         self.from_user = SimpleNamespace(id=user_id, username="operator")
         self.answers: list[dict[str, Any]] = []
         self.edits: list[dict[str, Any]] = []
@@ -63,14 +66,36 @@ class _FakeCallbackQuery:
 
 
 class _FakeUpdate:
-    def __init__(self, *, callback_data: str | None = None, message_text: str | None = None, user_id: int = 123) -> None:
+    def __init__(
+        self,
+        *,
+        callback_data: str | None = None,
+        message_text: str | None = None,
+        user_id: int = 123,
+        chat_id: int = 123,
+    ) -> None:
         if callback_data is not None:
-            self.callback_query = _FakeCallbackQuery(callback_data, user_id=user_id)
+            self.callback_query = _FakeCallbackQuery(callback_data, user_id=user_id, chat_id=chat_id)
             self.message = None
         else:
             self.callback_query = None
-            self.message = _FakeMessage(text=message_text)
+            self.message = _FakeMessage(text=message_text, chat_id=chat_id)
         self.effective_user = SimpleNamespace(id=user_id)
+        self.effective_chat = SimpleNamespace(id=chat_id)
+
+
+class _FakeBot:
+    def __init__(self) -> None:
+        self.sent_messages: list[dict[str, Any]] = []
+
+    async def send_message(self, *, chat_id: int, text: str, reply_markup: Any | None = None) -> None:
+        self.sent_messages.append(
+            {
+                "chat_id": chat_id,
+                "text": text,
+                "reply_markup": reply_markup,
+            }
+        )
 
 
 class _FakeApiClient:
@@ -93,6 +118,7 @@ class _FakeApiClient:
                 "target_label": "Founder Circle",
                 "engagement_label": "CRM migration evaluation",
                 "community_label": "@founder_circle",
+                "source_excerpt": "We are comparing CRM ownership and integrations.",
                 "text": "Compare ownership and integrations first.",
                 "why": "Relevant CRM discussion.",
                 "badge": None,
@@ -106,6 +132,7 @@ class _FakeApiClient:
                 "target_label": "Dev Circle",
                 "engagement_label": "Developer outreach",
                 "community_label": "@dev_circle",
+                "source_excerpt": "How are people handling outbound personalization at scale?",
                 "text": "Keep the rollout narrower and more specific.",
                 "why": "Follow up on the target's last thread.",
                 "badge": None,
@@ -123,6 +150,7 @@ class _FakeApiClient:
                 "target_label": "Founder Circle",
                 "engagement_label": "CRM migration evaluation",
                 "community_label": "@founder_circle",
+                "source_excerpt": "We are comparing CRM ownership and integrations.",
                 "text": "Compare ownership and integrations first.",
                 "why": "Relevant CRM discussion.",
                 "badge": None,
@@ -149,6 +177,8 @@ class _FakeApiClient:
             "draft_id": "draft-abc",
             "engagement_id": "eng-1",
         }
+        self._edit_results: list[dict[str, Any]] = []
+        self._post_edit_scoped_approvals: dict[str, dict[str, Any]] = {}
         self._home_payload: dict[str, Any] = {
             "state": "clear",
             "draft_count": 0,
@@ -221,6 +251,22 @@ class _FakeApiClient:
         self.scoped_approval_calls.append(
             {"engagement_id": engagement_id, "offset": offset, "draft_id": draft_id}
         )
+        if self.edit_calls and engagement_id in self._post_edit_scoped_approvals:
+            payload = self._post_edit_scoped_approvals[engagement_id]
+            if isinstance(payload, list):
+                selected_payload = payload.pop(0) if len(payload) > 1 else payload[0]
+            else:
+                selected_payload = payload
+            current = selected_payload.get("current")
+            return {
+                "queue_count": int(selected_payload.get("queue_count", 0)),
+                "updating_count": int(selected_payload.get("updating_count", 0)),
+                "offset": int(selected_payload.get("offset", 0)),
+                "empty_state": selected_payload.get("empty_state", ""),
+                "placeholders": list(selected_payload.get("placeholders", [])),
+                "current": None if current is None else dict(current),
+            }
+
         scoped = dict(self._scoped_approvals)
         current = scoped.get("current")
         if current is None:
@@ -285,6 +331,8 @@ class _FakeApiClient:
         requested_by: str | None = None,
     ) -> dict[str, Any]:
         self.edit_calls.append({"draft_id": draft_id, "edit_request": edit_request})
+        if self._edit_results:
+            return dict(self._edit_results.pop(0))
         return dict(self._edit_result)
 
     async def get_engagement_cockpit_home(self) -> dict[str, Any]:
@@ -293,17 +341,21 @@ class _FakeApiClient:
 
 
 def _context(client: _FakeApiClient) -> Any:
-    bot_data: dict[str, Any] = {"api_client": client}
-    application = SimpleNamespace(bot_data=bot_data)
+    bot_data: dict[str, Any] = {
+        "api_client": client,
+        APPROVAL_EDIT_POLL_ATTEMPTS_KEY: 1,
+        APPROVAL_EDIT_POLL_INTERVAL_SECONDS_KEY: 0,
+    }
+    application = SimpleNamespace(bot_data=bot_data, bot=_FakeBot())
     return SimpleNamespace(application=application, user_data={})
 
 
-def _callback_update(data: str, *, user_id: int = 123) -> _FakeUpdate:
-    return _FakeUpdate(callback_data=data, user_id=user_id)
+def _callback_update(data: str, *, user_id: int = 123, chat_id: int = 123) -> _FakeUpdate:
+    return _FakeUpdate(callback_data=data, user_id=user_id, chat_id=chat_id)
 
 
-def _message_update(text: str = "hello", *, user_id: int = 123) -> _FakeUpdate:
-    return _FakeUpdate(message_text=text, user_id=user_id)
+def _message_update(text: str = "hello", *, user_id: int = 123, chat_id: int = 123) -> _FakeUpdate:
+    return _FakeUpdate(message_text=text, user_id=user_id, chat_id=chat_id)
 
 
 def _callback_data_values(markup: Any) -> list[str]:
@@ -343,6 +395,7 @@ def test_format_draft_card_includes_fields() -> None:
         "target_label": "Founder Circle",
         "engagement_label": "CRM migration evaluation",
         "community_label": "@founder_circle",
+        "source_excerpt": "We are comparing CRM ownership and integrations.",
         "text": "Compare ownership and integrations.",
         "why": "Relevant CRM discussion.",
         "badge": None,
@@ -351,6 +404,8 @@ def test_format_draft_card_includes_fields() -> None:
     assert "Founder Circle" in text
     assert "Engagement: CRM migration evaluation" in text
     assert "Community: @founder_circle" in text
+    assert "Source message" in text
+    assert "comparing CRM ownership" in text
     assert "draft-abc" not in text
     assert "Compare ownership" in text
     assert "Relevant CRM" in text
@@ -363,6 +418,7 @@ def test_format_draft_card_with_index() -> None:
         "target_label": "Founder Circle",
         "engagement_label": "CRM migration evaluation",
         "community_label": "@founder_circle",
+        "source_excerpt": "We are comparing CRM ownership and integrations.",
         "text": "Some message text.",
         "why": "Why this draft.",
         "badge": "urgent",
@@ -404,11 +460,13 @@ def test_format_approve_confirm_has_key_fields() -> None:
         "target_label": "Founder Circle",
         "engagement_label": "CRM migration evaluation",
         "community_label": "@founder_circle",
+        "source_excerpt": "We are comparing CRM ownership and integrations.",
         "text": "Reply text here.",
     }
     text = format_approve_confirm("draft-abc", draft_data)
     assert "Founder Circle" in text
     assert "Engagement: CRM migration evaluation" in text
+    assert "Source message" in text
     assert "draft-abc" not in text
     assert "Approve" in text or "approve" in text
 
@@ -418,11 +476,13 @@ def test_format_reject_confirm_has_key_fields() -> None:
         "target_label": "Founder Circle",
         "engagement_label": "CRM migration evaluation",
         "community_label": "@founder_circle",
+        "source_excerpt": "We are comparing CRM ownership and integrations.",
         "text": "Reply text here.",
     }
     text = format_reject_confirm("draft-abc", draft_data)
     assert "Founder Circle" in text
     assert "Community: @founder_circle" in text
+    assert "Source message" in text
     assert "draft-abc" not in text
     assert "Reject" in text or "reject" in text
 
@@ -432,10 +492,12 @@ def test_format_edit_request_prompt_has_friendly_labels() -> None:
         "target_label": "Founder Circle",
         "engagement_label": "CRM migration evaluation",
         "community_label": "@founder_circle",
+        "source_excerpt": "We are comparing CRM ownership and integrations.",
         "text": "Reply text.",
     }
     text = format_edit_request_prompt("draft-abc", draft_data)
     assert "Engagement: CRM migration evaluation" in text
+    assert "Source message" in text
     assert "draft-abc" not in text
     assert "edit" in text.lower() or "Edit" in text
 
@@ -475,6 +537,7 @@ async def test_global_queue_shows_header_and_draft_card() -> None:
     replies = update.callback_query.message.replies
     assert len(replies) >= 2
     assert "Engagement: CRM migration evaluation" in replies[1]["text"]
+    assert "Source message" in replies[1]["text"]
     assert client.approval_calls == [{"offset": 0, "draft_id": None}]
 
 
@@ -624,6 +687,7 @@ async def test_show_draft_card_renders_card_with_actions() -> None:
     assert len(replies) == 1
     text = replies[0]["text"]
     assert "Engagement: CRM migration evaluation" in text
+    assert "Source message" in text
     assert "draft-abc" not in text
     callbacks = _callback_data_values(replies[0]["reply_markup"])
     assert any("appr:ok:draft-abc" in cb for cb in callbacks)
@@ -668,6 +732,7 @@ async def test_approve_confirm_shows_confirmation_without_backend_call() -> None
     assert len(replies) == 1
     text = replies[0]["text"]
     assert "Community: @founder_circle" in text
+    assert "Source message" in text
     assert "draft-abc" not in text
     assert "Approve" in text or "approve" in text
     callbacks = _callback_data_values(replies[0]["reply_markup"])
@@ -734,6 +799,7 @@ async def test_reject_confirm_shows_confirmation_without_backend_call() -> None:
     assert len(replies) == 1
     text = replies[0]["text"]
     assert "Community: @founder_circle" in text
+    assert "Source message" in text
     assert "draft-abc" not in text
     assert "Reject" in text or "reject" in text
     callbacks = _callback_data_values(replies[0]["reply_markup"])
@@ -783,6 +849,7 @@ async def test_edit_request_start_prompts_user_and_stores_pending() -> None:
     assert len(replies) == 1
     text = replies[0]["text"]
     assert "Engagement: CRM migration evaluation" in text
+    assert "Source message" in text
     assert "draft-abc" not in text
     assert "edit" in text.lower() or "Edit" in text
 
@@ -806,51 +873,6 @@ async def test_edit_request_start_no_user_id_replies_error() -> None:
     replies = update.callback_query.message.replies
     assert len(replies) == 1
     assert "user ID" in replies[0]["text"]
-
-
-# ---------------------------------------------------------------------------
-# handle_edit_request_text
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_edit_request_text_calls_backend_and_shows_confirmation() -> None:
-    client = _FakeApiClient()
-    update = _message_update("Please make it shorter.", user_id=42)
-    ctx = _context(client)
-    client._global_approvals = {
-        "queue_count": 0,
-        "updating_count": 0,
-        "empty_state": "",
-        "placeholders": [],
-        "current": None,
-    }
-
-    # Pre-store a pending edit
-    store = ctx.application.bot_data.setdefault(APPROVAL_EDIT_STORE_KEY, {})
-    store[42] = {"draft_id": "draft-abc", "started_at": "2026-04-28T00:00:00+00:00"}
-
-    await handle_edit_request_text(update, ctx, text="Please make it shorter.", draft_id="draft-abc")
-
-    assert client.edit_calls == [{"draft_id": "draft-abc", "edit_request": "Please make it shorter."}]
-    assert client.home_calls == 1
-    text = _rendered_text(update)
-    assert "Engagements" in text
-
-
-@pytest.mark.asyncio
-async def test_edit_request_text_clears_pending_edit() -> None:
-    client = _FakeApiClient()
-    update = _message_update("Make it punchier.", user_id=42)
-    ctx = _context(client)
-
-    store = ctx.application.bot_data.setdefault(APPROVAL_EDIT_STORE_KEY, {})
-    store[42] = {"draft_id": "draft-abc", "started_at": "2026-04-28T00:00:00+00:00"}
-
-    await handle_edit_request_text(update, ctx, text="Make it punchier.", draft_id="draft-abc")
-
-    # Should be cleared
-    pending = get_pending_approval_edit(ctx, 42)
-    assert pending is None
 
 
 # ---------------------------------------------------------------------------

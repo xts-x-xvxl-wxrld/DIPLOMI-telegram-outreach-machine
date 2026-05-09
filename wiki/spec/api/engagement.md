@@ -305,7 +305,7 @@ Response:
 - `offset`
 - `empty_state: "none" | "waiting_for_updates" | "no_drafts"`
 - `placeholders[]: {slot, label}`
-- `current?: {draft_id, engagement_id, target_label, engagement_label, community_label, text, why, badge}`
+- `current?: {draft_id, engagement_id, target_label, engagement_label, community_label, source_excerpt, text, why, badge}`
 
 Rules:
 
@@ -317,6 +317,8 @@ Rules:
   name, then community title, then engagement UUID as last resort
 - `community_label` is the operator-facing community label: `@username`, then community title, then
   community UUID as last resort
+- `source_excerpt` carries the sanitized trigger-message excerpt shown on approval review screens when
+  the candidate kept one
 
 ### `GET /api/engagement/cockpit/issues`
 ### `GET /api/engagement/cockpit/engagements/{engagement_id}/issues`
@@ -436,6 +438,18 @@ Success:
 - `result = "queued_update"`
 - `message = "Updating draft"`
 - `next_callback = "eng:appr:list:0"`
+- response includes the queued `engagement.detect` rewrite job metadata when enqueue succeeds
+- queueing the edit request also enqueues a targeted rewrite detect job for the same source draft;
+  the worker regenerates a replacement draft from the original source message instead of waiting for
+  fresh community samples
+- rewrite generation keeps the normal topic/style prompt instructions in force and applies the
+  operator's edit request as a revision overlay on the previous draft rather than replacing the base
+  draft guidance
+- when a draft is revised multiple times for the same engagement/source thread, rewrite candidate
+  creation ignores earlier revision candidates in that draft-update chain so the replacement draft
+  cannot resolve back to an already-superseded hidden candidate
+- if the rewrite worker cannot safely produce a replacement draft, the pending update request falls
+  back to a non-pending state so the original draft becomes reviewable again
 
 Blocking code:
 

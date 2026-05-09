@@ -197,6 +197,8 @@ async def _save_config_edit_callback(update: Any, context: Any) -> None:
         raise
     store.cancel(operator_id)
     if pending.entity == "topic_create":
+        _forget_topic_brief_pending(context, operator_id)
+    if pending.entity == "topic_create":
         from bot.engagement_wizard_flow import _wizard_return_pop, _wizard_resume_after_topic_create
         wizard_state = _wizard_return_pop(context, operator_id)
         if wizard_state is not None:
@@ -211,6 +213,8 @@ async def _cancel_config_edit_callback(update: Any, context: Any) -> None:
         await _callback_reply(update, "Telegram did not include a user ID on this update.")
         return
     pending = _config_edit_store(context).cancel(operator_id)
+    if pending is not None and pending.entity == "topic_create":
+        _forget_topic_brief_pending(context, operator_id)
     if pending is not None and pending.entity == "topic_create":
         from bot.engagement_wizard_flow import _wizard_return_pop, _wizard_resume_after_topic_create
 
@@ -401,7 +405,7 @@ def _refresh_topic_create_pending_after_partial_save(
         flow_step="confirm",
         flow_state=flow_state,
     )
-    return (
+    refreshed = (
         _config_edit_store(context).set_value(
             operator_id,
             raw_value=pending.raw_value or "",
@@ -411,6 +415,8 @@ def _refresh_topic_create_pending_after_partial_save(
         )
         or restarted
     )
+    _remember_topic_brief_pending(context, refreshed)
+    return refreshed
 
 
 def _saved_config_edit_response(pending: PendingEdit, data: dict[str, Any]) -> tuple[str, Any | None]:

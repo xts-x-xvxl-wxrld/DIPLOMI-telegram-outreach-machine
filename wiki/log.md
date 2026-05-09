@@ -6,6 +6,39 @@ Types: spec | plan | code | refactor | fix | decision | question
 
 ---
 
+## [2026-05-09] fix | Layer approval rewrite notes on top of base draft guidance
+
+- Tightened `backend/workers/engagement_detect_prompt.py` so draft-update rewrites keep the normal
+  topic/style/safety prompt instructions in force and treat the operator's edit note as an overlay
+  on the previous draft instead of a replacement for the original drafting strategy.
+- Added regression coverage in `tests/test_engagement_detect_draft_updates.py` to assert the prompt
+  explicitly preserves the previous draft's core recommendation, conversion goal, and CTA unless
+  the operator asked to change them.
+
+## [2026-05-09] fix | Keep second revision loops from collapsing into hidden historical drafts
+
+- Extended rewrite duplicate-ignore handling in `backend/workers/engagement_detect_process.py` to
+  exclude every candidate already referenced by the same engagement's draft-update chain, not just
+  the immediate source draft.
+- Added regression coverage for the live failure mode where a second `Request edit` completed by
+  linking back to an already-hidden historical candidate, which left the approvals queue looking
+  empty even though the rewrite job had finished.
+
+## [2026-05-08] fix | Make approval draft rewrites run and fail open safely
+
+- Wired `POST /api/engagement/cockpit/drafts/{draft_id}/edit` to enqueue a targeted
+  `engagement.detect.rewrite` job after the durable update-request row is flushed, instead of only
+  persisting `engagement_draft_update_requests` and leaving the worker path idle.
+- Extended `backend/workers/engagement_detect_process.py` so rewrite jobs load the original source
+  candidate, append the operator edit request to the prompt, create a replacement draft while
+  ignoring the source candidate in duplicate checks, and call
+  `complete_draft_update_request(...)` when the replacement is ready.
+- Added fail-open recovery for rewrite jobs: if the worker cannot build a safe replacement, the
+  update request is marked non-pending so the source draft becomes reviewable again instead of
+  staying hidden behind `Updating draft`.
+- Added API and worker regressions for rewrite enqueue, successful completion, and fail-open
+  restoration.
+
 ## [2026-04-26] code | Engagement add wizard (5-step guided community setup)
 
 Implemented the guided engagement add wizard per `wiki/spec/bot/engagement-add-wizard.md` and
@@ -2735,3 +2768,196 @@ while preserving the staged testing contract.
   nuance that `scripts/check_fragmentation.py` checks tracked files only, so
   new files need to be staged or committed before a local green run is
   trustworthy.
+
+## [2026-05-08] fix | Recover lost topic-brief callback state during live testing
+
+- Added a bot-side shadow snapshot for `topic_create` so draft-brief callbacks
+  can restore the current step when the live pending edit disappears
+  unexpectedly during local testing.
+- Cleared that snapshot on intentional save, cancel, and command-interrupt
+  paths so stale inline buttons do not revive drafts the operator meant to
+  discard.
+- Added regression coverage for the Step 7 good-example review case and
+  documented the topic-brief state seam in a new developer-doc module guide.
+
+## [2026-05-08] fix | Open the cockpit after task-first engagement confirm
+
+- Updated the task-first wizard confirm handler so a successful confirm now
+  sends the "Engagement started" note as a fresh bot reply and then follows the
+  backend cockpit callback instead of stopping on the review card.
+- Added regression coverage for the success path and aligned the test fixture
+  with the live `eng:det:open:{engagement_id}` callback contract.
+- Documented the confirm-handoff seam in the wizard spec, a new narrow
+  developer-doc module, and a focused plan note.
+
+## [2026-05-08] fix | Refresh default engagement drafting voice
+
+- Replaced the hardcoded fallback engagement detection instructions with the
+  new natural group-chat voice so default draft generation prefers short,
+  casual operator/founder/GTM phrasing over polished copy.
+- Updated the no-profile prompt preview default to match the live fallback
+  instructions more closely instead of showing the older concise helper voice.
+- Added a developer-doc module describing how active prompt profiles override
+  the fallback prompt and why default prompt edits do not rewrite existing
+  database-backed prompt profiles.
+
+## [2026-05-08] fix | Return wizard cancel to Engagements home
+
+- Updated the task-first engagement wizard so confirming `Cancel` now clears the
+  pending wizard state and re-renders the shared `Engagements` cockpit home
+  instead of leaving a terminal text-only confirmation.
+- Added regression coverage for the post-cancel home handoff and documented the
+  seam in the wizard spec, code index, a focused plan note, and a new
+  developer-doc module guide.
+- Validation: `python scripts/check_fragmentation.py`, `ruff check .`, and
+  `pytest -q` all passed locally.
+
+## [2026-05-08] fix | Show source message on approval review cards
+
+- Extended the task-first cockpit approvals payload with the candidate's
+  sanitized `source_excerpt` so the bot can show the triggering chat message
+  alongside each draft.
+- Updated the approval card and related approve/reject/edit prompts to render a
+  `Source message` section whenever the draft carries a trigger-message excerpt.
+- Added focused API/bot regression coverage and validated with
+  `python scripts/check_fragmentation.py`, `ruff check .`, and
+  `pytest -q --basetemp=.pytest-tmp2` after the default pytest temp directory
+  hit a Windows permission error outside the workspace.
+
+## [2026-05-08] fix | Route approval edit follow-up text back into draft updates
+
+- Updated `telegram_entity_text()` so the message immediately after `Request edit`
+  now checks pending approval-edit state before Telegram-handle intake and sends
+  that text to the draft update endpoint.
+- Updated `/cancel_edit` so it now clears pending approval-edit requests in
+  addition to config-edit flows, matching the approval prompt copy.
+- Added approval-flow regression coverage for free-text edit submission and
+  approval-edit cancellation, and documented the split callback/message ingress
+  seam in the engagement approval developer doc.
+- Validation: `pytest -q tests/test_bot_engagement_approval_handlers.py` and
+  `ruff check bot/discovery_handlers.py bot/engagement_commands_daily.py tests/test_bot_engagement_approval_handlers.py`
+  passed locally.
+
+## [2026-05-08] chore | Restore fragmentation parity after approval ingress test split
+
+- Split the new approval-ingress regression coverage into its own
+  `tests/test_bot_engagement_approval_ingress.py` shard so the main approval
+  handler test file stays under the repo's test-size cap.
+- Trimmed one internal blank line in `tests/test_engagement_api.py` so the
+  existing grandfathered ceiling still passes repo-wide fragmentation checks.
+- Validation: `python scripts/check_fragmentation.py`,
+  `ruff check bot/discovery_handlers.py bot/engagement_commands_daily.py tests/test_bot_engagement_approval_handlers.py tests/test_bot_engagement_approval_ingress.py tests/test_engagement_api.py`,
+  and `pytest -q tests/test_bot_engagement_approval_handlers.py tests/test_bot_engagement_approval_ingress.py tests/test_bot_engagement_wizard.py`
+  passed locally.
+
+## [2026-05-08] fix | Add manual /resume_edit recovery for approval corrections
+
+- Added `/resume_edit [draft_id]` so operators can manually restore the draft
+  correction prompt when the in-memory approval-edit state is lost.
+- Reused the existing approval edit flow in `bot/engagement_approval_flow.py`
+  so callback-driven `Request edit`, manual resume, and free-text submission all
+  share the same pending-state contract.
+- Added regression coverage for current-draft resume, explicit-draft resume,
+  and empty-queue handling; updated the task-first cockpit spec, bot code map,
+  test map, developer doc, plan index, and a new focused plan note.
+- Validation: `pytest -q tests/test_bot_engagement_approval_handlers.py tests/test_bot_engagement_approval_ingress.py`,
+  `ruff check bot/engagement_approval_flow.py bot/engagement_commands_daily.py bot/engagement_handlers.py bot/app.py tests/test_bot_engagement_approval_ingress.py`,
+  and `python scripts/check_fragmentation.py` passed locally.
+- Rebuilt and recreated the local Docker `bot` service with `docker compose up --build -d bot`
+  so the live Telegram bot picks up `/resume_edit`.
+
+## [2026-05-08] fix | Make wizard cancel confirmation render home directly
+
+- Replaced the task-first wizard's `cancel_yes` callback redispatch with a
+  direct home render in `bot/engagement_wizard_flow.py` so confirming cancel no
+  longer depends on callback-router internals to redraw the `Engagements`
+  cockpit.
+- Extracted the cancel-confirm helpers into
+  `bot/engagement_wizard_cancel_flow.py` so the oversized wizard flow module
+  stays within the repo's grandfathered fragmentation ceiling after the fix.
+- Changed the cancel-confirm `Back` button to reopen the current wizard step
+  from pending state instead of hardcoding a jump to Step 5, which keeps cancel
+  recovery correct from Step 1 through review.
+- Added wizard regressions for the new `cancel_no` resume path and updated the
+  focused developer doc for the cancel-confirm seam.
+
+## [2026-05-08] fix | Surface revised approval drafts after request-edit submit
+
+- Added a focused plan note for the approval-edit follow-up behavior and linked
+  it from `wiki/index.md`.
+- Updated `bot/engagement_approval_flow.py` so free-text `Request edit`
+  submissions briefly poll the same engagement's approvals queue and reopen the
+  replacement draft immediately when the backend already surfaced it as
+  `Updated draft`.
+- Kept the existing queue fallback intact when the rewrite is still pending, so
+  operators still see the normal `Updating draft` placeholder or queue/home
+  state instead of waiting indefinitely.
+- Added regression coverage for both the immediate revised-draft path and the
+  pending-placeholder fallback, and updated the task-first cockpit spec plus
+  the engagement approval developer doc for the new seam.
+
+## [2026-05-09] fix | Detect direct-reply engagement continuations without trigger keywords
+
+- Updated `backend/workers/engagement_detect_selection.py` so direct replies to
+  a previously sent managed Telegram message are treated as continuation trigger
+  candidates even when the follow-up text does not repeat the topic's trigger
+  keywords or semantic profile language.
+- Threaded the selected engagement account through
+  `backend/workers/engagement_detect_process.py` so continuation lookup stays
+  scoped to the same managed account and topic before candidate creation.
+- Preserved `reply_to_tg_message_id` when coercing semantic trigger messages so
+  continuation/root classification does not silently lose reply lineage.
+- Added a detect-worker regression covering the sandbox-style "tell me more"
+  follow-up case, and documented the continuation-detection seam in the code
+  index and developer docs.
+
+## [2026-05-09] fix | Lock global continuation prompts for threaded engagement drafts
+
+- Added a focused plan note for continuation-mode prompting and updated the
+  engagement prompt specs so continuation drafts are documented as a
+  worker-enforced contract instead of an optional prompt-profile convention.
+- Updated `backend/workers/engagement_detect_prompt.py` to append a locked
+  continuation system addendum and continuation task/user-context suffix for
+  `continuation` opportunities, even when the active prompt profile predates
+  threaded reply support.
+- Added compact continuation thread context in
+  `backend/workers/engagement_detect_selection.py`, including previous managed
+  reply text, recent public follow-up replies, deterministic
+  stage/objective/question hints, repetition guard, and thread summary.
+- Extended `EngagementDetectionDecision` plus compact candidate model-output
+  storage with optional continuation fields such as `continuation_goal`,
+  `answered_question`, and `avoid_repeating`.
+- Added regression coverage for the continuation prompt/runtime contract and the
+  new continuation output fields, plus code-index updates for the new detect
+  prompt/test seams.
+
+## [2026-05-09] fix | Notify operators when revised approval drafts arrive after fallback
+
+- Added `wiki/plan/engagement-approval-update-notifications.md` to capture the
+  bounded bot-side watcher approach for revised draft follow-up messages.
+- Updated `bot/engagement_approval_flow.py` so `Request edit` still does the
+  short inline revised-draft poll, then starts a per-operator background
+  watcher that sends a fresh Telegram message when the scoped approvals queue
+  later surfaces an `Updated draft`.
+- Kept only the newest pending watcher per operator active at a time so older
+  delayed notifications do not race newer edit requests.
+- Added approval-flow regression tests for delayed notification delivery and
+  watcher replacement, and updated the task-first cockpit spec plus approval
+  review developer doc for the new follow-up behavior.
+
+## [2026-05-09] fix | Proactively alert operators for ordinary approval drafts
+
+- Added `bot/engagement_approval_notifications.py` plus a focused plan note and
+  developer doc so the Telegram bot now starts a background ordinary-draft
+  notifier with the app lifecycle.
+- The notifier pages the task-first approvals queue, sends draft-card alerts to
+  explicit configured operator IDs for unseen draft IDs, and shares per-operator
+  in-memory dedupe with the revised-draft follow-up path.
+- Updated `bot/engagement_approval_flow.py` so drafts already surfaced in the
+  queue or edit/review prompts are marked as seen and do not immediately get
+  re-notified by the background ordinary-draft poller.
+- Updated the active bot cockpit specs/code index for the new proactive
+  ordinary-draft alert behavior and documented that the current slice is
+  in-memory only rather than a durable notification-ack path.
+- Validation: `python scripts/check_fragmentation.py`, `ruff check .`, and
+  `pytest -q --basetemp=.pytest-tmp2` all passed locally.

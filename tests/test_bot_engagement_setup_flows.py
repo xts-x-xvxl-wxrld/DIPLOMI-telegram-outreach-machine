@@ -187,6 +187,35 @@ async def test_topic_inline_create_flow_accumulates_examples_across_add_another_
 
 
 @pytest.mark.asyncio
+async def test_topic_brief_review_callbacks_restore_missing_pending_state() -> None:
+    client = _FakeApiClient()
+    context = _context(client)
+
+    await callback_query(_callback_update("eng:topic:create"), context)
+    await telegram_entity_text(_message_update("Founder outreach"), context)
+    await telegram_entity_text(_message_update("Startup operators asking about outbound outreach"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("-"), context)
+    await telegram_entity_text(_message_update("Be concise and practical."), context)
+    await telegram_entity_text(_message_update("Brief, transparent, no links unless asked."), context)
+    await telegram_entity_text(_message_update("Compare data ownership and export access first."), context)
+
+    context.application.bot_data[CONFIG_EDIT_STORE_KEY].cancel(123)
+    continue_update = _callback_update("eng:topic:brief:nav:continue")
+
+    await callback_query(continue_update, context)
+
+    assert "Step 8 of 9: Bad reply examples" in continue_update.callback_query.message.replies[0]["text"]
+    pending = context.application.bot_data[CONFIG_EDIT_STORE_KEY].get(123)
+    assert pending is not None
+    assert pending.entity == "topic_create"
+    assert pending.flow_step == "example_bad_replies"
+    assert (pending.flow_state or {}).get("example_good_replies") == [
+        "Compare data ownership and export access first."
+    ]
+
+
+@pytest.mark.asyncio
 async def test_topic_inline_create_flow_can_preview_sample_before_save() -> None:
     client = _FakeApiClient()
     context = _context(client)

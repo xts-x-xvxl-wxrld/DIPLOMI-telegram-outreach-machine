@@ -207,12 +207,20 @@ Wizard button labels:
 - retry view: `Retry`
 - cancel confirm: `Confirm cancel`, `Back`
 
+Cancel-confirm behavior:
+
+- `Confirm cancel` clears pending wizard state and returns to the shared
+  `Engagements` home screen
+- `Back` reopens the prior wizard step instead of leaving the wizard
+
 Review behavior:
 
 - the review card shows the current cadence values and current quiet-hours
   value before confirmation
 - `Quiet hours` opens a text-entry prompt that accepts `HH:MM-HH:MM` or `off`
   and returns to review after save
+- confirmed cancel returns to `Engagements` home instead of leaving a terminal
+  text-only message
 
 ## Approval Queue
 
@@ -232,20 +240,43 @@ Card actions:
 - `Approve`
 - `Reject`
 - `Request edit`
+- `/resume_edit [draft_id]`
 
 Flow rules:
 
 - queue screens always keep `<< Engagements`
 - scoped queues add `Back -> eng:det:open:{engagement_id}`
-- successful approve/reject/edit submission routes back to `eng:appr:list:0`
+- successful approve/reject submission routes back to `eng:appr:list:0`
+- the bot may proactively send a Telegram draft card for a newly surfaced ordinary approval draft
+  before the operator opens the queue manually
+- after free-text `Request edit` submission, the bot briefly checks the same engagement's approvals
+  queue for a replacement draft and opens it immediately when the backend already surfaced an
+  `Updated draft`
+- if no replacement draft is ready yet, edit submission falls back to the normal
+  `eng:appr:list:0` queue or placeholder state
+- when the replacement draft appears shortly after that fallback, the bot may send a follow-up
+  Telegram message with the revised draft card so the operator does not have to poll manually
+- if the backend rewrite attempt fails validation or cannot produce a safe replacement, the pending
+  placeholder clears and the original draft returns to the queue so the operator is not left blocked
+- backend rewrite requests are revisions of the existing draft: the topic/style brief still applies,
+  and the operator's note is supposed to adjust the previous draft rather than replace its whole
+  strategy unless the operator explicitly asks for that
 - placeholder-only queues show `Updating draft`
+- `/resume_edit` reopens the same correction prompt for the current approval draft when pending
+  in-memory edit state was lost
+- `/resume_edit {draft_id}` reopens that specific draft's correction prompt when the draft is still
+  in the approval queue
 
 Approval card copy:
 
 - draft cards lead with `target_label`
 - when available, cards show `Engagement: {engagement_label}` and `Community: {community_label}`
   before the draft body
-- body sections are `Draft` and `Why now`
+- when available, cards show a `Source message` section with the trigger-message excerpt before the
+  draft body
+- body sections are `Source message` when present, `Draft`, and `Why now`
+- approve, reject, and edit-request prompt screens reuse the same source-message excerpt when it is
+  available
 - normal review, approve, reject, and edit-request screens do not expose raw `Draft ID` or
   `Engagement ID` lines
 

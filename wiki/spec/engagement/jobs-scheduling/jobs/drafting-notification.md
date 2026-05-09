@@ -109,5 +109,7 @@ Notification rules:
 - Include community title, topic name, source excerpt, suggested reply, freshness label, and review
   deadline.
 - Do not include sender identity, phone numbers, raw prompt text, or hidden analysis internals.
-- Mark `operator_notified_at` when the notification is successfully opened in the operator inbox or
-  sent by the bot.
+- The active bot may satisfy this with a queue-polling Telegram notifier that reuses the task-first
+  approval draft card and approval actions.
+- The current bot slice uses in-memory per-operator dedupe only; `operator_notified_at` remains a
+  reserved field for a future durable acknowledgement path.

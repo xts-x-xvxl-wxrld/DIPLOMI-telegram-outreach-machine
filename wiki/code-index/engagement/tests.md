@@ -10,6 +10,8 @@ find the right anchors quickly.
 - `tests/test_engagement_api.py`
   - combined engagement route coverage, auth, target/settings/topic/prompt/
     candidate/action endpoints
+- `tests/test_engagement_cockpit_draft_edit_api.py`
+  - focused cockpit draft-edit enqueue and queue-failure coverage for the rewrite path
 - `tests/test_engagement_task_first_wizard_api.py`
   - task-first wizard create/patch/settings/confirm path
 - `tests/test_engagement_api_candidates.py`
@@ -27,6 +29,13 @@ find the right anchors quickly.
   - target normalization, resolve, permission rules
 - `tests/test_engagement_detect_worker.py`
   - detect orchestration, sampling, duplicate suppression, model decision flow
+- `tests/test_engagement_detect_candidate_creation.py`
+  - root-vs-continuation candidate creation and continuation prompt/runtime
+    contract coverage
+- `tests/test_engagement_detect_draft_updates.py`
+  - targeted rewrite-request detect coverage for replacement-draft completion and fail-open recovery
+- `tests/test_engagement_detect_samples.py`
+  - exact collection-run vs. artifact fallback sample-loading coverage
 - `tests/test_engagement_detect_warmup.py`
   - post-join warmup draft creation behavior
 - `tests/test_engagement_send_worker.py`
@@ -51,9 +60,14 @@ find the right anchors quickly.
 - `tests/test_bot_engagement_home_handlers.py`
   - home copy and markup state coverage
 - `tests/test_bot_engagement_wizard.py`
-  - add/edit wizard flow
+  - add/edit wizard flow outside the confirm-only regression shard
+- `tests/test_bot_engagement_wizard_confirm.py`
+  - wizard confirm success/error handoff coverage
 - `tests/test_bot_engagement_approval_handlers.py`
   - approval queue, confirmations, edit request handling
+- `tests/test_bot_engagement_approval_ingress.py`
+  - free-text approval edit submission plus `/cancel_edit` and `/resume_edit`
+    coverage for the split callback/message ingress seam
 - `tests/test_bot_engagement_issue_handlers.py`
   - issue queue/actions, skip, quiet-hours editing, rate-limit detail
 - `tests/test_bot_engagement_issue_formatting.py`

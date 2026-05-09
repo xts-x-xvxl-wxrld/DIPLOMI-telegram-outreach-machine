@@ -192,7 +192,7 @@ def engagement_wizard_cancel_confirm_markup(engagement_id: str):
     rows = [
         [
             _button("Confirm cancel", ACTION_ENGAGEMENT_WIZARD, "cancel_yes", engagement_id),
-            _button("Back", ACTION_ENGAGEMENT_WIZARD, "step", "5", engagement_id),
+            _button("Back", ACTION_ENGAGEMENT_WIZARD, "cancel_no", engagement_id),
         ],
     ]
     return _inline_markup(rows)

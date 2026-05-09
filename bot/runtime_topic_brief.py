@@ -79,6 +79,8 @@ async def _start_topic_create_with_reply(
         return
     requested_object_id = topic_id or "new"
     existing = _config_edit_store(context).get(operator_id)
+    if existing is None:
+        existing = _get_topic_brief_pending(context, operator_id, restore_missing=True)
     if existing is not None and existing.entity == "topic_create":
         notice = None
         if existing.object_id != requested_object_id:
@@ -349,6 +351,7 @@ async def _handle_topic_create_text(
 
     await _reply(update, "That topic draft is out of sync. Start again when you are ready.")
     _config_edit_store(context).cancel(operator_id)
+    _forget_topic_brief_pending(context, operator_id)
     return True
 
 
@@ -401,8 +404,8 @@ async def _handle_topic_brief_navigation(
     if operator_id is None:
         await _callback_reply(update, "Telegram did not include a user ID on this update.")
         return
-    pending = _config_edit_store(context).get(operator_id)
-    if pending is None or pending.entity != "topic_create":
+    pending = _get_topic_brief_pending(context, operator_id, restore_missing=True)
+    if pending is None:
         await _callback_reply(update, "No draft brief is waiting right now.")
         return
     if action == "later":

@@ -25,7 +25,9 @@ def _clear_pending_edit_if_command(update: Any, context: Any) -> None:
         return
     operator_id = _telegram_user_id(update)
     if operator_id is not None:
-        _config_edit_store(context).cancel(operator_id)
+        pending = _config_edit_store(context).cancel(operator_id)
+        if pending is not None and pending.entity == "topic_create":
+            _forget_topic_brief_pending(context, operator_id)
 
 
 def _is_authorized_update(update: Any, settings: BotSettings) -> bool:

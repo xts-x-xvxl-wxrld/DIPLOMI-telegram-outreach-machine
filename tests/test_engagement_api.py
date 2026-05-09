@@ -27,7 +27,6 @@ from backend.api.routes.engagement import (
     get_engagement_topic_detail,
     get_community_engagement_settings,
     patch_engagement_style_rule,
-    post_engagement_cockpit_draft_edit,
     post_engagement_cockpit_draft_reject,
     post_engagement_cockpit_issue_action,
     post_community_join_job,
@@ -47,7 +46,6 @@ from backend.api.routes.engagement import (
 )
 from backend.api.routes import engagement_cockpit
 from backend.api.schemas import (
-    CockpitDraftEditRequest,
     CockpitQuietHoursWriteRequest,
     EngagementDetectJobRequest,
     EngagementJoinJobRequest,
@@ -99,7 +97,6 @@ def test_engagement_routes_require_api_auth() -> None:
     app = create_app()
     app.dependency_overrides[settings_dep] = lambda: SimpleNamespace(bot_api_token="token")
     client = TestClient(app)
-
     response = client.get("/api/engagement/topics")
 
     assert response.status_code == 401
@@ -567,8 +564,8 @@ async def test_cockpit_approvals_global_and_scoped_share_queue_shape() -> None:
     assert global_queue.current.draft_id == candidate.id
     assert global_queue.current.engagement_label == "CRM replies"
     assert global_queue.current.community_label == "@founder_circle"
+    assert global_queue.current.source_excerpt == "The group is comparing CRM tools."
     assert scoped_queue.model_dump() == global_queue.model_dump()
-
 @pytest.mark.asyncio
 async def test_cockpit_approvals_do_not_invent_placeholders_without_update_state() -> None:
     community_id = uuid4()
@@ -903,31 +900,6 @@ async def test_cockpit_sent_feed_ignores_join_audit_actions() -> None:
 
     assert response.total == 1
     assert response.items[0].message_text == "Actual public reply"
-
-
-@pytest.mark.asyncio
-async def test_post_engagement_cockpit_draft_edit_creates_durable_update_state() -> None:
-    community_id = uuid4()
-    topic = _topic(uuid4(), name="CRM replies")
-    target = _target(community_id, status=EngagementTargetStatus.APPROVED.value)
-    engagement = _engagement(target=target, topic=topic, status=EngagementStatus.ACTIVE.value)
-    candidate = _candidate(uuid4(), target.community, topic)
-    db = FakeDb(targets=[target], topics=[topic], engagements=[engagement], candidates=[candidate])
-
-    response = await post_engagement_cockpit_draft_edit(
-        candidate.id,
-        CockpitDraftEditRequest(edit_request="Make it shorter", requested_by="telegram:123"),
-        db,  # type: ignore[arg-type]
-    )
-    queue = await get_engagement_cockpit_approvals(db)  # type: ignore[arg-type]
-
-    assert response.result == "queued_update"
-    assert response.next_callback == "eng:appr:list:0"
-    assert db.commits == 1
-    assert len(db.draft_update_requests) == 1
-    assert queue.queue_count == 0
-    assert queue.updating_count == 1
-    assert queue.empty_state == "waiting_for_updates"
 
 
 @pytest.mark.asyncio

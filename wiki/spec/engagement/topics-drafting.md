@@ -121,6 +121,9 @@ The runtime prompt input is assembled from:
 - topic guidance and examples
 - selected source post text
 - optional reply-context text from the same thread
+- for continuation candidates, compact thread context such as previous managed reply, recent public
+  follow-ups, continuation stage/objective, unresolved question, repetition guard, and thread
+  summary
 - community summary and dominant themes
 - active global/account/community/topic style rules
 - active prompt profile plus immutable safety floor
@@ -148,6 +151,13 @@ The editable prompt profile can tune the model's role, reasoning rubric, output 
 It cannot override hard product rules. If a prompt profile, topic, or style rule conflicts with
 reply-only mode, approval requirements, no-DM rules, link validation, or rate limits, backend
 validation and worker preflight win.
+
+For `continuation` opportunities, the worker must append a global continuation-mode addendum even
+when the active prompt profile predates continuation support. The addendum explicitly tells the
+model that it is writing the next public turn in an already-started thread, must answer the latest
+question/concern first, and must continue the conversation without restarting the pitch from zero.
+This continuation contract is worker-enforced so older saved prompt profiles do not silently fall
+back to root-reply behavior.
 
 The generator should behave like a helpful public participant for the configured operator account:
 
@@ -197,6 +207,9 @@ Structured output:
   "reason": "The group is discussing CRM alternatives.",
   "moment_strength": "good",
   "reply_value": "practical_tip",
+  "continuation_goal": "clarify",
+  "answered_question": "What was the biggest tradeoff?",
+  "avoid_repeating": ["Do not restate the full previous reply."],
   "suggested_reply": "Short public reply text.",
   "risk_notes": []
 }
@@ -205,6 +218,11 @@ Structured output:
 `moment_strength` must be `weak`, `good`, or `strong`. `reply_value` must describe the public reply
 type as `clarifying_question`, `practical_tip`, `correction`, `resource`, `other`, or `none`; it must
 not describe or score the person who posted.
+
+When present, `continuation_goal` describes the one-step job for a continuation reply as
+`clarify`, `compare`, `answer_objection`, `provide_example`, `narrow_discussion`, or `other`.
+`answered_question` and `avoid_repeating` are optional continuation aids and must stay focused on
+the public thread, not on individual profiling.
 
 If `should_engage = false`, the worker should not create a reply opportunity unless the operator
 requested a debug trace. A runtime-generated reply opportunity is therefore conditional on both

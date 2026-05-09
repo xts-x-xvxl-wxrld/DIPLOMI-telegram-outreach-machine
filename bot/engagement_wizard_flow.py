@@ -1,9 +1,13 @@
 ﻿# ruff: noqa: F401,F403,F405,E402
 from __future__ import annotations
-
 from typing import Any
 
 from .runtime import *
+from .engagement_wizard_cancel_flow import (
+    handle_wizard_cancel_back as _handle_wizard_cancel_back,
+    show_wizard_cancel_home as _show_wizard_cancel_home,
+    show_wizard_cancel_prompt as _handle_wizard_cancel_prompt,
+)
 from .engagement_wizard_join import start_wizard_account_join, wizard_account_status_note
 from .engagement_wizard_quiet_hours import (
     handle_wizard_quiet_hours as _handle_wizard_quiet_hours,
@@ -427,17 +431,21 @@ async def _handle_wizard_callback(update: Any, context: Any, parts: list[str]) -
     # eng:wz:cancel:<engagement_id>
     if sub == "cancel" and len(parts) >= 2:
         engagement_id = parts[1]
-        await _handle_wizard_cancel_prompt(update, context, operator_id, engagement_id)
+        await _handle_wizard_cancel_prompt(update, engagement_id)
         return
 
     # eng:wz:cancel_yes:<engagement_id>
     if sub == "cancel_yes" and len(parts) >= 2:
         _config_edit_store(context).cancel(operator_id)
-        await _edit_callback_message(update, "Setup cancelled. Return to Engagements whenever you're ready.")
+        await _show_wizard_cancel_home(update, context)
+        return
+
+    # eng:wz:cancel_no:<engagement_id>
+    if sub == "cancel_no" and len(parts) >= 2:
+        await _handle_wizard_cancel_back(update, context, operator_id, _wizard_show_appropriate_step)
         return
 
     await _callback_reply(update, "Unknown wizard action.")
-
 async def _handle_wizard_navigate_step(
     update: Any,
     context: Any,
@@ -790,14 +798,21 @@ async def _handle_wizard_confirm(
         return
 
     status = str(result.get("result") or result.get("status") or "")
+    next_callback = str(result.get("next_callback") or "")
 
     if status == "confirmed":
         _config_edit_store(context).cancel(operator_id)
         message = str(result.get("message") or "Engagement started")
-        await _edit_callback_message(
+        success_message = f"🎉 {message}. First results should appear in Engagements soon."
+        await _callback_reply(
             update,
-            f"🎉 {message}. First results should appear in Engagements soon.",
+            success_message,
         )
+        dispatch = getattr(context, "_dispatch_callback", None)
+        if dispatch is not None and next_callback:
+            await dispatch(update, context, data=next_callback)
+            return
+        await _edit_callback_message(update, success_message)
         return
 
     if status in ("validation_failed", "blocked"):
@@ -851,19 +866,6 @@ async def _handle_wizard_retry(
         flow_state=_fresh_wizard_state(),
     )
     await _show_wizard_step1(update, context)
-
-async def _handle_wizard_cancel_prompt(
-    update: Any,
-    context: Any,
-    operator_id: int,
-    engagement_id: str,
-) -> None:
-    await _edit_callback_message(
-        update,
-        "Cancel this engagement wizard? No data will be deleted.",
-        reply_markup=engagement_wizard_cancel_confirm_markup(engagement_id),
-    )
-
 
 # ---------------------------------------------------------------------------
 # Wizard return store — kept for topic-create reentry compatibility

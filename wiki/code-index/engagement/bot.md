@@ -26,7 +26,7 @@ formatting, and compat/manual controls.
   - dispatches active operator cockpit actions such as home, approvals, issues,
     detail, sent feed, and wizard re-entry
 - `bot/engagement_commands_daily.py`
-  - `/engagement` entry command and cancel-edit support
+  - `/engagement` entry command plus approval-edit cancel/resume helpers
 - `bot/engagement_commands_wizard.py`
   - explicit add-engagement command entrypoint
 
@@ -42,7 +42,9 @@ formatting, and compat/manual controls.
 - `bot/engagement_wizard_flow.py`
   - five-step target/topic/account/mode/review flow
   - edit re-entry support
-  - retry, cancel, and resume-after-topic-create handling
+  - retry and resume-after-topic-create handling
+- `bot/engagement_wizard_cancel_flow.py`
+  - cancel-confirm prompt, direct home handoff, and current-step resume
 - `bot/formatting_engagement_wizard.py`
   - wizard step copy
 - `bot/engagement_wizard_target_flow.py`
@@ -57,6 +59,10 @@ formatting, and compat/manual controls.
   - approve/reject confirmation
   - draft edit request capture
   - placeholder handling for updating drafts
+- `bot/engagement_approval_notifications.py`
+  - startup-driven ordinary approval-draft alerts
+  - paged approvals queue scan
+  - per-operator in-memory dedupe shared with revised-draft follow-ups
 - `bot/formatting_engagement_approval.py`
   - queue headers, draft cards, confirm prompts, result copy
 

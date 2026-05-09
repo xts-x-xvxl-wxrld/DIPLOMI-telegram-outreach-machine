@@ -14,6 +14,7 @@ from .engagement_wizard_flow import *
 __all__ = [
     "engagement_command",
     "cancel_edit_command",
+    "resume_edit_command",
     "engagement_admin_command",
     "engagement_targets_command",
     "engagement_target_command",

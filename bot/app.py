@@ -233,6 +233,10 @@ STARTUP_BOT_COMMANDS: tuple[tuple[str, str], ...] = (
 from .runtime import *
 from .account_handlers import *
 from .discovery_handlers import *
+from .engagement_approval_notifications import (
+    start_approval_draft_notifier,
+    stop_approval_draft_notifier,
+)
 from .search_handlers import *
 from .engagement_handlers import *
 from .callback_handlers import *
@@ -258,10 +262,12 @@ async def post_init(application: Any) -> None:
     application.bot_data[CONFIG_EDIT_STORE_KEY] = PendingEditStore()
     application.bot_data[ACCOUNT_CONFIRM_STORE_KEY] = {}
     application.bot_data[ACCOUNT_ONBOARDING_STORE_KEY] = {}
+    start_approval_draft_notifier(application)
     await application.bot.set_my_commands(command_menu)
 
 
 async def post_shutdown(application: Any) -> None:
+    await stop_approval_draft_notifier(application)
     client = application.bot_data.get(API_CLIENT_KEY)
     if client is not None:
         await client.aclose()
@@ -359,6 +365,7 @@ def create_application(settings: BotSettings | None = None) -> Any:
     application.add_handler(CommandHandler("topic_keywords", topic_keywords_command))
     application.add_handler(CommandHandler("edit_topic_guidance", edit_topic_guidance_command))
     application.add_handler(CommandHandler("cancel_edit", cancel_edit_command))
+    application.add_handler(CommandHandler("resume_edit", resume_edit_command))
     application.add_handler(CallbackQueryHandler(callback_query))
     application.add_handler(MessageHandler(filters.Document.FileExtension("csv"), seed_csv_document))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, telegram_entity_text))

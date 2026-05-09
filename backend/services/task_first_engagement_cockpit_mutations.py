@@ -40,10 +40,12 @@ class CockpitDraftActionResult:
     message: str
     draft_id: UUID | None = None
     engagement_id: UUID | None = None
+    community_id: UUID | None = None
     next_callback: str | None = None
     code: str | None = None
     job_id: str | None = None
     job_type: str | None = None
+    draft_update_request_id: UUID | None = None
 
 
 @dataclass(frozen=True)
@@ -178,7 +180,8 @@ async def queue_cockpit_draft_update(
     candidate = await _get_candidate(db, draft_id)
     if candidate is None or candidate.status != EngagementCandidateStatus.NEEDS_REVIEW.value:
         return CockpitDraftActionResult(result="stale", message="Draft no longer needs approval")
-    if await get_draft_update_request_by_source_candidate(db, source_candidate_id=candidate.id) is not None:
+    existing_request = await get_draft_update_request_by_source_candidate(db, source_candidate_id=candidate.id)
+    if existing_request is not None and existing_request.status in {"pending", "completed"}:
         return CockpitDraftActionResult(
             result="blocked",
             message="Couldn't update draft",
@@ -189,8 +192,8 @@ async def queue_cockpit_draft_update(
         return CockpitDraftActionResult(result="stale", message="Draft no longer needs approval")
 
     now = _utcnow()
-    db.add(
-        EngagementDraftUpdateRequest(
+    if existing_request is None:
+        request = EngagementDraftUpdateRequest(
             id=uuid.uuid4(),
             engagement_id=engagement.id,
             source_candidate_id=candidate.id,
@@ -203,14 +206,26 @@ async def queue_cockpit_draft_update(
             updated_at=now,
             completed_at=None,
         )
-    )
+        db.add(request)
+    else:
+        request = existing_request
+        request.engagement_id = engagement.id
+        request.replacement_candidate_id = None
+        request.status = "pending"
+        request.edit_request = edit_request.strip()
+        request.requested_by = requested_by
+        request.source_queue_created_at = candidate.created_at
+        request.updated_at = now
+        request.completed_at = None
     await db.flush()
     return CockpitDraftActionResult(
         result="queued_update",
         message="Updating draft",
         draft_id=candidate.id,
         engagement_id=engagement.id,
+        community_id=candidate.community_id,
         next_callback="eng:appr:list:0",
+        draft_update_request_id=request.id,
     )
 
 

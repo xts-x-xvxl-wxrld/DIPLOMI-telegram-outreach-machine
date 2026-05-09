@@ -213,6 +213,7 @@ CONFIG_EDIT_STORE_KEY = "config_edit_store"
 ACCOUNT_CONFIRM_STORE_KEY = "account_confirm_store"
 OPERATOR_CAPABILITY_CACHE_KEY = "operator_capabilities"
 WIZARD_RETURN_STORE_KEY = "wizard_return_store"
+TOPIC_BRIEF_DRAFT_STORE_KEY = "topic_brief_draft_store"
 CANDIDATE_PAGE_SIZE = 5
 CHANNEL_PAGE_SIZE = 5
 MEMBER_PAGE_SIZE = 10

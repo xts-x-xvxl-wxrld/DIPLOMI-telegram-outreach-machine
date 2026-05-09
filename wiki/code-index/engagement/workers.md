@@ -53,9 +53,12 @@ resolution, joins, detection, sends, and Telethon adapter seams.
   - collection-run and stored-message sample loading
   - community context loading
 - `backend/workers/engagement_detect_prompt.py`
-  - prompt input assembly, style-bundle loading, summary shaping
+  - prompt input assembly, continuation-mode addenda, style-bundle loading,
+    summary shaping
 - `backend/workers/engagement_detect_selection.py`
-  - trigger candidate prefiltering and duplicate suppression
+  - trigger candidate prefiltering, direct-reply continuation selection, and
+    compact thread-context heuristics for continuation prompts plus duplicate
+    suppression
 - `backend/workers/engagement_detect_openai.py`
   - model call wrapper
 - `backend/workers/engagement_detect_process.py`

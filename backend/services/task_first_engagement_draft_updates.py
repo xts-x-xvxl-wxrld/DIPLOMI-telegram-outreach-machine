@@ -26,6 +26,27 @@ async def get_draft_update_request_by_source_candidate(
     )
 
 
+async def get_draft_update_request_by_id(
+    db: AsyncSession,
+    *,
+    request_id: UUID,
+) -> EngagementDraftUpdateRequest | None:
+    return await db.get(EngagementDraftUpdateRequest, request_id)
+
+
+async def list_draft_update_requests_for_engagement(
+    db: AsyncSession,
+    *,
+    engagement_id: UUID,
+) -> list[EngagementDraftUpdateRequest]:
+    result = await db.scalars(
+        select(EngagementDraftUpdateRequest)
+        .where(EngagementDraftUpdateRequest.engagement_id == engagement_id)
+        .order_by(EngagementDraftUpdateRequest.created_at.asc())
+    )
+    return list(result.all())
+
+
 async def has_active_draft_update_request(
     db: AsyncSession,
     *,
@@ -81,8 +102,33 @@ async def complete_draft_update_request(
     return request
 
 
+async def fail_draft_update_request(
+    db: AsyncSession,
+    *,
+    request_id: UUID,
+    failed_at: datetime | None = None,
+) -> EngagementDraftUpdateRequest | None:
+    request = await get_draft_update_request_by_id(db, request_id=request_id)
+    if request is None:
+        return None
+    if request.status == "failed":
+        return request
+    if request.status != "pending":
+        return None
+
+    request.status = "failed"
+    request.updated_at = failed_at or _utcnow()
+    request.completed_at = None
+    request.replacement_candidate_id = None
+    await db.flush()
+    return request
+
+
 __all__ = [
     "complete_draft_update_request",
+    "fail_draft_update_request",
+    "get_draft_update_request_by_id",
     "get_draft_update_request_by_source_candidate",
     "has_active_draft_update_request",
+    "list_draft_update_requests_for_engagement",
 ]

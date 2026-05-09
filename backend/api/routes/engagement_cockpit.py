@@ -23,7 +23,12 @@ from backend.api.schemas import (
     CockpitSentFeedResponse,
 )
 from backend.db.models import Community, EngagementCandidate
-from backend.queue.client import QueueUnavailable, enqueue_engagement_send, enqueue_engagement_target_resolve
+from backend.queue.client import (
+    QueueUnavailable,
+    enqueue_engagement_detect,
+    enqueue_engagement_send,
+    enqueue_engagement_target_resolve,
+)
 from backend.services.engagement_account_behavior import (
     engagement_send_scheduled_at,
     engagement_wait_periods_disabled_for_community,
@@ -242,7 +247,30 @@ async def post_engagement_cockpit_draft_edit(
         edit_request=payload.edit_request,
     )
     if result.result == "queued_update":
-        await db.commit()
+        if result.community_id is None or result.draft_update_request_id is None:
+            await db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail={"code": "draft_update_enqueue_failed", "message": "Draft update could not be queued"},
+            )
+        try:
+            job = enqueue_engagement_detect(
+                result.community_id,
+                draft_update_request_id=result.draft_update_request_id,
+                requested_by=payload.requested_by or "operator",
+                job_id_prefix="engagement.detect.rewrite",
+            )
+            await db.commit()
+        except QueueUnavailable as exc:
+            await db.rollback()
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        result = CockpitDraftActionResponse.model_validate(result).model_copy(
+            update={
+                "job_id": job.id,
+                "job_type": job.type,
+            }
+        )
+        return result
     return CockpitDraftActionResponse.model_validate(result)
 
 

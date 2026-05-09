@@ -200,9 +200,17 @@ Required variables:
 {{style.topic}}
 {{source_post.text}}
 {{source_post.tg_message_id}}
+{{source_post.reply_to_tg_message_id}}
 {{source_post.message_date}}
 {{reply_context}}
 {{messages}}
+{{thread.stage}}
+{{thread.objective}}
+{{thread.unresolved_question}}
+{{thread.avoid_repeating}}
+{{thread.last_managed_reply}}
+{{thread.recent_replies}}
+{{thread.summary}}
 {{community_context.latest_summary}}
 {{community_context.dominant_themes}}
 ```
@@ -215,6 +223,9 @@ Rules:
 - Draft-generation templates should prefer `source_post` and `reply_context` over `messages`.
   `messages` is retained for detection/debug compatibility and should not be used to dump broad
   recent chat history into normal drafting prompts.
+- Continuation candidates also receive a worker-appended continuation addendum in both the system
+  prompt and rendered user prompt, so older saved prompt profiles remain continuation-aware even if
+  they do not reference `thread.*` variables yet.
 - Rendered prompt input must keep existing caps: maximum 500 characters for the selected source
   post or reply-context excerpt, maximum 20 messages when detection/debug templates still use
   `messages`, and 64 KB target serialized input unless a future plan changes those limits.

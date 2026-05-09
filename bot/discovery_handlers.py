@@ -452,6 +452,22 @@ async def telegram_entity_text(update: Any, context: Any) -> None:
         return
     if await _handle_config_edit_text(update, context, raw_text):
         return
+    operator_id = _telegram_user_id(update)
+    if operator_id is not None:
+        from bot.engagement_approval_flow import (
+            get_pending_approval_edit,
+            handle_edit_request_text,
+        )
+
+        pending_approval_edit = get_pending_approval_edit(context, operator_id)
+        if pending_approval_edit is not None:
+            await handle_edit_request_text(
+                update,
+                context,
+                text=raw_text,
+                draft_id=str(pending_approval_edit["draft_id"]),
+            )
+            return
 
     if not _looks_like_telegram_reference(raw_text):
         return

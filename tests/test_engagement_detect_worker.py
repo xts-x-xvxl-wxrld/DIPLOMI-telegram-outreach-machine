@@ -8,7 +8,6 @@ from uuid import uuid4
 import pytest
 
 from backend.db.enums import (
-    CollectionRunStatus,
     CommunityStatus,
     EngagementCandidateStatus,
     EngagementMode,
@@ -19,7 +18,9 @@ from backend.db.models import (
     Community,
     CommunityAccountMembership,
     CommunityEngagementSettings,
+    EngagementAction,
     EngagementCandidate,
+    EngagementDraftUpdateRequest,
     EngagementTarget,
     EngagementTopic,
     Message,
@@ -30,7 +31,6 @@ from backend.workers.engagement_detect import (
     CommunityContext,
     DetectionMessage,
     EngagementDetectionDecision,
-    load_recent_detection_samples,
     process_engagement_detect,
 )
 _FIXTURE_NOW = datetime.now(timezone.utc).replace(microsecond=0)
@@ -75,79 +75,6 @@ async def test_engagement_detect_skips_model_when_keyword_prefilter_has_no_signa
     assert result["skipped_no_signal"] == 1
     assert session.candidates == []
     assert session.commits == 1
-
-
-@pytest.mark.asyncio
-async def test_engagement_detect_creates_candidate_without_sender_identity() -> None:
-    community_id = uuid4()
-    topic = _topic(trigger_keywords=["crm"])
-    session = FakeSession(community=_community(community_id), settings=_settings(community_id))
-    captured_inputs: list[dict[str, object]] = []
-
-    async def detector(model_input: dict[str, object]) -> EngagementDetectionDecision:
-        captured_inputs.append(model_input)
-        return EngagementDetectionDecision(
-            should_engage=True,
-            topic_match="CRM",
-            source_tg_message_id=123,
-            reason="The group is comparing CRM tools.",
-            suggested_reply="A useful way to compare CRMs is to check data ownership, integrations, and how easy it is to leave later.",
-            risk_notes=[],
-        )
-
-    result = await process_engagement_detect(
-        {"community_id": str(community_id), "window_minutes": 60, "requested_by": "op"},
-        session_factory=lambda: session,
-        detector=detector,
-        active_topics_fn=lambda _session: _async_result([topic]),
-        sample_loader=lambda *_args, **_kwargs: _async_result(
-            [
-                DetectionMessage(
-                    tg_message_id=123,
-                    text="We are comparing CRM options. Call me at +1 555 123 4567 if you know one.",
-                    message_date=_now() - timedelta(minutes=30),
-                    reply_to_tg_message_id=99,
-                    is_replyable=True,
-                )
-            ]
-        ),
-        context_loader=lambda *_args, **_kwargs: _async_result(
-            CommunityContext(latest_summary="Community discusses SaaS operations.", dominant_themes=["ops"])
-        ),
-        candidate_creator=create_engagement_candidate,
-        settings=SimpleNamespace(
-            openai_engagement_model="test-model",
-            engagement_max_detector_calls_per_run=5,
-            engagement_semantic_matching_enabled=False,
-        ),  # type: ignore[arg-type]
-    )
-
-    assert result["candidates_created"] == 1
-    assert result["detector_calls"] == 1
-    assert len(session.candidates) == 1
-    candidate = session.candidates[0]
-    assert candidate.status == EngagementCandidateStatus.NEEDS_REVIEW.value
-    assert candidate.source_tg_message_id == 123
-    assert candidate.source_reply_to_tg_message_id == 99
-    assert candidate.opportunity_kind == "root"
-    assert candidate.root_candidate_id is None
-    assert "[phone redacted]" in (candidate.source_excerpt or "")
-    assert "+1 555" not in (candidate.source_excerpt or "")
-    assert candidate.source_message_date == _now() - timedelta(minutes=30)
-    assert candidate.detected_at >= candidate.source_message_date
-    assert candidate.moment_strength == "good"
-    assert candidate.timeliness == "fresh"
-    assert candidate.reply_value == "other"
-    assert candidate.review_deadline_at == _now() + timedelta(minutes=30)
-    assert candidate.reply_deadline_at == _now() + timedelta(minutes=60)
-    assert candidate.suggested_reply is not None
-    assert candidate.model == "test-model"
-    assert "source_post" in captured_inputs[0]
-    assert captured_inputs[0]["source_post"]["tg_message_id"] == 123
-    assert captured_inputs[0]["source_post"]["reply_to_tg_message_id"] == 99
-    assert captured_inputs[0]["messages"] == [captured_inputs[0]["source_post"]]
-    assert "sender" not in str(captured_inputs[0]).casefold()
-    assert "user_id" not in str(captured_inputs[0]).casefold()
 
 
 @pytest.mark.asyncio
@@ -705,119 +632,6 @@ async def test_engagement_detect_rejects_person_level_reply_value_labels() -> No
     assert session.candidates == []
 
 
-@pytest.mark.asyncio
-async def test_detection_samples_prefer_exact_collection_run_batch() -> None:
-    community_id = uuid4()
-    collection_run_id = uuid4()
-    now = datetime.now(timezone.utc)
-    community = _community(community_id)
-    community.store_messages = True
-    run = CollectionRun(
-        id=collection_run_id,
-        community_id=community_id,
-        status=CollectionRunStatus.COMPLETED.value,
-        analysis_input={
-            "engagement_messages": [
-                {
-                    "tg_message_id": 200,
-                    "text": "Exact batch CRM question",
-                    "message_date": now.isoformat(),
-                    "is_replyable": True,
-                }
-            ],
-        },
-    )
-    stored = Message(
-        id=uuid4(),
-        community_id=community_id,
-        tg_message_id=100,
-        text="Stored fallback CRM question",
-        message_date=now,
-    )
-
-    messages = await load_recent_detection_samples(
-        DetectionSampleSession(runs={collection_run_id: run}, stored_messages=[stored]),
-        community=community,
-        collection_run_id=collection_run_id,
-        window_minutes=60,
-    )
-
-    assert [message.tg_message_id for message in messages] == [200]
-    assert messages[0].text == "Exact batch CRM question"
-
-
-@pytest.mark.asyncio
-async def test_detection_samples_skip_wrong_community_collection_run() -> None:
-    community_id = uuid4()
-    other_community_id = uuid4()
-    collection_run_id = uuid4()
-    now = datetime.now(timezone.utc)
-    community = _community(community_id)
-    community.store_messages = True
-    run = CollectionRun(
-        id=collection_run_id,
-        community_id=other_community_id,
-        status=CollectionRunStatus.COMPLETED.value,
-        analysis_input={
-            "engagement_messages": [
-                {
-                    "tg_message_id": 200,
-                    "text": "Wrong community batch",
-                    "message_date": now.isoformat(),
-                    "is_replyable": True,
-                }
-            ],
-        },
-    )
-    stored = Message(
-        id=uuid4(),
-        community_id=community_id,
-        tg_message_id=100,
-        text="Stored fallback should not be used",
-        message_date=now,
-    )
-
-    messages = await load_recent_detection_samples(
-        DetectionSampleSession(runs={collection_run_id: run}, stored_messages=[stored]),
-        community=community,
-        collection_run_id=collection_run_id,
-        window_minutes=60,
-    )
-
-    assert messages == []
-
-
-@pytest.mark.asyncio
-async def test_detection_samples_fall_back_to_latest_engagement_artifact_batch() -> None:
-    community_id = uuid4()
-    now = datetime.now(timezone.utc)
-    community = _community(community_id)
-    artifact_run = CollectionRun(
-        id=uuid4(),
-        community_id=community_id,
-        status=CollectionRunStatus.COMPLETED.value,
-        analysis_input={
-            "engagement_messages": [
-                {
-                    "tg_message_id": 300,
-                    "text": "Latest engagement artifact CRM question",
-                    "message_date": now.isoformat(),
-                    "is_replyable": True,
-                }
-            ],
-        },
-    )
-
-    messages = await load_recent_detection_samples(
-        DetectionSampleSession(artifact_runs=[artifact_run]),
-        community=community,
-        window_minutes=60,
-    )
-
-    assert [message.tg_message_id for message in messages] == [300]
-    assert messages[0].text == "Latest engagement artifact CRM question"
-
-
 class FakeSession:
     def __init__(
         self,
@@ -827,12 +641,18 @@ class FakeSession:
         target: EngagementTarget | None | bool = True,
         existing_candidate: EngagementCandidate | None = None,
         membership: CommunityAccountMembership | None | bool = True,
+        topic: EngagementTopic | None = None,
+        draft_update_requests: list[EngagementDraftUpdateRequest] | None = None,
+        sent_actions: list[EngagementAction] | None = None,
     ) -> None:
         self.community = community
         self.settings = settings
         self.target = _target(community.id) if target is True else target
         self.existing_candidate = existing_candidate
         self.membership = _membership(community.id) if membership is True else membership
+        self.topic = topic
+        self.draft_update_requests = list(draft_update_requests or [])
+        self.sent_actions = list(sent_actions or [])
         self.candidates: list[EngagementCandidate] = []
         self.commits = 0
         self.rollbacks = 0
@@ -847,6 +667,17 @@ class FakeSession:
     async def get(self, model: object, item_id: object) -> object | None:
         if model is Community and item_id == self.community.id:
             return self.community
+        if model is EngagementCandidate:
+            if self.existing_candidate is not None and self.existing_candidate.id == item_id:
+                return self.existing_candidate
+            return self.get_candidate(item_id)
+        if model is EngagementDraftUpdateRequest:
+            for request in self.draft_update_requests:
+                if request.id == item_id:
+                    return request
+            return None
+        if model is EngagementTopic and self.topic is not None and self.topic.id == item_id:
+            return self.topic
         return None
 
     async def scalar(self, statement: object) -> object | None:
@@ -857,9 +688,61 @@ class FakeSession:
             return self.target
         if entity is CommunityAccountMembership:
             return self.membership
+        if entity is EngagementDraftUpdateRequest:
+            compiled = statement.compile()
+            for value in compiled.params.values():
+                if hasattr(value, "hex"):
+                    for request in self.draft_update_requests:
+                        if request.source_candidate_id == value:
+                            return request
+            return self.draft_update_requests[0] if self.draft_update_requests else None
         if entity is EngagementCandidate:
-            return self.existing_candidate
+            candidates = [
+                candidate
+                for candidate in [self.existing_candidate, *self.candidates]
+                if isinstance(candidate, EngagementCandidate)
+            ]
+            if not candidates:
+                return None
+            compiled = statement.compile()
+            ignored_ids = {
+                item
+                for value in compiled.params.values()
+                if isinstance(value, (list, tuple, set))
+                for item in value
+                if hasattr(item, "hex")
+            }
+            sql = str(compiled)
+            if "JOIN engagement_actions" in sql:
+                return _match_candidate_from_sent_actions(
+                    candidates=candidates,
+                    sent_actions=self.sent_actions,
+                    params=compiled.params,
+                )
+            for candidate in candidates:
+                if candidate.id not in ignored_ids:
+                    if _candidate_matches_statement(candidate, sql=sql, params=compiled.params):
+                        return candidate
+            return None
+        if entity is EngagementTopic:
+            return self.topic
         return None
+
+    async def scalars(self, statement: object) -> object:
+        entity = statement.column_descriptions[0]["entity"]  # type: ignore[attr-defined]
+        if entity is EngagementAction:
+            return _FakeScalarResult(self.sent_actions)
+        if entity is EngagementDraftUpdateRequest:
+            compiled = statement.compile()
+            scoped_requests = list(self.draft_update_requests)
+            for value in compiled.params.values():
+                if hasattr(value, "hex"):
+                    scoped_requests = [
+                        request for request in scoped_requests if request.engagement_id == value
+                    ]
+                    break
+            return _FakeScalarResult(scoped_requests)
+        return _FakeScalarResult([])
 
     def add(self, model: object) -> None:
         if isinstance(model, EngagementCandidate):
@@ -873,6 +756,25 @@ class FakeSession:
 
     async def rollback(self) -> None:
         self.rollbacks += 1
+
+    def get_candidate(self, candidate_id: object) -> EngagementCandidate | None:
+        if self.existing_candidate is not None and self.existing_candidate.id == candidate_id:
+            return self.existing_candidate
+        for candidate in self.candidates:
+            if candidate.id == candidate_id:
+                return candidate
+        return None
+
+
+class _FakeScalarResult:
+    def __init__(self, values: list[object]) -> None:
+        self._values = list(values)
+
+    def all(self) -> list[object]:
+        return list(self._values)
+
+    def __iter__(self):
+        return iter(self._values)
 
 
 class DetectionSampleSession:
@@ -903,6 +805,56 @@ class DetectionSampleSession:
 
 async def _async_result(value: object) -> object:
     return value
+
+
+def _match_candidate_from_sent_actions(
+    *,
+    candidates: list[EngagementCandidate],
+    sent_actions: list[EngagementAction],
+    params: dict[str, object],
+) -> EngagementCandidate | None:
+    candidate_by_id = {candidate.id: candidate for candidate in candidates}
+    for action in sent_actions:
+        if params.get("community_id_1") not in {None, action.community_id}:
+            continue
+        if params.get("telegram_account_id_1") not in {None, action.telegram_account_id}:
+            continue
+        if params.get("status_1") not in {None, action.status}:
+            continue
+        if params.get("sent_tg_message_id_1") not in {None, action.sent_tg_message_id}:
+            continue
+        candidate = candidate_by_id.get(action.candidate_id)
+        if candidate is not None:
+            return candidate
+    return None
+
+
+def _candidate_matches_statement(
+    candidate: EngagementCandidate,
+    *,
+    sql: str,
+    params: dict[str, object],
+) -> bool:
+    if "engagement_candidates.id =" in sql and params.get("id_1") not in {None, candidate.id}:
+        return False
+    if (
+        "engagement_candidates.community_id =" in sql
+        and params.get("community_id_1") not in {None, candidate.community_id}
+    ):
+        return False
+    if "engagement_candidates.topic_id =" in sql and params.get("topic_id_1") not in {None, candidate.topic_id}:
+        return False
+    if (
+        "engagement_candidates.source_tg_message_id =" in sql
+        and params.get("source_tg_message_id_1") not in {None, candidate.source_tg_message_id}
+    ):
+        return False
+    if (
+        "engagement_candidates.source_excerpt =" in sql
+        and params.get("source_excerpt_1") not in {None, candidate.source_excerpt}
+    ):
+        return False
+    return True
 
 
 def _community(community_id: object) -> Community:

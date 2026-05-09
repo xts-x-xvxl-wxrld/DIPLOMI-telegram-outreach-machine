@@ -535,6 +535,7 @@ def test_engagement_detect_payload_matches_contract_defaults() -> None:
     assert dumped == {
         "community_id": str(community_id),
         "collection_run_id": None,
+        "draft_update_request_id": None,
         "window_minutes": 60,
         "requested_by": None,
     }
@@ -637,6 +638,7 @@ def test_enqueue_engagement_detect_uses_engagement_queue(monkeypatch) -> None:
     assert captured["payload"] == {
         "community_id": str(community_id),
         "collection_run_id": None,
+        "draft_update_request_id": None,
         "window_minutes": 30,
         "requested_by": "operator",
     }
@@ -717,6 +719,7 @@ def test_enqueue_manual_engagement_detect_uses_distinct_job_id_prefix(monkeypatc
             "payload": {
                 "community_id": str(community_id),
                 "collection_run_id": None,
+                "draft_update_request_id": None,
                 "window_minutes": 45,
                 "requested_by": "operator",
             },
@@ -762,6 +765,7 @@ def test_enqueue_engagement_detect_with_collection_run_uses_exact_job_id(monkeyp
         "payload": {
             "community_id": str(community_id),
             "collection_run_id": str(collection_run_id),
+            "draft_update_request_id": None,
             "window_minutes": 10,
             "requested_by": None,
         },

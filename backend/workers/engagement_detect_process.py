@@ -14,6 +14,21 @@ from backend.services.community_engagement_candidates import (
     normalize_moment_strength,
     normalize_reply_value,
 )
+from backend.services.task_first_engagement_draft_updates import (
+    complete_draft_update_request,
+    fail_draft_update_request,
+    get_draft_update_request_by_id,
+    list_draft_update_requests_for_engagement,
+)
+
+
+@dataclass(frozen=True)
+class DraftUpdateExecutionContext:
+    request: EngagementDraftUpdateRequest
+    source_candidate: EngagementCandidate
+    topic: EngagementTopic
+    source_message: DetectionMessage
+    ignored_duplicate_candidate_ids: set[UUID]
 
 
 async def process_engagement_detect(
@@ -32,10 +47,19 @@ async def process_engagement_detect(
     runtime_settings = settings or get_settings()
     sample_loader = sample_loader or load_recent_detection_samples
     context_loader = context_loader or load_community_context
-    allow_stale_candidates = _is_manual_detect_request(validated_payload)
+    draft_update_request_id = validated_payload.draft_update_request_id
+    allow_stale_candidates = _is_manual_detect_request(validated_payload) or draft_update_request_id is not None
     reply_deadline_minutes = _reply_deadline_minutes(runtime_settings)
     job_id = _current_job_id() or f"engagement.detect:{validated_payload.community_id}"
-    LOGGER.info("Starting engagement detect job_id=%s community_id=%s collection_run_id=%s window_minutes=%s allow_stale_candidates=%s", job_id, validated_payload.community_id, validated_payload.collection_run_id, validated_payload.window_minutes, allow_stale_candidates)
+    LOGGER.info(
+        "Starting engagement detect job_id=%s community_id=%s collection_run_id=%s draft_update_request_id=%s window_minutes=%s allow_stale_candidates=%s",
+        job_id,
+        validated_payload.community_id,
+        validated_payload.collection_run_id,
+        draft_update_request_id,
+        validated_payload.window_minutes,
+        allow_stale_candidates,
+    )
 
     async with session_factory() as session:
         try:
@@ -47,44 +71,86 @@ async def process_engagement_detect(
                 session,
                 validated_payload.community_id,
             )
-            if engagement_settings.mode == EngagementMode.DISABLED.value:
-                return _skipped("engagement_disabled", validated_payload.community_id)
-            if engagement_settings.mode == EngagementMode.OBSERVE.value:
-                return _skipped("observe_mode", validated_payload.community_id)
-            if not await has_engagement_target_permission(
+            draft_update_context = await _load_draft_update_context(
                 session,
                 community_id=validated_payload.community_id,
-                permission="detect",
-            ):
-                return _skipped("engagement_target_detect_not_approved", validated_payload.community_id)
-            membership = await get_joined_membership_for_send(
-                session,
-                community_id=validated_payload.community_id,
+                request_id=draft_update_request_id,
             )
-            if membership is None:
-                return _skipped("no_joined_engagement_membership", validated_payload.community_id)
+            if draft_update_request_id is not None and draft_update_context is None:
+                return _skipped("draft_update_request_not_pending", validated_payload.community_id)
 
-            topics = await active_topics_fn(session)
-            if not topics:
-                return _skipped("no_active_topics", validated_payload.community_id)
-            LOGGER.info("Loaded engagement topics job_id=%s community_id=%s topic_count=%s", job_id, validated_payload.community_id, len(topics))
+            membership = None
+            selected_telegram_account_id = engagement_settings.assigned_account_id
+            if draft_update_context is None:
+                if engagement_settings.mode == EngagementMode.DISABLED.value:
+                    return _skipped("engagement_disabled", validated_payload.community_id)
+                if engagement_settings.mode == EngagementMode.OBSERVE.value:
+                    return _skipped("observe_mode", validated_payload.community_id)
+                if not await has_engagement_target_permission(
+                    session,
+                    community_id=validated_payload.community_id,
+                    permission="detect",
+                ):
+                    return _skipped("engagement_target_detect_not_approved", validated_payload.community_id)
+                membership = await get_joined_membership_for_send(
+                    session,
+                    community_id=validated_payload.community_id,
+                )
+                if membership is None:
+                    return _skipped("no_joined_engagement_membership", validated_payload.community_id)
+                selected_telegram_account_id = membership.telegram_account_id
 
-            messages = await sample_loader(
-                session,
-                community=community,
-                collection_run_id=validated_payload.collection_run_id,
-                window_minutes=validated_payload.window_minutes,
-            )
-            if not messages:
-                return _skipped("no_recent_samples", validated_payload.community_id)
-            eligible_messages = _filter_detection_messages(
-                messages,
-                joined_at=membership.joined_at,
-                reply_only=engagement_settings.reply_only,
-            )
-            if not eligible_messages:
-                return _skipped("no_trigger_opportunities", validated_payload.community_id)
-            LOGGER.info("Prepared engagement detect samples job_id=%s community_id=%s sampled_messages=%s eligible_messages=%s reply_only=%s", job_id, validated_payload.community_id, len(messages), len(eligible_messages), engagement_settings.reply_only)
+                topics = await active_topics_fn(session)
+                if not topics:
+                    return _skipped("no_active_topics", validated_payload.community_id)
+                LOGGER.info(
+                    "Loaded engagement topics job_id=%s community_id=%s topic_count=%s",
+                    job_id,
+                    validated_payload.community_id,
+                    len(topics),
+                )
+
+                messages = await sample_loader(
+                    session,
+                    community=community,
+                    collection_run_id=validated_payload.collection_run_id,
+                    window_minutes=validated_payload.window_minutes,
+                )
+                if not messages:
+                    return _skipped("no_recent_samples", validated_payload.community_id)
+                eligible_messages = _filter_detection_messages(
+                    messages,
+                    joined_at=membership.joined_at,
+                    reply_only=engagement_settings.reply_only,
+                )
+                if not eligible_messages:
+                    return _skipped("no_trigger_opportunities", validated_payload.community_id)
+                LOGGER.info(
+                    "Prepared engagement detect samples job_id=%s community_id=%s sampled_messages=%s eligible_messages=%s reply_only=%s",
+                    job_id,
+                    validated_payload.community_id,
+                    len(messages),
+                    len(eligible_messages),
+                    engagement_settings.reply_only,
+                )
+            else:
+                topics = [draft_update_context.topic]
+                eligible_messages = [draft_update_context.source_message]
+                if selected_telegram_account_id is None:
+                    membership = await get_joined_membership_for_send(
+                        session,
+                        community_id=validated_payload.community_id,
+                    )
+                    if membership is not None:
+                        selected_telegram_account_id = membership.telegram_account_id
+                LOGGER.info(
+                    "Loaded pending draft update context job_id=%s community_id=%s request_id=%s source_candidate_id=%s topic_id=%s",
+                    job_id,
+                    validated_payload.community_id,
+                    draft_update_context.request.id,
+                    draft_update_context.source_candidate.id,
+                    draft_update_context.topic.id,
+                )
 
             community_context = await context_loader(session, community=community)
             prompt_selection = await select_active_prompt_profile(session)
@@ -92,28 +158,49 @@ async def process_engagement_detect(
             detector_cap_reached = False
             for topic in topics:
                 summary.topics_checked += 1
-                topic_messages = await _filter_existing_candidate_messages(
-                    session,
-                    community_id=validated_payload.community_id,
-                    topic_id=topic.id,
-                    messages=eligible_messages,
-                )
-                skipped_duplicates = len(eligible_messages) - len(topic_messages)
-                if skipped_duplicates:
-                    summary.skipped_dedupe += skipped_duplicates
+                if draft_update_context is None:
+                    topic_messages = await _filter_existing_candidate_messages(
+                        session,
+                        community_id=validated_payload.community_id,
+                        topic_id=topic.id,
+                        messages=eligible_messages,
+                    )
+                    skipped_duplicates = len(eligible_messages) - len(topic_messages)
+                    if skipped_duplicates:
+                        summary.skipped_dedupe += skipped_duplicates
 
-                trigger_candidates = await _select_trigger_candidates(
-                    session,
-                    community_id=validated_payload.community_id,
-                    topic=topic,
-                    messages=topic_messages,
-                    runtime_settings=runtime_settings,
-                    semantic_selector=semantic_selector,
-                    semantic_observability=summary.semantic_observability,
+                    trigger_candidates = await _select_trigger_candidates(
+                        session,
+                        community_id=validated_payload.community_id,
+                        topic=topic,
+                        messages=topic_messages,
+                        runtime_settings=runtime_settings,
+                        semantic_selector=semantic_selector,
+                        semantic_observability=summary.semantic_observability,
+                        selected_telegram_account_id=selected_telegram_account_id,
+                    )
+                else:
+                    topic_messages = [draft_update_context.source_message]
+                    skipped_duplicates = 0
+                    trigger_candidates = [TriggerCandidate(message=draft_update_context.source_message)]
+                LOGGER.info(
+                    "Evaluated engagement topic job_id=%s community_id=%s topic_id=%s topic_messages=%s trigger_candidates=%s skipped_duplicates=%s",
+                    job_id,
+                    validated_payload.community_id,
+                    topic.id,
+                    len(topic_messages),
+                    len(trigger_candidates),
+                    skipped_duplicates,
                 )
-                LOGGER.info("Evaluated engagement topic job_id=%s community_id=%s topic_id=%s topic_messages=%s trigger_candidates=%s skipped_duplicates=%s", job_id, validated_payload.community_id, topic.id, len(topic_messages), len(trigger_candidates), skipped_duplicates)
                 if not trigger_candidates:
                     summary.skipped_no_signal += 1
+                    if draft_update_context is not None:
+                        await _fail_pending_draft_update(
+                            session,
+                            draft_update_context,
+                            reason="no_trigger_candidates",
+                            job_id=job_id,
+                        )
                     continue
 
                 for trigger_candidate in trigger_candidates:
@@ -137,12 +224,19 @@ async def process_engagement_detect(
                         community_context=community_context,
                         style_rules=style_rules,
                         semantic_match=trigger_candidate.semantic_match,
+                        thread_context=trigger_candidate.thread_context,
+                        opportunity_kind=(
+                            "continuation"
+                            if trigger_candidate.thread_context is not None
+                            else "root"
+                        ),
                     )
                     model_input = _fit_model_input(model_input)
                     prompt_runtime = _build_prompt_runtime(
                         model_input,
                         prompt_selection=prompt_selection,
                         fallback_model=runtime_settings.openai_engagement_model,
+                        draft_update_context=draft_update_context,
                     )
                     model_input["_prompt_runtime"] = prompt_runtime
                     decision = await detector(model_input)
@@ -152,13 +246,34 @@ async def process_engagement_detect(
                     except ValidationError:
                         summary.skipped_validation += 1
                         LOGGER.info("Detector output failed validation job_id=%s community_id=%s topic_id=%s source_tg_message_id=%s", job_id, validated_payload.community_id, topic.id, source_message.tg_message_id)
+                        if draft_update_context is not None:
+                            await _fail_pending_draft_update(
+                                session,
+                                draft_update_context,
+                                reason="detector_output_validation_failed",
+                                job_id=job_id,
+                            )
                         continue
                     LOGGER.info("Detector returned decision job_id=%s community_id=%s topic_id=%s source_tg_message_id=%s should_engage=%s has_reply=%s", job_id, validated_payload.community_id, topic.id, source_message.tg_message_id, decision.should_engage, bool(decision.suggested_reply))
                     if not decision.should_engage:
                         summary.skipped_no_signal += 1
+                        if draft_update_context is not None:
+                            await _fail_pending_draft_update(
+                                session,
+                                draft_update_context,
+                                reason="detector_declined_rewrite",
+                                job_id=job_id,
+                            )
                         continue
                     if not decision.suggested_reply:
                         summary.skipped_validation += 1
+                        if draft_update_context is not None:
+                            await _fail_pending_draft_update(
+                                session,
+                                draft_update_context,
+                                reason="detector_missing_rewrite",
+                                job_id=job_id,
+                            )
                         continue
                     if (
                         decision.source_tg_message_id is not None
@@ -166,6 +281,13 @@ async def process_engagement_detect(
                         and decision.source_tg_message_id != source_message.tg_message_id
                     ):
                         summary.skipped_validation += 1
+                        if draft_update_context is not None:
+                            await _fail_pending_draft_update(
+                                session,
+                                draft_update_context,
+                                reason="detector_source_mismatch",
+                                job_id=job_id,
+                            )
                         continue
                     detected_at = _utcnow()
                     inferred_timeliness = infer_candidate_timeliness(
@@ -187,6 +309,13 @@ async def process_engagement_detect(
                     ):
                         summary.skipped_stale += 1
                         LOGGER.info("Skipping stale engagement candidate job_id=%s community_id=%s topic_id=%s source_tg_message_id=%s", job_id, validated_payload.community_id, topic.id, source_message.tg_message_id)
+                        if draft_update_context is not None:
+                            await _fail_pending_draft_update(
+                                session,
+                                draft_update_context,
+                                reason="rewrite_candidate_stale",
+                                job_id=job_id,
+                            )
                         continue
                     try:
                         moment_strength = normalize_moment_strength(decision.moment_strength)
@@ -197,6 +326,13 @@ async def process_engagement_detect(
                     except EngagementValidationError:
                         summary.skipped_validation += 1
                         LOGGER.info("Normalized detector output failed validation job_id=%s community_id=%s topic_id=%s source_tg_message_id=%s", job_id, validated_payload.community_id, topic.id, source_message.tg_message_id)
+                        if draft_update_context is not None:
+                            await _fail_pending_draft_update(
+                                session,
+                                draft_update_context,
+                                reason="rewrite_candidate_validation_failed",
+                                job_id=job_id,
+                            )
                         continue
                     model_output = decision.model_dump(mode="json", exclude_none=True)
                     model_output["moment_strength"] = moment_strength
@@ -229,11 +365,23 @@ async def process_engagement_detect(
                             ),
                             detected_at=detected_at,
                             reply_deadline_minutes=reply_deadline_minutes,
-                            selected_telegram_account_id=membership.telegram_account_id,
+                            selected_telegram_account_id=selected_telegram_account_id,
+                            ignored_duplicate_candidate_ids=(
+                                draft_update_context.ignored_duplicate_candidate_ids
+                                if draft_update_context is not None
+                                else None
+                            ),
                         )
                     except EngagementValidationError:
                         summary.skipped_validation += 1
                         LOGGER.info("Candidate creation validation failed job_id=%s community_id=%s topic_id=%s source_tg_message_id=%s", job_id, validated_payload.community_id, topic.id, source_message.tg_message_id)
+                        if draft_update_context is not None:
+                            await _fail_pending_draft_update(
+                                session,
+                                draft_update_context,
+                                reason="candidate_creation_validation_failed",
+                                job_id=job_id,
+                            )
                         continue
 
                     if creation.created:
@@ -242,6 +390,29 @@ async def process_engagement_detect(
                             summary.semantic_candidates_created += 1
                     else:
                         summary.skipped_dedupe += 1
+                    if draft_update_context is not None:
+                        completed_request = await complete_draft_update_request(
+                            session,
+                            source_candidate_id=draft_update_context.source_candidate.id,
+                            replacement_candidate_id=creation.candidate.id,
+                        )
+                        if completed_request is None:
+                            await _fail_pending_draft_update(
+                                session,
+                                draft_update_context,
+                                reason="rewrite_completion_failed",
+                                job_id=job_id,
+                            )
+                        else:
+                            LOGGER.info(
+                                "Completed pending draft update job_id=%s community_id=%s request_id=%s source_candidate_id=%s replacement_candidate_id=%s created=%s",
+                                job_id,
+                                validated_payload.community_id,
+                                completed_request.id,
+                                draft_update_context.source_candidate.id,
+                                creation.candidate.id,
+                                creation.created,
+                            )
                     LOGGER.info("Candidate creation result job_id=%s community_id=%s topic_id=%s source_tg_message_id=%s created=%s semantic_match=%s", job_id, validated_payload.community_id, topic.id, source_message.tg_message_id, creation.created, trigger_candidate.semantic_match is not None)
 
                 if detector_cap_reached:
@@ -261,101 +432,6 @@ async def process_engagement_detect(
 
 def run_engagement_detect_job(payload: dict[str, Any]) -> dict[str, object]:
     return asyncio.run(process_engagement_detect(payload))
-
-
-def _build_model_input(
-    *,
-    community: Community,
-    topic: EngagementTopic,
-    source_message: DetectionMessage,
-    community_context: CommunityContext,
-    style_rules: dict[str, list[str]],
-    semantic_match: SemanticTriggerMatch | None = None,
-) -> dict[str, Any]:
-    source_post = {
-        "tg_message_id": source_message.tg_message_id,
-        "reply_to_tg_message_id": source_message.reply_to_tg_message_id,
-        "text": _truncate_text(source_message.text, MAX_MESSAGE_CHARS),
-        "message_date": source_message.message_date.isoformat() if source_message.message_date else None,
-        "reply_context": _truncate_text(source_message.reply_context, MAX_MESSAGE_CHARS)
-        if source_message.reply_context
-        else None,
-    }
-    model_input: dict[str, Any] = {
-        "community": {
-            "id": str(community.id),
-            "title": community.title,
-            "username": community.username,
-            "description": community.description,
-            "is_group": bool(community.is_group),
-        },
-        "topic": {
-            "id": str(topic.id),
-            "name": topic.name,
-            "description": topic.description,
-            "stance_guidance": topic.stance_guidance,
-            "trigger_keywords": list(topic.trigger_keywords or []),
-            "negative_keywords": list(topic.negative_keywords or []),
-            "example_good_replies": list(topic.example_good_replies or []),
-            "example_bad_replies": list(topic.example_bad_replies or []),
-        },
-        "source_post": source_post,
-        "reply_context": _truncate_text(source_message.reply_context, MAX_MESSAGE_CHARS)
-        if source_message.reply_context
-        else None,
-        # Keep a single-message compatibility alias for older prompt templates during the transition.
-        "messages": [source_post],
-        "style": style_rules,
-        "community_context": {
-            "latest_summary": _truncate_text(community_context.latest_summary, 2000)
-            if community_context.latest_summary
-            else None,
-            "dominant_themes": community_context.dominant_themes[:20],
-        },
-    }
-    semantic_summary = _semantic_match_for_model_input(semantic_match)
-    if semantic_summary is not None:
-        model_input["semantic_match"] = semantic_summary
-    return model_input
-
-
-def _build_prompt_runtime(
-    model_input: dict[str, Any],
-    *,
-    prompt_selection: Any,
-    fallback_model: str,
-) -> dict[str, Any]:
-    profile = prompt_selection.profile
-    version = prompt_selection.version
-    fallback = prompt_selection.fallback
-    if profile is None:
-        assert fallback is not None
-        template = fallback.user_prompt_template
-        rendered = render_prompt_template(template, model_input)
-        return {
-            "prompt_profile_id": None,
-            "prompt_profile_version_id": None,
-            "profile_name": fallback.profile_name,
-            "version_number": None,
-            "model": fallback_model,
-            "temperature": fallback.temperature,
-            "max_output_tokens": fallback.max_output_tokens,
-            "system_prompt": DETECTION_INSTRUCTIONS,
-            "rendered_user_prompt": rendered,
-        }
-
-    rendered = render_prompt_template(profile.user_prompt_template, model_input)
-    return {
-        "prompt_profile_id": profile.id,
-        "prompt_profile_version_id": version.id if version is not None else None,
-        "profile_name": profile.name,
-        "version_number": version.version_number if version is not None else None,
-        "model": profile.model,
-        "temperature": profile.temperature,
-        "max_output_tokens": profile.max_output_tokens,
-        "system_prompt": profile.system_prompt,
-        "rendered_user_prompt": rendered,
-    }
 
 
 def _filter_detection_messages(
@@ -379,122 +455,6 @@ def _filter_detection_messages(
             continue
         eligible.append(message)
     return eligible
-
-
-async def _filter_existing_candidate_messages(
-    session: AsyncSession,
-    *,
-    community_id: object,
-    topic_id: object,
-    messages: list[DetectionMessage],
-) -> list[DetectionMessage]:
-    filtered: list[DetectionMessage] = []
-    for message in messages:
-        if await _has_active_candidate_duplicate(
-            session,
-            community_id=community_id,
-            topic_id=topic_id,
-            source_tg_message_id=message.tg_message_id,
-            source_excerpt=message.text,
-        ):
-            continue
-        filtered.append(message)
-    return filtered
-
-
-def _fit_model_input(model_input: dict[str, Any]) -> dict[str, Any]:
-    while _serialized_size(model_input) > MAX_MODEL_INPUT_BYTES and model_input["messages"]:
-        model_input["messages"].pop()
-    return model_input
-
-
-async def _load_style_bundle(
-    session: AsyncSession,
-    *,
-    account_id: Any,
-    community_id: Any,
-    topic_id: Any,
-) -> dict[str, list[str]]:
-    try:
-        bundle = await list_active_style_rules_for_prompt(
-            session,
-            account_id=account_id,
-            community_id=community_id,
-            topic_id=topic_id,
-        )
-    except AttributeError:
-        return {"global": [], "account": [], "community": [], "topic": []}
-    return bundle.to_dict()
-
-
-def _prompt_render_summary(
-    model_input: dict[str, Any],
-    *,
-    prompt_runtime: dict[str, Any],
-) -> dict[str, Any]:
-    style = model_input.get("style") if isinstance(model_input.get("style"), dict) else {}
-    summary: dict[str, Any] = {
-        "profile_name": prompt_runtime.get("profile_name"),
-        "version_number": prompt_runtime.get("version_number"),
-        "style_rule_counts": {
-            "global": len(style.get("global") or []),
-            "account": len(style.get("account") or []),
-            "community": len(style.get("community") or []),
-            "topic": len(style.get("topic") or []),
-        },
-        "message_count": len(model_input.get("messages") or []),
-        "source_post_present": isinstance(model_input.get("source_post"), dict),
-        "serialized_input_bytes": _serialized_size(_public_model_input(model_input)),
-    }
-    if isinstance(model_input.get("semantic_match"), dict):
-        summary["semantic_match"] = model_input["semantic_match"]
-    return summary
-
-
-async def _select_trigger_candidates(
-    session: AsyncSession,
-    *,
-    community_id: object,
-    topic: EngagementTopic,
-    messages: list[DetectionMessage],
-    runtime_settings: Settings,
-    semantic_selector: SemanticSelector,
-    semantic_observability: SemanticSelectionStats | None = None,
-) -> list[TriggerCandidate]:
-    if not messages:
-        return []
-    if runtime_settings.engagement_semantic_matching_enabled:
-        semantic_matches = await semantic_selector(
-            session,
-            community_id=community_id,
-            topic=topic,
-            messages=messages,
-            settings=runtime_settings,
-            observability=semantic_observability,
-        )
-        if semantic_matches and semantic_observability is not None:
-            semantic_observability.semantic_matches_selected = max(
-                semantic_observability.semantic_matches_selected,
-                len(semantic_matches),
-            )
-        if semantic_matches:
-            return [
-                TriggerCandidate(
-                    message=_coerce_detection_message(match.message),
-                    semantic_match=match,
-                )
-                for match in semantic_matches
-            ]
-        if not (topic.trigger_keywords or []):
-            return []
-        # Rollout fallback: only exact trigger keywords may rescue an empty semantic selection.
-        fallback_messages = _prefilter_messages(topic, messages, require_trigger=True)
-        return [TriggerCandidate(message=_select_source_message(fallback_messages))] if fallback_messages else []
-
-    if not (topic.trigger_keywords or []):
-        return []
-    matching_messages = _prefilter_messages(topic, messages, require_trigger=True)
-    return [TriggerCandidate(message=_select_source_message(matching_messages))] if matching_messages else []
 
 
 def _semantic_match_for_storage(match: SemanticTriggerMatch | None) -> dict[str, Any] | None:
@@ -527,12 +487,108 @@ def _is_manual_detect_request(payload: EngagementDetectPayload) -> bool:
     return payload.collection_run_id is None and payload.requested_by is not None
 
 
+async def _load_draft_update_context(
+    session: AsyncSession,
+    *,
+    community_id: object,
+    request_id: UUID | None,
+) -> DraftUpdateExecutionContext | None:
+    if request_id is None:
+        return None
+    request = await get_draft_update_request_by_id(session, request_id=request_id)
+    if request is None or request.status != "pending":
+        return None
+    if request.replacement_candidate_id is not None:
+        return None
+
+    source_candidate = await session.get(EngagementCandidate, request.source_candidate_id)
+    if source_candidate is None:
+        await fail_draft_update_request(session, request_id=request.id)
+        return None
+    if (
+        source_candidate.community_id != community_id
+        or source_candidate.status != EngagementCandidateStatus.NEEDS_REVIEW.value
+        or source_candidate.topic_id is None
+    ):
+        await fail_draft_update_request(session, request_id=request.id)
+        return None
+
+    topic = await session.get(EngagementTopic, source_candidate.topic_id)
+    if topic is None:
+        await fail_draft_update_request(session, request_id=request.id)
+        return None
+
+    source_text = sanitize_candidate_excerpt(source_candidate.source_excerpt) or ""
+    if not source_text:
+        await fail_draft_update_request(session, request_id=request.id)
+        return None
+    revision_requests = await list_draft_update_requests_for_engagement(
+        session,
+        engagement_id=request.engagement_id,
+    )
+    ignored_duplicate_candidate_ids = _draft_update_ignored_candidate_ids(
+        request=request,
+        source_candidate=source_candidate,
+        revision_requests=revision_requests,
+    )
+    return DraftUpdateExecutionContext(
+        request=request,
+        source_candidate=source_candidate,
+        topic=topic,
+        source_message=DetectionMessage(
+            tg_message_id=source_candidate.source_tg_message_id,
+            text=source_text,
+            message_date=source_candidate.source_message_date,
+            reply_to_tg_message_id=source_candidate.source_reply_to_tg_message_id,
+            reply_context=None,
+            is_replyable=True,
+        ),
+        ignored_duplicate_candidate_ids=ignored_duplicate_candidate_ids,
+    )
+
+
+async def _fail_pending_draft_update(
+    session: AsyncSession,
+    context: DraftUpdateExecutionContext,
+    *,
+    reason: str,
+    job_id: str,
+) -> None:
+    failed = await fail_draft_update_request(session, request_id=context.request.id)
+    if failed is None:
+        return
+    LOGGER.info(
+        "Failed pending draft update job_id=%s community_id=%s request_id=%s source_candidate_id=%s reason=%s",
+        job_id,
+        context.source_candidate.community_id,
+        context.request.id,
+        context.source_candidate.id,
+        reason,
+    )
+
+
 def _reply_deadline_minutes(runtime_settings: object) -> int:
     value = getattr(runtime_settings, "engagement_reply_deadline_minutes", 90)
     try:
         return max(int(value), 1)
     except (TypeError, ValueError):
         return 90
+
+
+def _draft_update_ignored_candidate_ids(
+    *,
+    request: EngagementDraftUpdateRequest,
+    source_candidate: EngagementCandidate,
+    revision_requests: list[EngagementDraftUpdateRequest],
+) -> set[UUID]:
+    ignored: set[UUID] = {source_candidate.id}
+    for revision_request in revision_requests:
+        if revision_request.engagement_id != request.engagement_id:
+            continue
+        ignored.add(revision_request.source_candidate_id)
+        if revision_request.replacement_candidate_id is not None:
+            ignored.add(revision_request.replacement_candidate_id)
+    return ignored
 
 
 async def detect_with_openai(model_input: dict[str, Any]) -> EngagementDetectionDecision:
@@ -577,29 +633,6 @@ async def detect_with_openai(model_input: dict[str, Any]) -> EngagementDetection
     return decision
 
 
-def _semantic_match_for_model_input(match: SemanticTriggerMatch | None) -> dict[str, Any] | None:
-    if match is None:
-        return None
-    return {
-        "embedding_model": match.embedding_model,
-        "embedding_dimensions": match.embedding_dimensions,
-        "similarity": round(float(match.similarity), 6),
-        "threshold": round(float(match.threshold), 6),
-        "rank": match.rank,
-    }
-
-
-def _truncate_text(value: str | None, limit: int) -> str:
-    sanitized = sanitize_candidate_excerpt(value) or ""
-    return sanitized[:limit]
-
-
-def _ensure_aware_utc(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
-
-
 def _infer_reply_deadline_at(
     *,
     source_message_date: datetime | None,
@@ -623,97 +656,6 @@ def _infer_review_deadline_at(
         detected_at=detected_at,
         reply_deadline_minutes=reply_deadline_minutes,
     ) - timedelta(minutes=30)
-
-
-async def _has_active_candidate_duplicate(
-    session: AsyncSession,
-    *,
-    community_id: object,
-    topic_id: object,
-    source_tg_message_id: int | None,
-    source_excerpt: str | None,
-) -> bool:
-    active_statuses = (
-        EngagementCandidateStatus.NEEDS_REVIEW.value,
-        EngagementCandidateStatus.APPROVED.value,
-    )
-    query = select(EngagementCandidate).where(
-        EngagementCandidate.community_id == community_id,
-        EngagementCandidate.topic_id == topic_id,
-        EngagementCandidate.status.in_(active_statuses),
-    )
-    if source_tg_message_id is not None:
-        query = query.where(EngagementCandidate.source_tg_message_id == source_tg_message_id)
-    else:
-        query = query.where(
-            EngagementCandidate.source_tg_message_id.is_(None),
-            EngagementCandidate.source_excerpt == sanitize_candidate_excerpt(source_excerpt),
-        )
-    return await session.scalar(query.limit(1)) is not None
-
-
-def _serialized_size(value: dict[str, Any]) -> int:
-    return len(json.dumps(value, ensure_ascii=True, default=str).encode("utf-8"))
-
-
-def _public_model_input(model_input: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in model_input.items() if not key.startswith("_")}
-
-
-def _coerce_detection_message(message: object) -> DetectionMessage:
-    if isinstance(message, DetectionMessage):
-        return message
-    return DetectionMessage(
-        tg_message_id=getattr(message, "tg_message_id", None),
-        text=str(getattr(message, "text", "") or ""),
-        message_date=getattr(message, "message_date", None),
-        reply_context=getattr(message, "reply_context", None),
-        is_replyable=bool(getattr(message, "is_replyable", True)),
-    )
-
-
-def _prefilter_messages(
-    topic: EngagementTopic,
-    messages: list[DetectionMessage],
-    *,
-    require_trigger: bool = False,
-) -> list[DetectionMessage]:
-    triggers = [keyword.casefold() for keyword in topic.trigger_keywords or [] if keyword]
-    negatives = [keyword.casefold() for keyword in topic.negative_keywords or [] if keyword]
-    if require_trigger and not triggers:
-        return []
-    matches: list[DetectionMessage] = []
-    for message in messages:
-        text = message.text.casefold()
-        if (triggers or require_trigger) and not any(keyword in text for keyword in triggers):
-            continue
-        if negatives and any(keyword in text for keyword in negatives):
-            continue
-        matches.append(message)
-    return matches
-
-
-def _select_source_message(
-    messages: list[DetectionMessage],
-    source_tg_message_id: int | None = None,
-) -> DetectionMessage:
-    if source_tg_message_id is not None:
-        for message in messages:
-            if message.tg_message_id == source_tg_message_id:
-                return message
-    return max(
-        messages,
-        key=lambda message: (
-            _sortable_datetime(message.message_date),
-            message.tg_message_id or -1,
-        ),
-    )
-
-
-def _sortable_datetime(value: datetime | None) -> datetime:
-    if value is None:
-        return datetime.min.replace(tzinfo=timezone.utc)
-    return _ensure_aware_utc(value)
 
 
 def _current_job_id() -> str | None:

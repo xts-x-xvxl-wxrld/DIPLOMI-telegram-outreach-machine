@@ -79,8 +79,8 @@ async def _preview_topic_create_sample(
     if operator_id is None:
         await _callback_reply(update, "Telegram did not include a user ID on this update.")
         return
-    pending = _config_edit_store(context).get(operator_id)
-    if pending is None or pending.entity != "topic_create" or not isinstance(pending.parsed_value, dict):
+    pending = _get_topic_brief_pending(context, operator_id, restore_missing=True)
+    if pending is None or not isinstance(pending.parsed_value, dict):
         await _callback_reply(update, "Finish the draft brief before testing a sample post.")
         return
     client = _api_client(context)
@@ -242,6 +242,7 @@ async def _show_topic_create_pending(
     reply_func: Any,
     notice: str | None = None,
 ) -> None:
+    _remember_topic_brief_pending(context, pending)
     if pending.flow_step == "confirm" and isinstance(pending.parsed_value, dict):
         text = render_edit_preview(pending)
         markup = await _topic_create_confirmation_markup(context, pending)
@@ -537,8 +538,8 @@ async def _handle_topic_brief_scope_choice(
     if operator_id is None:
         await _callback_reply(update, "Telegram did not include a user ID on this update.")
         return
-    pending = _config_edit_store(context).get(operator_id)
-    if pending is None or pending.entity != "topic_create":
+    pending = _get_topic_brief_pending(context, operator_id, restore_missing=True)
+    if pending is None:
         await _callback_reply(update, "No draft brief is waiting right now.")
         return
     state = dict(pending.flow_state or {})
@@ -587,8 +588,8 @@ async def _handle_topic_brief_existing_rule_choice(
     if operator_id is None:
         await _callback_reply(update, "Telegram did not include a user ID on this update.")
         return
-    pending = _config_edit_store(context).get(operator_id)
-    if pending is None or pending.entity != "topic_create":
+    pending = _get_topic_brief_pending(context, operator_id, restore_missing=True)
+    if pending is None:
         await _callback_reply(update, "No draft brief is waiting right now.")
         return
     client = _api_client(context)

@@ -35,12 +35,14 @@ def format_draft_card(data: dict[str, Any], *, index: int | None = None) -> str:
     why = str(data.get("why") or "No context provided")
     badge = data.get("badge")
     identity_lines = _draft_identity_lines(data)
+    source_message_lines = _draft_source_message_lines(data)
 
     heading = f"{index}. {target_label}" if index is not None else target_label
     lines = [heading]
     if badge:
         lines.append(f"Status: {badge}")
     lines.extend(identity_lines)
+    lines.extend(source_message_lines)
     lines.extend(
         [
             "",
@@ -73,6 +75,7 @@ def format_approve_confirm(draft_id: str, draft_data: dict[str, Any]) -> str:
     text = str(draft_data.get("text") or "")
     lines = [f"Approve this draft for {target_label}?"]
     lines.extend(_draft_identity_lines(draft_data))
+    lines.extend(_draft_source_message_lines(draft_data))
     lines.extend(["", "Draft", _shorten(text, 400), "", "Confirm queues it to send."])
     return "\n".join(lines)
 
@@ -82,6 +85,7 @@ def format_reject_confirm(draft_id: str, draft_data: dict[str, Any]) -> str:
     text = str(draft_data.get("text") or "")
     lines = [f"Reject this draft for {target_label}?"]
     lines.extend(_draft_identity_lines(draft_data))
+    lines.extend(_draft_source_message_lines(draft_data))
     lines.extend(["", "Draft", _shorten(text, 400), "", "Confirm removes it from the queue."])
     return "\n".join(lines)
 
@@ -91,6 +95,7 @@ def format_edit_request_prompt(draft_id: str, draft_data: dict[str, Any]) -> str
     text = str(draft_data.get("text") or "")
     lines = [f"Request changes for {target_label}"]
     lines.extend(_draft_identity_lines(draft_data))
+    lines.extend(_draft_source_message_lines(draft_data))
     lines.extend(
         [
             "",
@@ -138,3 +143,14 @@ def _draft_identity_lines(data: dict[str, Any]) -> list[str]:
     if community_label and community_label != engagement_label:
         lines.append(f"Community: {community_label}")
     return lines
+
+
+def _draft_source_message_lines(data: dict[str, Any]) -> list[str]:
+    source_excerpt = str(data.get("source_excerpt") or "").strip()
+    if not source_excerpt:
+        return []
+    return [
+        "",
+        "Source message",
+        _shorten(source_excerpt, 500),
+    ]

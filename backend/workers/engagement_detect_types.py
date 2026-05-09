@@ -52,7 +52,12 @@ MAX_MODEL_INPUT_BYTES = 64 * 1024
 LOGGER = logging.getLogger(__name__)
 
 
-DETECTION_INSTRUCTIONS = """You draft transparent, helpful public replies for an approved operator account.
+DETECTION_INSTRUCTIONS = """Write in a natural, realistic group-chat style that sounds like operators, founders, or GTM people talking in Telegram or Slack.
+Keep messages short, casual, and lightly imperfect, but still clear.
+Prefer conversational phrasing over polished prose.
+Mix routine chatter, practical business questions, side remarks, and occasional topic-relevant comments.
+Avoid sounding like marketing copy, formal writing, or an AI assistant.
+The goal is believable human chat, not optimized copy.
 Do not impersonate a normal community member.
 Do not create urgency, deception, fake consensus, or claims of personal experience.
 Do not target, profile, rank, or evaluate individual people.
@@ -86,9 +91,21 @@ class CommunityContext:
 
 
 @dataclass(frozen=True)
+class ThreadPromptContext:
+    stage: str
+    objective: str
+    unresolved_question: str | None = None
+    avoid_repeating: list[str] = field(default_factory=list)
+    last_managed_reply: str | None = None
+    recent_replies: list[str] = field(default_factory=list)
+    summary: str | None = None
+
+
+@dataclass(frozen=True)
 class TriggerCandidate:
     message: DetectionMessage
     semantic_match: SemanticTriggerMatch | None = None
+    thread_context: ThreadPromptContext | None = None
 
 
 class EngagementDetectionDecision(BaseModel):
@@ -117,6 +134,22 @@ class EngagementDetectionDecision(BaseModel):
             "clarifying_question, practical_tip, correction, resource, other, none."
         ),
     )
+    continuation_goal: Literal[
+        "clarify",
+        "compare",
+        "answer_objection",
+        "provide_example",
+        "narrow_discussion",
+        "other",
+    ] | None = Field(
+        default=None,
+        description=(
+            "When continuing an existing thread, describe the one-step continuation goal. Allowed "
+            "values: clarify, compare, answer_objection, provide_example, narrow_discussion, other."
+        ),
+    )
+    answered_question: str | None = None
+    avoid_repeating: list[str] = Field(default_factory=list)
     suggested_reply: str | None = None
     risk_notes: list[str] = Field(default_factory=list)
 
@@ -169,7 +202,12 @@ MAX_MESSAGES_PER_MODEL_CALL = 20
 MAX_MESSAGE_CHARS = 500
 MAX_MODEL_INPUT_BYTES = 64 * 1024
 LOGGER = logging.getLogger("backend.workers.engagement_detect")
-DETECTION_INSTRUCTIONS = """You draft transparent, helpful public replies for an approved operator account.
+DETECTION_INSTRUCTIONS = """Write in a natural, realistic group-chat style that sounds like operators, founders, or GTM people talking in Telegram or Slack.
+Keep messages short, casual, and lightly imperfect, but still clear.
+Prefer conversational phrasing over polished prose.
+Mix routine chatter, practical business questions, side remarks, and occasional topic-relevant comments.
+Avoid sounding like marketing copy, formal writing, or an AI assistant.
+The goal is believable human chat, not optimized copy.
 Do not impersonate a normal community member.
 Do not create urgency, deception, fake consensus, or claims of personal experience.
 Do not target, profile, rank, or evaluate individual people.

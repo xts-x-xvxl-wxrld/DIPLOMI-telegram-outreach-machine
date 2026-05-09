@@ -188,15 +188,18 @@ Step 5 — Final review
   1. enqueue the first `engagement.detect` job for the target
   2. only on enqueue acceptance, activate the engagement and flip the target to
      `APPROVED` when needed
-  3. show a short started confirmation
-  4. open the engagement detail flow
+  3. send a short started confirmation as a fresh bot reply so the success note
+     remains visible in chat
+  4. immediately follow the backend `next_callback` for the post-confirm
+     cockpit handoff; the current success target is the engagement detail flow
 - Success gate:
   detect job accepted and target at `APPROVED`.
 - Failure modes:
   - detect enqueue fails: stay on final review and show the queue error
 - Behavior:
   - `Retry` restarts the wizard from Step 1
-  - `Cancel` requires confirmation before discard
+  - `Cancel` requires confirmation before discard and then returns to
+    `Engagements` home
 
 ## Start-Again Behavior
 
@@ -219,6 +222,7 @@ Step 5 — Final review
 - `/cancel_edit` remains active throughout the wizard.
 - Cancel never promotes a target to `APPROVED`.
 - Cancelled or incomplete setup does not surface on home.
+- Confirmed inline cancel returns the operator to `Engagements` home.
 - Partial backend rows may remain, but they are implementation detail, not user
   flow state.
 
@@ -245,8 +249,8 @@ Commit rules:
 
 - `Back` changes screen position only; it does not discard durable draft writes
 - `Retry` clears wizard-owned draft choices and restarts at Step 1
-- `Cancel` abandons the wizard flow without surfacing the incomplete engagement
-  in normal lists
+- `Cancel` abandons the wizard flow, returns to `Engagements` home after
+  confirmation, and does not surface the incomplete engagement in normal lists
 - `Confirm` is the only action that may activate the engagement
 
 Endpoint split:

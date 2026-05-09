@@ -78,6 +78,7 @@ class CockpitApprovalItemView:
     target_label: str
     engagement_label: str
     community_label: str
+    source_excerpt: str | None
     text: str
     why: str
     badge: str | None
@@ -280,6 +281,7 @@ async def get_cockpit_approvals(
             target_label=_engagement_target_label(first.engagement, data),
             engagement_label=_engagement_primary_label(first.engagement, data),
             community_label=_community_label(community),
+            source_excerpt=first.candidate.source_excerpt,
             text=_draft_text(first.candidate),
             why=_candidate_why(first.candidate),
             badge=first.badge,
@@ -530,6 +532,7 @@ def _approval_records(data: _CockpitData, *, engagement_id: UUID | None = None) 
     hidden_source_candidate_ids = {
         request.source_candidate_id
         for request in data.draft_update_requests
+        if request.status in {"pending", "completed"}
     }
     updated_candidate_ids = {
         request.replacement_candidate_id

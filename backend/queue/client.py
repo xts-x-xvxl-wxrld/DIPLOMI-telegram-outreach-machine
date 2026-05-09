@@ -303,6 +303,7 @@ def enqueue_engagement_detect(
     community_id: UUID,
     *,
     collection_run_id: UUID | None = None,
+    draft_update_request_id: UUID | None = None,
     window_minutes: int = 60,
     requested_by: str | None = None,
     job_id_prefix: str = "engagement.detect",
@@ -311,13 +312,18 @@ def enqueue_engagement_detect(
     payload = EngagementDetectPayload(
         community_id=community_id,
         collection_run_id=collection_run_id,
+        draft_update_request_id=draft_update_request_id,
         window_minutes=window_minutes,
         requested_by=requested_by,
     )
     job_id = (
         f"{job_id_prefix}:{community_id}:{collection_run_id}"
         if collection_run_id is not None
-        else _hourly_job_id(job_id_prefix, community_id, now=now)
+        else (
+            f"{job_id_prefix}:{community_id}:{draft_update_request_id}"
+            if draft_update_request_id is not None
+            else _hourly_job_id(job_id_prefix, community_id, now=now)
+        )
     )
     return enqueue_job(
         "engagement.detect",
