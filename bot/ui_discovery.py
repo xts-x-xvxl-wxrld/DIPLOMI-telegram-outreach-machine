@@ -47,7 +47,7 @@ def operator_cockpit_markup():
 
 def discovery_cockpit_markup():
     rows = [
-        [_button("➕ Start search", ACTION_DISC_START)],
+        [_button("📥 Add examples", ACTION_DISC_START)],
         [_button("⚠ Needs attention", ACTION_DISC_ATTENTION)],
         [_button("🧩 Review communities", ACTION_DISC_REVIEW)],
         [_button("👀 Watching", ACTION_DISC_WATCHING)],

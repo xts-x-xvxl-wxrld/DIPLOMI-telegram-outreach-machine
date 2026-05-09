@@ -19,6 +19,11 @@ The top-level operator cockpit is specified in `wiki/spec/bot-operator-cockpit.m
 replaces the old persistent reply-keyboard menu with inline navigation while preserving slash
 commands as durable shortcuts. Telegram's command menu may advertise only a short allowlist of
 cockpit-entry commands: `/start`, `/seeds`, `/engagement`, `/accounts`, and `/help`.
+
+Query-driven `/search...` bot commands are currently a disabled compatibility path. When an
+operator triggers them manually or taps stale inline search cards, the bot should return a
+temporary-unavailable message and redirect the operator to CSV seed import or direct public handle
+intake.
 ## Operator Access
 
 The bot may be restricted with `TELEGRAM_ALLOWED_USER_IDS`, a comma- or whitespace-separated list of
@@ -80,5 +85,7 @@ The current MVP bot uses approve-as-monitoring to keep the first workflow short.
 - The accounts cockpit should expose add-account buttons for the `search` and `engagement` pools
   and route them to pool-specific `/add_account ...` usage instructions.
 - Bot copy should describe communities, not outreach targets.
+- Bot copy should avoid advertising disabled query-driven search features while the temporary
+  bot-side search kill switch is active.
 - Engagement controls must not combine approval and sending unless a later spec explicitly enables
   that workflow.

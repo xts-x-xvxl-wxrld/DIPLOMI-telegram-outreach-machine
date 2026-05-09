@@ -720,7 +720,8 @@ async def callback_query(update: Any, context: Any) -> None:
         if action == ACTION_DISC_START:
             await _callback_reply(
                 update,
-                "Start search\n\n"
+                "Add example communities\n\n"
+                "Bot search is temporarily unavailable right now.\n"
                 "Upload a CSV with group_name,channel columns.\n"
                 "Or send @username or a public t.me link directly.",
                 reply_markup=discovery_cockpit_markup(),

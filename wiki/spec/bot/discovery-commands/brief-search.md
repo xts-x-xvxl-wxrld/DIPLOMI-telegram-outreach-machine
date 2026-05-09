@@ -2,6 +2,11 @@
 
 Detailed optional brief and query-driven search command contracts.
 
+The active bot currently keeps these commands disabled as a compatibility path. Until bot search is
+re-enabled, the bot should reject `/search...` commands and stale inline search callbacks with a
+temporary-unavailable message that points operators back to CSV seed import or direct public handle
+intake.
+
 ### `/brief <audience description>`
 
 Optional/future command. The active MVP should not require briefs for discovery.

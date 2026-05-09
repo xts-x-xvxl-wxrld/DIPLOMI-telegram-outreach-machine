@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from bot.main import API_CLIENT_KEY, callback_query, search_candidates_command, search_command
-from bot.ui import ACTION_SEARCH_CONVERT, ACTION_SEARCH_REVIEW, ACTION_SEARCH_RUN_CANDIDATES
+from bot.ui import ACTION_SEARCH_CONVERT, ACTION_SEARCH_REVIEW
 
 
 class _FakeMessage:
@@ -147,7 +147,7 @@ def _make_context(client: _FakeApiClient) -> Any:
 
 
 @pytest.mark.asyncio
-async def test_search_command_creates_run_with_operator_ref() -> None:
+async def test_search_command_reports_temporary_unavailability() -> None:
     client = _FakeApiClient()
     update = _make_update("/search Hungarian SaaS founders")
     context = _make_context(client)
@@ -155,17 +155,14 @@ async def test_search_command_creates_run_with_operator_ref() -> None:
 
     await search_command(update, context)
 
-    assert client.created_searches == [
-        {"query": "Hungarian SaaS founders", "requested_by": "telegram:123"}
-    ]
+    assert client.created_searches == []
     reply = update.message.replies[0]
-    assert "Community search queued" in reply["text"]
-    callbacks = [button.callback_data for row in reply["reply_markup"].inline_keyboard for button in row]
-    assert any(callback.startswith(ACTION_SEARCH_RUN_CANDIDATES) for callback in callbacks)
+    assert "temporarily unavailable" in reply["text"].lower()
+    assert reply["reply_markup"] is None
 
 
 @pytest.mark.asyncio
-async def test_search_candidates_command_shows_review_and_conversion_actions() -> None:
+async def test_search_candidates_command_reports_temporary_unavailability() -> None:
     client = _FakeApiClient()
     update = _make_update("/search_candidates run-1")
     context = _make_context(client)
@@ -173,39 +170,33 @@ async def test_search_candidates_command_shows_review_and_conversion_actions() -
 
     await search_candidates_command(update, context)
 
-    card_reply = update.message.replies[1]
-    assert "Hungarian SaaS Founders" in card_reply["text"]
-    assert "Title matched SaaS founders" in card_reply["text"]
-    callbacks = [button.callback_data for row in card_reply["reply_markup"].inline_keyboard for button in row]
-    assert any(callback.startswith(ACTION_SEARCH_REVIEW) for callback in callbacks)
-    assert any(callback.startswith(ACTION_SEARCH_CONVERT) for callback in callbacks)
+    assert len(update.message.replies) == 1
+    reply = update.message.replies[0]
+    assert "temporarily unavailable" in reply["text"].lower()
+    assert reply["reply_markup"] is None
 
 
 @pytest.mark.asyncio
-async def test_search_review_callback_promotes_candidate_then_offers_conversion() -> None:
+async def test_search_review_callback_reports_temporary_unavailability() -> None:
     client = _FakeApiClient()
     update = _make_callback_update(f"{ACTION_SEARCH_REVIEW}:cand-1:promote")
     context = _make_context(client)
 
     await callback_query(update, context)
 
-    assert client.review_calls == [
-        {"candidate_id": "cand-1", "action": "promote", "requested_by": "telegram:123"}
-    ]
+    assert client.review_calls == []
     reply = update.callback_query.message.replies[0]
-    callbacks = [button.callback_data for row in reply["reply_markup"].inline_keyboard for button in row]
-    assert f"{ACTION_SEARCH_CONVERT}:cand-1" in callbacks
+    assert "temporarily unavailable" in reply["text"].lower()
+    assert reply["reply_markup"] is None
 
 
 @pytest.mark.asyncio
-async def test_search_convert_callback_calls_seed_conversion_endpoint() -> None:
+async def test_search_convert_callback_reports_temporary_unavailability() -> None:
     client = _FakeApiClient()
     update = _make_callback_update(f"{ACTION_SEARCH_CONVERT}:cand-1")
     context = _make_context(client)
 
     await callback_query(update, context)
 
-    assert client.convert_calls == [
-        {"candidate_id": "cand-1", "seed_group_name": None, "requested_by": "telegram:123"}
-    ]
-    assert "converted to seed" in update.callback_query.message.replies[0]["text"]
+    assert client.convert_calls == []
+    assert "temporarily unavailable" in update.callback_query.message.replies[0]["text"].lower()

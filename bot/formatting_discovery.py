@@ -39,11 +39,11 @@ def format_discovery_cockpit(
     if review_count:
         lines.append(_bullet(f"Review {review_count} suggested communities next.", icon="➡"))
     elif attention_count:
-        lines.append(_bullet(f"Check {attention_count} searches that need attention next.", icon="➡"))
+        lines.append(_bullet(f"Check {attention_count} discovery items that need attention next.", icon="➡"))
     elif activity_count:
         lines.append(_bullet(f"Inspect {activity_count} recent jobs next.", icon="➡"))
     else:
-        lines.append(_bullet("Start a search from example communities.", icon="➡"))
+        lines.append(_bullet("Add example communities or review queued communities next.", icon="➡"))
     lines.extend(
         [
             "",
@@ -77,7 +77,7 @@ def format_discovery_help() -> str:
             _bullet("No people search and no person-level scores.", icon="🛡"),
             "",
             _section("Buttons", icon="🔘"),
-            _bullet("Start search launches a new discovery run."),
+            _bullet("Add examples opens CSV and direct-handle intake guidance."),
             _bullet("Needs attention collects blocked or stalled work."),
             _bullet("Review communities opens the candidate-review queue."),
             _bullet("Watching and Recent activity open live discovery follow-up views."),
@@ -97,7 +97,7 @@ def format_help() -> str:
             _bullet("Direct add: send @username or a public t.me link."),
             "",
             _section("Buttons", icon="🔘"),
-            _bullet("Discovery opens search, review, and community follow-up work."),
+            _bullet("Discovery opens example imports, review, and community follow-up work."),
             _bullet("Engagement opens reply review, issues, sent messages, and setup."),
             _bullet("Accounts opens account health plus add-account actions."),
             _bullet("Help returns to this card."),
@@ -116,14 +116,14 @@ def format_start() -> str:
             _section("Primary flow", icon="🧭"),
             "1. Upload a CSV with group_name,channel columns",
             "2. Open Discovery",
-            "3. Start search or review queued communities",
+            "3. Add example communities or review queued communities",
             "4. Open community cards for snapshots, members, and engagement setup",
             "",
             _section("Quick add", icon="➕"),
             "Send @username or a public t.me link to classify and save it.",
             "",
             _section("Cockpit", icon="🔘"),
-            _bullet("Discovery covers search intake, review queues, and recent activity."),
+            _bullet("Discovery covers example imports, review queues, and recent activity."),
             _bullet("Engagement covers reply work, issues, sent messages, and setup."),
             _bullet("Accounts covers health plus add search/add engagement onboarding."),
             _bullet("Use the inline cards inside each area for deeper actions."),

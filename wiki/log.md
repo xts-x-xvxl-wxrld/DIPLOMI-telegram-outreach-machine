@@ -2931,6 +2931,18 @@ while preserving the staged testing contract.
   new continuation output fields, plus code-index updates for the new detect
   prompt/test seams.
 
+## [2026-05-09] change | Temporarily remove query-driven search from bot access
+
+- Added `wiki/plan/bot-search-temporary-removal.md` to capture the bot-only temporary removal
+  approach.
+- Updated the bot Discovery cockpit copy so it now advertises example import/review work instead of
+  `Start search`, while keeping CSV upload and direct public Telegram handle intake available.
+- Added a bot-side search kill switch in `bot/search_handlers.py` so legacy `/search...` commands
+  and stale inline search callbacks now return a temporary-unavailable message instead of reaching
+  the backend search API.
+- Added focused regression coverage for the temporary-unavailable search path plus the renamed
+  Discovery copy, and recorded the wiring in a new developer doc module.
+
 ## [2026-05-09] fix | Notify operators when revised approval drafts arrive after fallback
 
 - Added `wiki/plan/engagement-approval-update-notifications.md` to capture the

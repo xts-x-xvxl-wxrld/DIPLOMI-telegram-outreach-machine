@@ -40,6 +40,7 @@ Do not use this lane for operator instructions or to restate the full behavior s
   reply plus backend callback reroute seam after task-first wizard confirm
 - [Engagement Wizard Cancel Home](modules/engagement-wizard-cancel-home.md) - confirmed
   wizard cancel reroute back to the shared `Engagements` cockpit home
+- [Bot Search Temporary Removal](modules/bot-search-temporary-removal.md) - bot-side kill switch, Discovery copy changes, and stale search-callback blocking
 - [Engagement Topic Brief State](modules/engagement-topic-brief-state.md) - bot-side `topic_create`
   pending-edit recovery, snapshot cleanup, and stale-callback seam
 

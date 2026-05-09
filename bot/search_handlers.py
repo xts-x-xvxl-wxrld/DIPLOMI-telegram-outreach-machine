@@ -36,9 +36,35 @@ from .runtime_parsing import _first_arg, _parse_offset
 
 SEARCH_CANDIDATE_PAGE_SIZE = 5
 PRIVATE_INVITE_RE = re.compile(r"(?:t\.me|telegram\.me)/(?:\+|joinchat/)", re.IGNORECASE)
+# Temporary kill switch while the bot stays focused on seed-first intake and review.
+SEARCH_BOT_ACCESS_ENABLED = False
+SEARCH_BOT_ACCESS_DISABLED_MESSAGE = (
+    "Bot search is temporarily unavailable.\n\n"
+    "Use Discovery import instead:\n"
+    "- Upload a CSV with group_name,channel\n"
+    "- Or send @username or a public t.me link directly."
+)
+SEARCH_CALLBACK_ACTIONS = {
+    ACTION_SEARCH_RUN_OPEN,
+    ACTION_SEARCH_RUN_CANDIDATES,
+    ACTION_SEARCH_REVIEW,
+    ACTION_SEARCH_CONVERT,
+    ACTION_SEARCH_RERANK,
+}
+
+
+async def _reply_search_unavailable(update: Any) -> None:
+    await _reply(update, SEARCH_BOT_ACCESS_DISABLED_MESSAGE)
+
+
+async def _callback_search_unavailable(update: Any) -> None:
+    await _callback_reply(update, SEARCH_BOT_ACCESS_DISABLED_MESSAGE)
 
 
 async def search_command(update: Any, context: Any) -> None:
+    if not SEARCH_BOT_ACCESS_ENABLED:
+        await _reply_search_unavailable(update)
+        return
     query = " ".join(context.args).strip()
     if not query:
         await _reply(update, "Usage: /search <plain language query>")
@@ -59,6 +85,9 @@ async def search_command(update: Any, context: Any) -> None:
 
 
 async def searches_command(update: Any, context: Any) -> None:
+    if not SEARCH_BOT_ACCESS_ENABLED:
+        await _reply_search_unavailable(update)
+        return
     try:
         await _send_search_runs(update, context)
     except BotApiError as exc:
@@ -66,6 +95,9 @@ async def searches_command(update: Any, context: Any) -> None:
 
 
 async def search_run_command(update: Any, context: Any) -> None:
+    if not SEARCH_BOT_ACCESS_ENABLED:
+        await _reply_search_unavailable(update)
+        return
     search_run_id = _first_arg(context)
     if search_run_id is None:
         await _reply(update, "Usage: /search_run <search_run_id>")
@@ -77,6 +109,9 @@ async def search_run_command(update: Any, context: Any) -> None:
 
 
 async def search_candidates_command(update: Any, context: Any) -> None:
+    if not SEARCH_BOT_ACCESS_ENABLED:
+        await _reply_search_unavailable(update)
+        return
     search_run_id = _first_arg(context)
     if search_run_id is None:
         await _reply(update, "Usage: /search_candidates <search_run_id>")
@@ -88,18 +123,30 @@ async def search_candidates_command(update: Any, context: Any) -> None:
 
 
 async def promote_search_command(update: Any, context: Any) -> None:
+    if not SEARCH_BOT_ACCESS_ENABLED:
+        await _reply_search_unavailable(update)
+        return
     await _review_search_candidate(update, context, action="promote")
 
 
 async def reject_search_command(update: Any, context: Any) -> None:
+    if not SEARCH_BOT_ACCESS_ENABLED:
+        await _reply_search_unavailable(update)
+        return
     await _review_search_candidate(update, context, action="reject")
 
 
 async def archive_search_command(update: Any, context: Any) -> None:
+    if not SEARCH_BOT_ACCESS_ENABLED:
+        await _reply_search_unavailable(update)
+        return
     await _review_search_candidate(update, context, action="archive")
 
 
 async def convert_search_command(update: Any, context: Any) -> None:
+    if not SEARCH_BOT_ACCESS_ENABLED:
+        await _reply_search_unavailable(update)
+        return
     candidate_id = _first_arg(context)
     if candidate_id is None:
         await _reply(update, "Usage: /convert_search <candidate_id> [seed_group_name]")
@@ -231,6 +278,9 @@ async def _start_search_rerank(update: Any, context: Any, search_run_id: str) ->
 
 
 async def _handle_search_callback(update: Any, context: Any, action: str, parts: list[str]) -> bool:
+    if action in SEARCH_CALLBACK_ACTIONS and not SEARCH_BOT_ACCESS_ENABLED:
+        await _callback_search_unavailable(update)
+        return True
     if action == ACTION_SEARCH_RUN_OPEN and len(parts) == 1:
         await _send_search_run_detail(update, context, parts[0])
         return True

@@ -52,7 +52,7 @@ def test_format_start_lists_seed_first_controls() -> None:
     message = format_start()
 
     assert "Open Discovery" in message
-    assert "Start search or review queued communities" in message
+    assert "Add example communities or review queued communities" in message
     assert "community cards" in message
     assert "Accounts covers health plus add search/add engagement onboarding." in message
     assert "Send @username" in message
@@ -64,7 +64,7 @@ def test_format_start_lists_seed_first_controls() -> None:
 def test_format_help_points_to_buttons_instead_of_command_list() -> None:
     message = format_help()
 
-    assert "Discovery opens search, review, and community follow-up work." in message
+    assert "Discovery opens example imports, review, and community follow-up work." in message
     assert "Accounts opens account health plus add-account actions." in message
     assert "Hidden compatibility commands still work" in message
     assert _slash_commands(message) == []
@@ -73,7 +73,7 @@ def test_format_help_points_to_buttons_instead_of_command_list() -> None:
 def test_format_discovery_help_points_to_button_led_navigation() -> None:
     message = format_discovery_help()
 
-    assert "Start search launches a new discovery run." in message
+    assert "Add examples opens CSV and direct-handle intake guidance." in message
     assert "Review communities opens the candidate-review queue." in message
     assert "Seed groups, channels, candidates, communities, snapshots, members, and jobs continue through the inline cards they open." in message
     assert _slash_commands(message) == []

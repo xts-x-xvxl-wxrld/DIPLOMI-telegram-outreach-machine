@@ -596,6 +596,7 @@ async def test_disc_start_callback_shows_guidance() -> None:
     replies = update.callback_query.message.replies
     assert replies
     combined = " ".join(r["text"] for r in replies).lower()
+    assert "temporarily unavailable" in combined
     assert "csv" in combined or "upload" in combined or "@username" in combined
 
 

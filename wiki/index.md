@@ -42,6 +42,7 @@
 - [Seed CSV Helper](plan/seed-csv-helper.md) - helper for turning Telegram usernames or links into bot-ready seed CSVs
 - [Direct Telegram Entity Intake](plan/direct-telegram-entity-intake.md) - bot text intake for classifying one Telegram handle
 - [Bot Operator Access](plan/bot-operator-access.md) - allowlisted Telegram bot operators and `/whoami` onboarding
+- [Bot Search Temporary Removal](plan/bot-search-temporary-removal.md) - temporarily disable query-driven bot search while keeping CSV/direct discovery intake available
 - [VPS Agent Ops Context](plan/vps-agent-ops.md) - redacted VPS map, helper commands, and staging deploy gates
 - [Community Engagement](plan/community-engagement.md) - human-in-the-loop Telethon joining and public reply workflow
 - [Engagement Embedding Matching](plan/engagement-embedding-matching.md) - cached embedding selector rollout for engagement topic matching

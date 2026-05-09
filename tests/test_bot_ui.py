@@ -686,7 +686,7 @@ def test_discovery_cockpit_markup_button_labels() -> None:
     markup = discovery_cockpit_markup()
     labels = _labels(markup)
 
-    assert any(label.endswith("Start search") for label in labels)
+    assert any(label.endswith("Add examples") for label in labels)
     assert any(label.endswith("Needs attention") for label in labels)
     assert any(label.endswith("Review communities") for label in labels)
     assert any(label.endswith("Watching") for label in labels)

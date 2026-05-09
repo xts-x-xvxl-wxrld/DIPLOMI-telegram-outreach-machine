@@ -11,7 +11,7 @@ Recommended Discovery cockpit:
 
 ```text
 Discovery
-  Start search
+  Add examples
   Needs attention
   Review communities
   Watching
@@ -23,7 +23,7 @@ This cockpit reframes the core search workflow around what the operator is tryin
 
 | Button | Operator meaning | Backend concepts behind it |
 |---|---|---|
-| `Start search` | Add example communities for a new or existing search. | seed groups, seed channels, CSV import, direct Telegram entity intake |
+| `Add examples` | Add example communities through CSV import or direct public-handle intake. | seed groups, seed channels, CSV import, direct Telegram entity intake |
 | `Needs attention` | Show searches or communities that need operator attention before they can move forward. | unresolved seeds, failed seed resolution, failed snapshots, queued/stuck jobs |
 | `Review communities` | Decide which suggested communities should be watched. | candidate communities, seed-group candidate lists, review decisions |
 | `Watching` | Inspect communities already approved for monitoring. | communities with `monitoring` status, snapshot runs, latest snapshots |
@@ -72,7 +72,7 @@ The home card should be action-biased. The `Next:` line should name the most use
 on current state, for example:
 
 ```text
-Next: Start a search with example communities.
+Next: Add example communities.
 Next: Check 3 searches that need attention.
 Next: Review 24 suggested communities.
 Next: Inspect 2 failed jobs.
@@ -106,33 +106,33 @@ The `op:discovery` callback should route to `disc:home` behavior. The existing s
 namespace may remain in place for item-level actions during the transition, but new discovery
 navigation should use `disc:*`.
 
-### Start Search
+### Add Examples
 
-`Start search` should be a small search hub rather than only an upload hint.
+`Add examples` should be a small import hub rather than only an upload hint.
 
 Recommended hub:
 
 ```text
-Start search
-  New search
-  Add examples to existing search
+Add examples
+  CSV upload
+  Direct handle
   All searches
-  CSV format
+  Import help
 ```
 
 Button meanings:
 
 | Button | Operator meaning | Backend concepts behind it |
 |---|---|---|
-| `New search` | Start a discovery set from fresh example communities. | create/import seed group |
-| `Add examples to existing search` | Add more example communities to a known search. | append seed channels to seed group |
+| `CSV upload` | Import one or more example communities into a seed group. | create/import seed group |
+| `Direct handle` | Send one public `@username` or `t.me` link for classification. | direct Telegram entity intake |
 | `All searches` | Browse every search, including searches with no current alert or review queue. | list seed groups |
-| `CSV format` | Show import format and public-link rules. | seed CSV documentation |
+| `Import help` | Show import format and public-link rules. | seed CSV documentation |
 
-The first implementation may keep `New search` and `Add examples to existing search` as guidance
-around the current CSV/direct-intake flow rather than a full multi-step conversation.
+The current bot slice should keep query-driven bot search disabled. `Add examples` is guidance
+around the active CSV/direct-intake flow rather than a re-entry into `/search...` commands.
 
-`Start search` should explain these input paths:
+`Add examples` should explain these input paths:
 
 - upload a CSV with `group_name,channel`
 - send one public `@username` or `t.me` link for direct classification
